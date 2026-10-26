@@ -1,0 +1,755 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:md="using:Nomad.App.Markdown"
+             xmlns:c="using:Nomad.App.Controls"
+             xmlns:inf="using:Nomad.App.Infrastructure"
+             x:Class="Nomad.App.Views.SessionView"
+             x:DataType="vm:SessionViewModel">
+
+  <UserControl.Styles>
+    <!-- +21 / −1 pills -->
+    <Style Selector="Border.pill">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="4,0" />
+      <Setter Property="Height" Value="17" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.pill > TextBlock">
+      <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.pill.add">
+      <Setter Property="Background" Value="{StaticResource DiffAddBgBrush}" />
+    </Style>
+    <Style Selector="Border.pill.add > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource DiffAddBrush}" />
+    </Style>
+    <Style Selector="Border.pill.del">
+      <Setter Property="Background" Value="{StaticResource DiffDelBgBrush}" />
+    </Style>
+    <Style Selector="Border.pill.del > TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource DiffDelBrush}" />
+    </Style>
+
+    <!-- Agent state word -->
+    <Style Selector="TextBlock.state">
+      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.state.running">
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.state.done">
+      <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+    </Style>
+    <Style Selector="TextBlock.state.error">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+    </Style>
+
+    <!-- Mini diff lines in the permission card -->
+    <Style Selector="Border.diffline">
+      <Setter Property="Background" Value="{StaticResource DiffDelBgBrush}" />
+      <Setter Property="Padding" Value="8,1" />
+    </Style>
+    <Style Selector="Border.diffline.added">
+      <Setter Property="Background" Value="{StaticResource DiffAddBgBrush}" />
+    </Style>
+
+    <!-- Chevrons turn down when their line is expanded -->
+    <Style Selector="c|Icon.chev">
+      <Setter Property="RenderTransform" Value="rotate(0deg)" />
+    </Style>
+    <Style Selector="c|Icon.chev.open">
+      <Setter Property="RenderTransform" Value="rotate(90deg)" />
+    </Style>
+
+    <!-- Bypass permissions is a warning colour -->
+    <Style Selector="Button.bypass">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+    </Style>
+    <Style Selector="TextBlock.danger">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+    </Style>
+
+    <!-- Section headers inside menus -->
+    <Style Selector="TextBlock.menuheader">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Margin" Value="8,3,8,3" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- ================================================================ transcript items -->
+  <UserControl.DataTemplates>
+
+    <DataTemplate DataType="{x:Type vm:UserMessageItem}" x:DataType="vm:UserMessageItem">
+      <Grid ColumnDefinitions="*,3*" Margin="0,22,0,6">
+        <Border Grid.Column="1"
+                HorizontalAlignment="Right"
+                Background="{StaticResource BgRaisedBrush}"
+                CornerRadius="10"
+                Padding="12,6,12,7">
+          <SelectableTextBlock Text="{Binding Text}"
+                               TextWrapping="Wrap"
+                               FontSize="{DynamicResource BodyFontSize}"
+                               LineHeight="{DynamicResource BodyLineHeight}"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+        </Border>
+      </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:AssistantTextItem}" x:DataType="vm:AssistantTextItem">
+      <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ThinkingItem}" x:DataType="vm:ThinkingItem">
+      <StackPanel Spacing="6">
+        <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <TextBlock Text="{Binding Label}" FontSize="14" VerticalAlignment="Center" />
+            <c:AnimatedDots IsVisible="{Binding IsStreaming}" FontSize="14" Width="14" VerticalAlignment="Center" />
+            <c:Icon Classes="chev"
+                  Classes.open="{Binding IsExpanded}"
+                  Data="{StaticResource IconChevronRight}"
+                  IsVisible="{Binding !IsStreaming}" />
+          </StackPanel>
+        </Button>
+        <Border IsVisible="{Binding IsExpanded}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="2,0,0,0"
+                Padding="12,0,0,0"
+                Margin="1,0,0,4">
+          <SelectableTextBlock Text="{Binding DisplayText}"
+                               TextWrapping="Wrap"
+                               FontSize="14"
+                               LineHeight="20"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+        </Border>
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ToolGroupItem}" x:DataType="vm:ToolGroupItem">
+      <StackPanel Spacing="2">
+        <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Ring Width="12" Height="12"
+                    StrokeWidth="1.5"
+                    IsSpinning="{Binding IsRunning}"
+                    IsVisible="{Binding IsRunning}"
+                    TrackBrush="#26FFFFFF"
+                    SpinBrush="{StaticResource AccentBrush}"
+                    VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Summary}" FontSize="14" VerticalAlignment="Center" />
+            <Border Classes="pill add" IsVisible="{Binding HasAdded}">
+              <TextBlock Text="{Binding AddedText}" />
+            </Border>
+            <Border Classes="pill del" IsVisible="{Binding HasRemoved}" Margin="-3,0,0,0">
+              <TextBlock Text="{Binding RemovedText}" />
+            </Border>
+            <c:Icon Classes="chev" Classes.open="{Binding IsExpanded}" Data="{StaticResource IconChevronRight}" Margin="-4,0,0,0" />
+          </StackPanel>
+        </Button>
+
+        <ItemsControl ItemsSource="{Binding Calls}" IsVisible="{Binding IsExpanded}" Margin="0,2,0,4">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ToolCallItem">
+              <StackPanel>
+                <Button Theme="{StaticResource FlatButton}"
+                        Command="{Binding ToggleCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        Padding="6,0"
+                        Height="28"
+                        Foreground="{StaticResource TextChromeBrush}">
+                  <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                    <c:Icon
+                          Data="{Binding IconKey, Converter={x:Static inf:IconConverter.Instance}}"
+                          Stroke="{StaticResource TextMutedBrush}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Name}"
+                               FontSize="13"
+                               FontWeight="Medium"
+                               Margin="8,0,10,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding Summary}"
+                               FontSize="13"
+                               Classes.mono="{Binding SummaryIsCode}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <Panel Grid.Column="3" Width="16" Height="16" Margin="8,0,2,0">
+                      <c:Ring Width="12" Height="12"
+                              StrokeWidth="1.5"
+                              IsSpinning="{Binding IsRunning}"
+                              IsVisible="{Binding IsRunning}"
+                              TrackBrush="#26FFFFFF"
+                              SpinBrush="{StaticResource AccentBrush}" />
+                      <c:Icon Data="{StaticResource IconCheck}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                      <c:Icon Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                    </Panel>
+                  </Grid>
+                </Button>
+                <Border IsVisible="{Binding IsExpanded}"
+                        Margin="30,2,0,6"
+                        Background="{StaticResource BgCodeBrush}"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                  <ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,10" Spacing="8">
+                      <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{StaticResource TextChromeBrush}" />
+                      <Border Height="1" Background="{StaticResource BorderBrush}" IsVisible="{Binding HasResult}" />
+                      <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{StaticResource TextSecondaryBrush}" />
+                    </StackPanel>
+                  </ScrollViewer>
+                </Border>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- AskUserQuestion: before the PermissionItem template, which would also match it. -->
+    <DataTemplate DataType="{x:Type vm:QuestionItem}" x:DataType="vm:QuestionItem">
+      <Panel>
+        <!-- A star column capped at 480: as wide as the original's card, narrower only in a narrow window. -->
+        <Grid IsVisible="{Binding IsPending}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MaxWidth="480" />
+          </Grid.ColumnDefinitions>
+          <Border Margin="0,8"
+                  Background="{StaticResource BgMainBrush}"
+                  BorderBrush="{StaticResource BorderCardBrush}"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,10,12,12">
+            <StackPanel Spacing="12">
+              <ItemsControl ItemsSource="{Binding Questions}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="16" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:QuestionEntry">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="{Binding Question}"
+                                 FontSize="14"
+                                 FontWeight="SemiBold"
+                                 LineHeight="20"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,0,2"
+                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="13" />
+                      <ItemsControl ItemsSource="{Binding Options}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:QuestionOption">
+                            <Button Theme="{StaticResource OptionButton}"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Command="{Binding PickCommand}">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                  <TextBlock Text="{Binding Label}" FontSize="14" TextWrapping="Wrap" />
+                                  <TextBlock Text="{Binding Description}"
+                                             IsVisible="{Binding HasDescription}"
+                                             Classes="muted"
+                                             FontSize="13"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                                <c:Icon Grid.Column="1"
+                                        Data="{StaticResource IconCheck}"
+                                        IsVisible="{Binding IsSelected}"
+                                        Size="14"
+                                        VerticalAlignment="Top"
+                                        Margin="10,3,0,0" />
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Border Background="{StaticResource BgInputBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="7"
+                              Height="32"
+                              Padding="8,0"
+                              Margin="0,4,0,0">
+                        <TextBox Theme="{StaticResource BareTextBox}"
+                                 Text="{Binding OtherText}"
+                                 Watermark="Other answer…"
+                                 VerticalAlignment="Center"
+                                 FontSize="14"
+                                 KeyDown="OnQuestionOtherKeyDown" />
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Theme="{StaticResource GhostButton}" Command="{Binding DenyCommand}" ToolTip.Tip="Esc">
+                  <TextBlock Text="Skip" />
+                </Button>
+                <Button Theme="{StaticResource PrimaryButton}" Command="{Binding AllowCommand}" IsEnabled="{Binding CanSubmit}" ToolTip.Tip="Enter">
+                  <TextBlock Text="Submit" />
+                </Button>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+      </Panel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:PermissionItem}" x:DataType="vm:PermissionItem">
+      <Panel>
+        <Border IsVisible="{Binding IsPending}"
+                Margin="0,8"
+                Background="{StaticResource BgRaisedBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="14">
+          <StackPanel Spacing="10">
+            <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="14" />
+            <Border IsVisible="{Binding DetailIsCode}"
+                    Background="{StaticResource BgCodeBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="10,7">
+              <SelectableTextBlock Text="{Binding Detail}" Classes="mono" TextWrapping="Wrap" Foreground="{StaticResource TextPrimaryBrush}" />
+            </Border>
+            <SelectableTextBlock Text="{Binding Detail}"
+                                 IsVisible="{Binding !DetailIsCode}"
+                                 TextWrapping="Wrap"
+                                 FontSize="14"
+                                 Foreground="{StaticResource TextChromeBrush}" />
+            <TextBlock Text="{Binding Description}"
+                       IsVisible="{Binding HasDescription}"
+                       Classes="muted"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
+            <Border IsVisible="{Binding HasDiff}" CornerRadius="6" ClipToBounds="True">
+              <ItemsControl ItemsSource="{Binding DiffLines}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:DiffLine">
+                    <Border Classes="diffline" Classes.added="{Binding IsAdded}">
+                      <TextBlock Text="{Binding Text}" Classes="mono" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+              <Button Theme="{StaticResource GhostButton}" Classes="danger" Command="{Binding DenyCommand}" ToolTip.Tip="Esc">
+                <TextBlock Text="Deny" />
+              </Button>
+              <Button Theme="{StaticResource SecondaryButton}" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}">
+                <TextBlock Text="Allow for session" />
+              </Button>
+              <Button Theme="{StaticResource PrimaryButton}" Command="{Binding AllowCommand}" ToolTip.Tip="Enter">
+                <TextBlock Text="Allow" />
+              </Button>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" />
+      </Panel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:ErrorItem}" x:DataType="vm:ErrorItem">
+      <Border Background="{StaticResource DangerSubtleBrush}"
+              BorderBrush="{StaticResource DangerBrush}"
+              BorderThickness="2,0,0,0"
+              CornerRadius="4"
+              Padding="12,8">
+        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" />
+      </Border>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:NoticeItem}" x:DataType="vm:NoticeItem">
+      <TextBlock Text="{Binding Text}" Classes="muted" FontSize="14" TextWrapping="Wrap" />
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <!-- ================================================================ layout -->
+  <Grid RowDefinitions="*,Auto,Auto,Auto">
+
+    <!-- Transcript -->
+    <Panel Grid.Row="0">
+      <ScrollViewer Name="Scroller"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <ItemsControl Name="Transcript"
+                      ItemsSource="{Binding Items}"
+                      MaxWidth="{DynamicResource ColumnMaxWidth}"
+                      Margin="32,14,32,20"
+                      Padding="14,0,10,0">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="14" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- New session: recent folders card -->
+      <Border IsVisible="{Binding IsNew}"
+              Width="320"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Background="{StaticResource BgMainBrush}"
+              BorderBrush="{StaticResource BorderCardBrush}"
+              BorderThickness="1"
+              CornerRadius="10"
+              ClipToBounds="True">
+        <StackPanel>
+          <ItemsControl ItemsSource="{Binding CardFolders}" Margin="0,2,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MenuOption">
+                <Button Theme="{StaticResource CardRowButton}"
+                        CornerRadius="0"
+                        Padding="12,0"
+                        Click="OnFolderOptionClick"
+                        ToolTip.Tip="{Binding ToolTip}">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <c:Icon Size="13" Data="{StaticResource IconFolder}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Label}"
+                               Margin="8,0,0,0"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <c:Icon Grid.Column="2"
+                          Size="13"
+                          Data="{StaticResource IconCheck}"
+                          Stroke="{StaticResource CheckBrush}"
+                          IsVisible="{Binding IsSelected}" />
+                  </Grid>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Height="1" Background="{StaticResource BorderCardBrush}" Margin="0,2,0,0" IsVisible="{Binding HasCardFolders}" />
+          <Button Theme="{StaticResource CardRowButton}" CornerRadius="0" Height="40" Padding="12,0" Click="OnOpenFolderClick">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <c:Icon Size="13" Data="{StaticResource IconFolderOpen}" />
+              <TextBlock Text="Open folder…" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Border>
+
+      <c:Ring Width="22" Height="22"
+              IsSpinning="{Binding IsLoadingHistory}"
+              IsVisible="{Binding IsLoadingHistory}"
+              TrackBrush="#1FFFFFFF"
+              SpinBrush="{StaticResource TextMutedBrush}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center" />
+
+      <Button Name="ScrollDownButton"
+              Theme="{StaticResource RoundButton}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Bottom"
+              Margin="0,0,0,12"
+              IsVisible="False"
+              Click="OnScrollDownClick"
+              ToolTip.Tip="Scroll to bottom">
+        <c:Icon Data="{StaticResource IconArrowDown}" />
+      </Button>
+    </Panel>
+
+    <!-- Agent status line -->
+    <Border Grid.Row="1"
+            IsVisible="{Binding HasRun}"
+            MaxWidth="{DynamicResource ColumnMaxWidth}"
+            Margin="32,0,32,6"
+            Height="40"
+            CornerRadius="8"
+            Background="{StaticResource BgRaisedBrush}">
+      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="16,0,8,0">
+        <TextBlock Text="AGENT"
+                   Foreground="{StaticResource AccentBrush}"
+                   FontWeight="Medium"
+                   FontSize="14"
+                   LetterSpacing="0.3"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1"
+                   Classes="state"
+                   Classes.running="{Binding IsStateRunning}"
+                   Classes.done="{Binding IsStateDone}"
+                   Classes.error="{Binding IsStateError}"
+                   Text="{Binding StateText}"
+                   Margin="7,0,0,0"
+                   FontSize="14"
+                   VerticalAlignment="Center" />
+        <c:AnimatedDots Grid.Column="2"
+                        IsVisible="{Binding IsStateRunning}"
+                        Foreground="{StaticResource AccentBrush}"
+                        FontSize="14"
+                        Width="14"
+                        VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3"
+                   Text="{Binding AgentMetaLine}"
+                   Classes="muted"
+                   FontSize="13.5"
+                   Margin="6,0,8,0"
+                   TextTrimming="CharacterEllipsis"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="4"
+                Theme="{StaticResource SquareButton}"
+                Command="{Binding StopCommand}"
+                IsVisible="{Binding IsTurnRunning}"
+                ToolTip.Tip="Interrupt (Esc)">
+          <c:Icon IsFilled="True" Size="12" Data="{StaticResource IconStopFilled}" />
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- Composer -->
+    <Panel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0">
+      <Border Background="{StaticResource BgInputBrush}"
+              BorderBrush="{StaticResource BorderInputBrush}"
+              BorderThickness="1"
+              CornerRadius="10"
+              MinHeight="44">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Button Name="PlusButton"
+                  Theme="{StaticResource IconButton}"
+                  Margin="7,0,0,7"
+                  VerticalAlignment="Bottom"
+                  ToolTip.Tip="More">
+            <c:Icon Data="{StaticResource IconPlus}" />
+            <Button.Flyout>
+              <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+                <StackPanel MinWidth="200">
+                  <Button Theme="{StaticResource MenuItemButton}" Click="OnOpenFolderClick" IsEnabled="{Binding IsNew}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <c:Icon Size="13" Data="{StaticResource IconFolderOpen}" />
+                      <TextBlock Text="Open folder…" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button Theme="{StaticResource MenuItemButton}" Click="OnSettingsClick">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <c:Icon Size="13" Data="{StaticResource IconGear}" />
+                      <TextBlock Text="Settings" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+
+          <TextBox Name="Composer"
+                   Grid.Column="1"
+                   Theme="{StaticResource BareTextBox}"
+                   Text="{Binding ComposerText}"
+                   Watermark="{Binding ComposerPlaceholder}"
+                   AcceptsReturn="True"
+                   TextWrapping="Wrap"
+                   FontSize="15"
+                   MaxHeight="190"
+                   Margin="6,11,8,11"
+                   VerticalContentAlignment="Top"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto" />
+
+          <Panel Grid.Column="2" Margin="0,0,8,7" VerticalAlignment="Bottom">
+            <Button Theme="{StaticResource SendButton}"
+                    Command="{Binding SendCommand}"
+                    IsVisible="{Binding ShowSendButton}"
+                    ToolTip.Tip="Send (Enter)">
+              <c:Icon Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+            </Button>
+            <Button Theme="{StaticResource SendButton}"
+                    Classes="stop"
+                    Command="{Binding StopCommand}"
+                    IsVisible="{Binding IsTurnRunning}"
+                    ToolTip.Tip="Stop (Esc)">
+              <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
+            </Button>
+          </Panel>
+        </Grid>
+      </Border>
+      <c:PixelCritter HorizontalAlignment="Right"
+                      VerticalAlignment="Top"
+                      Margin="0,-30,14,0"
+                      IsVisible="{Binding IsNew}"
+                      IsHitTestVisible="False" />
+    </Panel>
+
+    <!-- Status row -->
+    <Grid Grid.Row="3"
+          Height="44"
+          MaxWidth="{DynamicResource ColumnMaxWidth}"
+          Margin="32,0"
+          ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+
+      <Button Name="FolderChip"
+              Theme="{StaticResource ChipButton}"
+              Margin="9,0,0,0"
+              Click="OnFolderChipClick"
+              ToolTip.Tip="{Binding FolderToolTip}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <c:Icon Size="13" Data="{StaticResource IconFolder}" />
+          <TextBlock Text="{Binding FolderName}" VerticalAlignment="Center" />
+        </StackPanel>
+        <FlyoutBase.AttachedFlyout>
+          <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+            <StackPanel Width="250">
+              <TextBox Theme="{StaticResource BareTextBox}"
+                       Watermark="Search folders…"
+                       Text="{Binding FolderFilter}"
+                       Height="26"
+                       Margin="8,2,8,4"
+                       FontSize="14" />
+              <Border Height="1" Background="{StaticResource BorderBrush}" Margin="-5,0,-5,4" />
+              <Button Theme="{StaticResource MenuItemButton}" Click="OnNoFolderClick" ToolTip.Tip="Claude works in a new scratch folder">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="No folder" />
+                  <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
+                </Grid>
+              </Button>
+              <Border Classes="rule" />
+              <TextBlock Text="Recent" Classes="menuheader" />
+              <ItemsControl ItemsSource="{Binding MenuFolders}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MenuOption">
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnFolderOptionClick" ToolTip.Tip="{Binding ToolTip}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="rule" />
+              <Button Theme="{StaticResource MenuItemButton}" Click="OnOpenFolderClick">
+                <TextBlock Text="Open folder…" />
+              </Button>
+            </StackPanel>
+          </Flyout>
+        </FlyoutBase.AttachedFlyout>
+      </Button>
+
+      <Button Name="ModeChip"
+              Grid.Column="1"
+              Theme="{StaticResource ChipButton}"
+              Classes.bypass="{Binding IsBypass}"
+              Margin="4,0,0,0">
+        <TextBlock Text="{Binding ModeName}" VerticalAlignment="Center" />
+        <Button.Flyout>
+          <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+            <StackPanel Width="310">
+              <TextBlock Text="Mode" Classes="menuheader" />
+              <ItemsControl ItemsSource="{Binding ModeOptions}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MenuOption">
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModeOptionClick" Padding="8,3">
+                      <Grid ColumnDefinitions="*,Auto,Auto">
+                        <StackPanel>
+                          <TextBlock Text="{Binding Label}" Classes.danger="{Binding IsDangerSelected}" />
+                          <TextBlock Text="{Binding Description}" Classes="muted" FontSize="12.5" FontWeight="Normal" Margin="0,1,0,0" />
+                        </StackPanel>
+                        <c:Icon Grid.Column="1"
+                              Size="13"
+                              Data="{StaticResource IconCheck}"
+                              Stroke="{StaticResource CheckBrush}"
+                              IsVisible="{Binding IsSelected}"
+                              VerticalAlignment="Top"
+                              Margin="8,1,0,0" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding ShortcutText}"
+                                   Classes="hint"
+                                   VerticalAlignment="Top"
+                                   Margin="8,1,0,0" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+
+      <Button Name="ModelChip" Grid.Column="3" Theme="{StaticResource ChipButton}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{Binding ModelName}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding EffortName}" IsVisible="{Binding HasEffort}" Classes="muted" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button.Flyout>
+          <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
+            <StackPanel Width="172">
+              <TextBlock Text="Model · this session" Classes="menuheader" />
+              <ItemsControl ItemsSource="{Binding ModelOptions}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MenuOption">
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Label}" />
+                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                        <TextBlock Grid.Column="1" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="rule" />
+              <Button Theme="{StaticResource MenuItemButton}" Click="OnEffortRowClick">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBlock Text="Effort" />
+                  <TextBlock Grid.Column="1" Text="{Binding EffortLabel}" Classes="hint" FontSize="13" Margin="0,0,4,0" />
+                  <c:Icon Grid.Column="2" Size="13" Classes="chev" Classes.open="{Binding IsEffortExpanded}" Data="{StaticResource IconChevronRight}" />
+                </Grid>
+              </Button>
+              <ItemsControl ItemsSource="{Binding EffortOptions}" IsVisible="{Binding IsEffortExpanded}" Margin="10,0,0,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MenuOption">
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnEffortOptionClick" FontWeight="Normal">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Label}" />
+                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="rule" />
+              <TextBlock Text="Fast mode" Classes="menuheader" />
+              <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="Enable fast mode" />
+                  <Border Grid.Column="1" Classes="switch" Classes.on="{Binding FastMode}" VerticalAlignment="Center">
+                    <Ellipse />
+                  </Border>
+                </Grid>
+              </Button>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+
+      <c:Ring Grid.Column="4"
+              Width="14" Height="14"
+              Margin="7,0,14,0"
+              StrokeWidth="1.8"
+              IsSpinning="{Binding IsTurnRunning}"
+              Fraction="{Binding ContextFraction}"
+              TrackBrush="#33FFFFFF"
+              ArcBrush="{StaticResource RingBrush}"
+              SpinBrush="{StaticResource RingBrush}"
+              VerticalAlignment="Center"
+              ToolTip.Tip="{Binding ContextToolTip}" />
+    </Grid>
+  </Grid>
+</UserControl>

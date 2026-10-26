@@ -1,9 +1,9 @@
-# Klodi
+# Nomad.ai
 
 A lightweight native Windows client for Claude Code sessions, written in C# on .NET 10 and
 Avalonia 11 and published with NativeAOT.
 
-Klodi does not talk to the API itself. Each session starts the installed `claude` CLI as a child
+Nomad.ai does not talk to the API itself. Each session starts the installed `claude` CLI as a child
 process and drives it over the stream-json protocol on stdin/stdout. The CLI's sign-in, settings,
 hooks, MCP servers and session storage are all used as they are. The look follows the Code tab of
 the Claude desktop app from before its late-2026 restyle (see `DESIGN.md`).
@@ -12,22 +12,22 @@ the Claude desktop app from before its late-2026 restyle (see `DESIGN.md`).
 
 - Windows 10 or 11, x64.
 - The Claude Code CLI, installed and signed in (`claude` on `PATH`, or its full path set under
-  Settings → Claude Code). Klodi never signs in for you; run `claude` once in a terminal first.
+  Settings → Claude Code). Nomad.ai never signs in for you; run `claude` once in a terminal first.
 - To build: the .NET 10 SDK. A NativeAOT publish also needs Visual Studio's C++ build tools
   ("Desktop development with C++").
 
 ## Run and build
 
 ```powershell
-dotnet run --project Klodi.App          # debug build
-dotnet test Klodi.Core.Tests            # protocol parsing and session title tests
+dotnet run --project Nomad.App          # debug build
+dotnet test Nomad.Core.Tests            # protocol parsing and session title tests
 ```
 
 Publish a single native executable:
 
 ```powershell
-dotnet publish Klodi.App -c Release -r win-x64
-# -> Klodi.App\bin\Release\net10.0\win-x64\publish\Klodi.exe
+dotnet publish Nomad.App -c Release -r win-x64
+# -> Nomad.App\bin\Release\net10.0\win-x64\publish\Nomad.exe
 ```
 
 The AOT linker finds the C++ tools through `vswhere.exe`. If the publish fails with "vswhere is not
@@ -60,7 +60,7 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
 
 ### Memory and rendering
 
-Klodi draws with the GPU through ANGLE over Direct3D 11, which is far faster than Skia's software
+Nomad.ai draws with the GPU through ANGLE over Direct3D 11, which is far faster than Skia's software
 renderer. It falls back to software rendering only when no GPU is usable. ANGLE costs about 10 MB
 of private working set over software (most of the rest is the shared graphics driver); native
 OpenGL and Vulkan were measured at 2-3x the memory.
@@ -80,18 +80,18 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 
 | Path | Contents |
 |------|----------|
-| `%APPDATA%\Klodi\settings.json` | Klodi settings, recent folders, window placement |
-| `%LOCALAPPDATA%\Klodi\scratch\` | Folders for sessions started with "No folder" |
-| `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Klodi only reads them) |
+| `%APPDATA%\Nomad\settings.json` | Nomad.ai settings, recent folders, window placement |
+| `%LOCALAPPDATA%\Nomad\scratch\` | Folders for sessions started with "No folder" |
+| `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Nomad.ai only reads them) |
 
 ## Project layout
 
 | Project | Role |
 |---------|------|
-| `Klodi.Core` | CLI process host (Job object, so children die with Klodi), stream-json protocol records with source-generated JSON, `IAgentBackend` / `ClaudeCodeBackend`, session store and history reader, settings |
-| `Klodi.App` | Avalonia UI: frameless window, sidebar, session view, own Markdig-to-Avalonia renderer, menus, settings dialog |
-| `Klodi.Probe` | Console test bench that runs Klodi.Core against the real CLI |
-| `Klodi.Core.Tests` | A few xUnit tests over captured stream-json fixtures and session titles |
+| `Nomad.Core` | CLI process host (Job object, so children die with Nomad.ai), stream-json protocol records with source-generated JSON, `IAgentBackend` / `ClaudeCodeBackend`, session store and history reader, settings |
+| `Nomad.App` | Avalonia UI: frameless window, sidebar, session view, own Markdig-to-Avalonia renderer, menus, settings dialog |
+| `Nomad.Probe` | Console test bench that runs Nomad.Core against the real CLI |
+| `Nomad.Core.Tests` | A few xUnit tests over captured stream-json fixtures and session titles |
 
 ## Probe
 
@@ -99,7 +99,7 @@ The probe drives the real CLI and prints every event. Without `--full` it runs t
 tool set and no MCP servers or skills, so test turns stay cheap.
 
 ```powershell
-dotnet run --project Klodi.Probe -- <scenario> --cwd <folder> [--model claude-haiku-5-5] [--out transcript.jsonl] [--full]
+dotnet run --project Nomad.Probe -- <scenario> --cwd <folder> [--model claude-haiku-5-5] [--out transcript.jsonl] [--full]
 ```
 
 Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `controls`, `title`,
@@ -107,7 +107,7 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 
 ## Development flags
 
-`Klodi.exe` accepts a few flags for scripted checks and screenshots:
+`Nomad.exe` accepts a few flags for scripted checks and screenshots:
 
 | Flag | Effect |
 |------|--------|
@@ -131,6 +131,6 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 Example:
 
 ```powershell
-Klodi.exe --dev-cwd C:\temp\k --dev-model claude-haiku-5-5 --dev-lean `
+Nomad.exe --dev-cwd C:\temp\k --dev-model claude-haiku-5-5 --dev-lean `
   --dev-prompt "Reply with exactly: pong" --dev-wait-turn --dev-after 60 --dev-screenshot C:\temp\pong.png
 ```

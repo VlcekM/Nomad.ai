@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
-    <Product>Klodi</Product>
+    <Product>Nomad.ai</Product>
     <Version>0.1.0</Version>
     <Copyright>Martin Vlček</Copyright>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
