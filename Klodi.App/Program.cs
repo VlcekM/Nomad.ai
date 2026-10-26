@@ -10,13 +10,10 @@ internal static class Program
     /// <summary>Command-line test hooks (all inactive in normal use).</summary>
     public static DevOptions Dev { get; private set; } = new();
 
-    /// <summary>Settings, loaded before Avalonia starts because they choose the renderer.</summary>
+    /// <summary>Settings, loaded before Avalonia starts.</summary>
     public static KlodiSettings Settings { get; private set; } = new();
 
     public static string SettingsPath { get; private set; } = SettingsStore.DefaultPath;
-
-    /// <summary>The renderer this run uses (the setting may change later; it applies after a restart).</summary>
-    public static bool HardwareAccelerated { get; private set; }
 
     [STAThread]
     public static int Main(string[] args)
@@ -24,7 +21,6 @@ internal static class Program
         Dev = DevOptions.Parse(args);
         SettingsPath = Dev.SettingsPath ?? SettingsStore.DefaultPath;
         Settings = SettingsStore.Load(SettingsPath);
-        HardwareAccelerated = Settings.HardwareAcceleration;
         try
         {
             return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
@@ -43,11 +39,9 @@ internal static class Program
             .With(new Win32PlatformOptions
             {
                 OverlayPopups = true,
-                // Software rendering unless the user turns the GPU on: for this mostly-text window it
-                // costs little CPU and saves roughly 80 MB that ANGLE and the Direct3D driver commit.
-                RenderingMode = HardwareAccelerated
-                    ? [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software]
-                    : [Win32RenderingMode.Software],
+                // GPU through ANGLE (Direct3D 11): far faster than Skia's software renderer. Native
+                // OpenGL and Vulkan commit 2-3x more memory. Software only when no GPU is usable.
+                RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software],
             })
             .WithInterFont()
             .LogToTrace();

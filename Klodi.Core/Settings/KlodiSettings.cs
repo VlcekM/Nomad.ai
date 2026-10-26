@@ -16,12 +16,6 @@ public sealed class KlodiSettings
     /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
 
-    /// <summary>
-    /// Draw the window with the GPU (ANGLE over Direct3D). Off uses Skia's software renderer, which
-    /// needs far less memory for a text UI. Read at startup, so a change applies after a restart.
-    /// </summary>
-    public bool HardwareAcceleration { get; set; }
-
     // Claude Code
     public string CliPath { get; set; } = "claude";
     public string DefaultModel { get; set; } = "claude-opus-5-5";

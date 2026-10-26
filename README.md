@@ -55,15 +55,15 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   (Opus 5.5, Fable 5.1, Sonnet 5.5, Haiku 5.5) with effort and fast mode, and a ring showing how
   much of the context window the session uses.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, transcript text size and
-  width, hardware acceleration, display name; CLI path and the default model, mode and effort for
+  width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once.
 
 ### Memory and rendering
 
-Klodi draws with Skia's software renderer by default. For a window that is mostly text this costs
-little CPU and keeps memory low; Settings → General → Hardware acceleration switches to the GPU
-(ANGLE over Direct3D 11), which is smoother on very large screens but commits roughly 80 MB more.
-The renderer is chosen at startup, so the switch applies after a restart.
+Klodi draws with the GPU through ANGLE over Direct3D 11, which is far faster than Skia's software
+renderer. It falls back to software rendering only when no GPU is usable. ANGLE costs about 10 MB
+of private working set over software (most of the rest is the shared graphics driver); native
+OpenGL and Vulkan were measured at 2-3x the memory.
 
 ### Keyboard
 
