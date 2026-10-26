@@ -154,6 +154,30 @@
                   </StackPanel>
                 </Border>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Hardware acceleration" Classes="rowlabel" />
+                  <TextBlock Text="Draw the window with the GPU. Smoother on very large screens, but uses about 80 MB more memory."
+                             Classes="rowhint"
+                             TextWrapping="Wrap" />
+                  <TextBlock Text="Restart Klodi to apply this change."
+                             IsVisible="{Binding RestartNeeded}"
+                             Classes="rowhint"
+                             Foreground="{StaticResource AccentBrush}"
+                             Margin="0,2,0,0" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleHardwareAccelerationCommand}">
+                  <Border Classes="switch" Classes.on="{Binding HardwareAcceleration}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
 
               <TextBlock Text="Account" Classes="pagetitle" Margin="0,40,0,10" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">

@@ -33,6 +33,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         TranscriptWidth = s.TranscriptWidth;
         CliPath = s.CliPath;
         DisplayName = s.DisplayName ?? "";
+        HardwareAcceleration = s.HardwareAcceleration;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
@@ -85,6 +86,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string DisplayName { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RestartNeeded))]
+    public partial bool HardwareAcceleration { get; set; }
+
+    /// <summary>The renderer is chosen at startup: say so when the setting differs from this run.</summary>
+    public bool RestartNeeded => HardwareAcceleration != Program.HardwareAccelerated;
+
+    [RelayCommand]
+    private void ToggleHardwareAcceleration() => HardwareAcceleration = !HardwareAcceleration;
+
     public bool IsTextSmall { get => TextSize == "Small"; set => SetIf(value, () => TextSize = "Small"); }
 
     public bool IsTextMedium { get => TextSize is not ("Small" or "Large"); set => SetIf(value, () => TextSize = "Medium"); }
@@ -104,6 +115,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnTextSizeChanged(string value) => Apply(s => s.TextSize = value, appearance: true);
 
     partial void OnTranscriptWidthChanged(string value) => Apply(s => s.TranscriptWidth = value, appearance: true);
+
+    partial void OnHardwareAccelerationChanged(bool value) => Apply(s => s.HardwareAcceleration = value, appearance: false);
 
     partial void OnDisplayNameChanged(string value)
     {

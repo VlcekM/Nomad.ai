@@ -20,12 +20,10 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var dev = Program.Dev;
-            var settingsPath = dev.SettingsPath ?? SettingsStore.DefaultPath;
-            var settings = SettingsStore.Load(settingsPath);
+            var settings = Program.Settings;
             ApplyAppearance(settings);
 
-            var vm = new MainViewModel(settings, settingsPath, dev);
+            var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
             desktop.MainWindow = new MainWindow(vm);
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) => ClaudeCliProcess.KillAllOwned();

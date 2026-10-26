@@ -67,6 +67,27 @@
   </Style>
 
   <!-- Separators inside menus and lists -->
+  <!-- On/off switch (fast mode, hardware acceleration): a pill with a sliding knob. -->
+  <Style Selector="Border.switch">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Background" Value="#4A4A48" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+  <Style Selector="Border.switch.on">
+    <Setter Property="Background" Value="{StaticResource RingBrush}" />
+  </Style>
+  <Style Selector="Border.switch > Ellipse">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Fill" Value="White" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Border.switch.on > Ellipse">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+
   <Style Selector="Border.rule">
     <Setter Property="Height" Value="1" />
     <Setter Property="Background" Value="{StaticResource BorderBrush}" />
