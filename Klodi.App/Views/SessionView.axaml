@@ -147,7 +147,7 @@
                 BorderThickness="2,0,0,0"
                 Padding="12,0,0,0"
                 Margin="1,0,0,4">
-          <SelectableTextBlock Text="{Binding Text}"
+          <SelectableTextBlock Text="{Binding DisplayText}"
                                TextWrapping="Wrap"
                                FontSize="14"
                                LineHeight="20"

@@ -53,8 +53,11 @@ public sealed partial class ThinkingItem : TranscriptItem
     public int BlockIndex { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasText))]
+    [NotifyPropertyChangedFor(nameof(HasText), nameof(DisplayText))]
     public partial string Text { get; set; }
+
+    /// <summary>The text without the trailing blank lines summarized thinking ends with.</summary>
+    public string DisplayText => Text.Trim();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Label))]

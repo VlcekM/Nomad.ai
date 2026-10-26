@@ -473,6 +473,11 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             group.IsExpanded = true;
         }
+
+        foreach (var thinking in Items.OfType<ThinkingItem>())
+        {
+            thinking.IsExpanded = true;
+        }
     }
 
     // ------------------------------------------------------------------ history
@@ -551,6 +556,7 @@ public sealed partial class SessionViewModel : ObservableObject
             Model = Model,
             PermissionMode = PermissionMode,
             Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
+            ThinkingDisplay = "summarized",
             FastMode = FastMode,
             ResumeSessionId = SessionId,
             CliPath = _main.Settings.CliPath,
