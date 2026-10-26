@@ -26,6 +26,10 @@ public sealed class KlodiSettings
     /// <summary>Empty = the CLI's default; otherwise low | medium | high.</summary>
     public string DefaultEffort { get; set; } = "";
 
+    // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
+    public string? DisplayName { get; set; }
+    public string? LastPlan { get; set; }
+
     // Window and session state
     public bool SidebarCollapsed { get; set; }
     public List<string> RecentFolders { get; set; } = [];
