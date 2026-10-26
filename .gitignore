@@ -1,2 +1,20 @@
 # Reference screenshots of the original app: local only, never committed
 docs/reference/
+
+# Build output
+bin/
+obj/
+artifacts/
+publish/
+TestResults/
+*.binlog
+
+# IDE state
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+
+# Local probe work folders
+.probe/

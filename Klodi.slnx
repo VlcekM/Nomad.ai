@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Klodi.App/Klodi.App.csproj" />
+  <Project Path="Klodi.Core.Tests/Klodi.Core.Tests.csproj" />
+  <Project Path="Klodi.Core/Klodi.Core.csproj" />
+  <Project Path="Klodi.Probe/Klodi.Probe.csproj" />
+</Solution>
