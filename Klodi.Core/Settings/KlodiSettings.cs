@@ -13,7 +13,7 @@ public sealed class KlodiSettings
     /// <summary>Small | Medium | Large (transcript body 14 / 15 / 16 px).</summary>
     public string TextSize { get; set; } = "Medium";
 
-    /// <summary>Narrow | Medium | Wide (720 / 920 / 1160 px).</summary>
+    /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
 
     // Claude Code
@@ -23,8 +23,8 @@ public sealed class KlodiSettings
     /// <summary>default | acceptEdits | plan | bypassPermissions.</summary>
     public string DefaultPermissionMode { get; set; } = "default";
 
-    /// <summary>Empty = the CLI's default; otherwise low | medium | high.</summary>
-    public string DefaultEffort { get; set; } = "";
+    /// <summary>low | medium | high | xhigh | max; empty = leave it to the CLI. Medium as in the original app.</summary>
+    public string DefaultEffort { get; set; } = "medium";
 
     // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
     public string? DisplayName { get; set; }

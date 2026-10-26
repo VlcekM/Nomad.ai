@@ -250,6 +250,17 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return response?.Subtype == "success";
     }
 
+    public async Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default)
+    {
+        var payload = new OutgoingControlPayload { Subtype = "generate_session_title", Description = description, Persist = persist };
+        var response = await SendControlAsync(payload, cancellationToken, TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+        return response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object } &&
+            response.Response.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(title.GetString())
+            ? title.GetString()!.Trim()
+            : null;
+    }
+
     public async Task StopAsync()
     {
         _stopping = true;
@@ -298,7 +309,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         }
     }
 
-    private async Task<ControlResponseBody?> SendControlAsync(OutgoingControlPayload payload, CancellationToken cancellationToken)
+    private async Task<ControlResponseBody?> SendControlAsync(OutgoingControlPayload payload, CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
         var cli = _cli;
         if (cli is not { IsRunning: true })
@@ -312,7 +323,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         try
         {
             await WriteAsync(cli, CliProtocol.ControlRequest(requestId, payload), cancellationToken).ConfigureAwait(false);
-            var finished = await Task.WhenAny(tcs.Task, Task.Delay(ControlTimeout, cancellationToken)).ConfigureAwait(false);
+            var finished = await Task.WhenAny(tcs.Task, Task.Delay(timeout ?? ControlTimeout, cancellationToken)).ConfigureAwait(false);
             return finished == tcs.Task ? await tcs.Task.ConfigureAwait(false) : null;
         }
         catch (InvalidOperationException)

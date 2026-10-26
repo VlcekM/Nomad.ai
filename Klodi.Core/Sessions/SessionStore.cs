@@ -214,6 +214,7 @@ public sealed class SessionStore
     {
         private string? _firstPrompt;
         private string? _customTitle;
+        private string? _aiTitle;
         private string? _summary;
 
         public string? SessionId { get; private set; }
@@ -222,6 +223,7 @@ public sealed class SessionStore
 
         public string? Title =>
             !string.IsNullOrWhiteSpace(_customTitle) ? SessionTitles.Shorten(_customTitle) :
+            !string.IsNullOrWhiteSpace(_aiTitle) ? SessionTitles.Shorten(_aiTitle) :
             !string.IsNullOrWhiteSpace(_summary) ? SessionTitles.Shorten(_summary) :
             _firstPrompt is not null ? SessionTitles.Shorten(_firstPrompt) : null;
 
@@ -249,6 +251,9 @@ public sealed class SessionStore
                 case "custom-title" when !string.IsNullOrWhiteSpace(record.CustomTitle):
                     _customTitle = record.CustomTitle;
                     break;
+                case "ai-title" when !string.IsNullOrWhiteSpace(record.AiTitle):
+                    _aiTitle = record.AiTitle;
+                    break;
                 case "summary" when !string.IsNullOrWhiteSpace(record.Summary):
                     _summary ??= record.Summary;
                     break;
@@ -261,12 +266,16 @@ public sealed class SessionStore
         public void AddTail(string line)
         {
             // Titles are re-appended as the session goes on; the last one wins.
-            if (line.Contains("\"custom-title\"", StringComparison.Ordinal))
+            if (line.Contains("\"custom-title\"", StringComparison.Ordinal) || line.Contains("\"ai-title\"", StringComparison.Ordinal))
             {
                 var record = TranscriptRecord.Parse(line);
                 if (record is { Type: "custom-title" } && !string.IsNullOrWhiteSpace(record.CustomTitle))
                 {
                     _customTitle = record.CustomTitle;
+                }
+                else if (record is { Type: "ai-title" } && !string.IsNullOrWhiteSpace(record.AiTitle))
+                {
+                    _aiTitle = record.AiTitle;
                 }
             }
         }
@@ -274,6 +283,7 @@ public sealed class SessionStore
         private bool MightMatter(string line) =>
             Cwd is null || _firstPrompt is null ||
             line.Contains("\"custom-title\"", StringComparison.Ordinal) ||
+            line.Contains("\"ai-title\"", StringComparison.Ordinal) ||
             line.Contains("\"summary\"", StringComparison.Ordinal);
     }
 

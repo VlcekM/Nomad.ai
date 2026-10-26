@@ -56,6 +56,7 @@ internal static class Program
                 "interrupt" => await InterruptAsync(cwd),
                 "multiturn" => await MultiTurnAsync(cwd),
                 "controls" => await ControlsAsync(cwd),
+                "title" => await TitleAsync(cwd),
                 "sessions" => Sessions(),
                 "history" => History(file ?? throw new ArgumentException("history needs a transcript path")),
                 _ => throw new ArgumentException($"unknown scenario {scenario}"),
@@ -162,6 +163,17 @@ internal static class Program
         Console.WriteLine($"   set_permission_mode acceptEdits={mode} plan={plan} default={back} bypass={bypass}");
         Console.WriteLine($"   set_model={model} apply_flag_settings(effort)={effort}");
         return mode && plan && back && model && effort;
+    }
+
+    // generate_session_title: the short titles the original app shows in the sidebar
+    private static async Task<bool> TitleAsync(string cwd)
+    {
+        await using var probe = await ProbeSession.StartAsync(cwd, null, "g");
+        await Task.Delay(1500);
+        var sw = Stopwatch.StartNew();
+        var title = await probe.Backend.GenerateTitleAsync("Fix the login button colour on the settings page and add a test for it", persist: false);
+        Console.WriteLine($"   generate_session_title in {sw.ElapsedMilliseconds} ms: \"{title}\"");
+        return title is not null;
     }
 
     private static bool Sessions()

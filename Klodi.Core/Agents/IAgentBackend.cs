@@ -37,6 +37,9 @@ public interface IAgentBackend : IAsyncDisposable
 
     Task<bool> SetFastModeAsync(bool enabled, CancellationToken cancellationToken = default);
 
+    /// <summary>Asks the agent for a short session title; <paramref name="persist"/> stores it with the session.</summary>
+    Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default);
+
     /// <summary>Ends the process gracefully (closes stdin), killing it after a grace period.</summary>
     Task StopAsync();
 }

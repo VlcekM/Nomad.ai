@@ -43,6 +43,12 @@ public sealed class OutgoingControlPayload
     [JsonPropertyName("mode")] public string? Mode { get; set; }
     [JsonPropertyName("model")] public string? Model { get; set; }
     [JsonPropertyName("settings")] public FlagSettings? Settings { get; set; }
+
+    /// <summary><c>generate_session_title</c>: what the session is about (the first prompt).</summary>
+    [JsonPropertyName("description")] public string? Description { get; set; }
+
+    /// <summary><c>generate_session_title</c>: also store the title in the transcript.</summary>
+    [JsonPropertyName("persist")] public bool? Persist { get; set; }
 }
 
 /// <summary>Session-scoped settings overlay for <c>apply_flag_settings</c>.</summary>

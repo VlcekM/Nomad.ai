@@ -21,6 +21,23 @@ public class SessionTitleTests
     }
 
     [Fact]
+    public void GeneratedTitleIsUsedWhenThereIsNoCustomTitle()
+    {
+        var lines = File.ReadAllLines(FixturePath("session-titles.jsonl")).Where(l => !l.Contains("\"custom-title\"")).ToArray();
+        var file = Path.Combine(AppContext.BaseDirectory, $"title-{Guid.NewGuid():N}.jsonl");
+        File.WriteAllLines(file, lines);
+        try
+        {
+            var info = new FileInfo(file);
+            Assert.Equal("Fix flaky login test", SessionStore.ReadSummary(file, info.Length, info.LastWriteTimeUtc)?.Title);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
     public void FirstPromptSkipsMetaMarkupAndSidechains()
     {
         var records = File.ReadAllLines(FixturePath("session-titles.jsonl")).Select(TranscriptRecord.Parse).OfType<TranscriptRecord>();
