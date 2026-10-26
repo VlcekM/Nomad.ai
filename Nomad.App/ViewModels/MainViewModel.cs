@@ -20,6 +20,10 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _navigating;
     private CancellationTokenSource? _scanCts;
     private readonly DispatcherTimer _idleTimer;
+    private readonly DispatcherTimer _usageTimer;
+
+    /// <summary>Plan usage limits (the status-row ring's popup).</summary>
+    public UsageViewModel Usage { get; } = new();
 
     /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
     public static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
@@ -44,6 +48,11 @@ public sealed partial class MainViewModel : ObservableObject
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _idleTimer.Tick += (_, _) => SleepIdleSessions();
         _idleTimer.Start();
+
+        _usageTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
+        _usageTimer.Tick += (_, _) => _ = Usage.RefreshAsync();
+        _usageTimer.Start();
+        _ = Usage.RefreshAsync(force: true);
     }
 
     public NomadSettings Settings { get; }
@@ -521,6 +530,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         TurnCompleted?.Invoke(session);
         _ = RefreshSessionsAsync();
+        _ = Usage.RefreshAsync();
     }
 
     public void OnPermissionRequested(SessionViewModel session)
@@ -615,6 +625,7 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task ShutdownAsync()
     {
         _idleTimer.Stop();
+        _usageTimer.Stop();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()));
     }

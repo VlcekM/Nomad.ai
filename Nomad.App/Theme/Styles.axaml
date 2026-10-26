@@ -88,29 +88,6 @@
     <Setter Property="HorizontalAlignment" Value="Right" />
   </Style>
 
-  <!-- Effort slider on the status row: a thin track and a small knob, in the switch's colours. -->
-  <Style Selector="Slider.effort">
-    <Style.Resources>
-      <x:Double x:Key="SliderHorizontalThumbWidth">12</x:Double>
-      <x:Double x:Key="SliderHorizontalThumbHeight">12</x:Double>
-      <x:Double x:Key="SliderTrackThemeHeight">3</x:Double>
-      <x:Double x:Key="SliderHorizontalHeight">24</x:Double>
-      <Thickness x:Key="SliderTopHeaderMargin">0</Thickness>
-      <SolidColorBrush x:Key="SliderTrackFill" Color="#4A4A48" />
-      <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#4A4A48" />
-      <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#4A4A48" />
-      <SolidColorBrush x:Key="SliderTrackValueFill" Color="{StaticResource RingColor}" />
-      <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="{StaticResource RingColor}" />
-      <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="{StaticResource RingColor}" />
-      <SolidColorBrush x:Key="SliderThumbBackground" Color="White" />
-      <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="White" />
-      <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="White" />
-    </Style.Resources>
-    <Setter Property="MinHeight" Value="0" />
-    <Setter Property="Height" Value="24" />
-    <Setter Property="Margin" Value="0" />
-  </Style>
-
   <Style Selector="Border.rule">
     <Setter Property="Height" Value="1" />
     <Setter Property="Background" Value="{StaticResource BorderBrush}" />

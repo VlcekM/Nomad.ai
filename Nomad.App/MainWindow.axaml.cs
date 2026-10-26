@@ -27,6 +27,16 @@ public partial class MainWindow : Window
         DataContext = vm;
         InitializeComponent();
 
+        // Ctrl+B on the way down, so it works while the composer (a TextBox) has focus.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.B && e.KeyModifiers == KeyModifiers.Control)
+            {
+                vm.ToggleSidebar();
+                e.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel);
+
         var settings = vm.Settings;
         if (vm.Dev.Size is { } size)
         {
@@ -205,10 +215,23 @@ public partial class MainWindow : Window
             }
         }
 
+        if (dev.Key is var (gesture, at))
+        {
+            DispatcherTimer.RunOnce(() => PressKey(KeyGesture.Parse(gesture)), TimeSpan.FromSeconds(at));
+        }
+
         if (dev.ScreenshotPath is { } path)
         {
             await CaptureAndExitAsync(path);
         }
+    }
+
+    /// <summary><c>--dev-key</c>: a key press routed like a real one, from the focused control up.</summary>
+    private void PressKey(KeyGesture gesture)
+    {
+        var target = FocusManager?.GetFocusedElement() as Interactive ?? this;
+        target.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = gesture.Key, KeyModifiers = gesture.KeyModifiers, Source = target });
+        Console.Error.WriteLine($"--dev-key {gesture} on {target.GetType().Name}");
     }
 
     /// <summary><c>--dev-screenshot</c>: waits, opens what was asked for, renders the window to a PNG and exits.</summary>

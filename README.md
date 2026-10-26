@@ -3,9 +3,10 @@
 A lightweight native Windows client for Claude Code sessions, written in C# on .NET 10 and
 Avalonia 11 and published with NativeAOT.
 
-Nomad.ai does not talk to the API itself. Each session starts the installed `claude` CLI as a child
+Nomad.ai does not run models itself. Each session starts the installed `claude` CLI as a child
 process and drives it over the stream-json protocol on stdin/stdout. The CLI's sign-in, settings,
-hooks, MCP servers and session storage are all used as they are. The look follows the Code tab of
+hooks, MCP servers and session storage are all used as they are. The one direct call is read-only:
+plan usage limits, fetched like Claude Code's `/usage` with the CLI's stored claude.ai sign-in. The look follows the Code tab of
 the Claude desktop app from before its late-2026 restyle (see `DESIGN.md`).
 
 ## Requirements
@@ -54,9 +55,10 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   card with Submit and Skip.
 - **Status row.** Folder chip (recent folders, "Open folder…", or "No folder", which uses a fresh
   scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), a chip
-  per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), and a ring showing how much of the
-  context window the session uses. Clicking the current model, or the chevron, opens the full
-  picker with an effort slider (Low to Max) and fast mode.
+  per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), a filled effort slider (Low to Max), and
+  a ring showing how much of the context window the session uses. Clicking the current model, or
+  the chevron, opens the full picker with fast mode. Clicking the ring shows the plan usage limits
+  (session, weekly, weekly per model, with reset times), refreshed after each turn.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, transcript text size and
   width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and

@@ -27,10 +27,14 @@ public partial class SessionView : UserControl
         TrackOpen(ModelChip, ModelChip.Flyout);
         TrackOpen(ModeChip, ModeChip.Flyout);
         TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
+        TrackOpen(UsageChip, UsageChip.Flyout);
+        if (UsageChip.Flyout is { } usage)
+        {
+            usage.Opened += (_, _) => _ = Vm?.Usage.RefreshAsync();
+        }
 
         // The effort thumb glides while dragged and settles on the nearest stop when let go.
-        EffortSlider.AddHandler(Thumb.DragCompletedEvent, (_, _) => Vm?.SnapEffort());
-        EffortSlider.AddHandler(PointerReleasedEvent, (_, _) => Vm?.SnapEffort(), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        EffortSlider.Released += (_, _) => Vm?.SnapEffort();
     }
 
     private static void TrackOpen(Button chip, FlyoutBase? flyout)
@@ -241,6 +245,9 @@ public partial class SessionView : UserControl
             case "plus":
                 PlusButton.Flyout?.ShowAt(PlusButton);
                 break;
+            case "usage":
+                UsageChip.Flyout?.ShowAt(UsageChip);
+                break;
         }
     }
 
@@ -249,6 +256,7 @@ public partial class SessionView : UserControl
         ModelChip.Flyout?.Hide();
         ModeChip.Flyout?.Hide();
         PlusButton.Flyout?.Hide();
+        UsageChip.Flyout?.Hide();
         FlyoutBase.GetAttachedFlyout(FolderChip)?.Hide();
     }
 
@@ -350,6 +358,19 @@ public partial class SessionView : UserControl
             {
                 Vm?.SelectModelCommand.Execute(option.Id);
             }
+        }
+    }
+
+    private void OnUsagePageClick(object? sender, RoutedEventArgs e)
+    {
+        HideMenus();
+        try
+        {
+            Process.Start(new ProcessStartInfo(UsageViewModel.UsagePageUrl) { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+            // No browser registered: nothing to open.
         }
     }
 

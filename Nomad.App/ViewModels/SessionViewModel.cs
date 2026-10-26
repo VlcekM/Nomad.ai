@@ -325,6 +325,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
+    /// <summary>The app's plan usage, for the ring's popup.</summary>
+    public UsageViewModel Usage => _main.Usage;
+
     /// <summary>When the CLI process last started or sent anything; drives the idle timeout.</summary>
     public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
 

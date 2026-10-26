@@ -55,6 +55,29 @@ public static class Format
         return local.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>"Resets in 1 hr 25 min" within a day, else "Resets Fri 09:00" (local time).</summary>
+    public static string ResetsAt(DateTimeOffset? at)
+    {
+        if (at is not { } time)
+        {
+            return "";
+        }
+
+        var left = time - DateTimeOffset.Now;
+        if (left <= TimeSpan.Zero)
+        {
+            return "Resets now";
+        }
+
+        if (left < TimeSpan.FromDays(1))
+        {
+            var minutes = (int)Math.Ceiling(left.TotalMinutes);
+            return minutes >= 60 ? $"Resets in {minutes / 60} hr {minutes % 60} min" : $"Resets in {minutes} min";
+        }
+
+        return "Resets " + time.ToLocalTime().ToString("ddd HH:mm", CultureInfo.InvariantCulture);
+    }
+
     public static string Capitalize(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
