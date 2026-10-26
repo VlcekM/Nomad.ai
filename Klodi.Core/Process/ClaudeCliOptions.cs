@@ -18,6 +18,12 @@ public sealed record ClaudeCliOptions
     /// <summary>low | medium | high | xhigh | max (null keeps the CLI default).</summary>
     public string? Effort { get; init; }
 
+    /// <summary>
+    /// summarized | omitted (<c>--thinking-display</c>, a hidden CLI flag). In print mode the CLI
+    /// omits thinking text by default, sending only a signature; summarized makes it readable.
+    /// </summary>
+    public string? ThinkingDisplay { get; init; }
+
     /// <summary>Existing session id to continue in this new process (<c>--resume</c>).</summary>
     public string? ResumeSessionId { get; init; }
 

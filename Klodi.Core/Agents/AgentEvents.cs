@@ -143,6 +143,7 @@ public sealed record AgentStartOptions
     public string? Model { get; init; }
     public string? PermissionMode { get; init; }
     public string? Effort { get; init; }
+    public string? ThinkingDisplay { get; init; }
     public bool FastMode { get; init; }
     public string? ResumeSessionId { get; init; }
     public string? CliPath { get; init; }

@@ -60,6 +60,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             Model = options.Model,
             PermissionMode = options.PermissionMode,
             Effort = options.Effort,
+            ThinkingDisplay = options.ThinkingDisplay,
             ResumeSessionId = options.ResumeSessionId,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
             ExtraArguments = options.ExtraArguments,

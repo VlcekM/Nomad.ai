@@ -116,6 +116,12 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             args.Add(o.Effort);
         }
 
+        if (!string.IsNullOrWhiteSpace(o.ThinkingDisplay))
+        {
+            args.Add("--thinking-display");
+            args.Add(o.ThinkingDisplay);
+        }
+
         if (!string.IsNullOrWhiteSpace(o.ResumeSessionId))
         {
             args.Add("--resume");
