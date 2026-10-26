@@ -9,10 +9,11 @@ public sealed record EffortOption(string Id, string DisplayName);
 /// <summary>The fixed menus of v1: models, permission modes and effort levels.</summary>
 public static class Catalog
 {
+    /// <summary>The latest model of each family, most capable first (the status-row chips and Ctrl+1…4).</summary>
     public static readonly IReadOnlyList<ModelOption> Models =
     [
-        new("claude-opus-5-5", "Opus 5.5", 1),
-        new("claude-fable-5-1", "Fable 5.1", 2),
+        new("claude-fable-5-1", "Fable 5.1", 1),
+        new("claude-opus-5-5", "Opus 5.5", 2),
         new("claude-sonnet-5-5", "Sonnet 5.5", 3),
         new("claude-haiku-5-5", "Haiku 5.5", 4),
     ];
@@ -35,6 +36,9 @@ public static class Catalog
         new("xhigh", "Extra high"),
         new("max", "Max"),
     ];
+
+    /// <summary>The effort slider's stops, left to right (Efforts without "Default").</summary>
+    public static readonly IReadOnlyList<EffortOption> EffortLevels = [.. Efforts.Where(e => e.Id.Length > 0)];
 
     public static string ModelName(string? id)
     {

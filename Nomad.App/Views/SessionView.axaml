@@ -579,11 +579,6 @@
           </Panel>
         </Grid>
       </Border>
-      <c:PixelCritter HorizontalAlignment="Right"
-                      VerticalAlignment="Top"
-                      Margin="0,-30,14,0"
-                      IsVisible="{Binding IsNew}"
-                      IsHitTestVisible="False" />
     </Panel>
 
     <!-- Status row -->
@@ -682,62 +677,74 @@
         </Button.Flyout>
       </Button>
 
-      <Button Name="ModelChip" Grid.Column="3" Theme="{StaticResource ChipButton}">
-        <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Text="{Binding ModelName}" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding EffortName}" IsVisible="{Binding HasEffort}" Classes="muted" VerticalAlignment="Center" />
+      <!-- One chip per model; clicking the current one opens the full picker. -->
+      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+        <ItemsControl ItemsSource="{Binding ModelOptions}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:MenuOption">
+              <Button Theme="{StaticResource ChipButton}"
+                      Classes.selected="{Binding IsSelected}"
+                      Click="OnModelChipClick"
+                      ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+{0}'}">
+                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Effort: a small slider, Low to Max. -->
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,4,0" ToolTip.Tip="Effort (Low to Max)">
+          <Slider Name="EffortSlider"
+                  Classes="effort"
+                  Width="84"
+                  Minimum="0" Maximum="4"
+                  TickFrequency="1"
+                  IsSnapToTickEnabled="False"
+                  Value="{Binding EffortPosition}"
+                  Margin="0,-8,0,0"
+                  VerticalAlignment="Center" />
+          <TextBlock Text="{Binding EffortLabel}" Classes="muted" MinWidth="56" VerticalAlignment="Center" />
         </StackPanel>
-        <Button.Flyout>
-          <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-            <StackPanel Width="172">
-              <TextBlock Text="Model · this session" Classes="menuheader" />
-              <ItemsControl ItemsSource="{Binding ModelOptions}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:MenuOption">
-                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding Label}" />
-                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
-                        <TextBlock Grid.Column="1" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <Border Classes="rule" />
-              <Button Theme="{StaticResource MenuItemButton}" Click="OnEffortRowClick">
-                <Grid ColumnDefinitions="*,Auto,Auto">
-                  <TextBlock Text="Effort" />
-                  <TextBlock Grid.Column="1" Text="{Binding EffortLabel}" Classes="hint" FontSize="13" Margin="0,0,4,0" />
-                  <c:Icon Grid.Column="2" Size="13" Classes="chev" Classes.open="{Binding IsEffortExpanded}" Data="{StaticResource IconChevronRight}" />
-                </Grid>
-              </Button>
-              <ItemsControl ItemsSource="{Binding EffortOptions}" IsVisible="{Binding IsEffortExpanded}" Margin="10,0,0,0">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:MenuOption">
-                    <Button Theme="{StaticResource MenuItemButton}" Click="OnEffortOptionClick" FontWeight="Normal">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding Label}" />
-                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <Border Classes="rule" />
-              <TextBlock Text="Fast mode" Classes="menuheader" />
-              <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="Enable fast mode" />
-                  <Border Grid.Column="1" Classes="switch" Classes.on="{Binding FastMode}" VerticalAlignment="Center">
-                    <Ellipse />
-                  </Border>
-                </Grid>
-              </Button>
-            </StackPanel>
-          </Flyout>
-        </Button.Flyout>
-      </Button>
+
+        <Button Name="ModelChip" Theme="{StaticResource ChipButton}" ToolTip.Tip="All models and fast mode">
+          <c:Icon Size="12" Data="{StaticResource IconChevronDown}" />
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
+              <StackPanel Width="220">
+                <TextBlock Text="Model · this session" Classes="menuheader" />
+                <ItemsControl ItemsSource="{Binding ModelOptions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MenuOption">
+                      <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Text="{Binding Label}" />
+                          <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                          <TextBlock Grid.Column="1" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="rule" />
+                <TextBlock Text="Fast mode" Classes="menuheader" />
+                <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Enable fast mode" />
+                    <Border Grid.Column="1" Classes="switch" Classes.on="{Binding FastMode}" VerticalAlignment="Center">
+                      <Ellipse />
+                    </Border>
+                  </Grid>
+                </Button>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+      </StackPanel>
 
       <c:Ring Grid.Column="4"
               Width="14" Height="14"

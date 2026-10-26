@@ -53,11 +53,6 @@ public sealed partial class SessionViewModel : ObservableObject
             ModeOptions.Add(new MenuOption(m.Id, m.DisplayName, m.Description, m.Shortcut) { IsDanger = m.Id == "bypassPermissions" });
         }
 
-        foreach (var e in Catalog.Efforts)
-        {
-            EffortOptions.Add(new MenuOption(e.Id, e.DisplayName));
-        }
-
         SyncOptions();
         RefreshFolders();
     }
@@ -136,7 +131,36 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public ObservableCollection<MenuOption> ModeOptions { get; } = [];
 
-    public ObservableCollection<MenuOption> EffortOptions { get; } = [];
+    /// <summary>
+    /// The effort slider's thumb, 0 (Low) to 4 (Max). It moves freely while dragged; the nearest stop
+    /// becomes the effort, and <see cref="SnapEffort"/> settles the thumb on it when released.
+    /// "Default" (no effort flag) sits at High, which is what the CLI picks.
+    /// </summary>
+    public double EffortPosition
+    {
+        get => _effortPosition;
+        set
+        {
+            if (SetProperty(ref _effortPosition, value))
+            {
+                var id = Catalog.EffortLevels[Math.Clamp((int)Math.Round(value), 0, Catalog.EffortLevels.Count - 1)].Id;
+                if (id != Effort)
+                {
+                    SelectEffortCommand.Execute(id);
+                }
+            }
+        }
+    }
+
+    private double _effortPosition;
+
+    public void SnapEffort() => EffortPosition = Math.Round(EffortPosition);
+
+    private static double EffortIndex(string? id)
+    {
+        var index = Catalog.EffortLevels.ToList().FindIndex(e => e.Id == id);
+        return index >= 0 ? index : Catalog.EffortLevels.ToList().FindIndex(e => e.Id == "high");
+    }
 
     /// <summary>Recent folders for the new-session card (up to five).</summary>
     public ObservableCollection<MenuOption> CardFolders { get; } = [];
@@ -149,16 +173,24 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial string FolderFilter { get; set; } = "";
 
-    [ObservableProperty]
-    public partial bool IsEffortExpanded { get; set; }
-
     public bool IsNoFolder => Folder is null;
 
     partial void OnModelChanged(string value) => SyncOptions();
 
     partial void OnPermissionModeChanged(string value) => SyncOptions();
 
-    partial void OnEffortChanged(string value) => SyncOptions();
+    partial void OnEffortChanged(string value)
+    {
+        SyncOptions();
+
+        // Changed elsewhere (settings, a restored session): move the thumb, unless a drag already points there.
+        var index = EffortIndex(value);
+        if (Math.Round(_effortPosition) != index || string.IsNullOrEmpty(value))
+        {
+            _effortPosition = index;
+            OnPropertyChanged(nameof(EffortPosition));
+        }
+    }
 
     partial void OnFolderChanged(string? value)
     {
@@ -179,11 +211,6 @@ public sealed partial class SessionViewModel : ObservableObject
         foreach (var o in ModeOptions)
         {
             o.IsSelected = o.Id == PermissionMode;
-        }
-
-        foreach (var o in EffortOptions)
-        {
-            o.IsSelected = o.Id == (Effort ?? "");
         }
     }
 

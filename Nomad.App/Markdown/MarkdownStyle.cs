@@ -51,10 +51,14 @@ public static class Fonts
     public static FontFamily Ui(string? name) =>
         string.IsNullOrWhiteSpace(name) || name == "Inter"
             ? new FontFamily("fonts:Inter#Inter, Segoe UI")
-            : new FontFamily($"{name}, fonts:Inter#Inter, Segoe UI");
+            : new FontFamily($"{Qualify(name)}, fonts:Inter#Inter, Segoe UI");
 
     public static FontFamily Code(string? name) =>
         string.IsNullOrWhiteSpace(name)
             ? new FontFamily("Cascadia Mono, Consolas, Courier New")
-            : new FontFamily($"{name}, Cascadia Mono, Consolas, Courier New");
+            : new FontFamily($"{Qualify(name)}, Cascadia Mono, Consolas, Courier New");
+
+    /// <summary>The Claude app's fonts live in their own collection (see <see cref="Infrastructure.ClaudeFonts"/>).</summary>
+    private static string Qualify(string name) =>
+        name is Infrastructure.ClaudeFonts.Sans or Infrastructure.ClaudeFonts.Mono ? $"{Infrastructure.ClaudeFonts.Key}#{name}" : name;
 }

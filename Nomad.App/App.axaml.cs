@@ -21,6 +21,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settings = Program.Settings;
+            Infrastructure.ClaudeFonts.Register();
             ApplyAppearance(settings);
 
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);

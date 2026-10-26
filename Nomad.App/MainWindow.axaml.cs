@@ -16,6 +16,11 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
 
+    private const int DwmwaCloak = 13;
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
     public MainWindow(MainViewModel vm)
     {
         _vm = vm;
@@ -35,6 +40,21 @@ public partial class MainWindow : Window
             if (settings.WindowMaximized)
             {
                 WindowState = WindowState.Maximized;
+            }
+        }
+
+        // A screenshot run renders the window to a bitmap, so the window itself stays invisible: DWM
+        // cloaks it before it is first shown (Windows moves off-screen windows back), and it never
+        // takes focus or shows in the taskbar.
+        if (vm.Dev.ScreenshotPath is not null)
+        {
+            WindowState = WindowState.Normal;
+            ShowActivated = false;
+            ShowInTaskbar = false;
+            if (TryGetPlatformHandle() is { } handle)
+            {
+                var cloak = 1;
+                _ = DwmSetWindowAttribute(handle.Handle, DwmwaCloak, ref cloak, sizeof(int));
             }
         }
 
@@ -126,9 +146,9 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         var settings = _vm.Settings;
-        if (_vm.Dev.Size is null)
+        if (_vm.Dev.Size is null && _vm.Dev.ScreenshotPath is null)
         {
-            // A --dev-size run is a test: it leaves the remembered window placement alone.
+            // A --dev-size or --dev-screenshot run is a test: it leaves the remembered window placement alone.
             settings.WindowMaximized = WindowState == WindowState.Maximized;
             if (WindowState == WindowState.Normal)
             {

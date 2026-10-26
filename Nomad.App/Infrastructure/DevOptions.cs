@@ -9,7 +9,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-prompt "&lt;text&gt;"        send this prompt on start
 /// --dev-model &lt;id&gt;             model for the initial session (tests use claude-haiku-5-5)
 /// --dev-session &lt;id&gt;           open this stored session on start
-/// --dev-screenshot &lt;png&gt;       render the window to a PNG and exit …
+/// --dev-screenshot &lt;png&gt;       render the window to a PNG and exit (off-screen, unfocused) …
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size

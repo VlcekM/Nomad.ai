@@ -27,6 +27,10 @@ public partial class SessionView : UserControl
         TrackOpen(ModelChip, ModelChip.Flyout);
         TrackOpen(ModeChip, ModeChip.Flyout);
         TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
+
+        // The effort thumb glides while dragged and settles on the nearest stop when let go.
+        EffortSlider.AddHandler(Thumb.DragCompletedEvent, (_, _) => Vm?.SnapEffort());
+        EffortSlider.AddHandler(PointerReleasedEvent, (_, _) => Vm?.SnapEffort(), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
     private static void TrackOpen(Button chip, FlyoutBase? flyout)
@@ -333,27 +337,20 @@ public partial class SessionView : UserControl
         HideMenus();
     }
 
-    private void OnEffortRowClick(object? sender, RoutedEventArgs e)
-    {
-        if (Vm is { } vm)
-        {
-            vm.IsEffortExpanded = !vm.IsEffortExpanded;
-        }
-    }
-
-    private void OnEffortOptionClick(object? sender, RoutedEventArgs e)
+    /// <summary>A status-row model chip: picks that model, or opens the full picker when it is already the one.</summary>
+    private void OnModelChipClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: MenuOption option })
         {
-            Vm?.SelectEffortCommand.Execute(option.Id);
+            if (option.IsSelected)
+            {
+                ModelChip.Flyout?.ShowAt(ModelChip);
+            }
+            else
+            {
+                Vm?.SelectModelCommand.Execute(option.Id);
+            }
         }
-
-        if (Vm is { } vm)
-        {
-            vm.IsEffortExpanded = false;
-        }
-
-        HideMenus();
     }
 
     private void OnSettingsClick(object? sender, RoutedEventArgs e)

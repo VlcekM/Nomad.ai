@@ -96,6 +96,11 @@
     <Style Selector="^.open">
       <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
     </Style>
+    <!-- The current model among the model chips. -->
+    <Style Selector="^.selected">
+      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
   </ControlTheme>
 
   <!-- Popup menu items: 24 px rows, radius 6. -->

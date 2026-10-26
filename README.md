@@ -53,12 +53,15 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
   card with Submit and Skip.
 - **Status row.** Folder chip (recent folders, "Open folder…", or "No folder", which uses a fresh
-  scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), model
-  (Opus 5.5, Fable 5.1, Sonnet 5.5, Haiku 5.5) with effort and fast mode, and a ring showing how
-  much of the context window the session uses.
+  scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), a chip
+  per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), and a ring showing how much of the
+  context window the session uses. Clicking the current model, or the chevron, opens the full
+  picker with an effort slider (Low to Max) and fast mode.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, transcript text size and
   width, display name; CLI path and the default model, mode and effort for
-  new sessions. Changes are saved at once.
+  new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and
+  Anthropic Mono are offered too: they are unpacked from the app's WOFF2 files into
+  `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai.
 
 ### Memory and rendering
 

@@ -24,8 +24,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         _main = main;
         var s = main.Settings;
         var installed = InstalledFonts();
-        UiFonts = Distinct(["Inter", "Segoe UI", .. installed], s.InterfaceFont);
-        CodeFonts = Distinct([.. PreferredCodeFonts.Where(f => installed.Contains(f, StringComparer.OrdinalIgnoreCase)), .. installed], s.CodeFont);
+        // Anthropic Sans and Mono are offered when the Claude desktop app is installed.
+        string[] claudeSans = ClaudeFonts.HasSans ? [ClaudeFonts.Sans] : [];
+        string[] claudeMono = ClaudeFonts.HasMono ? [ClaudeFonts.Mono] : [];
+        UiFonts = Distinct(["Inter", .. claudeSans, "Segoe UI", .. installed], s.InterfaceFont);
+        CodeFonts = Distinct([.. claudeMono, .. PreferredCodeFonts.Where(f => installed.Contains(f, StringComparer.OrdinalIgnoreCase)), .. installed], s.CodeFont);
 
         InterfaceFont = s.InterfaceFont;
         CodeFont = s.CodeFont;
