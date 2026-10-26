@@ -18,7 +18,8 @@ namespace Klodi.App.Infrastructure;
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Klodi\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
 /// --dev-expand                  expand every tool group (to screenshot rows)
-/// --dev-answer allow|session|deny   answer every permission request automatically
+/// --dev-answer allow|session|deny|pick   answer every permission request automatically
+///                               (questions get their first options; pick only selects them)
 /// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// </code>
@@ -44,7 +45,7 @@ public sealed class DevOptions
     public double? StopAfterSeconds { get; private set; }
 
     public IReadOnlyList<string> ExtraCliArguments => Lean
-        ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep"]
+        ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion"]
         : [];
 
     public bool IsActive => Cwd is not null || Prompt is not null || ScreenshotPath is not null || SessionId is not null;

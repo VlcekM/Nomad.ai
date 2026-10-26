@@ -185,6 +185,22 @@ public partial class SessionView : UserControl
         }
     }
 
+    /// <summary>Enter in a question card's free-text box submits the answers, Esc skips the question.</summary>
+    private void OnQuestionOtherKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (Vm is not { } vm || e.Key is not (Key.Enter or Key.Escape))
+        {
+            return;
+        }
+
+        vm.AnswerPending(e.Key == Key.Enter ? PermissionChoice.Allow : PermissionChoice.Deny);
+        e.Handled = true;
+        if (vm.PendingPermission is null)
+        {
+            FocusComposerSoon();
+        }
+    }
+
     private static bool HandleEscape(SessionViewModel vm)
     {
         if (vm.PendingPermission is not null)

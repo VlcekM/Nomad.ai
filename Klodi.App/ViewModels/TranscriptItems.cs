@@ -207,7 +207,7 @@ public sealed partial class ToolGroupItem : TranscriptItem
 public sealed record DiffLine(string Text, bool IsAdded);
 
 /// <summary>A tool call waiting for Allow / Allow for session / Deny.</summary>
-public sealed partial class PermissionItem : TranscriptItem
+public partial class PermissionItem : TranscriptItem
 {
     private readonly Action<PermissionItem, PermissionChoice> _answer;
 
@@ -308,4 +308,185 @@ public sealed class ErrorItem(string message) : TranscriptItem
 public sealed class NoticeItem(string text) : TranscriptItem
 {
     public string Text { get; } = text;
+}
+
+/// <summary>
+/// An AskUserQuestion request: one to four questions, each with options and a free-text answer.
+/// Submitting allows the tool with the answers added to its input, keyed by question text, which is
+/// how the CLI's own question dialog hands them back; skipping denies it.
+/// </summary>
+public sealed partial class QuestionItem : PermissionItem
+{
+    public QuestionItem(PermissionRequest request, string? cwd, Action<PermissionItem, PermissionChoice> answer)
+        : base(request, cwd, answer)
+    {
+        foreach (var q in request.Input.GetProperty("questions").EnumerateArray())
+        {
+            if (ToolText.Str(q, "question") is not { Length: > 0 } text)
+            {
+                continue;
+            }
+
+            var multi = q.TryGetProperty("multiSelect", out var m) && m.ValueKind == JsonValueKind.True;
+            var entry = new QuestionEntry(text, ToolText.Str(q, "header"), multi, Update);
+            if (q.TryGetProperty("options", out var options) && options.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var o in options.EnumerateArray())
+                {
+                    if (ToolText.Str(o, "label") is { Length: > 0 } label)
+                    {
+                        entry.Options.Add(new QuestionOption(entry, label, ToolText.Str(o, "description")));
+                    }
+                }
+            }
+
+            Questions.Add(entry);
+        }
+    }
+
+    /// <summary>True when the input carries at least one question this card can show.</summary>
+    public static bool CanShow(PermissionRequest request) =>
+        request.ToolName == "AskUserQuestion" &&
+        request.Input.ValueKind == JsonValueKind.Object &&
+        request.Input.TryGetProperty("questions", out var questions) &&
+        questions.ValueKind == JsonValueKind.Array &&
+        questions.EnumerateArray().Any(q => ToolText.Str(q, "question") is { Length: > 0 });
+
+    public ObservableCollection<QuestionEntry> Questions { get; } = [];
+
+    [ObservableProperty]
+    public partial bool CanSubmit { get; set; }
+
+    /// <summary>"Blue" or "Blue; Tea" for the one-line record once answered.</summary>
+    public string AnswerSummary => string.Join("; ", Questions.Select(q => q.Answer));
+
+    /// <summary>Chooses the first option of every unanswered question (dev hook <c>--dev-answer</c>).</summary>
+    public void PickDefaults()
+    {
+        foreach (var q in Questions.Where(q => !q.IsAnswered && q.Options.Count > 0))
+        {
+            q.Pick(q.Options[0]);
+        }
+    }
+
+    /// <summary>The tool input with an <c>answers</c> object added: question text → answer.</summary>
+    public JsonElement BuildUpdatedInput()
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        using (var w = new Utf8JsonWriter(buffer))
+        {
+            w.WriteStartObject();
+            foreach (var property in Request.Input.EnumerateObject())
+            {
+                if (property.Name != "answers")
+                {
+                    property.WriteTo(w);
+                }
+            }
+
+            w.WriteStartObject("answers");
+            foreach (var q in Questions)
+            {
+                w.WriteString(q.Question, q.Answer);
+            }
+
+            w.WriteEndObject();
+            w.WriteEndObject();
+        }
+
+        using var doc = JsonDocument.Parse(buffer.WrittenMemory);
+        return doc.RootElement.Clone();
+    }
+
+    private void Update() => CanSubmit = Questions.Count > 0 && Questions.All(q => q.IsAnswered);
+}
+
+/// <summary>One question: options with radio behaviour (checkboxes when multiSelect) plus free text.</summary>
+public sealed partial class QuestionEntry : ObservableObject
+{
+    private readonly Action _changed;
+
+    public QuestionEntry(string question, string? header, bool multiSelect, Action changed)
+    {
+        Question = question;
+        Header = header ?? "";
+        MultiSelect = multiSelect;
+        _changed = changed;
+    }
+
+    public string Question { get; }
+
+    public string Header { get; }
+
+    public bool MultiSelect { get; }
+
+    public ObservableCollection<QuestionOption> Options { get; } = [];
+
+    /// <summary>The free-text answer ("Other"); typing it replaces the chosen option unless multiSelect.</summary>
+    [ObservableProperty]
+    public partial string OtherText { get; set; } = "";
+
+    /// <summary>The chosen label(s) joined by ", ", plus any typed text.</summary>
+    public string Answer
+    {
+        get
+        {
+            var parts = Options.Where(o => o.IsSelected).Select(o => o.Label).ToList();
+            if (!string.IsNullOrWhiteSpace(OtherText))
+            {
+                parts.Add(OtherText.Trim());
+            }
+
+            return string.Join(", ", parts);
+        }
+    }
+
+    public bool IsAnswered => Answer.Length > 0;
+
+    public void Pick(QuestionOption option)
+    {
+        if (MultiSelect)
+        {
+            option.IsSelected = !option.IsSelected;
+        }
+        else
+        {
+            foreach (var o in Options)
+            {
+                o.IsSelected = ReferenceEquals(o, option);
+            }
+
+            OtherText = "";
+        }
+
+        _changed();
+    }
+
+    partial void OnOtherTextChanged(string value)
+    {
+        if (!MultiSelect && !string.IsNullOrWhiteSpace(value))
+        {
+            foreach (var o in Options)
+            {
+                o.IsSelected = false;
+            }
+        }
+
+        _changed();
+    }
+}
+
+public sealed partial class QuestionOption(QuestionEntry owner, string label, string? description) : ObservableObject
+{
+    public string Label { get; } = label;
+
+    public string? Description { get; } = description;
+
+    public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+
+    [RelayCommand]
+    private void Pick() => owner.Pick(this);
 }

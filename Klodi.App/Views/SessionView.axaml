@@ -239,6 +239,97 @@
       </StackPanel>
     </DataTemplate>
 
+    <!-- AskUserQuestion: before the PermissionItem template, which would also match it. -->
+    <DataTemplate DataType="{x:Type vm:QuestionItem}" x:DataType="vm:QuestionItem">
+      <Panel>
+        <!-- A star column capped at 480: as wide as the original's card, narrower only in a narrow window. -->
+        <Grid IsVisible="{Binding IsPending}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MaxWidth="480" />
+          </Grid.ColumnDefinitions>
+          <Border Margin="0,8"
+                  Background="{StaticResource BgMainBrush}"
+                  BorderBrush="{StaticResource BorderCardBrush}"
+                  BorderThickness="1"
+                  CornerRadius="10"
+                  Padding="12,10,12,12">
+            <StackPanel Spacing="12">
+              <ItemsControl ItemsSource="{Binding Questions}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="16" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:QuestionEntry">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="{Binding Question}"
+                                 FontSize="14"
+                                 FontWeight="SemiBold"
+                                 LineHeight="20"
+                                 TextWrapping="Wrap"
+                                 Margin="0,0,0,2"
+                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="13" />
+                      <ItemsControl ItemsSource="{Binding Options}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:QuestionOption">
+                            <Button Theme="{StaticResource OptionButton}"
+                                    Classes.selected="{Binding IsSelected}"
+                                    Command="{Binding PickCommand}">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1">
+                                  <TextBlock Text="{Binding Label}" FontSize="14" TextWrapping="Wrap" />
+                                  <TextBlock Text="{Binding Description}"
+                                             IsVisible="{Binding HasDescription}"
+                                             Classes="muted"
+                                             FontSize="13"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                                <c:Icon Grid.Column="1"
+                                        Data="{StaticResource IconCheck}"
+                                        IsVisible="{Binding IsSelected}"
+                                        Size="14"
+                                        VerticalAlignment="Top"
+                                        Margin="10,3,0,0" />
+                              </Grid>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Border Background="{StaticResource BgInputBrush}"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              BorderThickness="1"
+                              CornerRadius="7"
+                              Height="32"
+                              Padding="8,0"
+                              Margin="0,4,0,0">
+                        <TextBox Theme="{StaticResource BareTextBox}"
+                                 Text="{Binding OtherText}"
+                                 Watermark="Other answer…"
+                                 VerticalAlignment="Center"
+                                 FontSize="14"
+                                 KeyDown="OnQuestionOtherKeyDown" />
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Theme="{StaticResource GhostButton}" Command="{Binding DenyCommand}" ToolTip.Tip="Esc">
+                  <TextBlock Text="Skip" />
+                </Button>
+                <Button Theme="{StaticResource PrimaryButton}" Command="{Binding AllowCommand}" IsEnabled="{Binding CanSubmit}" ToolTip.Tip="Enter">
+                  <TextBlock Text="Submit" />
+                </Button>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+      </Panel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type vm:PermissionItem}" x:DataType="vm:PermissionItem">
       <Panel>
         <Border IsVisible="{Binding IsPending}"

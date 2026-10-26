@@ -144,7 +144,20 @@ public partial class MainWindow : Window
                 "deny" => PermissionChoice.Deny,
                 _ => PermissionChoice.Allow,
             };
-            _vm.PermissionRequested += session => DispatcherTimer.RunOnce(() => session.AnswerPending(choice), TimeSpan.FromSeconds(1.5));
+            _vm.PermissionRequested += session => DispatcherTimer.RunOnce(
+                () =>
+                {
+                    if (answer == "pick")
+                    {
+                        // Choose a question's first options but leave the card open (to screenshot it).
+                        (session.PendingPermission as QuestionItem)?.PickDefaults();
+                    }
+                    else
+                    {
+                        session.AnswerPending(choice, pickDefaults: true);
+                    }
+                },
+                TimeSpan.FromSeconds(1.5));
         }
 
         await _vm.RefreshSessionsAsync();

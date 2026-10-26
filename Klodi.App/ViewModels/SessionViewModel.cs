@@ -457,11 +457,19 @@ public sealed partial class SessionViewModel : ObservableObject
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
     }
 
-    /// <summary>Enter on a pending permission card.</summary>
-    public void AnswerPending(PermissionChoice choice)
+    /// <summary>
+    /// Enter / Esc on a pending permission or question card. <paramref name="pickDefaults"/> (dev hook)
+    /// answers a question with its first options instead of waiting for a choice.
+    /// </summary>
+    public void AnswerPending(PermissionChoice choice, bool pickDefaults = false)
     {
         if (PendingPermission is { IsAnswered: false } pending)
         {
+            if (pickDefaults && pending is QuestionItem question && choice != PermissionChoice.Deny)
+            {
+                question.PickDefaults();
+            }
+
             Answer(pending, choice);
         }
     }
@@ -645,7 +653,9 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case PermissionRequestedEvent p:
-                var card = new PermissionItem(p.Request, Folder, Answer);
+                var card = QuestionItem.CanShow(p.Request)
+                    ? new QuestionItem(p.Request, Folder, Answer)
+                    : new PermissionItem(p.Request, Folder, Answer);
                 Items.Add(card);
                 PendingPermission = card;
                 ContentChanged?.Invoke();
@@ -895,13 +905,36 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
-        var tool = item.Request.DisplayName ?? item.Request.ToolName;
-        item.MarkAnswered(choice switch
+        PermissionDecision decision;
+        if (item is QuestionItem question)
         {
-            PermissionChoice.Allow => $"Allowed {tool}",
-            PermissionChoice.AllowForSession => $"Allowed {tool} for this session",
-            _ => $"Denied {tool}",
-        });
+            if (choice == PermissionChoice.Deny)
+            {
+                item.MarkAnswered("Skipped the question");
+                decision = new PermissionDecision(PermissionChoice.Deny, "The user skipped the question without answering.");
+            }
+            else if (question.CanSubmit)
+            {
+                item.MarkAnswered("Answered: " + question.AnswerSummary);
+                decision = new PermissionDecision(PermissionChoice.Allow, UpdatedInput: question.BuildUpdatedInput());
+            }
+            else
+            {
+                return; // Enter before anything was chosen.
+            }
+        }
+        else
+        {
+            var tool = item.Request.DisplayName ?? item.Request.ToolName;
+            item.MarkAnswered(choice switch
+            {
+                PermissionChoice.Allow => $"Allowed {tool}",
+                PermissionChoice.AllowForSession => $"Allowed {tool} for this session",
+                _ => $"Denied {tool}",
+            });
+            decision = new PermissionDecision(choice);
+        }
+
         PendingPermission = Items.OfType<PermissionItem>().LastOrDefault(i => !i.IsAnswered);
 
         if (_backend is null)
@@ -911,7 +944,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
         try
         {
-            await _backend.RespondAsync(item.Request, new PermissionDecision(choice));
+            await _backend.RespondAsync(item.Request, decision);
         }
         catch (Exception ex)
         {

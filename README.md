@@ -115,7 +115,7 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 | `--dev-settings <path>` | Use this settings file |
 | `--dev-lean` | Small CLI tool set, no MCP servers or skills |
 | `--dev-expand` | Expand tool groups and thinking before the screenshot |
-| `--dev-answer allow\|session\|deny` | Answer every permission request automatically |
+| `--dev-answer allow\|session\|deny\|pick` | Answer every permission request automatically (questions get their first options; `pick` only selects them) |
 | `--dev-set textSize=Large` | Change an appearance setting live (`textSize`, `width`) |
 | `--dev-stop-after <seconds>` | Press Stop this long after the dev prompt was sent |
 

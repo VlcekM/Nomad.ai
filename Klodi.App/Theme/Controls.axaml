@@ -193,6 +193,22 @@
     </Style>
   </ControlTheme>
 
+  <!-- Question card option: a text row flush with the question; hover fill, brighter when chosen. -->
+  <ControlTheme x:Key="OptionButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Margin" Value="-8,0" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="^.selected">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+    </Style>
+  </ControlTheme>
+
   <!-- Primary: accent fill, dark label. -->
   <ControlTheme x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Background" Value="{StaticResource AccentBrush}" />

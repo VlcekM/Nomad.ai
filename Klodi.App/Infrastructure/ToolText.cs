@@ -12,6 +12,7 @@ public enum ToolCategory
     Web,
     Agent,
     Todo,
+    Question,
     Other,
 }
 
@@ -27,6 +28,7 @@ public static class ToolText
         "WebFetch" or "WebSearch" => ToolCategory.Web,
         "Task" or "Agent" => ToolCategory.Agent,
         "TodoWrite" => ToolCategory.Todo,
+        "AskUserQuestion" => ToolCategory.Question,
         _ => ToolCategory.Other,
     };
 
@@ -39,7 +41,8 @@ public static class ToolText
         ToolCategory.Web => "IconGlobe",
         ToolCategory.Agent => "IconAgent",
         ToolCategory.Todo => "IconList",
-        _ => name == "AskUserQuestion" ? "IconQuestion" : "IconTool",
+        ToolCategory.Question => "IconQuestion",
+        _ => "IconTool",
     };
 
     /// <summary>"Running a command…" while a call is in flight.</summary>
@@ -54,6 +57,7 @@ public static class ToolText
         "WebSearch" => "Searching the web…",
         "Task" or "Agent" => "Running an agent…",
         "TodoWrite" => "Updating the todo list…",
+        "AskUserQuestion" => "Waiting for your answer…",
         _ => $"Using {name}…",
     };
 
@@ -83,7 +87,8 @@ public static class ToolText
             }
         }
 
-        var failed = calls.Count(c => c.Failed);
+        // A skipped question comes back as an error result, but nothing failed.
+        var failed = calls.Count(c => c.Failed && CategoryOf(c.Name) != ToolCategory.Question);
         string text;
         if (order.Count > 3)
         {
@@ -107,6 +112,7 @@ public static class ToolText
         ToolCategory.Web => "browsed the web",
         ToolCategory.Agent => "ran " + Format.Count(n, "agent", "agents", "an"),
         ToolCategory.Todo => "updated the todo list",
+        ToolCategory.Question => "asked " + Format.Count(n, "question", "questions"),
         _ => "used " + Format.Count(n, "tool", "tools"),
     };
 
@@ -129,6 +135,7 @@ public static class ToolText
             "WebSearch" => Str(input, "query"),
             "Task" or "Agent" => Str(input, "description") ?? Str(input, "prompt"),
             "TodoWrite" => "todo list",
+            "AskUserQuestion" => FirstQuestion(input),
             _ => null,
         };
 
@@ -204,6 +211,11 @@ public static class ToolText
 
         return Encoding.UTF8.GetString(stream.ToArray());
     }
+
+    private static string? FirstQuestion(JsonElement input) =>
+        input.TryGetProperty("questions", out var questions) && questions.ValueKind == JsonValueKind.Array && questions.GetArrayLength() > 0
+            ? Str(questions[0], "question")
+            : null;
 
     public static string? Str(JsonElement obj, string property) =>
         obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(property, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
