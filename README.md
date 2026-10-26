@@ -48,13 +48,22 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   turn time, tokens, tools) with a stop button.
 - **Permissions.** Tool requests appear as a card with Allow, Allow for session and Deny (Enter
   allows, Esc denies), shown with the command or a small diff. Answered cards shrink to one line.
+  When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
+  card with Submit and Skip.
 - **Status row.** Folder chip (recent folders, "Open folder…", or "No folder", which uses a fresh
   scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), model
   (Opus 5.5, Fable 5.1, Sonnet 5.5, Haiku 5.5) with effort and fast mode, and a ring showing how
   much of the context window the session uses.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, transcript text size and
-  width, display name; CLI path and the default model, mode and effort for new sessions. Changes
-  are saved at once.
+  width, hardware acceleration, display name; CLI path and the default model, mode and effort for
+  new sessions. Changes are saved at once.
+
+### Memory and rendering
+
+Klodi draws with Skia's software renderer by default. For a window that is mostly text this costs
+little CPU and keeps memory low; Settings → General → Hardware acceleration switches to the GPU
+(ANGLE over Direct3D 11), which is smoother on very large screens but commits roughly 80 MB more.
+The renderer is chosen at startup, so the switch applies after a restart.
 
 ### Keyboard
 
