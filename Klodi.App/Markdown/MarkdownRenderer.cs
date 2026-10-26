@@ -200,8 +200,10 @@ public static class MarkdownRenderer
                 case AutolinkInline auto:
                     AppendLink(target, links, auto.Url, auto.IsEmail ? "mailto:" + auto.Url : auto.Url, style);
                     break;
-                case LineBreakInline lineBreak:
-                    Append(target, lineBreak.IsHard ? "\n" : " ", style);
+                case LineBreakInline:
+                    // Soft breaks too: Claude's replies use single newlines as line breaks (lists of
+                    // numbers, addresses, short poems), and the original app shows them that way.
+                    Append(target, "\n", style);
                     break;
                 case HtmlEntityInline entity:
                     Append(target, entity.Transcoded.ToString(), style);
