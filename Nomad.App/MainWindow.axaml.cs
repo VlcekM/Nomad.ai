@@ -111,6 +111,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnToggleAliveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            _ = _vm.ToggleAliveAsync(item);
+        }
+    }
+
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
     // ------------------------------------------------------------------ lifetime

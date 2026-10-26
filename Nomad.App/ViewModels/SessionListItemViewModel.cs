@@ -3,7 +3,7 @@ using Nomad.App.Infrastructure;
 
 namespace Nomad.App.ViewModels;
 
-/// <summary>A row in the sidebar's Recents list.</summary>
+/// <summary>A row in the sidebar's Alive or Idle list.</summary>
 public sealed partial class SessionListItemViewModel : ObservableObject
 {
     public SessionListItemViewModel(string sessionId)
@@ -36,6 +36,13 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowUnread))]
     public partial bool IsUnread { get; set; }
+
+    /// <summary>The session has a running CLI process (the sidebar's Alive list).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AliveToggleText))]
+    public partial bool IsAlive { get; set; }
+
+    public string AliveToggleText => IsAlive ? "Make idle" : "Make alive";
 
     public bool ShowUnread => IsUnread && !IsRunning;
 

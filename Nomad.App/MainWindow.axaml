@@ -31,7 +31,43 @@
               Background="{StaticResource BgSidebarBrush}"
               BorderBrush="{StaticResource BorderDividerBrush}"
               BorderThickness="0,0,1,0">
-        <Grid RowDefinitions="36,Auto,Auto,Auto,*,Auto">
+        <Grid RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
+          <Grid.Resources>
+            <!-- A session row, shared by the Alive and Idle lists; right-click moves it between them. -->
+            <DataTemplate x:Key="SessionRowTemplate" x:DataType="vm:SessionListItemViewModel">
+              <Button Theme="{StaticResource RowButton}"
+                      Classes.selected="{Binding IsSelected}"
+                      Height="26"
+                      Margin="8,2,11,2"
+                      Padding="10,0,8,0"
+                      Click="OnRecentClick"
+                      ToolTip.Tip="{Binding ToolTipText}"
+                      ToolTip.ShowDelay="700">
+                <Button.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" />
+                  </ContextMenu>
+                </Button.ContextMenu>
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Title}"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" />
+                  <Ellipse Grid.Column="1"
+                           Width="6" Height="6"
+                           Margin="10,0,4,0"
+                           Fill="{StaticResource AccentBrush}"
+                           IsVisible="{Binding IsRunning}"
+                           VerticalAlignment="Center" />
+                  <Ellipse Grid.Column="1"
+                           Width="6" Height="6"
+                           Margin="10,0,4,0"
+                           Fill="{StaticResource UnreadBrush}"
+                           IsVisible="{Binding ShowUnread}"
+                           VerticalAlignment="Center" />
+                </Grid>
+              </Button>
+            </DataTemplate>
+          </Grid.Resources>
 
           <!-- Title bar part over the sidebar: drags the window. -->
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
@@ -108,9 +144,27 @@
             </StackPanel>
           </Button>
 
-          <!-- Recents header -->
-          <Grid Grid.Row="3" ColumnDefinitions="*,Auto" Margin="18,18,11,2" Height="24">
-            <TextBlock Text="Recents" Classes="section" VerticalAlignment="Center" />
+          <!-- Alive: sessions with a running CLI process -->
+          <Grid Grid.Row="3" Margin="18,18,11,2" Height="24" IsVisible="{Binding HasAlive}">
+            <TextBlock Text="Alive"
+                       Classes="section"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle." />
+          </Grid>
+          <ScrollViewer Grid.Row="4"
+                        MaxHeight="240"
+                        IsVisible="{Binding HasAlive}"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Alive}" ItemTemplate="{StaticResource SessionRowTemplate}" />
+          </ScrollViewer>
+
+          <!-- Idle header -->
+          <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="18,18,11,2" Height="24">
+            <TextBlock Text="Idle"
+                       Classes="section"
+                       VerticalAlignment="Center"
+                       ToolTip.Tip="Sessions without a process. Sending a prompt resumes one." />
             <Button Grid.Column="1"
                     Theme="{StaticResource IconButton}"
                     Width="24" Height="24"
@@ -120,45 +174,15 @@
             </Button>
           </Grid>
 
-          <!-- Recents list -->
-          <Panel Grid.Row="4">
+          <!-- Idle list -->
+          <Panel Grid.Row="6">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Recents}" Margin="0,0,0,8">
+              <ItemsControl ItemsSource="{Binding Recents}" ItemTemplate="{StaticResource SessionRowTemplate}" Margin="0,0,0,8">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
                     <VirtualizingStackPanel />
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SessionListItemViewModel">
-                    <Button Theme="{StaticResource RowButton}"
-                            Classes.selected="{Binding IsSelected}"
-                            Height="26"
-                            Margin="8,2,11,2"
-                            Padding="10,0,8,0"
-                            Click="OnRecentClick"
-                            ToolTip.Tip="{Binding ToolTipText}"
-                            ToolTip.ShowDelay="700">
-                      <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Text="{Binding Title}"
-                                   TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" />
-                        <Ellipse Grid.Column="1"
-                                 Width="6" Height="6"
-                                 Margin="10,0,4,0"
-                                 Fill="{StaticResource AccentBrush}"
-                                 IsVisible="{Binding IsRunning}"
-                                 VerticalAlignment="Center" />
-                        <Ellipse Grid.Column="1"
-                                 Width="6" Height="6"
-                                 Margin="10,0,4,0"
-                                 Fill="{StaticResource UnreadBrush}"
-                                 IsVisible="{Binding ShowUnread}"
-                                 VerticalAlignment="Center" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
               </ItemsControl>
             </ScrollViewer>
             <TextBlock Text="No sessions yet"
@@ -169,7 +193,7 @@
           </Panel>
 
           <!-- Account footer -->
-          <Border Grid.Row="5"
+          <Border Grid.Row="7"
                   Height="44"
                   BorderBrush="{StaticResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">

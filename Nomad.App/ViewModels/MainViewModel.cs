@@ -19,6 +19,10 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly Stack<SessionViewModel> _forward = new();
     private bool _navigating;
     private CancellationTokenSource? _scanCts;
+    private readonly DispatcherTimer _idleTimer;
+
+    /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
+    public static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
 
     public MainViewModel(NomadSettings settings, string settingsPath, DevOptions dev)
     {
@@ -36,6 +40,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Current.Model = dev.Model;
         }
+
+        _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _idleTimer.Tick += (_, _) => SleepIdleSessions();
+        _idleTimer.Start();
     }
 
     public NomadSettings Settings { get; }
@@ -44,7 +52,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public SessionStore Store { get; }
 
+    /// <summary>Sessions with a running CLI process.</summary>
+    public ObservableCollection<SessionListItemViewModel> Alive { get; } = [];
+
+    /// <summary>All other sessions (the Idle list).</summary>
     public ObservableCollection<SessionListItemViewModel> Recents { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasAlive { get; set; }
 
     [ObservableProperty]
     public partial string UserName { get; set; } = "";
@@ -190,14 +205,59 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        var session = CreateStoredSession(item);
+        Current = session;
+        await LoadHistoryAsync(session, item);
+    }
+
+    /// <summary>Moves a session between Alive and Idle: ends its CLI process, or starts one that resumes it.</summary>
+    public async Task ToggleAliveAsync(SessionListItemViewModel item)
+    {
+        if (_open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning)
+        {
+            await session.SleepAsync();
+            return;
+        }
+
+        if (session is null)
+        {
+            if (item.FilePath is null)
+            {
+                return;
+            }
+
+            session = CreateStoredSession(item);
+            await LoadHistoryAsync(session, item);
+        }
+
+        await session.WakeAsync();
+    }
+
+    private void SleepIdleSessions()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var session in _open.Values.Append(Current).Distinct().ToList())
+        {
+            if (session.IsProcessRunning && !session.IsTurnRunning && now - session.LastActivityUtc > IdleTimeout)
+            {
+                _ = session.SleepAsync();
+            }
+        }
+    }
+
+    private SessionViewModel CreateStoredSession(SessionListItemViewModel item)
+    {
         var session = new SessionViewModel(this, item.WorkingDirectory) { IsLoadingHistory = true, Title = item.Title, IsNew = false, SessionId = item.SessionId };
         _open[item.SessionId] = session;
-        Current = session;
+        return session;
+    }
 
-        var summary = new SessionSummary(item.SessionId, item.FilePath, item.WorkingDirectory, item.Title, item.LastActivityUtc, 0);
+    private static async Task LoadHistoryAsync(SessionViewModel session, SessionListItemViewModel item)
+    {
+        var summary = new SessionSummary(item.SessionId, item.FilePath!, item.WorkingDirectory, item.Title, item.LastActivityUtc, 0);
         try
         {
-            var history = await Task.Run(() => SessionStore.LoadHistory(item.FilePath));
+            var history = await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
             session.LoadHistory(summary, history);
         }
         catch (Exception ex)
@@ -324,6 +384,7 @@ public sealed partial class MainViewModel : ObservableObject
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
             // An open session knows its newest title (a generated one may not be on disk yet).
             vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
+            vm.IsAlive = live?.IsProcessRunning == true;
             merged.Add(vm);
         }
 
@@ -360,32 +421,37 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var list = items.ToList();
+        Sync(Alive, list.Where(s => s.IsAlive).ToList());
+        Sync(Recents, list.Where(s => !s.IsAlive).ToList());
+        HasAlive = Alive.Count > 0;
+        HasNoSessions = _all.Count == 0;
+    }
 
+    private static void Sync(ObservableCollection<SessionListItemViewModel> target, List<SessionListItemViewModel> list)
+    {
         // Minimal-diff update keeps scroll position and avoids rebuilding every row.
         for (var i = 0; i < list.Count; i++)
         {
-            if (i < Recents.Count && ReferenceEquals(Recents[i], list[i]))
+            if (i < target.Count && ReferenceEquals(target[i], list[i]))
             {
                 continue;
             }
 
-            var existing = Recents.IndexOf(list[i]);
+            var existing = target.IndexOf(list[i]);
             if (existing > i)
             {
-                Recents.Move(existing, i);
+                target.Move(existing, i);
             }
             else
             {
-                Recents.Insert(i, list[i]);
+                target.Insert(i, list[i]);
             }
         }
 
-        while (Recents.Count > list.Count)
+        while (target.Count > list.Count)
         {
-            Recents.RemoveAt(Recents.Count - 1);
+            target.RemoveAt(target.Count - 1);
         }
-
-        HasNoSessions = _all.Count == 0;
     }
 
     // ------------------------------------------------------------------ callbacks from sessions
@@ -407,8 +473,18 @@ public sealed partial class MainViewModel : ObservableObject
 
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
+        vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
+    }
+
+    public void OnAliveChanged(SessionViewModel session)
+    {
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm && vm.IsAlive != session.IsProcessRunning)
+        {
+            vm.IsAlive = session.IsProcessRunning;
+            ApplyFilter();
+        }
     }
 
     public void OnSessionTitleChanged(SessionViewModel session)
@@ -538,6 +614,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public async Task ShutdownAsync()
     {
+        _idleTimer.Stop();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()));
     }

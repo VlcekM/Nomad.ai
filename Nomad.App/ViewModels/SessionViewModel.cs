@@ -298,6 +298,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
+    /// <summary>When the CLI process last started or sent anything; drives the idle timeout.</summary>
+    public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
+
     /// <summary>Raised after items were added or grew, so the view can follow the bottom.</summary>
     public event Action? ContentChanged;
 
@@ -571,6 +574,8 @@ public sealed partial class SessionViewModel : ObservableObject
             ExtraArguments = _main.Dev.ExtraCliArguments,
         });
         _backend = backend;
+        LastActivityUtc = DateTime.UtcNow;
+        _main.OnAliveChanged(this);
     }
 
     public async Task ShutdownAsync()
@@ -583,12 +588,40 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>Starts the CLI process (resuming the session) without sending a prompt.</summary>
+    public async Task WakeAsync()
+    {
+        try
+        {
+            await EnsureBackendAsync();
+        }
+        catch (Exception ex)
+        {
+            Items.Add(new ErrorItem(ex.Message));
+            ContentChanged?.Invoke();
+        }
+    }
+
+    /// <summary>Ends the CLI process to free its memory; the next prompt resumes the session.</summary>
+    public async Task SleepAsync()
+    {
+        if (IsTurnRunning)
+        {
+            return;
+        }
+
+        await ShutdownAsync();
+        _main.OnAliveChanged(this);
+    }
+
     private void Apply(IAgentBackend source, AgentEvent e)
     {
         if (!ReferenceEquals(source, _backend))
         {
             return; // A replaced process still draining.
         }
+
+        LastActivityUtc = DateTime.UtcNow;
 
         switch (e)
         {
@@ -695,6 +728,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 }
 
                 _backend = null;
+                _main.OnAliveChanged(this);
                 break;
         }
     }
