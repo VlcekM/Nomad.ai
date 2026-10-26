@@ -684,7 +684,7 @@
 
       <Button Name="ModelChip" Grid.Column="3" Theme="{StaticResource ChipButton}">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <TextBlock Text="{Binding ModelName}" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding ModelName}" VerticalAlignment="Center" />
           <TextBlock Text="{Binding EffortName}" IsVisible="{Binding HasEffort}" Classes="muted" VerticalAlignment="Center" />
         </StackPanel>
         <Button.Flyout>
@@ -745,7 +745,7 @@
               StrokeWidth="1.8"
               IsSpinning="{Binding IsTurnRunning}"
               Fraction="{Binding ContextFraction}"
-              TrackBrush="#40FFFFFF"
+              TrackBrush="#33FFFFFF"
               ArcBrush="{StaticResource RingBrush}"
               SpinBrush="{StaticResource RingBrush}"
               VerticalAlignment="Center"
