@@ -156,7 +156,12 @@ public partial class MainWindow : Window
 
         if (dev.Prompt is { } prompt)
         {
-            _ = _vm.Current.SendPromptAsync(prompt);
+            var session = _vm.Current;
+            _ = session.SendPromptAsync(prompt);
+            if (dev.StopAfterSeconds is { } stopAfter)
+            {
+                DispatcherTimer.RunOnce(() => session.StopCommand.Execute(null), TimeSpan.FromSeconds(stopAfter));
+            }
         }
 
         if (dev.ScreenshotPath is { } path)

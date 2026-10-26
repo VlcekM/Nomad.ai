@@ -20,6 +20,7 @@ namespace Klodi.App.Infrastructure;
 /// --dev-expand                  expand every tool group (to screenshot rows)
 /// --dev-answer allow|session|deny   answer every permission request automatically
 /// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
+/// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// </code>
 /// </summary>
 public sealed class DevOptions
@@ -40,6 +41,7 @@ public sealed class DevOptions
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
     public List<(string Key, string Value)> Set { get; } = [];
+    public double? StopAfterSeconds { get; private set; }
 
     public IReadOnlyList<string> ExtraCliArguments => Lean
         ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep"]
@@ -90,6 +92,13 @@ public sealed class DevOptions
                 case "--dev-lean": o.Lean = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;
+                case "--dev-stop-after":
+                    if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var stop))
+                    {
+                        o.StopAfterSeconds = stop;
+                    }
+
+                    break;
                 case "--dev-set":
                     var pair = Next().Split('=', 2);
                     if (pair.Length == 2)
