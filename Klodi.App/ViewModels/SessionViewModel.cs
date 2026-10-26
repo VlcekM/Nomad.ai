@@ -279,7 +279,16 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>Share of the context window used after the last turn (0..1), for the ring.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContextToolTip))]
     public partial double ContextFraction { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContextToolTip))]
+    public partial long ContextTokens { get; set; }
+
+    public string ContextToolTip => ContextTokens > 0
+        ? $"Context: {Format.Tokens(ContextTokens)} of {Format.Tokens(Catalog.ContextWindow(Model))} ({ContextFraction:P0})"
+        : "Context: empty";
 
     [ObservableProperty]
     public partial bool IsLoadingHistory { get; set; }
@@ -309,7 +318,8 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public async Task SendPromptAsync(string text)
     {
-        if (IsNew)
+        var first = IsNew;
+        if (first)
         {
             Title = SessionTitles.Shorten(text);
             IsNew = false;
@@ -327,6 +337,10 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             await EnsureBackendAsync();
             await _backend!.SendPromptAsync(text);
+            if (first)
+            {
+                _ = GenerateTitleAsync(_backend, text);
+            }
         }
         catch (Exception ex)
         {
@@ -335,6 +349,24 @@ public sealed partial class SessionViewModel : ObservableObject
             Items.Add(new ErrorItem(ex.Message));
             ContentChanged?.Invoke();
             _main.OnSessionActivity(this);
+        }
+    }
+
+    /// <summary>Like the original app: a short generated title replaces the first prompt (and is stored with the session).</summary>
+    private async Task GenerateTitleAsync(IAgentBackend backend, string prompt)
+    {
+        try
+        {
+            var title = await backend.GenerateTitleAsync(prompt, persist: true);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                Title = title;
+                _main.OnSessionTitleChanged(this);
+            }
+        }
+        catch (Exception)
+        {
+            // The first-prompt title stays.
         }
     }
 
@@ -839,10 +871,11 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         AgentMeta = string.Join(" · ", parts);
-        var context = result.InputTokens + result.CacheReadTokens + result.CacheCreationTokens;
+        var context = result.InputTokens + result.CacheReadTokens + result.CacheCreationTokens + result.OutputTokens;
         if (context > 0)
         {
-            ContextFraction = Math.Clamp(context / 200_000.0, 0, 1);
+            ContextTokens = context;
+            ContextFraction = Math.Clamp(context / (double)Catalog.ContextWindow(Model), 0, 1);
         }
 
         ContentChanged?.Invoke();

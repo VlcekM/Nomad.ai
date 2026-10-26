@@ -40,6 +40,19 @@ public partial class MainWindow : Window
 
         Opened += (_, _) => _ = StartAsync();
         Closing += OnClosing;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsSettingsOpen) && vm.IsSettingsOpen)
+            {
+                Dispatcher.UIThread.Post(() => SettingsHost.Focus(), DispatcherPriority.Loaded);
+            }
+        };
+    }
+
+    private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _vm.CloseSettingsCommand.Execute(null);
+        e.Handled = true;
     }
 
     // ------------------------------------------------------------------ title bar
@@ -174,9 +187,29 @@ public partial class MainWindow : Window
             _vm.Current.ExpandAllTools();
         }
 
+        if (dev.Set.Count > 0)
+        {
+            // Same path as the settings dialog: live re-render of the open transcript.
+            var page = new SettingsViewModel(_vm);
+            foreach (var (key, value) in dev.Set)
+            {
+                switch (key)
+                {
+                    case "textSize": page.TextSize = value; break;
+                    case "width": page.TranscriptWidth = value; break;
+                }
+            }
+
+            await Task.Delay(500);
+        }
+
         if (dev.SettingsOpen)
         {
-            _vm.IsSettingsOpen = true;
+            _vm.OpenSettingsCommand.Execute(null);
+            if (dev.SettingsClaudePage)
+            {
+                _vm.SettingsPage?.ShowClaudeCodeCommand.Execute(null);
+            }
         }
 
         if (dev.Menu is { } menu)

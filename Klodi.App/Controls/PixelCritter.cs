@@ -30,7 +30,7 @@ public sealed class PixelCritter : Control
 
     private static readonly IBrush BodyBrush = new SolidColorBrush(Color.Parse("#D97757"));
     private static readonly IBrush ShadeBrush = new SolidColorBrush(Color.Parse("#B45A40"));
-    private static readonly IBrush EyeBrush = new SolidColorBrush(Color.Parse("#141414"));
+    private static readonly IBrush EyeBrush = new SolidColorBrush(Color.Parse("#050505"));
 
     protected override Size MeasureOverride(Size availableSize) => new(Map[0].Length * Cell, Map.Length * Cell);
 

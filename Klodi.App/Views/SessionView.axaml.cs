@@ -22,6 +22,22 @@ public partial class SessionView : UserControl
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnViewKeyDown, RoutingStrategies.Bubble);
         Scroller.ScrollChanged += OnScrollChanged;
+
+        // Chips keep their hover fill while their menu is open, as in the original.
+        TrackOpen(ModelChip, ModelChip.Flyout);
+        TrackOpen(ModeChip, ModeChip.Flyout);
+        TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
+    }
+
+    private static void TrackOpen(Button chip, FlyoutBase? flyout)
+    {
+        if (flyout is null)
+        {
+            return;
+        }
+
+        flyout.Opened += (_, _) => chip.Classes.Add("open");
+        flyout.Closed += (_, _) => chip.Classes.Remove("open");
     }
 
     private SessionViewModel? Vm => DataContext as SessionViewModel;

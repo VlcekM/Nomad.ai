@@ -86,8 +86,9 @@
 
   <!-- Status-row chips (folder, mode, model): flat, Bg.Chip when hovered or open. -->
   <ControlTheme x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Height" Value="28" />
+    <Setter Property="Height" Value="24" />
     <Setter Property="Padding" Value="7,0" />
+    <Setter Property="CornerRadius" Value="5" />
     <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
     <Style Selector="^:pointerover">
       <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
@@ -97,10 +98,10 @@
     </Style>
   </ControlTheme>
 
-  <!-- Popup menu items: 26 px rows, radius 6. -->
+  <!-- Popup menu items: 24 px rows, radius 6. -->
   <ControlTheme x:Key="MenuItemButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="MinHeight" Value="26" />
-    <Setter Property="Padding" Value="8,3" />
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,2" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -337,16 +338,17 @@
     </Style>
   </ControlTheme>
 
-  <!-- Segmented control segment (settings): checked = raised fill + primary text. -->
+  <!-- Segmented control segment (settings): checked = lighter fill with a 1 px border. -->
   <ControlTheme x:Key="SegmentButton" TargetType="RadioButton">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="11,0" />
-    <Setter Property="Height" Value="28" />
+    <Setter Property="Height" Value="27" />
     <Setter Property="CornerRadius" Value="6" />
-    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontSize" Value="14.5" />
+    <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
         <ContentPresenter Name="PART_ContentPresenter"
@@ -365,10 +367,22 @@
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="^:checked">
-      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="Background" Value="#3C3C3A" />
+      <Setter Property="BorderBrush" Value="#4C4C4C" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
       <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Settings navigation rows: 32 px, selected = #383838. -->
+  <ControlTheme x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="#DCDCD8" />
+    <Style Selector="^.selected">
+      <Setter Property="Background" Value="#383838" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

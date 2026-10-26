@@ -17,7 +17,7 @@
   <Color x:Key="BgCodeColor">#1A1A19</Color>
   <Color x:Key="BgChipColor">#262626</Color>
   <Color x:Key="BgMenuColor">#20201E</Color>
-  <Color x:Key="BgOverlayColor">#99000000</Color>
+  <Color x:Key="BgOverlayColor">#80000000</Color>
 
   <!-- Lines -->
   <Color x:Key="BorderColor">#363636</Color>

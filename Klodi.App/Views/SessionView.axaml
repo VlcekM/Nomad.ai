@@ -292,7 +292,7 @@
             </StackPanel>
           </StackPanel>
         </Border>
-        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="14" />
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" />
       </Panel>
     </DataTemplate>
 
@@ -584,7 +584,7 @@
               <ItemsControl ItemsSource="{Binding ModeOptions}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MenuOption">
-                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModeOptionClick" Padding="8,4">
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModeOptionClick" Padding="8,3">
                       <Grid ColumnDefinitions="*,Auto,Auto">
                         <StackPanel>
                           <TextBlock Text="{Binding Label}" Classes.danger="{Binding IsDangerSelected}" />
@@ -619,7 +619,7 @@
         </StackPanel>
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-            <StackPanel Width="190">
+            <StackPanel Width="172">
               <TextBlock Text="Model · this session" Classes="menuheader" />
               <ItemsControl ItemsSource="{Binding ModelOptions}">
                 <ItemsControl.ItemTemplate>
@@ -672,14 +672,14 @@
       <c:Ring Grid.Column="4"
               Width="14" Height="14"
               Margin="7,0,14,0"
-              StrokeWidth="1.6"
+              StrokeWidth="1.8"
               IsSpinning="{Binding IsTurnRunning}"
               Fraction="{Binding ContextFraction}"
-              TrackBrush="#2EFFFFFF"
+              TrackBrush="#40FFFFFF"
               ArcBrush="{StaticResource RingBrush}"
               SpinBrush="{StaticResource RingBrush}"
               VerticalAlignment="Center"
-              ToolTip.Tip="Context used" />
+              ToolTip.Tip="{Binding ContextToolTip}" />
     </Grid>
   </Grid>
 </UserControl>

@@ -42,16 +42,35 @@ public partial class App : Application
             return;
         }
 
-        app.Resources["UiFont"] = Fonts.Ui(settings.InterfaceFont);
-        app.Resources["MonoFont"] = Fonts.Code(settings.CodeFont);
-        app.Resources["ColumnMaxWidth"] = ColumnWidth(settings.TranscriptWidth);
+        Set("UiFont", Fonts.Ui(settings.InterfaceFont));
+        Set("MonoFont", Fonts.Code(settings.CodeFont));
+        Set("ColumnMaxWidth", ColumnWidth(settings.TranscriptWidth));
 
         var style = MarkdownStyle.From(settings.TextSize, settings.InterfaceFont, settings.CodeFont);
-        app.Resources["BodyFontSize"] = style.BodySize;
-        app.Resources["BodyLineHeight"] = style.LineHeight;
-        app.Resources["CodeFontSize"] = style.CodeSize;
-        MarkdownStyle.Current = style;
-        MarkdownView.NotifyStyleChanged();
+        Set("BodyFontSize", style.BodySize);
+        Set("BodyLineHeight", style.LineHeight);
+        Set("CodeFontSize", style.CodeSize);
+
+        var old = MarkdownStyle.Current;
+        if (old.BodySize != style.BodySize || old.CodeSize != style.CodeSize ||
+            old.BodyFont.Name != style.BodyFont.Name || old.CodeFont.Name != style.CodeFont.Name)
+        {
+            MarkdownStyle.Current = style;
+            MarkdownView.NotifyStyleChanged();
+        }
+
+        void Set(string key, object value)
+        {
+            var same = app.Resources.TryGetValue(key, out var current) && current switch
+            {
+                Avalonia.Media.FontFamily f when value is Avalonia.Media.FontFamily g => f.Name == g.Name,
+                _ => Equals(current, value),
+            };
+            if (!same)
+            {
+                app.Resources[key] = value;
+            }
+        }
     }
 
     /// <summary>Width of the transcript/composer column (Wide matches the original's 1280 px).</summary>

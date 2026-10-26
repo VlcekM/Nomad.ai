@@ -14,11 +14,12 @@ namespace Klodi.App.Infrastructure;
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
 /// --dev-menu model|mode|folder|plus   open a menu before the screenshot
-/// --dev-settings-open           open the settings dialog before the screenshot
+/// --dev-settings-open [claude]  open the settings dialog (or its Claude Code page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Klodi\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
 /// --dev-expand                  expand every tool group (to screenshot rows)
 /// --dev-answer allow|session|deny   answer every permission request automatically
+/// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
 /// </code>
 /// </summary>
 public sealed class DevOptions
@@ -33,10 +34,12 @@ public sealed class DevOptions
     public (int Width, int Height)? Size { get; private set; }
     public string? Menu { get; private set; }
     public bool SettingsOpen { get; private set; }
+    public bool SettingsClaudePage { get; private set; }
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
+    public List<(string Key, string Value)> Set { get; } = [];
 
     public IReadOnlyList<string> ExtraCliArguments => Lean
         ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep"]
@@ -74,11 +77,27 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-menu": o.Menu = Next(); break;
-                case "--dev-settings-open": o.SettingsOpen = true; break;
+                case "--dev-settings-open":
+                    o.SettingsOpen = true;
+                    if (i + 1 < args.Length && args[i + 1] == "claude")
+                    {
+                        o.SettingsClaudePage = true;
+                        i++;
+                    }
+
+                    break;
                 case "--dev-settings": o.SettingsPath = Next(); break;
                 case "--dev-lean": o.Lean = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;
+                case "--dev-set":
+                    var pair = Next().Split('=', 2);
+                    if (pair.Length == 2)
+                    {
+                        o.Set.Add((pair[0], pair[1]));
+                    }
+
+                    break;
             }
         }
 

@@ -29,9 +29,7 @@ public sealed partial class MainViewModel : ObservableObject
         IsSidebarOpen = !settings.SidebarCollapsed;
         PlanLabel = string.IsNullOrEmpty(settings.LastPlan) ? null : settings.LastPlan;
 
-        var user = Environment.UserName;
-        UserName = string.IsNullOrEmpty(settings.DisplayName) ? Format.Capitalize(user) : settings.DisplayName;
-        UserInitials = Initials(UserName);
+        ApplyDisplayName();
 
         Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
         if (dev.Model is not null)
@@ -48,9 +46,24 @@ public sealed partial class MainViewModel : ObservableObject
 
     public ObservableCollection<SessionListItemViewModel> Recents { get; } = [];
 
-    public string UserName { get; }
+    [ObservableProperty]
+    public partial string UserName { get; set; } = "";
 
-    public string UserInitials { get; }
+    [ObservableProperty]
+    public partial string UserInitials { get; set; } = "";
+
+    public string SettingsPath => _settingsPath;
+
+    /// <summary>The open settings dialog's model (null while closed).</summary>
+    [ObservableProperty]
+    public partial SettingsViewModel? SettingsPage { get; set; }
+
+    /// <summary>Footer name: the Display name setting, else the Windows user name.</summary>
+    public void ApplyDisplayName()
+    {
+        UserName = string.IsNullOrWhiteSpace(Settings.DisplayName) ? Format.Capitalize(Environment.UserName) : Settings.DisplayName;
+        UserInitials = Initials(UserName);
+    }
 
     public string DefaultModel => Dev.Model ?? Settings.DefaultModel;
 
@@ -259,12 +272,17 @@ public sealed partial class MainViewModel : ObservableObject
     public void ToggleSidebar() => IsSidebarOpen = !IsSidebarOpen;
 
     [RelayCommand]
-    public void OpenSettings() => IsSettingsOpen = true;
+    public void OpenSettings()
+    {
+        SettingsPage = new SettingsViewModel(this);
+        IsSettingsOpen = true;
+    }
 
     [RelayCommand]
     public void CloseSettings()
     {
         IsSettingsOpen = false;
+        SettingsPage = null;
         SaveSettings();
     }
 
@@ -304,9 +322,8 @@ public sealed partial class MainViewModel : ObservableObject
             vm.FilePath = s.FilePath;
             vm.WorkingDirectory = s.WorkingDirectory;
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
-            vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) && s.Title == SessionTitles.Shorten(live.Title)
-                ? live.Title
-                : s.Title;
+            // An open session knows its newest title (a generated one may not be on disk yet).
+            vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
             merged.Add(vm);
         }
 
@@ -392,6 +409,14 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsRunning = session.IsTurnRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
+    }
+
+    public void OnSessionTitleChanged(SessionViewModel session)
+    {
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
+        {
+            vm.Title = session.Title;
+        }
     }
 
     public void OnSessionActivity(SessionViewModel session)

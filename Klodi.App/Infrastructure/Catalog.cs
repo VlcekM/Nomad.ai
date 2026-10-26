@@ -32,6 +32,8 @@ public static class Catalog
         new("low", "Low"),
         new("medium", "Medium"),
         new("high", "High"),
+        new("xhigh", "Extra high"),
+        new("max", "Max"),
     ];
 
     public static string ModelName(string? id)
@@ -60,6 +62,15 @@ public static class Catalog
 
         return id;
     }
+
+    /// <summary>Context window used for the status-row ring (Opus 5.5: 500k as in the original's panel).</summary>
+    public static int ContextWindow(string? model) => model switch
+    {
+        null => 200_000,
+        _ when model.Contains("[1m]", StringComparison.OrdinalIgnoreCase) => 1_000_000,
+        _ when model.StartsWith("claude-opus-5", StringComparison.OrdinalIgnoreCase) => 500_000,
+        _ => 200_000,
+    };
 
     public static string ModeName(string? id)
     {
