@@ -60,21 +60,28 @@ public static partial class ClaudeFonts
         }
     }
 
-    /// <summary>Upright Anthropic Sans and Mono from the newest Claude app's stylesheets.</summary>
+    /// <summary>
+    /// Upright Anthropic Sans and Mono from the Claude app's stylesheets: the Microsoft Store (MSIX) install first,
+    /// then the newest Squirrel install in <c>%LOCALAPPDATA%\AnthropicClaude</c>.
+    /// </summary>
     private static Dictionary<string, string>? FindAssets()
     {
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnthropicClaude");
-        if (!Directory.Exists(root))
+        var dists = new List<string>();
+        if (StorePackagePath() is { } package)
         {
-            return null;
+            dists.Add(Path.Combine(package, "app", "resources", "ion-dist"));
         }
 
-        var dists = Directory.GetDirectories(root, "app-*")
-            .Select(d => (Dir: Path.Combine(d, "resources", "ion-dist"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
-            .Where(d => Directory.Exists(d.Dir))
-            .OrderByDescending(d => d.Version);
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnthropicClaude");
+        if (Directory.Exists(root))
+        {
+            dists.AddRange(Directory.GetDirectories(root, "app-*")
+                .Select(d => (Dir: Path.Combine(d, "resources", "ion-dist"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
+                .OrderByDescending(d => d.Version)
+                .Select(d => d.Dir));
+        }
 
-        foreach (var (dist, _) in dists)
+        foreach (var dist in dists.Where(Directory.Exists))
         {
             var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var css in Directory.EnumerateFiles(dist, "*.css", SearchOption.AllDirectories))
@@ -102,6 +109,53 @@ public static partial class ClaudeFonts
         }
 
         return null;
+    }
+
+    // The Store app's package family (name and publisher hash); its install folder under WindowsApps can be read,
+    // but not listed, so it is asked for by name.
+    private const string StoreFamily = "Claude_pzs8sxrjxfjjc";
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern unsafe int GetPackagesByPackageFamily(char* family, uint* count, char** fullNames, uint* bufferLength, char* buffer);
+
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    private static extern unsafe int GetPackagePathByFullName(char* fullName, uint* pathLength, char* path);
+
+    /// <summary>The install folder of the Store app (the first package of its family), or null.</summary>
+    private static unsafe string? StorePackagePath()
+    {
+        const int insufficientBuffer = 122;
+        fixed (char* family = StoreFamily)
+        {
+            uint count = 0, length = 0;
+            if (GetPackagesByPackageFamily(family, &count, null, &length, null) != insufficientBuffer || count == 0)
+            {
+                return null;
+            }
+
+            var names = new char*[count];
+            var buffer = new char[length];
+            fixed (char** pNames = names)
+            fixed (char* pBuffer = buffer)
+            {
+                if (GetPackagesByPackageFamily(family, &count, pNames, &length, pBuffer) != 0)
+                {
+                    return null;
+                }
+
+                uint pathLength = 0;
+                if (GetPackagePathByFullName(pNames[0], &pathLength, null) != insufficientBuffer)
+                {
+                    return null;
+                }
+
+                var path = new char[pathLength];
+                fixed (char* pPath = path)
+                {
+                    return GetPackagePathByFullName(pNames[0], &pathLength, pPath) == 0 ? new string(pPath) : null;
+                }
+            }
+        }
     }
 
     [GeneratedRegex(@"@font-face\{font-family:anthropic-(sans|mono);src:url\(([^)]+\.woff2)\)[^}]*font-style:normal")]
