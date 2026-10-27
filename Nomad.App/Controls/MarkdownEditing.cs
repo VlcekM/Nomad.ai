@@ -7,9 +7,10 @@ using Nomad.Core.Text;
 namespace Nomad.App.Controls;
 
 /// <summary>
-/// List writing in a text box (see <see cref="MarkdownLists"/>): Shift+Enter in a list item starts the next one
+/// List and code writing in a text box (see <see cref="MarkdownLists"/>): Shift+Enter in a list item starts the next one
 /// (Enter itself still sends), and in an empty one ends the list; Tab and Shift+Tab nest and un-nest the items
-/// the caret or selection is on; Backspace right after a marker takes it away. Each is one undo step.
+/// the caret or selection is on; Backspace right after a marker takes it away; a third backtick at the start of
+/// a line opens a code block, closed below. Each is one undo step.
 /// </summary>
 public static class MarkdownEditing
 {
@@ -21,9 +22,11 @@ public static class MarkdownEditing
         IsEnabledProperty.Changed.AddClassHandler<TextBox>((box, e) =>
         {
             box.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
+            box.RemoveHandler(InputElement.TextInputEvent, OnTextInput);
             if (e.GetNewValue<bool>())
             {
                 box.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+                box.AddHandler(InputElement.TextInputEvent, OnTextInput, RoutingStrategies.Tunnel);
             }
         });
     }
@@ -54,6 +57,20 @@ public static class MarkdownEditing
         if (edit is { } change)
         {
             Apply(box, change);
+            e.Handled = true;
+        }
+    }
+
+    private static void OnTextInput(object? sender, TextInputEventArgs e)
+    {
+        if (e.Handled || e.Text != "`" || sender is not TextBox { IsReadOnly: false } box || box.SelectionStart != box.SelectionEnd)
+        {
+            return;
+        }
+
+        if (MarkdownLists.Backtick(box.Text ?? "", box.CaretIndex, box.NewLine) is { } edit)
+        {
+            Apply(box, edit);
             e.Handled = true;
         }
     }

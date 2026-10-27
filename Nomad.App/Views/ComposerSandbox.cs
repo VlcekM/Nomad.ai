@@ -50,7 +50,7 @@ public sealed class ComposerSandbox : Window
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MaxHeight = 190,
-            Margin = new Thickness(14, 11),
+            Margin = new Thickness(8, 11),
             VerticalContentAlignment = VerticalAlignment.Top,
             Watermark = "Type Markdown…",
             Text = dev.Compose ?? Sample,
@@ -108,7 +108,13 @@ public sealed class ComposerSandbox : Window
     {
         _box.Focus();
         _box.CaretIndex = _box.Text?.Length ?? 0;
-        if (Program.Dev.Key is var (gesture, seconds))
+        // --dev-key "text:`" types the text instead of pressing a key.
+        if (Program.Dev.Key is var (typed, at) && typed.StartsWith("text:", StringComparison.Ordinal))
+        {
+            DispatcherTimer.RunOnce(() => _box.RaiseEvent(new TextInputEventArgs { RoutedEvent = TextInputEvent, Text = typed[5..] }),
+                TimeSpan.FromSeconds(at));
+        }
+        else if (Program.Dev.Key is var (gesture, seconds))
         {
             var key = KeyGesture.Parse(gesture);
             DispatcherTimer.RunOnce(() => _box.RaiseEvent(new KeyEventArgs

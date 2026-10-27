@@ -2,7 +2,7 @@ namespace Nomad.Core.Text;
 
 /// <summary>How a stretch of prompt text is drawn while it is being typed (several can combine).</summary>
 [Flags]
-public enum MarkdownStyle : ushort
+public enum SpanStyle : ushort
 {
     None = 0,
 
@@ -24,11 +24,11 @@ public enum MarkdownStyle : ushort
     /// <summary>An ordered item's <c>1.</c>.</summary>
     Number = 1 << 9,
 
-    /// <summary>A line inside a fenced code block.</summary>
+    /// <summary>A fenced code block: its fences, lines and the breaks between them.</summary>
     CodeBlock = 1 << 10,
 }
 
-public readonly record struct MarkdownSpan(int Start, int Length, MarkdownStyle Style);
+public readonly record struct MarkdownSpan(int Start, int Length, SpanStyle Style);
 
 /// <summary>
 /// A forgiving, line-by-line reading of Markdown for highlighting the composer as it is typed: headings, quotes,
@@ -45,7 +45,7 @@ public static class MarkdownSpans
             return spans;
         }
 
-        var styles = new MarkdownStyle[text.Length];
+        var styles = new SpanStyle[text.Length];
         var inFence = false;
         var fence = "";
         var start = 0;
@@ -54,7 +54,15 @@ public static class MarkdownSpans
             var newline = text.IndexOf('\n', start);
             var end = newline < 0 ? text.Length : newline;
             var contentEnd = end > start && text[end - 1] == '\r' ? end - 1 : end;
+            var wasInFence = inFence;
             Line(text, styles, start, contentEnd, ref inFence, ref fence);
+
+            // A code block's lines, fences and breaks included, are one stretch (drawn on one background).
+            if (wasInFence || inFence)
+            {
+                Mark(styles, start, newline < 0 ? end : newline + 1, SpanStyle.CodeBlock);
+            }
+
             if (newline < 0)
             {
                 break;
@@ -68,7 +76,7 @@ public static class MarkdownSpans
         {
             if (i == styles.Length || styles[i] != styles[runStart])
             {
-                if (styles[runStart] != MarkdownStyle.None)
+                if (styles[runStart] != SpanStyle.None)
                 {
                     spans.Add(new MarkdownSpan(runStart, i - runStart, styles[runStart]));
                 }
@@ -80,7 +88,7 @@ public static class MarkdownSpans
         return spans;
     }
 
-    private static void Line(string text, MarkdownStyle[] styles, int start, int end, ref bool inFence, ref string fence)
+    private static void Line(string text, SpanStyle[] styles, int start, int end, ref bool inFence, ref string fence)
     {
         var pos = start;
         while (pos < end && text[pos] is ' ' or '\t')
@@ -102,21 +110,21 @@ public static class MarkdownSpans
             {
                 inFence = true;
                 fence = mark;
-                Mark(styles, pos, end, MarkdownStyle.Marker);
+                Mark(styles, pos, end, SpanStyle.Marker);
                 return;
             }
 
             if (mark.Length >= fence.Length && text[pos] == fence[0] && IsBlank(text, pos + length, end))
             {
                 inFence = false;
-                Mark(styles, pos, end, MarkdownStyle.Marker);
+                Mark(styles, pos, end, SpanStyle.Marker);
                 return;
             }
         }
 
         if (inFence)
         {
-            Mark(styles, start, end, MarkdownStyle.CodeBlock);
+            Mark(styles, start, end, SpanStyle.CodeBlock);
             return;
         }
 
@@ -136,8 +144,8 @@ public static class MarkdownSpans
 
             if (level <= 6 && (pos + level == end || text[pos + level] == ' '))
             {
-                Mark(styles, pos, pos + level, MarkdownStyle.Marker);
-                Mark(styles, pos + level, end, MarkdownStyle.Heading | MarkdownStyle.Bold);
+                Mark(styles, pos, pos + level, SpanStyle.Marker);
+                Mark(styles, pos + level, end, SpanStyle.Heading | SpanStyle.Bold);
                 Inline(text, styles, pos + level, end);
                 return;
             }
@@ -151,13 +159,13 @@ public static class MarkdownSpans
             {
                 if (text[body] == '>')
                 {
-                    Mark(styles, body, body + 1, MarkdownStyle.Marker);
+                    Mark(styles, body, body + 1, SpanStyle.Marker);
                 }
 
                 body++;
             }
 
-            Mark(styles, body, end, MarkdownStyle.Quote);
+            Mark(styles, body, end, SpanStyle.Quote);
             Inline(text, styles, body, end);
             return;
         }
@@ -165,18 +173,18 @@ public static class MarkdownSpans
         // ---, ***, ___ on their own: a rule.
         if (IsRule(text, pos, end))
         {
-            Mark(styles, pos, end, MarkdownStyle.Marker);
+            Mark(styles, pos, end, SpanStyle.Marker);
             return;
         }
 
         if (MarkdownLists.ParseItem(text.AsSpan(start, end - start)) is { } item)
         {
             var marker = start + item.Indent;
-            Mark(styles, marker, marker + item.Marker.Length, item.IsOrdered ? MarkdownStyle.Number : MarkdownStyle.Bullet);
+            Mark(styles, marker, marker + item.Marker.Length, item.IsOrdered ? SpanStyle.Number : SpanStyle.Bullet);
             if (item.IsTask)
             {
                 var box = marker + item.Marker.Length + 1;
-                Mark(styles, box, box + 3, MarkdownStyle.Marker);
+                Mark(styles, box, box + 3, SpanStyle.Marker);
             }
 
             pos = start + item.ContentStart;
@@ -185,7 +193,7 @@ public static class MarkdownSpans
         Inline(text, styles, pos, end);
     }
 
-    private static void Inline(string text, MarkdownStyle[] styles, int start, int end)
+    private static void Inline(string text, SpanStyle[] styles, int start, int end)
     {
         var i = start;
         while (i < end)
@@ -193,7 +201,7 @@ public static class MarkdownSpans
             var c = text[i];
             if (c == '\\' && i + 1 < end && (char.IsPunctuation(text[i + 1]) || char.IsSymbol(text[i + 1])))
             {
-                Mark(styles, i, i + 1, MarkdownStyle.Marker);
+                Mark(styles, i, i + 1, SpanStyle.Marker);
                 i += 2;
                 continue;
             }
@@ -204,9 +212,9 @@ public static class MarkdownSpans
                 var close = FindRun(text, i + ticks, end, '`', ticks);
                 if (close >= 0)
                 {
-                    Mark(styles, i, i + ticks, MarkdownStyle.Marker | MarkdownStyle.Code);
-                    Mark(styles, i + ticks, close, MarkdownStyle.Code);
-                    Mark(styles, close, close + ticks, MarkdownStyle.Marker | MarkdownStyle.Code);
+                    Mark(styles, i, i + ticks, SpanStyle.Marker | SpanStyle.Code);
+                    Mark(styles, i + ticks, close, SpanStyle.Code);
+                    Mark(styles, close, close + ticks, SpanStyle.Marker | SpanStyle.Code);
                     i = close + ticks;
                     continue;
                 }
@@ -232,7 +240,7 @@ public static class MarkdownSpans
     }
 
     /// <summary>[text](address): the text as a link, the brackets and address quiet. Returns where it ends, or 0.</summary>
-    private static int Link(string text, MarkdownStyle[] styles, int open, int end)
+    private static int Link(string text, SpanStyle[] styles, int open, int end)
     {
         var close = text.IndexOf(']', open + 1, end - open - 1);
         if (close < 0 || close + 1 >= end || text[close + 1] != '(')
@@ -246,15 +254,15 @@ public static class MarkdownSpans
             return 0;
         }
 
-        Mark(styles, open, open + 1, MarkdownStyle.Marker);
-        Mark(styles, open + 1, close, MarkdownStyle.Link);
+        Mark(styles, open, open + 1, SpanStyle.Marker);
+        Mark(styles, open + 1, close, SpanStyle.Link);
         Inline(text, styles, open + 1, close);
-        Mark(styles, close, paren + 1, MarkdownStyle.Marker);
+        Mark(styles, close, paren + 1, SpanStyle.Marker);
         return paren + 1;
     }
 
     /// <summary>**bold**, __bold__, *italic*, _italic_, ~~struck~~. Returns where it ends, or 0.</summary>
-    private static int Emphasis(string text, MarkdownStyle[] styles, int i, int end)
+    private static int Emphasis(string text, SpanStyle[] styles, int i, int end)
     {
         var c = text[i];
         var run = Run(text, i, end, c);
@@ -308,12 +316,12 @@ public static class MarkdownSpans
             }
 
             var style = c == '~'
-                ? MarkdownStyle.Strike
-                : width switch { 1 => MarkdownStyle.Italic, 2 => MarkdownStyle.Bold, _ => MarkdownStyle.Bold | MarkdownStyle.Italic };
-            Mark(styles, open, bodyStart, MarkdownStyle.Marker);
+                ? SpanStyle.Strike
+                : width switch { 1 => SpanStyle.Italic, 2 => SpanStyle.Bold, _ => SpanStyle.Bold | SpanStyle.Italic };
+            Mark(styles, open, bodyStart, SpanStyle.Marker);
             Mark(styles, bodyStart, j, style);
             Inline(text, styles, bodyStart, j);
-            Mark(styles, j, j + width, MarkdownStyle.Marker);
+            Mark(styles, j, j + width, SpanStyle.Marker);
             return j + width;
         }
 
@@ -390,7 +398,7 @@ public static class MarkdownSpans
         return true;
     }
 
-    private static void Mark(MarkdownStyle[] styles, int start, int end, MarkdownStyle style)
+    private static void Mark(SpanStyle[] styles, int start, int end, SpanStyle style)
     {
         for (var i = start; i < end; i++)
         {

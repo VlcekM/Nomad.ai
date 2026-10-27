@@ -92,15 +92,39 @@ public class MarkdownTextTests
     {
         var spans = MarkdownSpans.Highlight("# Title\n- **bold** and `code`\n1. x_y_z");
 
-        MarkdownStyle At(int i) => spans.FirstOrDefault(s => i >= s.Start && i < s.Start + s.Length).Style;
-        Assert.Equal(MarkdownStyle.Marker, At(0));
-        Assert.True(At(2).HasFlag(MarkdownStyle.Heading));
-        Assert.Equal(MarkdownStyle.Bullet, At(8));
-        Assert.Equal(MarkdownStyle.Marker, At(10));
-        Assert.Equal(MarkdownStyle.Bold, At(12));
-        Assert.Equal(MarkdownStyle.Code, At("# Title\n- **bold** and `".Length));
-        Assert.Equal(MarkdownStyle.Number, At("# Title\n- **bold** and `code`\n".Length));
-        Assert.Equal(MarkdownStyle.None, At("# Title\n- **bold** and `code`\n1. x_".Length));
+        SpanStyle At(int i) => spans.FirstOrDefault(s => i >= s.Start && i < s.Start + s.Length).Style;
+        Assert.Equal(SpanStyle.Marker, At(0));
+        Assert.True(At(2).HasFlag(SpanStyle.Heading));
+        Assert.Equal(SpanStyle.Bullet, At(8));
+        Assert.Equal(SpanStyle.Marker, At(10));
+        Assert.Equal(SpanStyle.Bold, At(12));
+        Assert.Equal(SpanStyle.Code, At("# Title\n- **bold** and `".Length));
+        Assert.Equal(SpanStyle.Number, At("# Title\n- **bold** and `code`\n".Length));
+        Assert.Equal(SpanStyle.None, At("# Title\n- **bold** and `code`\n1. x_".Length));
+    }
+
+    [Fact]
+    public void AThirdBacktickOpensAClosedCodeBlock()
+    {
+        var text = "Look:\n``";
+        var edit = MarkdownLists.Backtick(text, text.Length, "\n")!.Value;
+
+        Assert.Equal("Look:\n```\n\n```", Apply(text, edit));
+        Assert.Equal("Look:\n```\n".Length, edit.SelectionEnd);
+        Assert.Null(MarkdownLists.Backtick("a ``", 4, "\n"));
+        Assert.Null(MarkdownLists.Backtick("```\ncode\n``", 11, "\n"));
+    }
+
+    [Fact]
+    public void InsideCodeNewLinesKeepTheIndentAndListsAreLeftAlone()
+    {
+        var text = "```\n- not a list\n  indented\n```";
+        Assert.Null(MarkdownLists.NewLine(text, "```\n- not a list".Length, "\n"));
+
+        var caret = "```\n- not a list\n  indented".Length;
+        var edit = MarkdownLists.NewLine(text, caret, "\n")!.Value;
+        Assert.Equal("\n  ", edit.Insert);
+        Assert.Null(MarkdownLists.Indent(text, 6, 6, outdent: false));
     }
 
     [Fact]
@@ -109,8 +133,8 @@ public class MarkdownTextTests
         var text = "```\n**not bold**\n```\n*it*";
         var spans = MarkdownSpans.Highlight(text);
 
-        MarkdownStyle At(int i) => spans.FirstOrDefault(s => i >= s.Start && i < s.Start + s.Length).Style;
-        Assert.Equal(MarkdownStyle.CodeBlock, At(6));
-        Assert.Equal(MarkdownStyle.Italic, At(text.Length - 2));
+        SpanStyle At(int i) => spans.FirstOrDefault(s => i >= s.Start && i < s.Start + s.Length).Style;
+        Assert.Equal(SpanStyle.CodeBlock, At(6));
+        Assert.Equal(SpanStyle.Italic, At(text.Length - 2));
     }
 }

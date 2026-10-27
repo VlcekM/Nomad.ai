@@ -12,7 +12,8 @@ public readonly record struct TextEdit(int Start, int Length, string Insert, int
 /// <summary>
 /// Writing lists in the composer: a new line in an item starts the next one (numbered on), a new line in an
 /// empty item ends the list (or steps it out a level), Tab and Shift+Tab nest and un-nest items, and Backspace
-/// right after a marker takes it away. Ordered lists are renumbered as they change.
+/// right after a marker takes it away. Ordered lists are renumbered as they change. A third backtick at the
+/// start of a line opens a code block with its closing fence; inside one, none of this applies.
 /// </summary>
 public static class MarkdownLists
 {
@@ -78,6 +79,19 @@ public static class MarkdownLists
     {
         var doc = new Doc(text);
         var (line, col) = doc.Locate(caret);
+        if (doc.InCode(line))
+        {
+            // Code keeps the line's indentation.
+            var indent = doc.Lines[line][..col].Length - doc.Lines[line][..col].TrimStart().Length;
+            if (indent == 0)
+            {
+                return null;
+            }
+
+            var lead = doc.Lines[line][..indent];
+            return new TextEdit(caret, 0, newline + lead, caret + newline.Length + lead.Length, caret + newline.Length + lead.Length);
+        }
+
         if (ParseItem(doc.Lines[line]) is not { } item || col < item.ContentStart)
         {
             return null;
@@ -126,7 +140,7 @@ public static class MarkdownLists
     {
         var doc = new Doc(text);
         var (line, col) = doc.Locate(caret);
-        if (ParseItem(doc.Lines[line]) is not { } item || col != item.ContentStart)
+        if (doc.InCode(line) || ParseItem(doc.Lines[line]) is not { } item || col != item.ContentStart)
         {
             return null;
         }
@@ -142,6 +156,26 @@ public static class MarkdownLists
         return doc.EditFrom(text);
     }
 
+    /// <summary>
+    /// A third <c>`</c> typed at the start of a line (outside a code block) opens one: the closing fence goes in
+    /// two lines down, and the caret on the empty line between. Null where the backtick is just typed.
+    /// </summary>
+    public static TextEdit? Backtick(string text, int caret, string newline)
+    {
+        var doc = new Doc(text);
+        var (line, col) = doc.Locate(caret);
+        var before = doc.Lines[line][..col];
+        var indent = before[..(before.Length - before.TrimStart().Length)];
+        if (before.TrimStart() != "``" || !string.IsNullOrWhiteSpace(doc.Lines[line][col..]) || doc.OpenFenceBefore(line))
+        {
+            return null;
+        }
+
+        var insert = "`" + doc.Lines[line][col..] + newline + indent + newline + indent + "```";
+        var inside = caret + 1 + (doc.Lines[line].Length - col) + newline.Length + indent.Length;
+        return new TextEdit(caret, doc.Lines[line].Length - col, insert, inside, inside);
+    }
+
     private static TextEdit? Shift(Doc doc, string text, int from, int to, int selectionStart, int selectionEnd, bool outdent)
     {
         var any = false;
@@ -149,7 +183,7 @@ public static class MarkdownLists
         var caret = doc.Locate(selectionEnd);
         for (var line = from; line <= to; line++)
         {
-            if (ParseItem(doc.Lines[line]) is not { } item)
+            if (doc.InCode(line) || ParseItem(doc.Lines[line]) is not { } item)
             {
                 continue;
             }
@@ -332,6 +366,51 @@ public static class MarkdownLists
                     levels.Add((item.Indent, item.IsOrdered, item.Number));
                 }
             }
+        }
+
+        /// <summary>The line is a fence, or inside a fenced code block.</summary>
+        public bool InCode(int line) => Fence(Lines[line]) is not null || OpenFenceBefore(line);
+
+        /// <summary>A code block opened above <paramref name="line"/> is still open there.</summary>
+        public bool OpenFenceBefore(int line)
+        {
+            string? open = null;
+            for (var i = 0; i < line; i++)
+            {
+                if (Fence(Lines[i]) is not { } fence)
+                {
+                    continue;
+                }
+
+                if (open is null)
+                {
+                    open = fence;
+                }
+                else if (fence[0] == open[0] && fence.Length >= open.Length)
+                {
+                    open = null;
+                }
+            }
+
+            return open is not null;
+        }
+
+        /// <summary>The line's <c>```</c> or <c>~~~</c> run (three or more) when it starts with one.</summary>
+        private static string? Fence(string line)
+        {
+            var text = line.TrimStart();
+            if (text.Length < 3 || text[0] is not ('`' or '~') || text[1] != text[0] || text[2] != text[0])
+            {
+                return null;
+            }
+
+            var length = 3;
+            while (length < text.Length && text[length] == text[0])
+            {
+                length++;
+            }
+
+            return text[..length];
         }
 
         /// <summary>A list's lines: its items and anything indented under them; a blank or unindented line ends it.</summary>

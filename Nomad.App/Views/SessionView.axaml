@@ -1365,7 +1365,7 @@
                    TextWrapping="Wrap"
                    FontSize="{DynamicResource UiFontSizeLarge}"
                    MaxHeight="190"
-                   Margin="6,11,8,11"
+                   Margin="0,11,2,11"
                    VerticalContentAlignment="Top"
                    ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
