@@ -101,6 +101,27 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Ctrl+T: the session search. While it is open it takes Esc, the arrows and Enter.
+            if (e.Key == Key.T && e.KeyModifiers == KeyModifiers.Control)
+            {
+                vm.Search.Toggle();
+                e.Handled = true;
+                return;
+            }
+
+            if (vm.Search.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+            {
+                switch (e.Key)
+                {
+                    case Key.Escape: vm.Search.Close(); e.Handled = true; return;
+                    case Key.Enter: vm.Search.OpenResult(); e.Handled = true; return;
+                    case Key.Down: vm.Search.Move(1); e.Handled = true; return;
+                    case Key.Up: vm.Search.Move(-1); e.Handled = true; return;
+                    case Key.PageDown: vm.Search.Move(8); e.Handled = true; return;
+                    case Key.PageUp: vm.Search.Move(-8); e.Handled = true; return;
+                }
+            }
+
             if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
             {
                 BeginRename(row);
@@ -182,6 +203,39 @@ public partial class MainWindow : Window
 
         Opened += (_, _) => _ = StartAsync();
         Closing += OnClosing;
+        vm.Search.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SessionSearchViewModel.IsOpen))
+            {
+                if (vm.Search.IsOpen)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        SearchBox.Focus();
+                        SearchBox.SelectAll();
+                    }, DispatcherPriority.Loaded);
+                }
+                else
+                {
+                    this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault()?.FocusComposerSoon();
+                }
+            }
+            else if (e.PropertyName == nameof(SessionSearchViewModel.SelectedIndex) && vm.Search.SelectedIndex is >= 0 and var index)
+            {
+                // The arrows keep the selected row in sight (the first one scrolls back to the top).
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (index == 0)
+                    {
+                        SearchScroll.Offset = default;
+                    }
+                    else
+                    {
+                        SearchList.ContainerFromIndex(index)?.BringIntoView();
+                    }
+                }, DispatcherPriority.Loaded);
+            }
+        };
         CreateTrayIcon();
         vm.PropertyChanged += (_, e) =>
         {
@@ -190,6 +244,29 @@ public partial class MainWindow : Window
                 Dispatcher.UIThread.Post(() => SettingsHost.Focus(), DispatcherPriority.Loaded);
             }
         };
+    }
+
+    private void OnSearchOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _vm.Search.Close();
+        e.Handled = true;
+    }
+
+    private void OnSearchResultClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionSearchResult result })
+        {
+            _vm.Search.OpenResult(result);
+        }
+    }
+
+    // A row that joins the results fades in (those that stay keep their place).
+    private void OnSearchRowPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        if (_vm.Search.IsRaised)
+        {
+            Nomad.App.Controls.Entrance.Fade(e.Container, this);
+        }
     }
 
     private void OnOverlayPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -591,6 +668,12 @@ public partial class MainWindow : Window
 
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
+    private void OnSearchMenuClick(object? sender, RoutedEventArgs e)
+    {
+        AppMenuButton.Flyout?.Hide();
+        _vm.Search.Open();
+    }
+
     /// <summary>The update chip: a downloaded update restarts at once, a found one opens the prompt with its notes.</summary>
     private void OnUpdateChipClick(object? sender, RoutedEventArgs e)
     {
@@ -804,6 +887,11 @@ public partial class MainWindow : Window
         if (dev.Key is var (gesture, at))
         {
             DispatcherTimer.RunOnce(() => PressKey(KeyGesture.Parse(gesture)), TimeSpan.FromSeconds(at));
+        }
+
+        if (dev.Search is { } search)
+        {
+            DispatcherTimer.RunOnce(() => _vm.Search.Open(search), TimeSpan.FromSeconds(1.5));
         }
 
         if (dev.Compose is { } compose)

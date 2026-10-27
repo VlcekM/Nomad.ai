@@ -28,6 +28,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Plan usage limits (the status-row ring's popup).</summary>
     public UsageViewModel Usage { get; } = new();
 
+    /// <summary>The session search (Ctrl+T).</summary>
+    public SessionSearchViewModel Search { get; }
+
     /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
     public static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
 
@@ -87,6 +90,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
+        Search = new SessionSearchViewModel(this);
         Updates = new UpdateService(this);
     }
 
@@ -1059,6 +1063,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Every listed session, newest first (archived ones too): what the session search looks through.</summary>
+    public IReadOnlyList<SessionListItemViewModel> SearchableSessions() => _all;
+
     private void ApplyFilter()
     {
         var query = SearchText.Trim();
@@ -1071,8 +1078,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Archived sessions stay hidden unless asked for, or searched for.
         var list = items.Where(s => !s.IsArchived || Settings.ShowArchived || query.Length > 0).ToList();
-        Sync(Alive, list.Where(s => s.IsAlive).ToList());
-        Sync(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
+        SyncList(Alive, list.Where(s => s.IsAlive).ToList());
+        SyncList(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
         HasAlive = Alive.Count > 0;
         AliveCount = Alive.Count;
         IdleCount = list.Count(s => !s.IsAlive && !s.IsArchived);
@@ -1463,7 +1470,7 @@ public sealed partial class MainViewModel : ObservableObject
         GoForwardCommand.NotifyCanExecuteChanged();
     }
 
-    private static void Sync<T>(ObservableCollection<T> target, List<T> list)
+    internal static void SyncList<T>(ObservableCollection<T> target, List<T> list)
         where T : class
     {
         // Minimal-diff update keeps scroll position and avoids rebuilding every row.

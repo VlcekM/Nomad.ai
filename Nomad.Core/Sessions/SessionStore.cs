@@ -244,10 +244,10 @@ public sealed class SessionStore
         return null;
     }
 
-    private static FileStream OpenShared(string file) =>
+    internal static FileStream OpenShared(string file) =>
         new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 64 * 1024);
 
-    private static IEnumerable<string> ReadLines(FileStream stream, long start, long length, bool skipFirstPartial)
+    internal static IEnumerable<string> ReadLines(FileStream stream, long start, long length, bool skipFirstPartial)
     {
         stream.Seek(start, SeekOrigin.Begin);
         var limited = new LimitedStream(stream, length);

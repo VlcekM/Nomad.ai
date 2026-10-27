@@ -378,6 +378,12 @@
                           <TextBlock Grid.Column="1" Text="Ctrl+N" Classes="muted" FontWeight="Normal" FontSize="{DynamicResource UiFontSizeSmall}" />
                         </Grid>
                       </Button>
+                      <Button Theme="{StaticResource MenuItemButton}" Click="OnSearchMenuClick">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <TextBlock Text="Search sessions" />
+                          <TextBlock Grid.Column="1" Text="Ctrl+T" Classes="muted" FontWeight="Normal" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </Grid>
+                      </Button>
                       <Button Theme="{StaticResource MenuItemButton}" Command="{Binding OpenSettingsCommand}" Click="OnMenuItemClick">
                         <Grid ColumnDefinitions="*,Auto">
                           <TextBlock Text="Settings" />
@@ -878,6 +884,161 @@
     <Panel IsVisible="{Binding IsSettingsOpen}">
       <Border Background="{DynamicResource BgOverlayBrush}" PointerPressed="OnOverlayPointerPressed" />
       <views:SettingsView Name="SettingsHost" DataContext="{Binding SettingsPage}" />
+    </Panel>
+
+    <!-- ============================================================ session search (Ctrl+T) -->
+    <!-- Titles and conversations of every session: it fades in and drops a little into place, and back out. -->
+    <Panel Name="SearchOverlay" IsVisible="{Binding Search.IsShown}" Classes.raised="{Binding Search.IsRaised}">
+      <Panel.Styles>
+        <Style Selector="Panel#SearchOverlay">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="IsHitTestVisible" Value="False" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#SearchOverlay.raised">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border#SearchCard">
+          <Setter Property="RenderTransform" Value="translateY(-8px)" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#SearchOverlay.raised Border#SearchCard">
+          <Setter Property="RenderTransform" Value="translateY(0px)" />
+        </Style>
+        <Style Selector="Button.searchrow">
+          <Setter Property="Height" Value="NaN" />
+          <Setter Property="Margin" Value="6,1" />
+          <Setter Property="Padding" Value="10,6" />
+          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Run.match">
+          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="Border.statechip">
+          <Setter Property="CornerRadius" Value="4" />
+          <Setter Property="Padding" Value="6,1" />
+          <Setter Property="Margin" Value="10,0,0,0" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+          <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+        </Style>
+        <Style Selector="Border.statechip TextBlock">
+          <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
+          <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.statechip.alive">
+          <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+        </Style>
+        <Style Selector="Border.statechip.alive TextBlock">
+          <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="TextBlock.searchhint">
+          <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+          <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+      </Panel.Styles>
+      <Border Background="{DynamicResource BgOverlayBrush}" PointerPressed="OnSearchOverlayPointerPressed" />
+      <Border Name="SearchCard"
+              Width="680"
+              Margin="0,64,0,64"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              CornerRadius="10"
+              ClipToBounds="True"
+              Background="{DynamicResource BgMenuBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 16 48 0 #59000000">
+        <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+          <Grid ColumnDefinitions="Auto,*" Height="46">
+            <c:Icon Size="15" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="16,0,10,0" />
+            <TextBox Grid.Column="1"
+                     Name="SearchBox"
+                     Theme="{StaticResource BareTextBox}"
+                     Watermark="Search chat titles and conversations"
+                     Text="{Binding Search.Query}"
+                     FontSize="{DynamicResource UiFontSizeLarge}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,16,0" />
+          </Grid>
+          <!-- Optionally only the alive, idle or archived sessions. -->
+          <Border Grid.Row="1" Background="{DynamicResource BgSegmentsBrush}" CornerRadius="7" Padding="2" HorizontalAlignment="Left" Margin="12,0,12,10">
+            <StackPanel Orientation="Horizontal">
+              <RadioButton Theme="{StaticResource SegmentButton}" GroupName="SearchFilter" IsChecked="{Binding Search.IsFilterAll}" Content="All" Height="24" Focusable="False" />
+              <RadioButton Theme="{StaticResource SegmentButton}" GroupName="SearchFilter" IsChecked="{Binding Search.IsFilterAlive}" Content="Alive" Height="24" Focusable="False" />
+              <RadioButton Theme="{StaticResource SegmentButton}" GroupName="SearchFilter" IsChecked="{Binding Search.IsFilterIdle}" Content="Idle" Height="24" Focusable="False" />
+              <RadioButton Theme="{StaticResource SegmentButton}" GroupName="SearchFilter" IsChecked="{Binding Search.IsFilterArchived}" Content="Archived" Height="24" Focusable="False" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Row="2" Height="1" Background="{DynamicResource BorderDividerBrush}" />
+          <ScrollViewer Grid.Row="3" Name="SearchScroll" MaxHeight="520" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl Name="SearchList" ItemsSource="{Binding Search.Results}" Margin="0,5" ContainerPrepared="OnSearchRowPrepared">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SessionSearchResult">
+                  <Button Theme="{StaticResource RowButton}"
+                          Classes="searchrow"
+                          Classes.selected="{Binding IsSelected}"
+                          Focusable="False"
+                          Click="OnSearchResultClick"
+                          ToolTip.Tip="{Binding ToolTipText}"
+                          ToolTip.ShowDelay="900">
+                    <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto">
+                      <TextBlock TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center">
+                        <Run Text="{Binding TitleBefore}" /><Run Classes="match" Text="{Binding TitleMatch}" /><Run Text="{Binding TitleAfter}" />
+                      </TextBlock>
+                      <!-- Alive, idle (the sidebar's moon) or archived. -->
+                      <Border Grid.Column="1" Classes="statechip" Classes.alive="{Binding IsAlive}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <c:Icon Size="10" Data="{StaticResource IconSleep}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsIdle}" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding State}" />
+                        </StackPanel>
+                      </Border>
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding When}"
+                                 Classes="searchhint"
+                                 MinWidth="96"
+                                 TextAlignment="Right" />
+                      <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="Auto,*" Margin="0,3,0,0">
+                        <TextBlock Text="{Binding Folder}" Classes="searchhint" MaxWidth="200" TextTrimming="CharacterEllipsis" />
+                        <!-- The conversation around the first word found. -->
+                        <TextBlock Grid.Column="1"
+                                   Classes="searchhint"
+                                   Margin="10,0,0,0"
+                                   TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding HasSnippet}">
+                          <Run Text="{Binding SnippetBefore}" /><Run Classes="match" Text="{Binding SnippetMatch}" /><Run Text="{Binding SnippetAfter}" />
+                        </TextBlock>
+                      </Grid>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <TextBlock Grid.Row="3"
+                     Text="{Binding Search.EmptyText}"
+                     IsVisible="{Binding Search.IsEmpty}"
+                     Classes="searchhint"
+                     HorizontalAlignment="Center"
+                     Margin="0,28" />
+          <Border Grid.Row="4" BorderBrush="{DynamicResource BorderDividerBrush}" BorderThickness="0,1,0,0" Padding="16,0" Height="32">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="{Binding Search.Progress}" Classes="searchhint" IsVisible="{Binding Search.HasProgress}" />
+              <TextBlock Grid.Column="1" Text="↑↓ select   Enter open   Esc close" Classes="searchhint" />
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
     </Panel>
   </Panel>
 </Window>

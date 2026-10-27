@@ -27,6 +27,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
 /// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
+/// --dev-search "&lt;query&gt;"     open the session search (Ctrl+T) with this query after start
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
 /// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
 /// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
@@ -74,6 +75,9 @@ public sealed class DevOptions
     public bool DragCtrl { get; private set; }
     public List<string> PasteImages { get; } = [];
     public string? Compose { get; private set; }
+
+    /// <summary><c>--dev-search "query"</c>: the session search is open with this query.</summary>
+    public string? Search { get; private set; }
     public string? UpdateSource { get; private set; }
     public double? UpdateCheckAfterSeconds { get; private set; }
     public string? ReleasesRepository { get; private set; }
@@ -164,6 +168,7 @@ public sealed class DevOptions
                     break;
                 case "--dev-drag-ctrl": o.DragCtrl = true; break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
+                case "--dev-search": o.Search = Next(); break;
                 case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;
                 case "--dev-stop-after":
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var stop))
