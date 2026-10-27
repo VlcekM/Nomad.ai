@@ -547,7 +547,7 @@ public sealed partial class SessionViewModel : ObservableObject
         WorkingText = Items.LastOrDefault() switch
         {
             ThinkingItem { IsStreaming: true } or ToolGroupItem { IsThinking: true } => "Thinking",
-            ToolGroupItem { IsRunning: true, Summary.Length: > 0 } group => group.Summary,
+            ToolGroupItem { IsRunning: true } group when group.Calls.LastOrDefault(c => c.IsRunning) is { } running => ToolText.RunningAction(running.Name, running.Input),
             AssistantTextItem { IsStreaming: true } => "Writing",
             PermissionItem { IsAnswered: false } => "Waiting for you",
             _ => "Working",
@@ -646,6 +646,14 @@ public sealed partial class SessionViewModel : ObservableObject
         var text = ComposerText.Trim();
         if ((text.Length == 0 && Attachments.Count == 0) || IsPhoneSession)
         {
+            return;
+        }
+
+        // "/model sonnet" switches like the model chips (asking first in a conversation), not behind their back.
+        if (Attachments.Count == 0 && ModelFromCommand(text) is { } model)
+        {
+            ComposerText = "";
+            await SelectModelAsync(model);
             return;
         }
 
@@ -758,9 +766,71 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         if (Model == id)
         {
+            PendingModel = null;
             return;
         }
 
+        // A conversation with history is cached for its model: switching rereads all of it, so ask first.
+        if (_main.Settings.ConfirmModelSwitch && Items.OfType<UserMessageItem>().Any())
+        {
+            PendingModel = id;
+            return;
+        }
+
+        await SwitchModelAsync(id);
+    }
+
+    /// <summary>A model switch waiting for the card above the composer to confirm it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingModel), nameof(PendingModelTitle), nameof(PendingModelText))]
+    public partial string? PendingModel { get; set; }
+
+    public bool HasPendingModel => PendingModel is not null;
+
+    public string PendingModelTitle => $"Switch this conversation to {Catalog.ModelName(PendingModel)}?";
+
+    public string PendingModelText =>
+        $"The conversation is cached for {Catalog.ModelName(Model)}. {Catalog.ModelName(PendingModel)}'s first reply reads all of it again, " +
+        "which is slower and uses more of your plan.";
+
+    [RelayCommand]
+    private async Task ConfirmModelSwitchAsync(string? how)
+    {
+        if (PendingModel is not { } id)
+        {
+            return;
+        }
+
+        PendingModel = null;
+        if (how == "always")
+        {
+            _main.Settings.ConfirmModelSwitch = false;
+            _main.SaveSettings();
+        }
+
+        await SwitchModelAsync(id);
+    }
+
+    [RelayCommand]
+    private void CancelModelSwitch() => PendingModel = null;
+
+    /// <summary>The model "/model &lt;id or name&gt;" names ("sonnet", "Opus 5.5", "claude-haiku-5-5"), or null.</summary>
+    private static string? ModelFromCommand(string text)
+    {
+        if (!text.StartsWith("/model ", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var arg = text[7..].Trim();
+        return Catalog.Models.FirstOrDefault(m =>
+            string.Equals(m.Id, arg, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(m.DisplayName, arg, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(m.DisplayName.Split(' ')[0], arg, StringComparison.OrdinalIgnoreCase))?.Id;
+    }
+
+    private async Task SwitchModelAsync(string id)
+    {
         Model = id;
         if (_backend is { IsProcessRunning: true } backend && !await backend.SetModelAsync(id))
         {
@@ -1414,6 +1484,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case PromptSuggestionEvent suggestion when !IsTurnRunning && ComposerText.Length == 0 && _main.Settings.PromptSuggestions:
                 Suggestion = suggestion.Text;
+                break;
+
+            case CommandOutputEvent command:
+                CloseGroup();
+                Items.Add(new NoticeItem(command.Text));
+                ContentChanged?.Invoke();
                 break;
 
             case RemoteControlStateEvent bridge:

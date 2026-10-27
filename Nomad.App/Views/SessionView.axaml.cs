@@ -275,7 +275,8 @@ public partial class SessionView : UserControl
                 e.Handled = HandleEscape(vm);
                 break;
 
-            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == KeyModifiers.Control:
+            // Ctrl+Shift+1…4: the model (Ctrl+1…9 alone opens a session from the sidebar).
+            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift):
                 var index = e.Key - Key.D1;
                 if (index < vm.ModelOptions.Count)
                 {

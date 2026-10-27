@@ -9,7 +9,7 @@ public sealed record EffortOption(string Id, string DisplayName);
 /// <summary>The fixed menus of v1: models, permission modes and effort levels.</summary>
 public static class Catalog
 {
-    /// <summary>The latest model of each family, most capable first (the status-row chips and Ctrl+1…4).</summary>
+    /// <summary>The latest model of each family, most capable first (the status-row chips and Ctrl+Shift+1…4).</summary>
     public static readonly IReadOnlyList<ModelOption> Models =
     [
         new("claude-fable-5-1", "Fable 5.1", 1),

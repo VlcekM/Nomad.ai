@@ -623,6 +623,7 @@
                     <c:Shimmer Text="{Binding}"
                                IsActive="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).IsTurnRunning}"
                                TextTrimming="CharacterEllipsis"
+                               FontWeight="SemiBold"
                                MaxWidth="600"
                                VerticalAlignment="Center" />
                   </DataTemplate>
@@ -730,6 +731,28 @@
 
     <!-- Composer -->
     <StackPanel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0" IsVisible="{Binding ShowComposer}">
+      <!-- Switching the model of a conversation that has history: asked first, since the cache does not carry over. -->
+      <Border c:Fold.IsOpen="{Binding HasPendingModel}" IsVisible="False">
+        <Border Background="{StaticResource BgRaisedBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="14,10,10,10"
+                Margin="0,0,0,8">
+          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+            <StackPanel Spacing="3" Margin="0,0,12,0" VerticalAlignment="Center">
+              <TextBlock Text="{Binding PendingModelTitle}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+              <TextBlock Text="{Binding PendingModelText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Button Theme="{StaticResource SecondaryButton}" Command="{Binding CancelModelSwitchCommand}" Content="Keep" />
+              <Button Theme="{StaticResource SecondaryButton}" Command="{Binding ConfirmModelSwitchCommand}" CommandParameter="always" Content="Always switch" ToolTip.Tip="Switch now, and don't ask again (Settings › Claude Code)" />
+              <Button Theme="{StaticResource PrimaryButton}" Command="{Binding ConfirmModelSwitchCommand}" CommandParameter="once" Content="Switch" />
+            </StackPanel>
+          </Grid>
+        </Border>
+      </Border>
+
       <!-- Queued prompts: written while Claude worked, sent when it is done (or now, stopping it). -->
       <Border c:Fold.IsOpen="{Binding HasQueued}" IsVisible="False">
         <Border Background="{StaticResource BgRaisedBrush}"
@@ -1119,7 +1142,7 @@
                       Classes="modelchip"
                       Classes.selected="{Binding IsSelected}"
                       Click="OnModelChipClick"
-                      ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+{0}'}">
+                      ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+Shift+{0}'}">
                 <TextBlock Classes="status" Text="{Binding Label}" VerticalAlignment="Center" />
               </Button>
             </DataTemplate>

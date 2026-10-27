@@ -240,6 +240,24 @@
                 </StackPanel>
               </Grid>
 
+              <TextBlock Text="Window" Classes="pagetitle" Margin="0,40,0,10" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Close to the tray" Classes="rowlabel" />
+                  <TextBlock Text="Closing the window keeps Nomad.ai running in the notification area, sessions and all. Click its icon to bring it back; Exit (in the menu or the icon's) quits."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleCloseToTrayCommand}">
+                  <Border Classes="switch" Classes.on="{Binding CloseToTray}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+
               <TextBlock Text="Account" Classes="pagetitle" Margin="0,40,0,10" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -265,6 +283,24 @@
                 <Border Grid.Column="1" Classes="field" Width="360">
                   <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CliPath}" Watermark="claude" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
                 </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Ask before switching models" Classes="rowlabel" />
+                  <TextBlock Text="A conversation is cached for its model: after a switch the next reply reads all of it again, slower and using more of your plan."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleConfirmModelSwitchCommand}">
+                  <Border Classes="switch" Classes.on="{Binding ConfirmModelSwitch}">
+                    <Ellipse />
+                  </Border>
+                </Button>
               </Grid>
               <Border Classes="rowline" />
 

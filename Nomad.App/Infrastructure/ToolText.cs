@@ -125,6 +125,41 @@ public static class ToolText
             ? value.GetString()
             : null;
 
+    /// <summary>
+    /// The working row while a tool runs: what exactly it does ("Building Nomad.App" from a command's description,
+    /// "Reading MainViewModel.cs", "Searching for “TODO”"), the group's generic label when its input says nothing.
+    /// </summary>
+    public static string RunningAction(string name, JsonElement input)
+    {
+        if (input.ValueKind != JsonValueKind.Object)
+        {
+            return RunningLabel(name);
+        }
+
+        string? File(string property) => Str(input, property) is { Length: > 0 } path ? Path.GetFileName(path.TrimEnd('\\', '/')) : null;
+        string? Quoted(string property) => Str(input, property) is { Length: > 0 } text ? $"“{Clip(FirstLine(text), 60)}”" : null;
+
+        var action = name switch
+        {
+            "Bash" or "PowerShell" => Str(input, "description") is { Length: > 0 } description
+                ? FirstLine(description)
+                : Str(input, "command") is { Length: > 0 } command ? "Running " + Clip(FirstLine(command), 60) : null,
+            "Read" or "NotebookRead" => (File("file_path") ?? File("notebook_path")) is { } read ? "Reading " + read : null,
+            "Edit" or "MultiEdit" or "NotebookEdit" => (File("file_path") ?? File("notebook_path")) is { } edited ? "Editing " + edited : null,
+            "Write" => File("file_path") is { } written ? "Writing " + written : null,
+            "Grep" => Quoted("pattern") is { } pattern ? "Searching for " + pattern : null,
+            "Glob" => Quoted("pattern") is { } glob ? "Finding " + glob : null,
+            "WebFetch" => Uri.TryCreate(Str(input, "url"), UriKind.Absolute, out var uri) ? "Fetching " + uri.Host : null,
+            "WebSearch" => Quoted("query") is { } query ? "Searching the web for " + query : null,
+            "Task" or "Agent" => Str(input, "description") is { Length: > 0 } task ? FirstLine(task) : null,
+            _ => null,
+        };
+
+        return string.IsNullOrWhiteSpace(action) ? RunningLabel(name) : action.TrimEnd('.') + "…";
+    }
+
+    private static string Clip(string text, int length) => text.Length <= length ? text : text[..(length - 1)].TrimEnd() + "…";
+
     public static string RunningLabel(string name) => name switch
     {
         "Bash" or "PowerShell" => "Running a command…",

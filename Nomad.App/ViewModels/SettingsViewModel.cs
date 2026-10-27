@@ -52,6 +52,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
+        CloseToTray = s.CloseToTray;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
@@ -59,6 +60,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
         RemoteControlByDefault = s.RemoteControlByDefault;
         PromptSuggestions = s.PromptSuggestions;
+        ConfirmModelSwitch = s.ConfirmModelSwitch;
         RefreshPhoneFolders();
         main.PhoneServerChanged += OnPhoneServerChanged;
         UpdateCliStatus();
@@ -221,6 +223,29 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void TogglePromptSuggestions() => PromptSuggestions = !PromptSuggestions;
 
     partial void OnPromptSuggestionsChanged(bool value) => Apply(s => s.PromptSuggestions = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool ConfirmModelSwitch { get; set; }
+
+    [RelayCommand]
+    private void ToggleConfirmModelSwitch() => ConfirmModelSwitch = !ConfirmModelSwitch;
+
+    partial void OnConfirmModelSwitchChanged(bool value) => Apply(s => s.ConfirmModelSwitch = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool CloseToTray { get; set; }
+
+    [RelayCommand]
+    private void ToggleCloseToTray() => CloseToTray = !CloseToTray;
+
+    partial void OnCloseToTrayChanged(bool value)
+    {
+        Apply(s => s.CloseToTray = value, appearance: false);
+        if (_loaded)
+        {
+            _main.OnCloseToTrayChanged();
+        }
+    }
 
     /// <summary>Folders the phone can start sessions in, each with its server's state.</summary>
     public ObservableCollection<PhoneFolderRow> PhoneFolders { get; } = [];
