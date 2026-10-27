@@ -253,6 +253,7 @@ read should be a free 304 from the ETag cache).
 | `--dev-stop-after <seconds>` | Press Stop this long after the dev prompt was sent |
 | `--dev-key <gesture> <seconds>` | Press a key (e.g. `Ctrl+B`) on the focused control this long after start |
 | `--dev-drag x1,y1,x2,y2 <seconds>` | Drag with the left button between two window points (sent to Nomad's window only; the cursor never moves) |
+| `--dev-drag-ctrl` | Hold Ctrl during `--dev-drag` (for Nomad's thread only, never the real keyboard); in a screenshot run, Show in Explorer only logs the path |
 | `--dev-compose "<text>"` | Put text in the composer (`\n` for new lines) |
 | `--dev-paste-image <file>` | Attach an image (or any file, as a chip) to the composer, as a paste would; repeatable |
 | `--dev-log <file>` | Append every line to and from the CLI to a file (`> ` sent, `< ` received) |

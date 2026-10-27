@@ -620,33 +620,47 @@ public static partial class LinkSupport
 
     public static void Attach(SelectableTextBlock block)
     {
+        // Seen on the way down (before the text block starts a selection) and whether or not it handled them.
         Point? pressedAt = null;
-        block.PointerPressed += (_, e) => pressedAt = e.GetPosition(block);
-        block.PointerReleased += (_, e) =>
+        string? ctrlPath = null;
+        block.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
+        {
+            pressedAt = e.GetPosition(block);
+            ctrlPath = null;
+
+            // Ctrl on a path: the click is the link's, so no selection starts (and nothing gets selected).
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.GetCurrentPoint(block).Properties.IsLeftButtonPressed &&
+                Hit(block, pressedAt.Value) is { } link && link.Url.StartsWith(PathPrefix, StringComparison.Ordinal) &&
+                ResolvePath(block, link.Url) is { } path)
+            {
+                ctrlPath = path;
+                block.ClearSelection();
+                e.Handled = true;
+            }
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        block.AddHandler(InputElement.PointerReleasedEvent, (_, e) =>
         {
             var at = e.GetPosition(block);
-            if (pressedAt is not { } p || Math.Abs(p.X - at.X) > 3 || Math.Abs(p.Y - at.Y) > 3)
+            var moved = pressedAt is not { } p || Math.Abs(p.X - at.X) > 3 || Math.Abs(p.Y - at.Y) > 3;
+            var path = ctrlPath;
+            pressedAt = null;
+            ctrlPath = null;
+            if (path is not null)
             {
+                // The text block's own press handler runs even so (it extends a selection on a modified click).
+                block.ClearSelection();
+                ShowInExplorer(path);
+                e.Handled = true;
                 return;
             }
 
-            if (Hit(block, at) is not { } link)
-            {
-                return;
-            }
-
-            // A path opens with Ctrl+click: a plain click stays free for putting the caret in or selecting it.
-            if (!link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+            // A URL opens with a plain click; a path only with Ctrl (a plain click stays free for the caret and selection).
+            if (!moved && Hit(block, at) is { } link && !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
             {
                 Open(link.Url);
                 e.Handled = true;
             }
-            else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && ResolvePath(block, link.Url) is { } path)
-            {
-                ShowInExplorer(path);
-                e.Handled = true;
-            }
-        };
+        }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         block.PointerMoved += (_, e) =>
         {
             var links = block.GetValue(LinksProperty);
@@ -778,6 +792,13 @@ public static partial class LinkSupport
     /// <summary>Opens Explorer on the item's folder with the item selected.</summary>
     public static void ShowInExplorer(string path)
     {
+        // A screenshot run stays invisible: it only says what it would open.
+        if (Program.Dev.ScreenshotPath is not null)
+        {
+            Console.Error.WriteLine($"ShowInExplorer {path}");
+            return;
+        }
+
         try
         {
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
@@ -808,15 +829,11 @@ public static partial class LinkSupport
             return null;
         }
 
+        // Against the rectangles the link covers, one per line (as the code pills are drawn): a text position from
+        // HitTestPoint is unreliable on the later lines of a wrapped path, which has no spaces to break at.
         var local = point - new Point(block.Padding.Left, block.Padding.Top);
-        var hit = block.TextLayout.HitTestPoint(local);
-        if (!hit.IsInside)
-        {
-            return null;
-        }
-
-        var position = hit.TextPosition;
-        return links.FirstOrDefault(l => position >= l.Start && position < l.End);
+        return links.FirstOrDefault(l => block.TextLayout.HitTestTextRange(l.Start, l.End - l.Start)
+            .Any(rect => rect.Inflate(new Thickness(3, 2)).Contains(local)));
     }
 
     /// <summary>Opens web and mail links in the default browser; other schemes are ignored.</summary>

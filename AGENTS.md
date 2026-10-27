@@ -30,7 +30,8 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
 - `--dev-menu model|mode|folder|branch|plus|usage|remote` opens a status-row menu first (`list` the sidebar's list options, `row` an Idle row's context menu); `--dev-settings-open` the settings;
   `--dev-side-panel` the right-hand panel.
 - `--dev-compose "/co"` types into the composer, `--dev-paste-image <file>` attaches an image or file, and
-  `--dev-drag x1,y1,x2,y2 <seconds>` drags the mouse inside the window (clicks, text selection).
+  `--dev-drag x1,y1,x2,y2 <seconds>` drags the mouse inside the window (clicks, text selection; add
+  `--dev-drag-ctrl` for a Ctrl+click).
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a

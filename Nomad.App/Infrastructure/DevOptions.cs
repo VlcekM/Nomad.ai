@@ -25,7 +25,8 @@ namespace Nomad.App.Infrastructure;
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
-/// --dev-compose "&lt;text&gt;"      put this text in the composer after start (\n for new lines)
+/// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
+/// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
 /// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
 /// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
@@ -68,6 +69,9 @@ public sealed class DevOptions
     public double? StopAfterSeconds { get; private set; }
     public (string Gesture, double Seconds)? Key { get; private set; }
     public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
+
+    /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
+    public bool DragCtrl { get; private set; }
     public List<string> PasteImages { get; } = [];
     public string? Compose { get; private set; }
     public string? UpdateSource { get; private set; }
@@ -158,6 +162,7 @@ public sealed class DevOptions
                     }
 
                     break;
+                case "--dev-drag-ctrl": o.DragCtrl = true; break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
                 case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;
                 case "--dev-stop-after":

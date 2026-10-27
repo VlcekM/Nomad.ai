@@ -833,6 +833,12 @@ public partial class MainWindow : Window
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool GetKeyboardState(byte[] state);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetKeyboardState(byte[] state);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr SendMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 
     /// <summary>
@@ -847,7 +853,8 @@ public partial class MainWindow : Window
         }
 
         const uint mouseMove = 0x0200, buttonDown = 0x0201, buttonUp = 0x0202;
-        const int leftButton = 0x0001;
+        var leftButton = 0x0001;
+        var ctrl = _vm.Dev.DragCtrl ? 0x0008 : 0; // MK_CONTROL
         var scale = RenderScaling;
         void Send(uint message, Point at, int keys)
         {
@@ -856,16 +863,30 @@ public partial class MainWindow : Window
             SendMessageW(hwnd, message, keys, (y << 16) | (x & 0xFFFF));
         }
 
-        Send(mouseMove, from, 0);
-        Send(buttonDown, from, leftButton);
+        // Avalonia reads modifiers from the thread's keyboard state: hold Ctrl there (this thread only, never the user's
+        // keyboard) for the drag.
+        var keys = new byte[256];
+        if (ctrl != 0 && GetKeyboardState(keys))
+        {
+            var held = (byte[])keys.Clone();
+            held[0x11] = held[0xA2] = 0x80; // VK_CONTROL, VK_LCONTROL
+            SetKeyboardState(held);
+        }
+
+        Send(mouseMove, from, ctrl);
+        Send(buttonDown, from, leftButton | ctrl);
         for (var i = 1; i <= 10; i++)
         {
             await Task.Delay(16);
-            Send(mouseMove, from + ((to - from) * (i / 10.0)), leftButton);
+            Send(mouseMove, from + ((to - from) * (i / 10.0)), leftButton | ctrl);
         }
 
-        Send(buttonUp, to, 0);
-        Send(mouseMove, to, 0); // the pointer stays there: hover styles show as after a real drag
+        Send(buttonUp, to, ctrl);
+        Send(mouseMove, to, ctrl);
+        if (ctrl != 0)
+        {
+            SetKeyboardState(keys);
+        } // the pointer stays there: hover styles show as after a real drag
         var focused = FocusManager?.GetFocusedElement();
         Console.Error.WriteLine($"--dev-drag {from} -> {to}: focused {focused?.GetType().Name}, selected \"{(focused as SelectableTextBlock)?.SelectedText}\"");
     }
