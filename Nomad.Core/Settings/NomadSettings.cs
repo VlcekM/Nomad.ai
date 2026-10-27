@@ -73,7 +73,7 @@ public sealed class NomadSettings
     public string? LastPlan { get; set; }
 
     // Sidebar session list (its sliders menu)
-    /// <summary>Date | Folder | None: how the Idle list is grouped.</summary>
+    /// <summary>Date | Recent (last 2 / 8 / 24 hours, then each day) | Folder | None: how the Idle list is grouped.</summary>
     public string SessionGrouping { get; set; } = "Date";
 
     /// <summary>Archived sessions are listed too, in a group of their own.</summary>

@@ -214,6 +214,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnPanelStripPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            _vm.ToggleSidePanel();
+            e.Handled = true;
+        }
+    }
+
     private void OnRenameSessionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })

@@ -338,6 +338,7 @@ public sealed partial class MainViewModel : ObservableObject
     public IReadOnlyList<MenuOption> GroupingOptions { get; } =
     [
         new("Date", "Date"),
+        new("Recent", "Hours, then days"),
         new("Folder", "Folder"),
         new("None", "None"),
     ];
@@ -1025,9 +1026,12 @@ public sealed partial class MainViewModel : ObservableObject
         }
         else
         {
-            Func<SessionListItemViewModel, string> key = Settings.SessionGrouping == "Folder"
-                ? s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : Format.FolderName(s.WorkingDirectory)
-                : s => DateGroup(s.LastActivityUtc);
+            Func<SessionListItemViewModel, string> key = Settings.SessionGrouping switch
+            {
+                "Folder" => s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : Format.FolderName(s.WorkingDirectory),
+                "Recent" => s => RecentGroup(s.LastActivityUtc, DateTime.UtcNow),
+                _ => s => DateGroup(s.LastActivityUtc),
+            };
 
             // Groups in the order of their newest session; within a group, newest first.
             foreach (var group in sessions.GroupBy(key))
@@ -1167,6 +1171,15 @@ public sealed partial class MainViewModel : ObservableObject
         _ = OpenSessionAsync(item);
         return true;
     }
+
+    /// <summary>"Last 2 hours", "Last 8 hours", "Last 24 hours", then each day before ("26.10.2026").</summary>
+    public static string RecentGroup(DateTime utc, DateTime nowUtc) => (nowUtc - utc).TotalHours switch
+    {
+        < 2 => "Last 2 hours",
+        < 8 => "Last 8 hours",
+        < 24 => "Last 24 hours",
+        _ => utc.ToLocalTime().ToString("d.M.yyyy", System.Globalization.CultureInfo.InvariantCulture),
+    };
 
     /// <summary>"Today", "Yesterday", "Previous 7 days", "Previous 30 days", then the month ("September 2026").</summary>
     public static string DateGroup(DateTime utc)

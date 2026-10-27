@@ -198,11 +198,10 @@
                           VerticalAlignment="Center"
                           IsVisible="{Binding IsElsewhere}"
                           ToolTip.Tip="Running in another Nomad window or a terminal" />
-                  <TextBlock Grid.Column="1"
-                             Text="{Binding Title}"
-                             TextTrimming="CharacterEllipsis"
-                             IsVisible="{Binding !IsRenaming}"
-                             VerticalAlignment="Center" />
+                  <!-- A title too long for the row fades out before the marks rather than ending in "…". -->
+                  <c:EdgeFade Grid.Column="1" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" />
+                  </c:EdgeFade>
                   <!-- Rename (double-click, F2 or the context menu): Enter saves, Esc keeps the old name. -->
                   <Border Grid.Column="1"
                           IsVisible="{Binding IsRenaming}"
@@ -219,6 +218,16 @@
                              MaxLength="200"
                              LostFocus="OnRenameLostFocus" />
                   </Border>
+                  <!-- Idle (no CLI process): a sleeping moon, unless a mark has something to say. -->
+                  <c:Icon Grid.Column="2"
+                          Classes="sleep"
+                          Size="13"
+                          Data="{StaticResource IconSleep}"
+                          Stroke="{StaticResource TextMutedBrush}"
+                          IsVisible="{Binding IsAsleep}"
+                          Margin="8,0,0,0"
+                          VerticalAlignment="Center"
+                          ToolTip.Tip="Idle: no Claude Code process (it starts again with the next prompt)" />
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
                   <c:StatusMark Grid.Column="2"
                                 Margin="10,0,1,0"
@@ -649,7 +658,7 @@
           </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto">
           <ContentControl Content="{Binding Current}">
             <ContentControl.ContentTemplate>
               <DataTemplate x:DataType="vm:SessionViewModel">
@@ -658,8 +667,34 @@
             </ContentControl.ContentTemplate>
           </ContentControl>
 
+          <!-- A thin strip on the right edge toggles the side panel; a handle shows on hover. -->
+          <Border Grid.Column="1"
+                  Name="PanelStrip"
+                  Width="12"
+                  Background="Transparent"
+                  Cursor="Hand"
+                  PointerPressed="OnPanelStripPressed"
+                  ToolTip.Tip="Side panel (Ctrl+Shift+B)"
+                  ToolTip.Placement="Left">
+            <Border.Styles>
+              <Style Selector="Border#PanelStrip > Border">
+                <Setter Property="Opacity" Value="0" />
+                <Setter Property="Transitions">
+                  <Transitions>
+                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                  </Transitions>
+                </Setter>
+              </Style>
+              <Style Selector="Border#PanelStrip:pointerover > Border">
+                <Setter Property="Opacity" Value="1" />
+              </Style>
+            </Border.Styles>
+            <Border Width="4" Height="44" CornerRadius="2" Background="{StaticResource BorderInputBrush}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+
           <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
-          <Border Grid.Column="1" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
+          <Border Grid.Column="2" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
             <Border.Styles>
               <Style Selector="Border.sidepanel">
                 <Setter Property="Width" Value="0" />
