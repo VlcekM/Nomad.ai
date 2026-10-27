@@ -287,6 +287,10 @@ public sealed partial class ToolGroupItem : TranscriptItem
     [ObservableProperty]
     public partial bool IsRunning { get; set; }
 
+    /// <summary>The working row below says the same as <see cref="Summary"/>: this row fades out, keeping its place.</summary>
+    [ObservableProperty]
+    public partial bool IsEchoed { get; set; }
+
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
 
@@ -318,6 +322,7 @@ public sealed partial class ToolGroupItem : TranscriptItem
     {
         var running = Calls.LastOrDefault(c => c.Status == ToolStatus.Running);
         IsRunning = running is not null;
+        IsEchoed &= IsRunning;
         Summary = running is not null
             ? ToolText.RunningLabel(running.Name)
             : ToolText.GroupSummary(Calls.Select(c => (c.Name, c.Status == ToolStatus.Failed)).ToList());

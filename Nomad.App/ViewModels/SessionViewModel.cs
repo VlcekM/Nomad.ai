@@ -682,11 +682,21 @@ public sealed partial class SessionViewModel : ObservableObject
     partial void OnComposerTextChanged(string value)
     {
         UpdateCommandMenu();
+        // Typing starts a prompt of your own; erased again, the suggestion comes back.
         if (value.Length > 0)
         {
-            Suggestion = null; // Typing starts a prompt of your own.
+            _shelvedSuggestion ??= Suggestion;
+            Suggestion = null;
+        }
+        else if (_shelvedSuggestion is { } shelved)
+        {
+            _shelvedSuggestion = null;
+            Suggestion = shelved;
         }
     }
+
+    /// <summary>The suggestion while something is typed over it.</summary>
+    private string? _shelvedSuggestion;
 
     /// <summary>The CLI's guess at the next prompt: ghost text in the empty composer, taken with Tab, → or a right-click.</summary>
     [ObservableProperty]
@@ -978,7 +988,7 @@ public sealed partial class SessionViewModel : ObservableObject
         if (value)
         {
             _turnStartUtc = DateTime.UtcNow;
-            Suggestion = null; // It was a guess at this prompt.
+            Suggestion = _shelvedSuggestion = null; // It was a guess at this prompt.
             _workingTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdateWorking());
             _workingTimer.Start();
             UpdateWorking();
@@ -986,8 +996,14 @@ public sealed partial class SessionViewModel : ObservableObject
         else
         {
             _workingTimer?.Stop();
+            _echoedGroup?.IsEchoed = false;
+            _echoedGroup = null;
         }
+
+        _main.OnTurnRunningChanged(this);
     }
+
+    partial void OnSessionIdChanged(string? value) => _main.OnTurnRunningChanged(this);
 
     private void UpdateWorking()
     {
@@ -1002,6 +1018,16 @@ public sealed partial class SessionViewModel : ObservableObject
             _ => "Working",
         };
 
+        // The running group above saying the same thing fades out (its place kept).
+        var echoed = IsTurnRunning && Items.LastOrDefault() is ToolGroupItem { IsRunning: true } last && SameStatus(last.Summary, WorkingText) ? last : null;
+        if (!ReferenceEquals(echoed, _echoedGroup))
+        {
+            _echoedGroup?.IsEchoed = false;
+            _echoedGroup = echoed;
+        }
+
+        echoed?.IsEchoed = true;
+
         // As the desktop app: waiting on you, thinking (also before anything has come back), the running tool's kind.
         WorkingActivity = PendingPermission is not null ? "blocked" : Items.LastOrDefault() switch
         {
@@ -1010,6 +1036,11 @@ public sealed partial class SessionViewModel : ObservableObject
             _ => "default",
         };
     }
+
+    private ToolGroupItem? _echoedGroup;
+
+    private static bool SameStatus(string a, string b) =>
+        string.Equals(a.TrimEnd('…', '.', ' '), b.TrimEnd('…', '.', ' '), StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The working mark's animation: "think", "read", "search", "code", "write", "compose", "blocked", "default".</summary>
     [ObservableProperty]
@@ -1989,8 +2020,16 @@ public sealed partial class SessionViewModel : ObservableObject
                 _main.OnSessionActivity(this);
                 break;
 
-            case PromptSuggestionEvent suggestion when !IsTurnRunning && ComposerText.Length == 0 && _main.Settings.PromptSuggestions:
-                Suggestion = suggestion.Text;
+            case PromptSuggestionEvent suggestion when !IsTurnRunning && _main.Settings.PromptSuggestions:
+                if (ComposerText.Length == 0)
+                {
+                    Suggestion = suggestion.Text;
+                }
+                else
+                {
+                    _shelvedSuggestion = suggestion.Text; // Shown if what is typed is erased.
+                }
+
                 break;
 
             case CommandOutputEvent command:
