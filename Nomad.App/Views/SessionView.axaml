@@ -141,13 +141,13 @@
     </Style>
 
     <!-- Remote Control chip: dim while off; a dot, green once claude.ai is connected. -->
-    <!-- Worktree: muted while off, the accent while on. -->
+    <!-- Worktree: muted while off, the accent while on. The hover fill isn't animated: Transparent is #00FFFFFF, so
+         fading it to the chip colour passes through white. -->
     <Style Selector="Button.worktree">
       <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
-          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
         </Transitions>
       </Setter>
     </Style>
@@ -171,6 +171,11 @@
     </Style>
     <Style Selector="Button.remote.on.connected Ellipse.remotedot">
       <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
+    </Style>
+
+    <!-- The model menu's Mode row stays lit while its menu is open. -->
+    <Style Selector="Button#ModeRow.open">
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
 
     <!-- The "/" menu's keyboard choice. -->
@@ -1391,51 +1396,13 @@
                 Click="OnWorktreeClick"
                 Margin="2,0,0,0"
                 ToolTip.Tip="{Binding WorktreeToolTip}">
-          <c:Icon Size="13" Data="{StaticResource IconWorktree}" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Size="13" Data="{StaticResource IconWorktree}" />
+            <TextBlock Classes="status branchtext" Text="Worktree" VerticalAlignment="Center" />
+          </StackPanel>
         </Button>
       </StackPanel>
       </StackPanel>
-
-      <Button Name="ModeChip"
-              Grid.Column="1"
-              Theme="{StaticResource ChipButton}"
-              Classes.bypass="{Binding IsBypass}"
-              Margin="4,0,0,0">
-        <TextBlock Classes="status" Text="{Binding ModeName}" VerticalAlignment="Center" />
-        <Button.Flyout>
-          <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
-            <StackPanel Width="310">
-              <TextBlock Text="Mode" Classes="menuheader" />
-              <ItemsControl ItemsSource="{Binding ModeOptions}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:MenuOption">
-                    <Button Theme="{StaticResource MenuItemButton}" Click="OnModeOptionClick" Padding="8,3">
-                      <Grid ColumnDefinitions="*,Auto,Auto">
-                        <StackPanel>
-                          <TextBlock Text="{Binding Label}" Classes.danger="{Binding IsDangerSelected}" />
-                          <TextBlock Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Normal" Margin="0,1,0,0" />
-                        </StackPanel>
-                        <c:Icon Grid.Column="1"
-                              Size="13"
-                              Data="{StaticResource IconCheck}"
-                              Stroke="{DynamicResource CheckBrush}"
-                              IsVisible="{Binding IsSelected}"
-                              VerticalAlignment="Top"
-                              Margin="8,1,0,0" />
-                        <TextBlock Grid.Column="2"
-                                   Text="{Binding ShortcutText}"
-                                   Classes="hint"
-                                   VerticalAlignment="Top"
-                                   Margin="8,1,0,0" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Flyout>
-        </Button.Flyout>
-      </Button>
 
       <!-- Remote Control: the phone icon, lit while the session is reachable from claude.ai / the app. -->
       <Button Name="RemoteChip"
@@ -1528,7 +1495,7 @@
           <c:Icon Size="12" Data="{StaticResource IconChevronDown}" />
           <Button.Flyout>
             <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-              <StackPanel Width="220">
+              <StackPanel Width="250">
                 <TextBlock Text="Model · this session" Classes="menuheader" />
                 <ItemsControl ItemsSource="{Binding ModelOptions}">
                   <ItemsControl.ItemTemplate>
@@ -1552,6 +1519,54 @@
                       <Ellipse />
                     </Border>
                   </Grid>
+                </Button>
+                <Border Classes="rule" />
+                <!-- Permission mode: the current one, with the list in a menu of its own beside this one. -->
+                <Button Name="ModeRow" Theme="{StaticResource MenuItemButton}" Click="OnModeRowClick">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <TextBlock Text="Mode" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding ModeName}"
+                               Classes="muted"
+                               Classes.danger="{Binding IsBypass}"
+                               TextTrimming="CharacterEllipsis"
+                               HorizontalAlignment="Right"
+                               Margin="12,0,4,0" />
+                    <c:Icon Grid.Column="2" Size="12" Data="{StaticResource IconChevronRight}" />
+                  </Grid>
+                  <FlyoutBase.AttachedFlyout>
+                    <Flyout Placement="LeftEdgeAlignedBottom" FlyoutPresenterClasses="menu">
+                      <StackPanel Width="310">
+                        <TextBlock Text="Mode" Classes="menuheader" />
+                        <ItemsControl ItemsSource="{Binding ModeOptions}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MenuOption">
+                              <Button Theme="{StaticResource MenuItemButton}" Click="OnModeOptionClick" Padding="8,3">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                  <StackPanel>
+                                    <TextBlock Text="{Binding Label}" Classes.danger="{Binding IsDangerSelected}" />
+                                    <TextBlock Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Normal" Margin="0,1,0,0" />
+                                  </StackPanel>
+                                  <c:Icon Grid.Column="1"
+                                        Size="13"
+                                        Data="{StaticResource IconCheck}"
+                                        Stroke="{DynamicResource CheckBrush}"
+                                        IsVisible="{Binding IsSelected}"
+                                        VerticalAlignment="Top"
+                                        Margin="8,1,0,0" />
+                                  <TextBlock Grid.Column="2"
+                                             Text="{Binding ShortcutText}"
+                                             Classes="hint"
+                                             VerticalAlignment="Top"
+                                             Margin="8,1,0,0" />
+                                </Grid>
+                              </Button>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Flyout>
+                  </FlyoutBase.AttachedFlyout>
                 </Button>
               </StackPanel>
             </Flyout>

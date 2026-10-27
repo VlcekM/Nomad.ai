@@ -444,7 +444,7 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ git chips between the status row and title bar
 
     // A new session shows its branch and worktree switch under the composer; once started (or opening another session)
-    // they sit in the title bar. Crossing over, they glide from the old place to the new one.
+    // they sit in the title bar. Crossing over, they slide and fade into the new place.
     private SessionViewModel? _gitWatched;
     private (Rect? Branch, Rect? Worktree) _gitBefore;
 
@@ -511,7 +511,7 @@ public partial class MainWindow : Window
         _gitBefore = (Where(TitleBranch) ?? Where(branch), Where(TitleWorktree) ?? Where(worktree));
     }
 
-    /// <summary>After the change is laid out (before it renders), each chip that moved between rows glides from where it was.</summary>
+    /// <summary>After the change is laid out (before it renders), each chip that moved between rows slides into its new place.</summary>
     private void GlideGitSoon()
     {
         var before = _gitBefore;
@@ -536,20 +536,9 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // The title bar is drawn under the content row: lift it while a chip flies up into it.
+            // Into the title bar it slides down from above; into the status row, up from below.
             var intoTitle = target!.GetVisualAncestors().Contains(TitleBar);
-            if (intoTitle)
-            {
-                TitleBar.ZIndex = 1;
-            }
-
-            Controls.Glide.Play(target, old.Position - now.Position, 250, () =>
-            {
-                if (intoTitle)
-                {
-                    TitleBar.ZIndex = 0;
-                }
-            });
+            Controls.Glide.Play(target, new Vector(0, intoTitle ? -8 : 8), 220, fade: true);
         }
     }
 
