@@ -344,8 +344,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Self-update (Velopack) and the GitHub release list.</summary>
     public UpdateService Updates { get; }
 
-    /// <summary>Sessions with a running CLI process.</summary>
-    public ObservableCollection<SessionListItemViewModel> Alive { get; } = [];
+    /// <summary>Sessions with a running CLI process: rows, under <see cref="SessionGroupHeader"/>s if grouped.</summary>
+    public ObservableCollection<object> Alive { get; } = [];
 
     /// <summary>All other sessions (the Idle list): rows, under <see cref="SessionGroupHeader"/>s unless grouping is off.</summary>
     public ObservableCollection<object> Recents { get; } = [];
@@ -358,6 +358,31 @@ public sealed partial class MainViewModel : ObservableObject
         new("Folder", "Folder"),
         new("None", "None"),
     ];
+
+    /// <summary>The Alive heading's sliders menu's "Group by" choices.</summary>
+    public IReadOnlyList<MenuOption> AliveGroupingOptions { get; } =
+    [
+        new("Date", "Date"),
+        new("Recent", "Hours, then days"),
+        new("Folder", "Folder"),
+        new("None", "None"),
+    ];
+
+    /// <summary>Alive rows show their project on a second line.</summary>
+    public bool ShowAliveProject
+    {
+        get => Settings.AliveShowProject;
+        set
+        {
+            if (Settings.AliveShowProject != value)
+            {
+                Settings.AliveShowProject = value;
+                SaveSettings();
+                OnPropertyChanged();
+                ApplyFilter();
+            }
+        }
+    }
 
     public bool ShowArchived
     {
@@ -489,12 +514,26 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyFilter();
     }
 
+    public void SetAliveGrouping(string id)
+    {
+        Settings.AliveGrouping = id;
+        SaveSettings();
+        UpdateGroupingOptions();
+        ApplyFilter();
+    }
+
     private void UpdateGroupingOptions()
     {
         var current = GroupingOptions.Any(o => o.Id == Settings.SessionGrouping) ? Settings.SessionGrouping : "Date";
         foreach (var option in GroupingOptions)
         {
             option.IsSelected = option.Id == current;
+        }
+
+        var alive = AliveGroupingOptions.Any(o => o.Id == Settings.AliveGrouping) ? Settings.AliveGrouping : "None";
+        foreach (var option in AliveGroupingOptions)
+        {
+            option.IsSelected = option.Id == alive;
         }
     }
 
@@ -1247,10 +1286,20 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Archived sessions stay hidden unless asked for, or searched for.
         var list = items.Where(s => !s.IsArchived || Settings.ShowArchived || query.Length > 0).ToList();
-        SyncList(Alive, list.Where(s => s.IsAlive).ToList());
-        SyncList(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
-        HasAlive = Alive.Count > 0;
-        AliveCount = Alive.Count;
+        var alive = list.Where(s => s.IsAlive).ToList();
+        foreach (var item in _all)
+        {
+            item.ShowProject = item.IsAlive && Settings.AliveShowProject;
+            if (item.ShowProject)
+            {
+                item.ProjectName = FolderGroup(item);
+            }
+        }
+
+        SyncList(Alive, Group(alive, [], Settings.AliveGrouping, "Alive:"));
+        SyncList(Recents, Group(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList(), Settings.SessionGrouping, ""));
+        HasAlive = alive.Count > 0;
+        AliveCount = alive.Count;
         HasNoSessions = _all.Count == 0 && !IsLoadingSessions;
         ShowSessionsSkeleton = _all.Count == 0 && IsLoadingSessions;
         NumberRows();
@@ -1270,11 +1319,16 @@ public sealed partial class MainViewModel : ObservableObject
         return header;
     }
 
+    /// <summary>A session's project, as the Folder grouping and the Alive rows' second line name it.</summary>
+    private static string FolderGroup(SessionListItemViewModel s) =>
+        s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : ProjectName(s.WorkingDirectory);
+
     /// <summary>
-    /// The Idle list's entries: the sessions (newest first) under their group headings, then the archived ones.
-    /// A collapsed group lists only its heading, except while searching.
+    /// A list's entries (Alive or Idle): the sessions (newest first) under their group headings, then the archived
+    /// ones. A collapsed group lists only its heading, except while searching. <paramref name="prefix"/> keeps the
+    /// lists' remembered collapsed groups apart.
     /// </summary>
-    private List<object> GroupIdle(List<SessionListItemViewModel> sessions, List<SessionListItemViewModel> archived)
+    private List<object> Group(List<SessionListItemViewModel> sessions, List<SessionListItemViewModel> archived, string grouping, string prefix)
     {
         var searching = SearchText.Trim().Length > 0;
         var result = new List<object>(sessions.Count + archived.Count + 8);
@@ -1288,15 +1342,15 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
-        if (Settings.SessionGrouping == "None")
+        if (grouping == "None")
         {
             result.AddRange(sessions);
         }
         else
         {
-            Func<SessionListItemViewModel, string> key = Settings.SessionGrouping switch
+            Func<SessionListItemViewModel, string> key = grouping switch
             {
-                "Folder" => s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : ProjectName(s.WorkingDirectory),
+                "Folder" => FolderGroup,
                 "Recent" => s => RecentGroup(s.LastActivityUtc, DateTime.UtcNow),
                 _ => s => DateGroup(s.LastActivityUtc),
             };
@@ -1304,13 +1358,13 @@ public sealed partial class MainViewModel : ObservableObject
             // Groups in the order of their newest session; within a group, newest first.
             foreach (var group in sessions.GroupBy(key))
             {
-                AddGroup(Header(Settings.SessionGrouping + ":" + group.Key, group.Key), group.ToList());
+                AddGroup(Header(prefix + grouping + ":" + group.Key, group.Key), group.ToList());
             }
         }
 
         if (archived.Count > 0)
         {
-            AddGroup(Header("Archived", "Archived"), archived);
+            AddGroup(Header(prefix + "Archived", "Archived"), archived);
         }
 
         return result;
@@ -1319,8 +1373,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Folds a group's rows away under its heading, or unfolds them (their height grows back from 0).</summary>
     public async Task ToggleGroupAsync(SessionGroupHeader header)
     {
-        var index = Recents.IndexOf(header);
-        var rows = Recents.Skip(index + 1).TakeWhile(o => o is SessionListItemViewModel).Cast<SessionListItemViewModel>().ToList();
+        var entries = Alive.Contains(header) ? Alive : Recents;
+        var index = entries.IndexOf(header);
+        var rows = entries.Skip(index + 1).TakeWhile(o => o is SessionListItemViewModel).Cast<SessionListItemViewModel>().ToList();
         if (!header.IsCollapsed)
         {
             header.IsCollapsed = true;
@@ -1351,7 +1406,7 @@ public sealed partial class MainViewModel : ObservableObject
         SaveSettings();
 
         // The rows come in folded, then unfold once laid out.
-        var before = Recents.OfType<SessionListItemViewModel>().ToHashSet();
+        var before = entries.OfType<SessionListItemViewModel>().ToHashSet();
         var all = _all.Where(s => !before.Contains(s)).ToList();
         foreach (var row in all)
         {
@@ -1409,7 +1464,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Numbers the rows the sidebar shows, top to bottom (Alive, then Idle), 1 to 9.</summary>
     private void NumberRows()
     {
-        var shown = (IsAliveCollapsed ? [] : Alive.AsEnumerable())
+        var shown = (IsAliveCollapsed ? [] : Alive.OfType<SessionListItemViewModel>())
             .Concat(IsIdleCollapsed ? [] : Recents.OfType<SessionListItemViewModel>())
             .Take(9)
             .ToList();

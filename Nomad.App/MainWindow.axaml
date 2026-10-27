@@ -147,6 +147,10 @@
               <Setter Property="Opacity" Value="1" />
               <Setter Property="Margin" Value="0,0,6,0" />
             </Style>
+            <!-- "Show project": Alive rows grow a second line under the title (before .leaving, which folds them). -->
+            <Style Selector="Button.sessionrow.twoline">
+              <Setter Property="Height" Value="40" />
+            </Style>
             <Style Selector="Button.sessionrow.leaving">
               <Setter Property="Height" Value="0" />
               <Setter Property="Opacity" Value="0" />
@@ -206,8 +210,8 @@
               <Setter Property="IsHitTestVisible" Value="False" />
             </Style>
 
-            <!-- The Idle heading's list options show only while the pointer is over the heading (or its menu is open). -->
-            <Style Selector="Grid.idleheader Button#ListOptionsButton">
+            <!-- A heading's list options show only while the pointer is over the heading (or its menu is open). -->
+            <Style Selector="Grid.listheader Button.listoptions">
               <Setter Property="Opacity" Value="0" />
               <Setter Property="Transitions">
                 <Transitions>
@@ -215,7 +219,20 @@
                 </Transitions>
               </Setter>
             </Style>
-            <Style Selector="Grid.idleheader:pointerover Button#ListOptionsButton, Grid.idleheader Button#ListOptionsButton:flyout-open, Grid.idleheader Button#ListOptionsButton:focus-visible">
+            <Style Selector="Grid.listheader:pointerover Button.listoptions, Grid.listheader Button.listoptions:flyout-open, Grid.listheader Button.listoptions:focus-visible">
+              <Setter Property="Opacity" Value="1" />
+            </Style>
+
+            <!-- "Show project": the second line fades in as the row grows to hold it. -->
+            <Style Selector="c|EdgeFade.project">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button.sessionrow.twoline c|EdgeFade.project">
               <Setter Property="Opacity" Value="1" />
             </Style>
 
@@ -265,7 +282,10 @@
                       Classes.selected="{Binding IsSelected}"
                       Classes.leaving="{Binding IsLeaving}"
                       Classes.idle="{Binding !IsAlive}"
+                      Classes.twoline="{Binding ShowProject}"
                       Padding="10,0,8,0"
+                      VerticalContentAlignment="Top"
+                      ClipToBounds="True"
                       Click="OnRecentClick"
                       DoubleTapped="OnSessionRowDoubleTapped"
                       ToolTip.ShowDelay="700">
@@ -286,7 +306,8 @@
                               ToolTip.Tip="Moves the session's transcript to the Recycle Bin" />
                   </ContextMenu>
                 </Button.ContextMenu>
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="26,Auto">
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- Its worktree's branch has been merged into the repository: folds in once git says so. -->
                     <Border Classes="merged" Classes.shown="{Binding IsWorktreeMerged}" Background="Transparent"
@@ -322,6 +343,13 @@
                            Text="{Binding RenameText}"
                            MaxLength="200"
                            LostFocus="OnRenameLostFocus" />
+                  <!-- The Alive list's "Show project": the session's project under its title. -->
+                  <c:EdgeFade Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Classes="project" Margin="0,-5,0,0">
+                    <TextBlock Text="{Binding ProjectName}"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               FontWeight="Normal"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                  </c:EdgeFade>
                   <!-- GitHub: the branch's pull request and the issue the session works on, in their state's colour;
                        a click opens them in the browser. -->
                   <StackPanel Grid.Column="2" Classes="ghlinks" Orientation="Horizontal" Margin="4,0,0,0" VerticalAlignment="Center">
@@ -491,27 +519,69 @@
           </Button>
 
           <!-- Alive: sessions with a running CLI process. The heading folds the list. -->
-          <Button Grid.Row="3"
-                  Theme="{StaticResource RowButton}"
-                  Classes="groupheader"
-                  Classes.collapsed="{Binding IsAliveCollapsed}"
-                  Height="24"
-                  Margin="8,18,11,3"
-                  Padding="10,0,8,0"
-                  IsVisible="{Binding HasAlive}"
-                  Command="{Binding ToggleAliveSectionCommand}"
-                  ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle."
-                  ToolTip.ShowDelay="700">
-            <StackPanel Orientation="Horizontal">
-              <TextBlock Text="Alive" Classes="sectiontitle" />
-              <Border Classes="sectioncount">
-                <TextBlock Text="{Binding AliveCount}" />
-              </Border>
-              <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
+          <Grid Grid.Row="3" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,3" Height="24" Background="Transparent"
+                IsVisible="{Binding HasAlive}">
+            <Button Grid.ColumnSpan="3"
+                    Theme="{StaticResource RowButton}"
+                    Classes="groupheader"
+                    Classes.collapsed="{Binding IsAliveCollapsed}"
+                    HorizontalContentAlignment="Left"
+                    Height="24"
+                    Padding="10,0,8,0"
+                    Command="{Binding ToggleAliveSectionCommand}"
+                    ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle."
+                    ToolTip.ShowDelay="700">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Alive" Classes="sectiontitle" />
+                <Border Classes="sectioncount">
+                  <TextBlock Text="{Binding AliveCount}" />
+                </Border>
+                <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <!-- List options: grouping and the project line. -->
+            <Button Grid.Column="2"
+                    Name="AliveOptionsButton"
+                    Classes="listoptions"
+                    Theme="{StaticResource IconButton}"
+                    Width="24" Height="24"
+                    ToolTip.Tip="List options">
+              <c:Icon Size="13" Data="{StaticResource IconSliders}" />
+              <Button.Flyout>
+                <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="menu">
+                  <StackPanel Width="210">
+                    <TextBlock Text="Group by"
+                               Margin="8,3,8,3"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <ItemsControl ItemsSource="{Binding AliveGroupingOptions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MenuOption">
+                          <Button Theme="{StaticResource MenuItemButton}" Click="OnAliveGroupingClick">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding Label}" />
+                              <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                            </Grid>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Classes="rule" />
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnShowAliveProjectClick">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Show project" />
+                        <Border Grid.Column="1" Classes="switch" Classes.on="{Binding ShowAliveProject}" VerticalAlignment="Center">
+                          <Ellipse />
+                        </Border>
+                      </Grid>
+                    </Button>
+                  </StackPanel>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+          </Grid>
           <Panel Grid.Row="4" IsVisible="{Binding HasAlive}">
-            <ScrollViewer MaxHeight="240"
+            <ScrollViewer MaxHeight="320"
                           c:Fold.IsOpen="{Binding !IsAliveCollapsed}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
@@ -520,7 +590,7 @@
           </Panel>
 
           <!-- Idle header: the heading folds the list. -->
-          <Grid Grid.Row="5" Classes="idleheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
+          <Grid Grid.Row="5" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
             <!-- The whole heading folds the list; the list options button sits on top of it. -->
             <Button Grid.ColumnSpan="3"
                     Theme="{StaticResource RowButton}"
@@ -541,6 +611,7 @@
             <!-- List options: grouping and archived sessions. -->
             <Button Grid.Column="2"
                     Name="ListOptionsButton"
+                    Classes="listoptions"
                     Theme="{StaticResource IconButton}"
                     Width="24" Height="24"
                     ToolTip.Tip="List options">

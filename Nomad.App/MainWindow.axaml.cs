@@ -626,6 +626,16 @@ public partial class MainWindow : Window
 
     private void OnShowArchivedClick(object? sender, RoutedEventArgs e) => _vm.ShowArchived = !_vm.ShowArchived;
 
+    private void OnAliveGroupingClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option })
+        {
+            _vm.SetAliveGrouping(option.Id);
+        }
+    }
+
+    private void OnShowAliveProjectClick(object? sender, RoutedEventArgs e) => _vm.ShowAliveProject = !_vm.ShowAliveProject;
+
     private void OnGroupHeaderClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionGroupHeader header })
@@ -1025,6 +1035,10 @@ public partial class MainWindow : Window
         else if (dev.Menu == "list")
         {
             ListOptionsButton.Flyout?.ShowAt(ListOptionsButton);
+        }
+        else if (dev.Menu == "alivelist")
+        {
+            AliveOptionsButton.Flyout?.ShowAt(AliveOptionsButton);
         }
         else if (dev.Menu == "row")
         {

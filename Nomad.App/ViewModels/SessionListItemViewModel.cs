@@ -34,6 +34,14 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial DateTime LastActivityUtc { get; set; }
 
+    /// <summary>The row shows <see cref="ProjectName"/> on a second line (the Alive list's "Show project").</summary>
+    [ObservableProperty]
+    public partial bool ShowProject { get; set; }
+
+    /// <summary>Its folder's project ("No folder" for a scratch one): set while <see cref="ShowProject"/> is on.</summary>
+    [ObservableProperty]
+    public partial string ProjectName { get; set; } = "";
+
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
@@ -158,7 +166,7 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
-/// <summary>A group heading in the sidebar's Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>
+/// <summary>A group heading in the sidebar's Alive or Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>
 public sealed partial class SessionGroupHeader(string key, string title) : ObservableObject
 {
     /// <summary>"Date:Today", "Folder:Nomad.ai", "Archived": how its collapsed state is remembered.</summary>
