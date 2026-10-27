@@ -91,6 +91,9 @@ public sealed class NomadSettings
     /// <summary>The Alive section is folded to its heading.</summary>
     public bool AliveCollapsed { get; set; }
 
+    /// <summary>The Idle section is folded to its heading.</summary>
+    public bool IdleCollapsed { get; set; }
+
     // Window and session state
     public bool SidebarCollapsed { get; set; }
 

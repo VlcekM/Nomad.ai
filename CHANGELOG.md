@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.1.1
+
+- Sidebar: the Idle heading folds its list too (remembered between runs).
+
 ## v1.1.0
 
 - Composer: attach any file or folder (+ menu, drop or paste); images stay images, other files go in as @-mentions and

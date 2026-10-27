@@ -1017,6 +1017,24 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleAliveSection() => IsAliveCollapsed = !IsAliveCollapsed;
 
+    /// <summary>The Idle list is folded to its heading.</summary>
+    public bool IsIdleCollapsed
+    {
+        get => Settings.IdleCollapsed;
+        set
+        {
+            if (Settings.IdleCollapsed != value)
+            {
+                Settings.IdleCollapsed = value;
+                SaveSettings();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleIdleSection() => IsIdleCollapsed = !IsIdleCollapsed;
+
     /// <summary>"Today", "Yesterday", "Previous 7 days", "Previous 30 days", then the month ("September 2026").</summary>
     public static string DateGroup(DateTime utc)
     {

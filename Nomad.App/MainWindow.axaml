@@ -107,6 +107,21 @@
               <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
             </Style>
 
+            <Style Selector="Panel#IdleList">
+              <Setter Property="RenderTransform" Value="translateY(0px)" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Panel#IdleList.collapsed">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="RenderTransform" Value="translateY(-6px)" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+            </Style>
+
             <!-- Alive / Idle: a heading with a count badge. -->
             <Style Selector="TextBlock.sectiontitle">
               <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
@@ -319,19 +334,26 @@
             </ScrollViewer>
           </Panel>
 
-          <!-- Idle header -->
-          <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto" Margin="18,18,11,2" Height="24">
-            <StackPanel Orientation="Horizontal"
-                        Background="Transparent"
-                        ToolTip.Tip="Sessions without a process. Sending a prompt resumes one."
-                        ToolTip.ShowDelay="700">
-              <TextBlock Text="Idle" Classes="sectiontitle" />
-              <Border Classes="sectioncount">
-                <TextBlock Text="{Binding IdleCount}" />
-              </Border>
-            </StackPanel>
+          <!-- Idle header: the heading folds the list. -->
+          <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto,Auto" Margin="8,18,11,2" Height="24">
+            <Button Theme="{StaticResource RowButton}"
+                    Classes="groupheader"
+                    Classes.collapsed="{Binding IsIdleCollapsed}"
+                    Height="24"
+                    Padding="10,0,8,0"
+                    Command="{Binding ToggleIdleSectionCommand}"
+                    ToolTip.Tip="Sessions without a process. Sending a prompt resumes one."
+                    ToolTip.ShowDelay="700">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Idle" Classes="sectiontitle" />
+                <Border Classes="sectioncount">
+                  <TextBlock Text="{Binding IdleCount}" />
+                </Border>
+                <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <!-- List options: grouping and archived sessions. -->
-            <Button Grid.Column="1"
+            <Button Grid.Column="2"
                     Name="ListOptionsButton"
                     Theme="{StaticResource IconButton}"
                     Width="24" Height="24"
@@ -369,7 +391,7 @@
                 </Flyout>
               </Button.Flyout>
             </Button>
-            <Button Grid.Column="2"
+            <Button Grid.Column="3"
                     Theme="{StaticResource IconButton}"
                     Width="24" Height="24"
                     Command="{Binding NewSessionCommand}"
@@ -378,8 +400,8 @@
             </Button>
           </Grid>
 
-          <!-- Idle list -->
-          <Panel Grid.Row="6">
+          <!-- Idle list: folded, it fades and slides up out of sight (the space below it was empty anyway). -->
+          <Panel Grid.Row="6" Name="IdleList" Classes.collapsed="{Binding IsIdleCollapsed}">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
               <ItemsControl ItemsSource="{Binding Recents}" Margin="0,0,0,8">
                 <ItemsControl.ItemsPanel>
