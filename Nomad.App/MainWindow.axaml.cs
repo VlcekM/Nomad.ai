@@ -369,7 +369,7 @@ public partial class MainWindow : Window
     // ------------------------------------------------------------------ drag to pin
 
     // The row pressed (and where), until the press ends; dragging once it has moved far enough.
-    private (Button Row, SessionListItemViewModel Item, Point From)? _rowPress;
+    private (SessionListItemViewModel Item, Point From)? _rowPress;
     private bool _rowDragging;
 
     private void OnRowDragPressed(object? sender, PointerPressedEventArgs e)
@@ -377,9 +377,9 @@ public partial class MainWindow : Window
         _rowPress = null;
         if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.KeyModifiers == KeyModifiers.None
             && (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("sessionrow"))
-                is { DataContext: SessionListItemViewModel { IsRenaming: false } item } row)
+                is { DataContext: SessionListItemViewModel { IsRenaming: false } item })
         {
-            _rowPress = (row, item, e.GetPosition(this));
+            _rowPress = (item, e.GetPosition(this));
         }
     }
 
@@ -407,7 +407,7 @@ public partial class MainWindow : Window
             // The sidebar takes the pointer from the row, so letting go is no click on it.
             _rowDragging = true;
             e.Pointer.Capture(Sidebar);
-            press.Row.Classes.Add("dragged");
+            press.Item.IsDragged = true;
             PinDropText.Text = press.Item.IsPinned ? "Drop to unpin" : "Drop to pin";
             DragGhostText.Text = press.Item.Title;
             DragGhost.Opacity = 0.95;
@@ -446,7 +446,7 @@ public partial class MainWindow : Window
 
         _rowDragging = false;
         _rowPress = null;
-        press.Row.Classes.Remove("dragged");
+        press.Item.IsDragged = false;
         DragGhost.Opacity = 0;
         PinDropZone.Classes.Remove("over");
         Controls.Fold.SetIsOpen(PinDropHost, false);

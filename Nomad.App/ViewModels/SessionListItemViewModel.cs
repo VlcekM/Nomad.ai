@@ -88,6 +88,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     public string PinToggleText => IsPinned ? "Unpin" : "Pin";
 
+    /// <summary>Being dragged to the pin zone: the row stays in place, faded.</summary>
+    [ObservableProperty]
+    public partial bool IsDragged { get; set; }
+
     /// <summary>Being archived or deleted: the row folds away before it leaves the list.</summary>
     [ObservableProperty]
     public partial bool IsLeaving { get; set; }

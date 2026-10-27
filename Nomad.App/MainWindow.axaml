@@ -322,6 +322,7 @@
                       Classes="sessionrow"
                       Classes.selected="{Binding IsSelected}"
                       Classes.picked="{Binding IsPicked}"
+                      Classes.dragged="{Binding IsDragged}"
                       Classes.leaving="{Binding IsLeaving}"
                       Classes.idle="{Binding !IsAlive}"
                       Classes.twoline="{Binding ShowProject}"
