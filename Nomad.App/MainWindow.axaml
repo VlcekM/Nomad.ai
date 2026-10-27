@@ -98,7 +98,8 @@
                   <DoubleTransition Property="Height" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
-                  <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                  <!-- Premultiplied: hover's translucent white to the selected grey never flashes white. -->
+                  <c:ColorFadeTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
                   <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
                 </Transitions>
               </Setter>
