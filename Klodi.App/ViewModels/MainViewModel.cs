@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Klodi.App.Infrastructure;
+using Klodi.App.Updates;
 using Klodi.Core.Agents;
 using Klodi.Core.Sessions;
 using Klodi.Core.Settings;
@@ -36,6 +37,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Current.Model = dev.Model;
         }
+
+        Updates = new UpdateService(this);
     }
 
     public KlodiSettings Settings { get; }
@@ -43,6 +46,9 @@ public sealed partial class MainViewModel : ObservableObject
     public DevOptions Dev { get; }
 
     public SessionStore Store { get; }
+
+    /// <summary>Self-update (Velopack) and the GitHub release list.</summary>
+    public UpdateService Updates { get; }
 
     public ObservableCollection<SessionListItemViewModel> Recents { get; } = [];
 
@@ -544,9 +550,18 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The sessions that may have a CLI running: every opened one and the current one.</summary>
+    private IEnumerable<SessionViewModel> LiveSessions => _open.Values.Append(Current).Distinct();
+
+    /// <summary>A turn is running somewhere: Klodi must not restart on its own (its CLIs would die with it).</summary>
+    public bool HasRunningTurns => LiveSessions.Any(s => s.IsTurnRunning);
+
+    /// <summary>A prompt is being typed somewhere: an automatic restart would lose it.</summary>
+    public bool HasUnsentText => LiveSessions.Any(s => s.HasComposerText);
+
     public async Task ShutdownAsync()
     {
-        var sessions = _open.Values.Append(Current).Distinct().ToList();
+        var sessions = LiveSessions.ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()));
     }
 

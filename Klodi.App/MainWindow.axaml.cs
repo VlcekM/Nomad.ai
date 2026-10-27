@@ -113,9 +113,29 @@ public partial class MainWindow : Window
 
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
+    private void OnUpdateLaterClick(object? sender, RoutedEventArgs e) => UpdateChipButton.Flyout?.Hide();
+
     // ------------------------------------------------------------------ lifetime
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
+    {
+        SavePlacement();
+        _vm.SaveSettings();
+        _ = _vm.ShutdownAsync();
+
+        // A downloaded update is applied by Velopack's updater once Klodi has exited.
+        _vm.Updates.OnExit();
+    }
+
+    /// <summary>Restarting into an update ends the process at once: save what closing the window would save.</summary>
+    private async Task PrepareRestartAsync()
+    {
+        SavePlacement();
+        _vm.SaveSettings();
+        await _vm.ShutdownAsync();
+    }
+
+    private void SavePlacement()
     {
         var settings = _vm.Settings;
         if (_vm.Dev.Size is null)
@@ -128,9 +148,6 @@ public partial class MainWindow : Window
                 settings.WindowHeight = Height;
             }
         }
-
-        _vm.SaveSettings();
-        _ = _vm.ShutdownAsync();
     }
 
     private async Task StartAsync()
@@ -161,6 +178,9 @@ public partial class MainWindow : Window
         }
 
         await _vm.RefreshSessionsAsync();
+
+        _vm.Updates.BeforeRestart = PrepareRestartAsync;
+        _vm.Updates.Start();
 
         if (dev.SessionId is { } sessionId)
         {

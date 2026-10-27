@@ -14,7 +14,7 @@ namespace Klodi.App.Infrastructure;
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
 /// --dev-menu model|mode|folder|plus   open a menu before the screenshot
-/// --dev-settings-open [claude]  open the settings dialog (or its Claude Code page) before the screenshot
+/// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Klodi\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
 /// --dev-expand                  expand every tool group (to screenshot rows)
@@ -22,6 +22,8 @@ namespace Klodi.App.Infrastructure;
 ///                               (questions get their first options; pick only selects them)
 /// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
+/// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
+/// --dev-releases-repo &lt;o/r&gt;   list another repository's GitHub releases on the Updates page
 /// </code>
 /// </summary>
 public sealed class DevOptions
@@ -37,12 +39,15 @@ public sealed class DevOptions
     public string? Menu { get; private set; }
     public bool SettingsOpen { get; private set; }
     public bool SettingsClaudePage { get; private set; }
+    public bool SettingsUpdatesPage { get; private set; }
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
     public List<(string Key, string Value)> Set { get; } = [];
     public double? StopAfterSeconds { get; private set; }
+    public string? UpdateSource { get; private set; }
+    public string? ReleasesRepository { get; private set; }
 
     public IReadOnlyList<string> ExtraCliArguments => Lean
         ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion"]
@@ -82,13 +87,16 @@ public sealed class DevOptions
                 case "--dev-menu": o.Menu = Next(); break;
                 case "--dev-settings-open":
                     o.SettingsOpen = true;
-                    if (i + 1 < args.Length && args[i + 1] == "claude")
+                    if (i + 1 < args.Length && args[i + 1] is "claude" or "updates")
                     {
-                        o.SettingsClaudePage = true;
+                        o.SettingsClaudePage = args[i + 1] == "claude";
+                        o.SettingsUpdatesPage = args[i + 1] == "updates";
                         i++;
                     }
 
                     break;
+                case "--dev-update-source": o.UpdateSource = Next(); break;
+                case "--dev-releases-repo": o.ReleasesRepository = Next(); break;
                 case "--dev-settings": o.SettingsPath = Next(); break;
                 case "--dev-lean": o.Lean = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;

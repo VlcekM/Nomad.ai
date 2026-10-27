@@ -28,6 +28,8 @@
   <StreamGeometry x:Key="IconReturn">M13,3.5 L13,8.75 C13,9.44 12.44,10 11.75,10 L3.5,10 M6.5,7 L3.5,10 L6.5,13</StreamGeometry>
   <StreamGeometry x:Key="IconStopFilled">M5,4 L11,4 C11.55,4 12,4.45 12,5 L12,11 C12,11.55 11.55,12 11,12 L5,12 C4.45,12 4,11.55 4,11 L4,5 C4,4.45 4.45,4 5,4 Z</StreamGeometry>
   <StreamGeometry x:Key="IconSendArrow">M8,13 L8,3.25 M4,7.25 L8,3.25 L12,7.25</StreamGeometry>
+  <StreamGeometry x:Key="IconUpdate">M13.75,8 A5.75,5.75 0 1 1 8,2.25 C9.6,2.25 11.1,2.9 12.25,4 L13.75,5.5 M13.75,2.25 L13.75,5.5 L10.5,5.5</StreamGeometry>
+  <StreamGeometry x:Key="IconDownload">M8,2.25 L8,10.25 M4.75,7 L8,10.25 L11.25,7 M2.75,11 L2.75,12.75 C2.75,13.3 3.2,13.75 3.75,13.75 L12.25,13.75 C12.8,13.75 13.25,13.3 13.25,12.75 L13.25,11</StreamGeometry>
   <StreamGeometry x:Key="IconCircle">M14,8 A6,6 0 1 1 2,8 A6,6 0 1 1 14,8 Z</StreamGeometry>
   <!-- Caption buttons: 10x10 glyphs drawn on the 16 grid -->
   <StreamGeometry x:Key="IconCaptionMin">M3,8 L13,8</StreamGeometry>

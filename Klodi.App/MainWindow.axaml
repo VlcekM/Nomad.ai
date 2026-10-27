@@ -3,6 +3,7 @@
         xmlns:vm="using:Klodi.App.ViewModels"
         xmlns:views="using:Klodi.App.Views"
         xmlns:c="using:Klodi.App.Controls"
+        xmlns:md="using:Klodi.App.Markdown"
         x:Class="Klodi.App.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Klodi"
@@ -173,7 +174,7 @@
                   Height="44"
                   BorderBrush="{StaticResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="11,0,9,0">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="11,0,9,0">
               <Border Width="22" Height="22"
                       CornerRadius="11"
                       Background="#282828"
@@ -200,7 +201,56 @@
                 <Run Text="·" />
                 <Run Text="{Binding PlanLabel}" />
               </TextBlock>
+
+              <!-- Update chip: downloaded, a click restarts into it; found (auto-update off), a click opens the prompt. -->
               <Button Grid.Column="4"
+                      Theme="{StaticResource ChipButton}"
+                      IsVisible="{Binding Updates.ShowRestartChip}"
+                      Command="{Binding Updates.RestartNowCommand}"
+                      Foreground="{StaticResource AccentBrush}"
+                      Margin="0,0,4,0"
+                      ToolTip.Tip="{Binding Updates.ChipTip}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <c:Icon Size="13" Data="{StaticResource IconUpdate}" />
+                  <TextBlock Text="{Binding Updates.ChipText}" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="4"
+                      Name="UpdateChipButton"
+                      Theme="{StaticResource ChipButton}"
+                      IsVisible="{Binding Updates.ShowPromptChip}"
+                      Foreground="{StaticResource AccentBrush}"
+                      Margin="0,0,4,0"
+                      ToolTip.Tip="{Binding Updates.ChipTip}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <c:Icon Size="13" Data="{StaticResource IconDownload}" />
+                  <TextBlock Text="{Binding Updates.ChipText}" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" />
+                </StackPanel>
+                <Button.Flyout>
+                  <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+                    <StackPanel Width="400" Margin="10,8,10,6" Spacing="10">
+                      <TextBlock Text="{Binding Updates.PromptTitle}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                      <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding Updates.HasAvailableNotes}">
+                        <md:MarkdownView Markdown="{Binding Updates.AvailableNotes}" Margin="0,0,8,0" />
+                      </ScrollViewer>
+                      <TextBlock Text="{Binding Updates.Status}"
+                                 IsVisible="{Binding Updates.IsFailed}"
+                                 Foreground="{StaticResource DangerBrush}"
+                                 FontSize="13"
+                                 TextWrapping="Wrap" />
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
+                        <Button Theme="{StaticResource GhostButton}" Content="Later" Click="OnUpdateLaterClick" />
+                        <Button Theme="{StaticResource PrimaryButton}"
+                                Content="{Binding Updates.PromptActionText}"
+                                Command="{Binding Updates.InstallCommand}"
+                                IsEnabled="{Binding Updates.CanAct}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+
+              <Button Grid.Column="5"
                       Theme="{StaticResource IconButton}"
                       Command="{Binding OpenSettingsCommand}"
                       ToolTip.Tip="Settings (Ctrl+,)">

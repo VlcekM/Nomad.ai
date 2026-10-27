@@ -32,6 +32,17 @@ public sealed class KlodiSettings
     /// <summary>low | medium | high | xhigh | max; empty = leave it to the CLI. Medium as in the original app.</summary>
     public string DefaultEffort { get; set; } = "medium";
 
+    // Updates (only a Setup install updates itself)
+
+    /// <summary>
+    /// Check GitHub at startup and every 6 hours, download a new version in the background and restart into it
+    /// when no turn is running. Off: only check and offer it.
+    /// </summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>Offer pre-releases as updates too.</summary>
+    public bool IncludePrereleases { get; set; }
+
     // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
     public string? DisplayName { get; set; }
     public string? LastPlan { get; set; }
