@@ -23,13 +23,7 @@ public partial class MainWindow : Window
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
-    private readonly DispatcherTimer _hintTimer;
-
-    private void HideShortcutHints()
-    {
-        _hintTimer.Stop();
-        _vm.ShowShortcutHints(false);
-    }
+    private void HideShortcutHints() => _vm.ShowShortcutHints(false);
 
     public MainWindow(MainViewModel vm)
     {
@@ -140,7 +134,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
             }
 
-            // Ctrl+1…9 opens the sidebar's rows top to bottom; Ctrl held a moment shows their numbers.
+            // Ctrl+1…9 opens the sidebar's rows top to bottom; holding Ctrl shows their numbers.
             if (e.KeyModifiers == KeyModifiers.Control && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
             {
                 var number = e.Key >= Key.NumPad1 ? e.Key - Key.NumPad1 + 1 : e.Key - Key.D1 + 1;
@@ -148,8 +142,7 @@ public partial class MainWindow : Window
             }
             else if (e.Key is Key.LeftCtrl or Key.RightCtrl)
             {
-                _hintTimer.Stop();
-                _hintTimer.Start();
+                vm.ShowShortcutHints(true);
             }
             else
             {
@@ -164,11 +157,6 @@ public partial class MainWindow : Window
             }
         }, RoutingStrategies.Tunnel);
         Deactivated += (_, _) => HideShortcutHints();
-        _hintTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(400), DispatcherPriority.Input, (_, _) =>
-        {
-            _hintTimer!.Stop();
-            vm.ShowShortcutHints(true);
-        });
 
         var settings = vm.Settings;
         if (vm.Dev.Size is { } size)
