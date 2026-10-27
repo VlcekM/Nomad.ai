@@ -111,6 +111,8 @@ public partial class App : Application
             app.RequestedThemeVariant = theme;
         }
 
+        themeChanged |= Infrastructure.Themes.Use(settings.ColorTheme);
+
         var old = MarkdownStyle.Current;
         if (themeChanged || old.BodySize != style.BodySize || old.CodeSize != style.CodeSize ||
             old.BodyFont.Name != style.BodyFont.Name || old.CodeFont.Name != style.CodeFont.Name)
@@ -131,6 +133,14 @@ public partial class App : Application
                 app.Resources[key] = value;
             }
         }
+    }
+
+    /// <summary>Re-renders markdown after the theme's colors changed (its brushes are picked in code).</summary>
+    public static void RestyleMarkdown()
+    {
+        var old = MarkdownStyle.Current;
+        MarkdownStyle.Current = new MarkdownStyle { BodySize = old.BodySize, CodeSize = old.CodeSize, BodyFont = old.BodyFont, CodeFont = old.CodeFont };
+        MarkdownView.NotifyStyleChanged();
     }
 
     /// <summary>Width of the transcript/composer column (Wide matches the original's 1280 px).</summary>

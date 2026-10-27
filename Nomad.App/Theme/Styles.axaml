@@ -87,7 +87,7 @@
   </Style>
 
   <Style Selector="SelectableTextBlock">
-    <Setter Property="SelectionBrush" Value="#553A6EA5" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
   </Style>
 
   <!-- The working line's shimmer: muted text with a bright (dark: light, light: dark) band passing over it. -->

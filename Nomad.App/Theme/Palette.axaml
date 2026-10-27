@@ -126,6 +126,9 @@
       <SolidColorBrush x:Key="WaitingBrush" Color="#E3B341" />
       <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
+      <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
+      <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
       <!-- GitHub states (sidebar pull request and issue icons) -->
       <SolidColorBrush x:Key="GhOpenBrush" Color="#3FB950" />
       <SolidColorBrush x:Key="GhMergedBrush" Color="#A371F7" />
@@ -185,13 +188,13 @@
       <Color x:Key="BorderSettingsColor">#DEDCD3</Color>
       <Color x:Key="InlineCodeBorderColor">#E0DED5</Color>
       <!-- Text -->
-      <Color x:Key="TextPrimaryColor">#1F1E1D</Color>
-      <Color x:Key="TextChromeColor">#3D3C38</Color>
-      <Color x:Key="TextSecondaryColor">#5E5D59</Color>
-      <Color x:Key="TextMutedColor">#7A7973</Color>
+      <Color x:Key="TextPrimaryColor">#141413</Color>
+      <Color x:Key="TextChromeColor">#2C2B28</Color>
+      <Color x:Key="TextSecondaryColor">#484743</Color>
+      <Color x:Key="TextMutedColor">#62615B</Color>
       <Color x:Key="TextOnAccentColor">#FFFFFF</Color>
-      <Color x:Key="TextNavColor">#2B2A27</Color>
-      <Color x:Key="TextCaretColor">#1F1E1D</Color>
+      <Color x:Key="TextNavColor">#1E1D1B</Color>
+      <Color x:Key="TextCaretColor">#141413</Color>
       <!-- Accents and states -->
       <Color x:Key="AccentColor">#D97757</Color>
       <Color x:Key="AccentEmphasisColor">#C6613F</Color>
@@ -219,9 +222,9 @@
       <Color x:Key="ScrollThumbHoverColor">#40000000</Color>
       <Color x:Key="JumpFillColor">#F2FFFFFF</Color>
       <Color x:Key="JumpEdgeColor">#CFCDC4</Color>
-      <Color x:Key="JumpArrowColor">#3D3C38</Color>
-      <Color x:Key="ShimmerBaseColor">#8A8883</Color>
-      <Color x:Key="ShimmerHighlightColor">#1F1E1D</Color>
+      <Color x:Key="JumpArrowColor">#2C2B28</Color>
+      <Color x:Key="ShimmerBaseColor">#6E6D67</Color>
+      <Color x:Key="ShimmerHighlightColor">#141413</Color>
       <SolidColorBrush x:Key="BgSidebarBrush" Color="#F3F2EC" />
       <SolidColorBrush x:Key="BgMainBrush" Color="#FAF9F5" />
       <SolidColorBrush x:Key="BgRaisedBrush" Color="#F0EEE6" />
@@ -250,13 +253,13 @@
       <SolidColorBrush x:Key="BorderFieldBrush" Color="#D6D4CB" />
       <SolidColorBrush x:Key="BorderSettingsBrush" Color="#DEDCD3" />
       <SolidColorBrush x:Key="InlineCodeBorderBrush" Color="#E0DED5" />
-      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F1E1D" />
-      <SolidColorBrush x:Key="TextChromeBrush" Color="#3D3C38" />
-      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5E5D59" />
-      <SolidColorBrush x:Key="TextMutedBrush" Color="#7A7973" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#141413" />
+      <SolidColorBrush x:Key="TextChromeBrush" Color="#2C2B28" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#484743" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="#62615B" />
       <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF" />
-      <SolidColorBrush x:Key="TextNavBrush" Color="#2B2A27" />
-      <SolidColorBrush x:Key="TextCaretBrush" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="TextNavBrush" Color="#1E1D1B" />
+      <SolidColorBrush x:Key="TextCaretBrush" Color="#141413" />
       <SolidColorBrush x:Key="AccentBrush" Color="#D97757" />
       <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#C6613F" />
       <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1FD97757" />
@@ -272,6 +275,9 @@
       <SolidColorBrush x:Key="WaitingBrush" Color="#B7871C" />
       <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
+      <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
+      <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
       <!-- GitHub states (sidebar pull request and issue icons) -->
       <SolidColorBrush x:Key="GhOpenBrush" Color="#1A7F37" />
       <SolidColorBrush x:Key="GhMergedBrush" Color="#8250DF" />
@@ -288,16 +294,16 @@
       <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#40000000" />
       <SolidColorBrush x:Key="JumpFillBrush" Color="#F2FFFFFF" />
       <SolidColorBrush x:Key="JumpEdgeBrush" Color="#CFCDC4" />
-      <SolidColorBrush x:Key="JumpArrowBrush" Color="#3D3C38" />
-      <SolidColorBrush x:Key="ShimmerBaseBrush" Color="#8A8883" />
-      <SolidColorBrush x:Key="ShimmerHighlightBrush" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="JumpArrowBrush" Color="#2C2B28" />
+      <SolidColorBrush x:Key="ShimmerBaseBrush" Color="#6E6D67" />
+      <SolidColorBrush x:Key="ShimmerHighlightBrush" Color="#141413" />
       <!-- Settings combo boxes (Fluent keys) -->
       <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#0A000000" />
       <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#14000000" />
-      <SolidColorBrush x:Key="ComboBoxForeground" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="ComboBoxForeground" Color="#141413" />
       <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FFFFFF" />
       <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#DEDCD3" />
-      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#5E5D59" />
+      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#484743" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 

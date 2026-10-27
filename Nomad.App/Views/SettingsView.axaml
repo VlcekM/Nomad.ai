@@ -56,6 +56,42 @@
       <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
       <Setter Property="MaxDropDownHeight" Value="420" />
     </Style>
+    <!-- Color theme editor: a swatch, the token's name and its hex value; reset shows once it differs from Nomad's. -->
+    <Style Selector="TextBlock.colorgroup">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+    <Style Selector="TextBlock.colorlabel">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,0,10,0" />
+    </Style>
+    <Style Selector="Border.swatch">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Margin" Value="0,0,10,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.reset">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.reset.changed">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
     <!-- Updates page: the status line's colours, release markers and the chevron of a release. -->
     <Style Selector="TextBlock.rowhint.attention">
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
@@ -80,7 +116,7 @@
       <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="Border.tag.newer">
-      <Setter Property="Background" Value="#262A78D6" />
+      <Setter Property="Background" Value="{DynamicResource LinkSubtleBrush}" />
     </Style>
     <Style Selector="Border.tag.newer > TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource LinkBrush}" />
@@ -176,6 +212,84 @@
                   </StackPanel>
                 </Border>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12,16,12">
+                  <TextBlock Text="Color theme" Classes="rowlabel" />
+                  <TextBlock Text="Nomad is built in. Duplicate a theme to make one of your own and change its colors."
+                             Classes="rowhint" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <ComboBox ItemsSource="{Binding ColorThemes}" SelectedItem="{Binding SelectedColorTheme}" MinWidth="160">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ThemeChoice">
+                        <TextBlock Text="{Binding Name}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <Button Theme="{StaticResource LineButton}" Command="{Binding DuplicateThemeCommand}" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextPrimaryBrush}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+                      <TextBlock Text="Duplicate" FontWeight="Medium" />
+                    </StackPanel>
+                  </Button>
+                  <Button Theme="{StaticResource IconButton}" Command="{Binding DeleteThemeCommand}" VerticalAlignment="Center"
+                          IsVisible="{Binding IsCustomTheme}"
+                          ToolTip.Tip="Delete this theme (to the Recycle Bin)">
+                    <c:Icon Size="13" Data="{StaticResource IconClose}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+
+              <!-- A custom theme's name and colors, folding open under its picker. -->
+              <StackPanel c:Fold.IsOpen="{Binding IsCustomTheme}" IsVisible="False">
+                <Border Classes="rowline" />
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <TextBlock Text="Theme name" Classes="rowlabel" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Classes="field" Width="240">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding ThemeName}" Watermark="Name" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+                <StackPanel Margin="0,12,0,4">
+                  <TextBlock Text="Colors" Classes="rowlabel" />
+                  <TextBlock Text="{Binding ThemeColorsHint}" Classes="rowhint" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding ThemeColorGroups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ThemeColorGroup">
+                      <StackPanel Margin="0,10,0,0">
+                        <TextBlock Text="{Binding Title}" Classes="colorgroup" />
+                        <ItemsControl ItemsSource="{Binding Colors}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <UniformGrid Columns="2" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ThemeColorRow">
+                              <Grid ColumnDefinitions="Auto,*,Auto,26" Margin="0,3,16,3">
+                                <Border Classes="swatch" Background="{Binding Swatch}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Label}" Classes="colorlabel" />
+                                <Border Grid.Column="2" Classes="field" Width="96" Height="26" Padding="8,0">
+                                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hex}" MaxLength="9" FontSize="{DynamicResource UiFontSizeSmall}" />
+                                </Border>
+                                <Button Grid.Column="3" Theme="{StaticResource IconButton}" Classes="reset" Classes.changed="{Binding IsChanged}"
+                                        Command="{Binding ResetCommand}" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                        ToolTip.Tip="Back to Nomad's color">
+                                  <c:Icon Size="12" Data="{StaticResource IconRewind}" />
+                                </Button>
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
               <Border Classes="rowline" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">

@@ -19,7 +19,7 @@
                       Maximum="1"
                       Value="{Binding Fraction}"
                       PaceValue="{Binding PaceFraction}"
-                      PaceBrush="#5C2A78D6"
+                      PaceBrush="{DynamicResource PaceBrush}"
                       IsHitTestVisible="False"
                       TrackBrush="{DynamicResource BarTrackBrush}"
                       FillBrush="{DynamicResource RingBrush}"

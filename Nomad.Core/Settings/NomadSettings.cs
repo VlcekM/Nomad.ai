@@ -19,6 +19,9 @@ public sealed class NomadSettings
     /// <summary>Dark | Light | System (follows the Windows app mode).</summary>
     public string Theme { get; set; } = "Dark";
 
+    /// <summary>The color theme: "nomad" (built in) or a file in the themes folder next to settings.json, by name.</summary>
+    public string ColorTheme { get; set; } = "nomad";
+
     /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
 

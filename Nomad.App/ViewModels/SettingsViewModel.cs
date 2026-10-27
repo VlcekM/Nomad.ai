@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using Avalonia;
 using Avalonia.Media;
+using Avalonia.Styling;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
@@ -65,6 +67,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RemoteControlByDefault = s.RemoteControlByDefault;
         PromptSuggestions = s.PromptSuggestions;
         ConfirmModelSwitch = s.ConfirmModelSwitch;
+        LoadColorThemes(s.ColorTheme);
         RefreshPhoneFolders();
         main.PhoneServerChanged += OnPhoneServerChanged;
         UpdateCliStatus();
@@ -141,7 +144,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool IsThemeSystem { get => Theme == "System"; set => SetIf(value, () => Theme = "System"); }
 
-    partial void OnThemeChanged(string value) => Apply(s => s.Theme = value, appearance: true);
+    partial void OnThemeChanged(string value)
+    {
+        Apply(s => s.Theme = value, appearance: true);
+        RefreshThemeColors();
+    }
 
     public bool IsTextSmall { get => TextSize == "Small"; set => SetIf(value, () => TextSize = "Small"); }
 
@@ -516,6 +523,184 @@ public sealed partial class SettingsViewModel : ObservableObject
         ReleasesStatus = list.Problem ?? (Releases.Count == 0 ? "No releases yet." : null);
     }
 
+    // ------------------------------------------------------------------ General › Color theme
+
+    // The custom theme selected (and edited); null while it is the built-in one.
+    private CustomTheme? _theme;
+
+    public ObservableCollection<ThemeChoice> ColorThemes { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCustomTheme))]
+    [NotifyCanExecuteChangedFor(nameof(DeleteThemeCommand))]
+    public partial ThemeChoice? SelectedColorTheme { get; set; }
+
+    public bool IsCustomTheme => SelectedColorTheme is { IsBuiltIn: false };
+
+    [ObservableProperty]
+    public partial string ThemeName { get; set; } = "";
+
+    /// <summary>The selected custom theme's colors in the mode on screen, by group.</summary>
+    public ObservableCollection<ThemeColorGroup> ThemeColorGroups { get; } = [];
+
+    [ObservableProperty]
+    public partial string ThemeColorsHint { get; set; } = "";
+
+    partial void OnSelectedColorThemeChanged(ThemeChoice? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        _theme = value.IsBuiltIn ? null : ColorThemeStore.Load(Themes.Folder, value.Id) ?? new CustomTheme { Name = value.Name };
+        ThemeName = _theme?.Name ?? "";
+        Apply(s => s.ColorTheme = value.Id, appearance: true);
+        RefreshThemeColors();
+    }
+
+    partial void OnThemeNameChanged(string value)
+    {
+        var name = value.Trim();
+        if (!_loaded || _theme is null || SelectedColorTheme is not { } choice || name.Length == 0 || name == _theme.Name)
+        {
+            return;
+        }
+
+        _theme.Name = name;
+        choice.Name = name;
+        SaveTheme();
+    }
+
+    /// <summary>A new theme with the selected one's colors (none of its own for the built-in one), selected.</summary>
+    [RelayCommand]
+    private void DuplicateTheme()
+    {
+        if (SelectedColorTheme is not { } source)
+        {
+            return;
+        }
+
+        var name = source.Name + " copy";
+        for (var n = 2; ColorThemes.Any(c => string.Equals(c.Name, name, StringComparison.CurrentCultureIgnoreCase)); n++)
+        {
+            name = $"{source.Name} copy {n}";
+        }
+
+        var copy = new CustomTheme
+        {
+            Name = name,
+            Dark = new Dictionary<string, string>(_theme?.Dark ?? []),
+            Light = new Dictionary<string, string>(_theme?.Light ?? []),
+        };
+        var id = ColorThemeStore.NewId(Themes.Folder, name, Themes.DefaultId);
+        try
+        {
+            ColorThemeStore.Save(Themes.Folder, id, copy);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        var choice = new ThemeChoice(id, name);
+        ColorThemes.Add(choice);
+        SelectedColorTheme = choice;
+    }
+
+    /// <summary>Moves the selected custom theme's file to the Recycle Bin and goes back to the built-in theme.</summary>
+    [RelayCommand(CanExecute = nameof(IsCustomTheme))]
+    private void DeleteTheme()
+    {
+        if (SelectedColorTheme is not { IsBuiltIn: false } choice)
+        {
+            return;
+        }
+
+        var path = ColorThemeStore.PathOf(Themes.Folder, choice.Id);
+        if (!RecycleBin.Delete([path]))
+        {
+            try
+            {
+                File.Delete(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return;
+            }
+        }
+
+        SelectedColorTheme = ColorThemes[0];
+        ColorThemes.Remove(choice);
+    }
+
+    private void LoadColorThemes(string selectedId)
+    {
+        ColorThemes.Clear();
+        ColorThemes.Add(new ThemeChoice(Themes.DefaultId, Themes.DefaultName));
+        foreach (var (id, theme) in ColorThemeStore.LoadAll(Themes.Folder))
+        {
+            if (!string.Equals(id, Themes.DefaultId, StringComparison.OrdinalIgnoreCase))
+            {
+                ColorThemes.Add(new ThemeChoice(id, theme.Name));
+            }
+        }
+
+        SelectedColorTheme = ColorThemes.FirstOrDefault(c => c.Id == selectedId) ?? ColorThemes[0];
+    }
+
+    private void RefreshThemeColors()
+    {
+        ThemeColorGroups.Clear();
+        if (_theme is null)
+        {
+            return;
+        }
+
+        var light = Application.Current?.ActualThemeVariant == ThemeVariant.Light;
+        var variant = light ? ThemeVariant.Light : ThemeVariant.Dark;
+        var colors = light ? _theme.Light : _theme.Dark;
+        ThemeColorsHint = light
+            ? "These are the light mode's colors; set Theme to Dark for the dark ones."
+            : "These are the dark mode's colors; set Theme to Light for the light ones.";
+        foreach (var group in Themes.Tokens.GroupBy(t => t.Group))
+        {
+            var rows = group.Select(t => new ThemeColorRow(t, Themes.DefaultColor(t.Key, variant), colors.GetValueOrDefault(t.Key), row =>
+            {
+                if (row.Override is null)
+                {
+                    colors.Remove(row.Key);
+                }
+                else
+                {
+                    colors[row.Key] = row.Override;
+                }
+
+                SaveTheme();
+                Themes.Apply(SelectedColorTheme!.Id, _theme);
+                App.RestyleMarkdown();
+            }));
+            ThemeColorGroups.Add(new ThemeColorGroup(group.Key, rows.ToList()));
+        }
+    }
+
+    private void SaveTheme()
+    {
+        if (_theme is null || SelectedColorTheme is not { IsBuiltIn: false } choice)
+        {
+            return;
+        }
+
+        try
+        {
+            ColorThemeStore.Save(Themes.Folder, choice.Id, _theme);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Kept in memory; the next change tries again.
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private void Apply(Action<NomadSettings> change, bool appearance)
@@ -602,5 +787,84 @@ public sealed partial class PhoneFolderRow(string folder) : ObservableObject
             RemoteControlServerState.Failed => server?.Message ?? "Not running.",
             _ => "Not running.",
         };
+    }
+}
+
+/// <summary>A color theme in the settings' picker.</summary>
+public sealed partial class ThemeChoice(string id, string name) : ObservableObject
+{
+    public string Id { get; } = id;
+
+    public bool IsBuiltIn => Id == Themes.DefaultId;
+
+    [ObservableProperty]
+    public partial string Name { get; set; } = name;
+}
+
+/// <summary>A group of a theme's colors in the editor ("Surfaces", "Text").</summary>
+public sealed record ThemeColorGroup(string Title, IReadOnlyList<ThemeColorRow> Colors);
+
+/// <summary>One color of a custom theme in the editor: a swatch and its hex value, which can be typed.</summary>
+public sealed partial class ThemeColorRow : ObservableObject
+{
+    private readonly Color _default;
+    private readonly Action<ThemeColorRow> _changed;
+    private bool _quiet;
+
+    public ThemeColorRow(ThemeToken token, Color @default, string? value, Action<ThemeColorRow> changed)
+    {
+        Key = token.Key;
+        Label = token.Label;
+        _default = @default;
+        _changed = changed;
+        var own = Themes.TryParse(value, out var parsed);
+        var color = own ? parsed : @default;
+        Override = own ? Themes.Hex(color) : null;
+        Swatch = new SolidColorBrush(color);
+        _quiet = true;
+        Hex = Themes.Hex(color);
+        _quiet = false;
+        IsChanged = own && color != @default;
+    }
+
+    public string Key { get; }
+
+    public string Label { get; }
+
+    /// <summary>The theme's own value; null: the built-in color.</summary>
+    public string? Override { get; private set; }
+
+    public SolidColorBrush Swatch { get; }
+
+    [ObservableProperty]
+    public partial string Hex { get; set; }
+
+    /// <summary>It differs from the built-in theme (and can be reset).</summary>
+    [ObservableProperty]
+    public partial bool IsChanged { get; set; }
+
+    partial void OnHexChanged(string value)
+    {
+        if (_quiet || !Themes.TryParse(value, out var color))
+        {
+            return;
+        }
+
+        Swatch.Color = color;
+        Override = Themes.Hex(color);
+        IsChanged = color != _default;
+        _changed(this);
+    }
+
+    [RelayCommand]
+    private void Reset()
+    {
+        Override = null;
+        Swatch.Color = _default;
+        _quiet = true;
+        Hex = Themes.Hex(_default);
+        _quiet = false;
+        IsChanged = false;
+        _changed(this);
     }
 }

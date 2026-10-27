@@ -366,7 +366,7 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="CaretBrush" Value="{DynamicResource TextCaretBrush}" />
     <Setter Property="Cursor" Value="IBeam" />
-    <Setter Property="SelectionBrush" Value="#553A6EA5" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
     <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="BorderThickness" Value="0" />
