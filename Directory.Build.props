@@ -6,7 +6,8 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <Product>Klodi</Product>
-    <Version>0.1.0</Version>
+    <!-- The newest CHANGELOG.md section's version, so local builds match the latest release; the release workflow passes -p:Version. -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)CHANGELOG.md')), '(?m)^## v(\S+)').Groups[1].Value)</Version>
     <Copyright>Martin Vlček</Copyright>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
