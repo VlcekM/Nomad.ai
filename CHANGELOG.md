@@ -3,6 +3,21 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.11.0
+
+- Sessions can be pinned in the sidebar: they sit first under a Pinned heading, never end for being idle and are never
+  auto-archived.
+- Sidebar multi-select: Ctrl/Shift+click picks several sessions, and the row menu archives or deletes them all.
+- Project cards can be removed from Recent projects (right-click); they come back with the next session there.
+- Pinned project cards show a filled, brighter pin.
+- The Alive list has its own options menu: group by, and a Show project switch for a second line with the project.
+- Path links open on a plain click; Ctrl+click brings Explorer to the front. The title bar shows the project before the
+  branch.
+- Background task ends show as a notice in the transcript again.
+- The session list is kept between runs, so the app starts faster; placeholder rows show while things load.
+- Settings: bigger switches that glide, and the dialog and its pages fade in smoothly.
+- The app icon's tent sits centred in its tile.
+
 ## v1.10.0
 
 - The branch chip also shows how many files have uncommitted changes; the branch, ↑N and changes are re-read every 5
@@ -18,18 +33,6 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - A Background tasks card in the side panel lists background commands: what runs, for how long, how it ended.
 - Sessions with a subagent or background command still at work no longer go idle after an hour; background subagents
   now show as finished when they end.
-- Sessions can be pinned in the sidebar: they sit first under a Pinned heading, never end for being idle and are never
-  auto-archived.
-- Sidebar multi-select: Ctrl/Shift+click picks several sessions, and the row menu archives or deletes them all.
-- Project cards can be removed from Recent projects (right-click); they come back with the next session there.
-- Pinned project cards show a filled, brighter pin.
-- The Alive list has its own options menu: group by, and a Show project switch for a second line with the project.
-- Path links open on a plain click; Ctrl+click brings Explorer to the front. The title bar shows the project before the
-  branch.
-- Background task ends show as a notice in the transcript again.
-- The session list is kept between runs, so the app starts faster; placeholder rows show while things load.
-- Settings: bigger switches that glide, and the dialog and its pages fade in smoothly.
-- The app icon's tent sits centred in its tile.
 
 ## v1.9.0
 
