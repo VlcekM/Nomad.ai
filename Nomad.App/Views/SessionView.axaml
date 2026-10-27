@@ -912,7 +912,9 @@
                         ToolTip.Tip="{Binding Path}">
                   <Button.ContextMenu>
                     <ContextMenu>
-                      <MenuItem Header="{Binding PinToolTip}" Click="OnPinClick" />                    </ContextMenu>
+                      <MenuItem Header="{Binding PinToolTip}" Click="OnPinClick" />
+                      <MenuItem Header="Remove from recent projects" Click="OnRemoveProjectClick" />
+                    </ContextMenu>
                   </Button.ContextMenu>
                   <DockPanel>
                     <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto">

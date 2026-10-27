@@ -501,11 +501,55 @@ public partial class SessionView : UserControl
     private void OnPinClick(object? sender, RoutedEventArgs e)
     {
         e.Handled = true;
+        if (sender is Control { DataContext: ProjectViewModel project } && Vm is { } vm)
+        {
+            RearrangeCards(() => vm.TogglePin(project));
+        }
+    }
+
+    /// <summary>
+    /// Takes a card off the page: it fades out (150 ms), then the rest glide into the gap and a card from further back
+    /// fades in.
+    /// </summary>
+    private void OnRemoveProjectClick(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
         if (sender is not Control { DataContext: ProjectViewModel project } || Vm is not { } vm)
         {
             return;
         }
 
+        var card = ProjectCards.GetRealizedContainers().FirstOrDefault(c => c.DataContext == project);
+        if (card is null || TopLevel.GetTopLevel(card) is not { } top)
+        {
+            RearrangeCards(() => vm.RemoveProject(project));
+            return;
+        }
+
+        card.IsHitTestVisible = false;
+        TimeSpan? start = null;
+        void Step(TimeSpan time)
+        {
+            start ??= time;
+            var t = Math.Clamp((time - start.Value).TotalMilliseconds / 150, 0, 1);
+            card.Opacity = Math.Pow(1 - t, 3);
+            if (t < 1)
+            {
+                top.RequestAnimationFrame(Step);
+                return;
+            }
+
+            card.Opacity = 1;
+            card.IsHitTestVisible = true;
+            RearrangeCards(() => vm.RemoveProject(project));
+        }
+
+        top.RequestAnimationFrame(Step);
+    }
+
+    /// <summary>Changes the cards; those that stay glide to their new places (220 ms, cubic ease-out), new ones fade in.</summary>
+    private void RearrangeCards(Action change)
+    {
         var before = new Dictionary<object, Point>();
         foreach (var c in ProjectCards.GetRealizedContainers())
         {
@@ -515,7 +559,7 @@ public partial class SessionView : UserControl
             }
         }
 
-        vm.TogglePin(project);
+        change();
         ProjectCards.UpdateLayout();
         foreach (var c in ProjectCards.GetRealizedContainers())
         {

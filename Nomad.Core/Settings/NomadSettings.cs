@@ -152,6 +152,9 @@ public sealed class NomadSettings
     /// <summary>Folders pinned on the new-session page: always shown there, first, in pin order.</summary>
     public List<string> PinnedFolders { get; set; } = [];
 
+    /// <summary>Folders removed from the new-session page, with when (UTC): hidden there until a newer session in them.</summary>
+    public Dictionary<string, DateTime> RemovedFolders { get; set; } = [];
+
     /// <summary>New sessions in a git repository start in a new worktree of it.</summary>
     public bool NewSessionWorktree { get; set; }
     public string? LastFolder { get; set; }
@@ -181,6 +184,11 @@ public sealed class NomadSettings
     {
         RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
         RecentFolders.Insert(0, folder);
+        foreach (var key in RemovedFolders.Keys.Where(k => string.Equals(k.TrimEnd('\\', '/'), folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            RemovedFolders.Remove(key);
+        }
+
         if (RecentFolders.Count > 10)
         {
             RecentFolders.RemoveRange(10, RecentFolders.Count - 10);

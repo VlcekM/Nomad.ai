@@ -482,7 +482,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Rebuilds the folder lists from the app's recent folders.</summary>
     public void RefreshFolders()
     {
-        var all = _main.RecentFolders;
+        var all = _main.RecentFolders.Where(f => !IsRemoved(f)).ToList();
         Fill(CardFolders, all.Take(5));
         var query = FolderFilter.Trim();
         Fill(MenuFolders, (query.Length == 0 ? all : all.Where(f => f.Contains(query, StringComparison.OrdinalIgnoreCase))).Take(10));
@@ -531,7 +531,43 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         _main.SaveSettings();
-        RefreshProjects(_main.RecentFolders);
+        RefreshFolders();
+    }
+
+    /// <summary>
+    /// Takes a project off the new-session page (and the folder menu), unpinning it; it comes back with the next
+    /// session there.
+    /// </summary>
+    public void RemoveProject(ProjectViewModel project)
+    {
+        var settings = _main.Settings;
+        var key = project.Path.TrimEnd('\\', '/');
+        bool Same(string f) => string.Equals(f.TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase);
+        settings.PinnedFolders.RemoveAll(Same);
+        settings.RecentFolders.RemoveAll(Same);
+        foreach (var stale in settings.RemovedFolders.Keys.Where(f => Same(f) || !IsRemoved(f)).ToList())
+        {
+            settings.RemovedFolders.Remove(stale);
+        }
+
+        settings.RemovedFolders[project.Path] = DateTime.UtcNow;
+        _main.SaveSettings();
+        RefreshFolders();
+    }
+
+    /// <summary>Removed from the page, and no session there since.</summary>
+    private bool IsRemoved(string folder)
+    {
+        var key = folder.TrimEnd('\\', '/');
+        foreach (var (f, at) in _main.Settings.RemovedFolders)
+        {
+            if (string.Equals(f.TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase))
+            {
+                return !(_main.LastActivityIn(folder) > at) && Directory.Exists(folder);
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
