@@ -99,6 +99,11 @@ public sealed class SystemLine : CliLine
 
     /// <summary>For subtype <c>bridge_state</c>: the Remote Control bridge's state.</summary>
     [JsonPropertyName("state")] public string? State { get; set; }
+
+    /// <summary>For subtype <c>task_notification</c> (a background task ended): its id, its call's id and how it went.</summary>
+    [JsonPropertyName("task_id")] public string? TaskId { get; set; }
+    [JsonPropertyName("tool_use_id")] public string? ToolUseId { get; set; }
+    [JsonPropertyName("summary")] public string? Summary { get; set; }
 }
 
 public sealed class WireMcpServer

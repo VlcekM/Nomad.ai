@@ -649,6 +649,74 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    // ------------------------------------------------------------------ background tasks
+
+    /// <summary>Commands started with <c>run_in_background</c>, newest first: the side panel lists them.</summary>
+    public ObservableCollection<BackgroundTaskViewModel> BackgroundTasks { get; } = [];
+
+    public bool HasBackgroundTasks => BackgroundTasks.Count > 0;
+
+    private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
+    private DispatcherTimer? _backgroundTaskTimer;
+
+    private void StartBackgroundTask(string toolUseId, string toolName, System.Text.Json.JsonElement input)
+    {
+        if (_backgroundTaskById.ContainsKey(toolUseId))
+        {
+            return;
+        }
+
+        var task = new BackgroundTaskViewModel(toolUseId, toolName, input);
+        _backgroundTaskById[toolUseId] = task;
+        BackgroundTasks.Insert(0, task);
+        OnPropertyChanged(nameof(HasBackgroundTasks));
+
+        // Durations tick once a second, only while one runs.
+        _backgroundTaskTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickBackgroundTasks());
+        _backgroundTaskTimer.Start();
+    }
+
+    private void TickBackgroundTasks()
+    {
+        var running = false;
+        foreach (var task in BackgroundTasks.Where(t => t.IsRunning))
+        {
+            task.Tick();
+            running = true;
+        }
+
+        if (!running)
+        {
+            _backgroundTaskTimer?.Stop();
+        }
+    }
+
+    /// <summary>
+    /// A background task ended: a background subagent (by its Agent call's id) or a background command (by its call's id,
+    /// or the task id its call returned).
+    /// </summary>
+    private void FinishTask(string? toolUseId, string? taskId, string? status, string? summary)
+    {
+        if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
+        {
+            agent.Finish(failed: status == "failed", result: null);
+            return;
+        }
+
+        var task = toolUseId is not null && _backgroundTaskById.TryGetValue(toolUseId, out var byCall) ? byCall
+            : taskId is not null ? BackgroundTasks.FirstOrDefault(t => t.TaskId == taskId) : null;
+        task?.Finish(failed: status is "failed" or "killed", summary);
+    }
+
+    /// <summary>The process went, and its background commands with it.</summary>
+    private void FinishBackgroundTasks()
+    {
+        foreach (var task in BackgroundTasks.Where(t => t.IsRunning))
+        {
+            task.Finish(failed: false, "Stopped with Claude Code");
+        }
+    }
+
     // ------------------------------------------------------------------ side panel
 
     /// <summary>The folder's project section in the side panel (null without a folder).</summary>
@@ -1207,6 +1275,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>When the CLI process last started or sent anything; drives the idle timeout.</summary>
     public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
+
+    /// <summary>A subagent or background command is still at work, so the idle timeout leaves the process alone.</summary>
+    public bool HasBackgroundWork => BackgroundTasks.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning);
 
     /// <summary>Raised after items were added or grew, so the view can follow the bottom.</summary>
     public event Action? ContentChanged;
@@ -2107,10 +2178,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (TaskNotification.TryParse(remote.Text, out var summary))
                 {
                     Items.Add(new NoticeItem(summary));
-                    if (TaskNotification.ToolUseId(remote.Text) is { } taskId && _subagentById.TryGetValue(taskId, out var background))
-                    {
-                        background.Finish(failed: remote.Text.Contains("<status>failed</status>", StringComparison.OrdinalIgnoreCase), result: null);
-                    }
+                    FinishTask(TaskNotification.ToolUseId(remote.Text), TaskNotification.TaskId(remote.Text), TaskNotification.Status(remote.Text), summary);
                 }
                 else
                 {
@@ -2153,6 +2221,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 RemoteControlState = bridge.State;
                 break;
 
+            case TaskNotificationEvent ended:
+                FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary);
+                break;
+
             case BlockStartedEvent b when b.ParentToolUseId is null:
                 StartBlock(b);
                 break;
@@ -2191,6 +2263,11 @@ public sealed partial class SessionViewModel : ObservableObject
                 {
                     StartSubagent(call.ToolUseId, call.Input);
                 }
+                else if (call.Input.ValueKind == System.Text.Json.JsonValueKind.Object
+                    && call.Input.TryGetProperty("run_in_background", out var bg) && bg.ValueKind == System.Text.Json.JsonValueKind.True)
+                {
+                    StartBackgroundTask(call.ToolUseId, call.Name, call.Input);
+                }
 
                 break;
 
@@ -2208,6 +2285,18 @@ public sealed partial class SessionViewModel : ObservableObject
                     else
                     {
                         finished.Finish(r.IsError, r.Text);
+                    }
+                }
+                else if (_backgroundTaskById.TryGetValue(r.ToolUseId, out var task))
+                {
+                    // It failed to start, or says which task it became, for the notification that ends it.
+                    if (r.IsError)
+                    {
+                        task.Finish(failed: true, ToolText.FirstLine(r.Text));
+                    }
+                    else
+                    {
+                        task.TaskId = TaskNotification.LaunchedTaskId(r.Text);
                     }
                 }
 
@@ -2262,6 +2351,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 _backend = null;
                 ForgetBridgeProcess();
                 FinishSubagents(includingBackground: true);
+                FinishBackgroundTasks();
                 _main.OnAliveChanged(this);
                 _main.ReassertTitle(this);
                 break;

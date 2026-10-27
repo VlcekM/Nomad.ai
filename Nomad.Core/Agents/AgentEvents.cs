@@ -35,6 +35,9 @@ public sealed record TurnStartedEvent(string Prompt) : AgentEvent;
 /// <summary>A prompt typed elsewhere (Remote Control on claude.ai or the phone); a turn is now running.</summary>
 public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 
+/// <summary>A background task (a subagent, a background command) ended: completed | failed | killed.</summary>
+public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, string? Status, string? Summary) : AgentEvent;
+
 /// <summary>The Remote Control bridge's state: ready | connected | reconnecting | failed | disconnected.</summary>
 public sealed record RemoteControlStateEvent(string State) : AgentEvent;
 

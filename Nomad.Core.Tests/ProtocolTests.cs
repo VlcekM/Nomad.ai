@@ -64,6 +64,19 @@ public class ProtocolTests
     }
 
     [Fact]
+    public void ABackgroundTasksEndRaisesATaskNotification()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        backend.HandleLine("""{"type":"system","subtype":"task_notification","task_id":"bg782lu62","tool_use_id":"toolu_01KH","status":"completed","summary":"Background command \"Short wait\" completed (exit code 0)","session_id":"s"}""");
+
+        var ended = Assert.Single(events.OfType<TaskNotificationEvent>());
+        Assert.Equal(new TaskNotificationEvent("bg782lu62", "toolu_01KH", "completed", "Background command \"Short wait\" completed (exit code 0)"), ended);
+    }
+
+    [Fact]
     public void InterruptedTurnIsNotAnError()
     {
         var backend = new ClaudeCodeBackend();

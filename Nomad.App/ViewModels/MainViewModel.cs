@@ -868,8 +868,10 @@ public sealed partial class MainViewModel : ObservableObject
         var now = DateTime.UtcNow;
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {
-            // Remote Control sessions stay up: without a process the phone cannot reach them.
-            if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasRemoteControlUrl && now - session.LastActivityUtc > IdleTimeout)
+            // Remote Control sessions stay up: without a process the phone cannot reach them. So do ones with a subagent
+            // or background command still at work, which would die with the process.
+            if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasRemoteControlUrl && !session.HasBackgroundWork
+                && now - session.LastActivityUtc > IdleTimeout)
             {
                 _ = session.SleepAsync();
             }
@@ -1140,8 +1142,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (_open.TryGetValue(row.SessionId, out var session) && session.IsProcessRunning)
         {
-            // Remote Control sessions stay up for the phone; a running turn is waited out (the next check tries again).
-            if (session.IsTurnRunning || session.HasRemoteControlUrl)
+            // Remote Control sessions stay up for the phone; a running turn or background work is waited out (the next
+            // check tries again).
+            if (session.IsTurnRunning || session.HasRemoteControlUrl || session.HasBackgroundWork)
             {
                 return;
             }

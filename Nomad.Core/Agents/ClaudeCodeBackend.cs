@@ -470,6 +470,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             case "bridge_state" when !string.IsNullOrEmpty(system.State):
                 Raise(new RemoteControlStateEvent(system.State));
                 break;
+            case "task_notification":
+                Raise(new TaskNotificationEvent(system.TaskId, system.ToolUseId, system.Status?.ToLowerInvariant(), system.Summary));
+                break;
         }
     }
 

@@ -15,6 +15,9 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - The Idle heading shows a moon instead of a count and folds the list when clicked anywhere; idle titles are muted.
 - Links react on their whole line; file links show a hand cursor.
 - The thin "Side panel" strip on the right edge is gone (Ctrl+Shift+B and the pane icon still toggle the panel).
+- A Background tasks card in the side panel lists background commands: what runs, for how long, how it ended.
+- Sessions with a subagent or background command still at work no longer go idle after an hour; background subagents
+  now show as finished when they end.
 
 ## v1.9.0
 

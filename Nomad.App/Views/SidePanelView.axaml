@@ -174,6 +174,47 @@
         </Border>
         </Panel>
 
+        <!-- ============================================================ background tasks -->
+        <Panel IsVisible="{Binding HasBackgroundTasks}">
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Tasks" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Background tasks" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <ItemsControl ItemsSource="{Binding BackgroundTasks}" Margin="0,2,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BackgroundTaskViewModel">
+                  <!-- What it runs; then its tool, opposite how long it has run; then how it ended. -->
+                  <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" Margin="0,5" Background="Transparent" ToolTip.Tip="{Binding Command}">
+                    <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                      <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                              IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                              TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                      <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                      <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                    </Panel>
+                    <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    </c:EdgeFade>
+                    <Border Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left"
+                            Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding ToolName}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
+                    </Border>
+                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                               VerticalAlignment="Center" Margin="8,3,0,0" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+        </Panel>
+
         <!-- ============================================================ context -->
         <Border Classes="card">
           <StackPanel>
@@ -295,6 +336,9 @@
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Subagents" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Tasks" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Background tasks" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Context" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Context" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
