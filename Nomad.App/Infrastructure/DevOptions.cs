@@ -13,7 +13,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
-/// --dev-menu model|mode|folder|plus|usage|remote|update   open a menu (or the update prompt) before the screenshot
+/// --dev-menu model|mode|folder|plus|usage|remote|update|list|row   open a menu (the update prompt, the sidebar list options, the first Idle row's context menu) before the screenshot
 /// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
@@ -24,6 +24,9 @@ namespace Nomad.App.Infrastructure;
 /// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
+/// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
+/// --dev-compose "&lt;text&gt;"      put this text in the composer after start (\n for new lines)
+/// --dev-paste-image &lt;png&gt;    attach this image to the composer, as a paste would
 /// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
 /// --dev-update-after &lt;seconds&gt;  first update check this long after start (to catch the update chip folding in)
 /// --dev-releases-repo &lt;o/r&gt;   list another repository's GitHub releases on the Updates page
@@ -53,6 +56,9 @@ public sealed class DevOptions
     public List<(string Key, string Value)> Set { get; } = [];
     public double? StopAfterSeconds { get; private set; }
     public (string Gesture, double Seconds)? Key { get; private set; }
+    public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
+    public string? PasteImage { get; private set; }
+    public string? Compose { get; private set; }
     public string? UpdateSource { get; private set; }
     public double? UpdateCheckAfterSeconds { get; private set; }
     public string? ReleasesRepository { get; private set; }
@@ -124,6 +130,16 @@ public sealed class DevOptions
                         o.Key = (gesture, at);
                     }
                     break;
+                case "--dev-drag":
+                    var xy = Next().Split(',').Select(v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : double.NaN).ToArray();
+                    if (xy.Length == 4 && !xy.Any(double.IsNaN) && double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var dragAt))
+                    {
+                        o.Drag = (xy[0], xy[1], xy[2], xy[3], dragAt);
+                    }
+
+                    break;
+                case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
+                case "--dev-paste-image": o.PasteImage = Path.GetFullPath(Next()); break;
                 case "--dev-stop-after":
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var stop))
                     {

@@ -43,7 +43,32 @@ public partial class SessionView : UserControl
 
         // The effort thumb glides while dragged and settles on the nearest stop when let go.
         EffortSlider.Released += (_, _) => Vm?.SnapEffort();
+
+        // New transcript items, attachments and queued prompts fade and slide in; activity lines carry a class
+        // so "Show activity" can leave them out.
+        Transcript.ContainerPrepared += (_, e) =>
+        {
+            e.Container.Classes.Set("activity", e.Container.DataContext is ThinkingItem or ToolGroupItem);
+            if (_animateNew && Vm is { IsLoadingHistory: false })
+            {
+                Controls.Entrance.Play(e.Container);
+            }
+        };
+        AttachmentList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
+        QueueList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
+
+        // The "/" menu is as wide as the composer.
+        ComposerBar.SizeChanged += (_, e) => CommandMenu.Width = e.NewSize.Width;
+
+        // Images dropped anywhere on the session are attached; other files go in as their paths.
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => ComposerBar.Classes.Remove("dragover"));
+        AddHandler(DragDrop.DropEvent, OnDrop);
     }
+
+    // Off while a session's items are first created (history, switching sessions): only new ones animate.
+    private bool _animateNew;
 
     private static void TrackOpen(Button chip, FlyoutBase? flyout)
     {
@@ -96,9 +121,11 @@ public partial class SessionView : UserControl
         }
 
         _vm = vm;
+        _animateNew = false;
         if (_vm is not null)
         {
             _vm.ContentChanged += OnContentChanged;
+            Dispatcher.UIThread.Post(() => _animateNew = true, DispatcherPriority.Background);
         }
     }
 
@@ -147,6 +174,47 @@ public partial class SessionView : UserControl
     {
         if (Vm is not { } vm)
         {
+            return;
+        }
+
+        // The "/" menu takes the arrows, Tab, Enter and Esc while it is open.
+        if (vm.IsCommandMenuOpen && vm.SelectedCommand is { } command)
+        {
+            switch (e.Key)
+            {
+                case Key.Up or Key.Down:
+                    vm.MoveCommandSelection(e.Key == Key.Up ? -1 : 1);
+                    ScrollSelectedCommandIntoView();
+                    e.Handled = true;
+                    return;
+                case Key.Tab:
+                case Key.Enter when (e.KeyModifiers & KeyModifiers.Shift) == 0:
+                    var complete = vm.AcceptCommand(command);
+                    Composer.CaretIndex = Composer.Text?.Length ?? 0;
+                    e.Handled = true;
+                    if (e.Key == Key.Enter && complete)
+                    {
+                        _follow = true;
+                        vm.SendCommand.Execute(null);
+                    }
+
+                    return;
+                case Key.Escape:
+                    vm.DismissCommandMenu();
+                    e.Handled = true;
+                    return;
+            }
+        }
+
+        // Ctrl+V with an image (or image files) on the clipboard attaches it; text pastes as usual.
+        if ((e.Key == Key.V && e.KeyModifiers == KeyModifiers.Control) || (e.Key == Key.Insert && e.KeyModifiers == KeyModifiers.Shift))
+        {
+            if (Infrastructure.PromptImages.FromClipboard() is { Count: > 0 } images)
+            {
+                vm.AddAttachments(images);
+                e.Handled = true;
+            }
+
             return;
         }
 
@@ -375,7 +443,7 @@ public partial class SessionView : UserControl
 
     private void OnPageClicked(object? sender, PointerReleasedEventArgs e)
     {
-        if (e.InitialPressMouseButton != MouseButton.Left || Composer.IsFocused)
+        if (e.InitialPressMouseButton != MouseButton.Left || Composer.IsFocused || Controls.SelectionAssist.IsSelecting)
         {
             return;
         }
@@ -402,6 +470,95 @@ public partial class SessionView : UserControl
             Composer.Focus();
             Composer.CaretIndex = Composer.Text?.Length ?? 0;
         }
+    }
+
+    // ------------------------------------------------------------------ composer: commands, images, queue
+
+    private void ScrollSelectedCommandIntoView() =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var selected = CommandScroller.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("selected"));
+            selected?.BringIntoView();
+        }, DispatcherPriority.Loaded);
+
+    private void OnCommandOptionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: CommandOption option } && Vm is { } vm)
+        {
+            vm.AcceptCommand(option);
+            Composer.Focus();
+            Composer.CaretIndex = Composer.Text?.Length ?? 0;
+        }
+    }
+
+    private void OnRemoveAttachmentClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: Infrastructure.ImageAttachment image })
+        {
+            Vm?.RemoveAttachmentCommand.Execute(image);
+        }
+    }
+
+    private void OnRemoveQueuedClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: QueuedPrompt prompt })
+        {
+            Vm?.RemoveQueuedCommand.Execute(prompt);
+        }
+    }
+
+    private async void OnAttachImageClick(object? sender, RoutedEventArgs e)
+    {
+        HideMenus();
+        if (Vm is not { } vm || TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Attach images",
+            AllowMultiple = true,
+            FileTypeFilter = [new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"] }],
+        });
+
+        vm.AddAttachments(files.Select(f => f.TryGetLocalPath()).OfType<string>().Select(Infrastructure.PromptImages.FromFile).OfType<Infrastructure.ImageAttachment>());
+        FocusComposerSoon();
+    }
+
+    private static IEnumerable<string> DroppedFiles(DragEventArgs e) =>
+        e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>() ?? [];
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        var any = Vm is { IsPhoneSession: false } && DroppedFiles(e).Any();
+        e.DragEffects = any ? DragDropEffects.Copy : DragDropEffects.None;
+        ComposerBar.Classes.Set("dragover", any);
+    }
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        ComposerBar.Classes.Remove("dragover");
+        if (Vm is not { IsPhoneSession: false } vm)
+        {
+            return;
+        }
+
+        var files = DroppedFiles(e).ToList();
+        vm.AddAttachments(files.Where(Infrastructure.PromptImages.IsImageFile).Select(Infrastructure.PromptImages.FromFile).OfType<Infrastructure.ImageAttachment>());
+
+        // Anything else is mentioned by path, for Claude to read.
+        var others = files.Where(f => !Infrastructure.PromptImages.IsImageFile(f)).ToList();
+        if (others.Count > 0)
+        {
+            var text = vm.ComposerText;
+            var separator = text.Length == 0 || char.IsWhiteSpace(text[^1]) ? "" : " ";
+            vm.ComposerText = text + separator + string.Join(" ", others.Select(f => f.Contains(' ') ? $"\"{f}\"" : f)) + " ";
+        }
+
+        Composer.Focus();
+        Composer.CaretIndex = Composer.Text?.Length ?? 0;
+        e.Handled = true;
     }
 
     // ------------------------------------------------------------------ prompt actions

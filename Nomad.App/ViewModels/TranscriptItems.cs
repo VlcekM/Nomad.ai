@@ -39,7 +39,48 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
 
     public bool CanBranch => Uuid is not null;
 
+    /// <summary>Thumbnails of the images sent with it (live prompts only).</summary>
+    public IReadOnlyList<Avalonia.Media.Imaging.Bitmap> Images { get; init; } = [];
+
+    public bool HasImages => Images.Count > 0;
+
+    public bool HasText => Text.Length > 0;
+
     public void Tick() => TimeText = Format.Ago(SentUtc);
+}
+
+/// <summary>A prompt waiting for the running turn to end.</summary>
+public sealed class QueuedPrompt(string text, IReadOnlyList<ImageAttachment> images)
+{
+    public string Text { get; } = text;
+
+    public IReadOnlyList<ImageAttachment> Images { get; } = images;
+
+    /// <summary>"Fix the tests" or "2 images".</summary>
+    public string Label => Text.Length > 0
+        ? Text.ReplaceLineEndings(" ")
+        : Format.Count(Images.Count, "image", "images", "an");
+
+    public bool HasImages => Images.Count > 0 && Text.Length > 0;
+
+    public string ImagesText => Format.Count(Images.Count, "image", "images", "an");
+}
+
+/// <summary>A row of the "/" menu.</summary>
+public sealed partial class CommandOption(Nomad.Core.Protocol.SlashCommand command) : ObservableObject
+{
+    public string Name { get; } = command.Name;
+
+    public string Display { get; } = "/" + command.Name;
+
+    public string? ArgumentHint { get; } = string.IsNullOrWhiteSpace(command.ArgumentHint) ? null : command.ArgumentHint;
+
+    public bool HasArgumentHint => ArgumentHint is not null;
+
+    public string? Description { get; } = command.Description;
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
 }
 
 /// <summary>Assistant prose, rendered as markdown; grows while streaming.</summary>

@@ -47,7 +47,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
         Model = main.DefaultModel;
         PermissionMode = main.Settings.DefaultPermissionMode;
-        Effort = main.Settings.DefaultEffort;
+        Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
 
         foreach (var m in Catalog.Models)
@@ -289,18 +289,192 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasComposerText))]
     [NotifyPropertyChangedFor(nameof(ShowSendButton))]
+    [NotifyPropertyChangedFor(nameof(SendToolTip))]
     public partial string ComposerText { get; set; } = "";
 
     public bool HasComposerText => !string.IsNullOrWhiteSpace(ComposerText);
 
-    public bool ShowSendButton => HasComposerText && !IsTurnRunning;
+    /// <summary>Something to send: while a turn runs, sending queues it.</summary>
+    public bool ShowSendButton => HasComposerText || HasAttachments;
+
+    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done" : "Send (Enter)";
+
+    partial void OnComposerTextChanged(string value) => UpdateCommandMenu();
+
+    /// <summary>Thinking and tool lines are shown (the "Show activity" setting).</summary>
+    public bool ShowActivity => _main.ShowActivity;
+
+    public void OnShowActivityChanged() => OnPropertyChanged(nameof(ShowActivity));
+
+    [RelayCommand]
+    private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
+
+    // ------------------------------------------------------------------ attachments
+
+    /// <summary>Images pasted or dropped into the composer, sent with the next prompt.</summary>
+    public ObservableCollection<ImageAttachment> Attachments { get; } = [];
+
+    public bool HasAttachments => Attachments.Count > 0;
+
+    public void AddAttachments(IEnumerable<ImageAttachment> images)
+    {
+        foreach (var image in images)
+        {
+            Attachments.Add(image);
+        }
+
+        OnAttachmentsChanged();
+    }
+
+    [RelayCommand]
+    private void RemoveAttachment(ImageAttachment image)
+    {
+        Attachments.Remove(image);
+        OnAttachmentsChanged();
+    }
+
+    private void OnAttachmentsChanged()
+    {
+        OnPropertyChanged(nameof(HasAttachments));
+        OnPropertyChanged(nameof(ShowSendButton));
+    }
+
+    // ------------------------------------------------------------------ queue
+
+    /// <summary>Prompts written while a turn ran: sent together when it ends, or at once with "Send now".</summary>
+    public ObservableCollection<QueuedPrompt> Queued { get; } = [];
+
+    public bool HasQueued => Queued.Count > 0;
+
+    // "Send now" stopped the turn: the queue goes out when it has ended.
+    private bool _sendQueuedOnStop;
+
+    [RelayCommand]
+    private void RemoveQueued(QueuedPrompt prompt)
+    {
+        Queued.Remove(prompt);
+        OnPropertyChanged(nameof(HasQueued));
+    }
+
+    /// <summary>Stops the running turn and sends the queue right away.</summary>
+    [RelayCommand]
+    private async Task SendQueuedNowAsync()
+    {
+        if (IsTurnRunning)
+        {
+            _sendQueuedOnStop = true;
+            await StopAsync();
+        }
+        else
+        {
+            await SendQueuedAsync();
+        }
+    }
+
+    /// <summary>Everything queued, as one prompt (as Claude Code merges queued messages).</summary>
+    private async Task SendQueuedAsync()
+    {
+        _sendQueuedOnStop = false;
+        if (Queued.Count == 0 || IsTurnRunning || IsPhoneSession)
+        {
+            return;
+        }
+
+        var text = string.Join("\n\n", Queued.Select(q => q.Text).Where(t => t.Length > 0));
+        var images = Queued.SelectMany(q => q.Images).ToList();
+        Queued.Clear();
+        OnPropertyChanged(nameof(HasQueued));
+        await SendPromptAsync(text, images);
+    }
+
+    // ------------------------------------------------------------------ slash commands
+
+    /// <summary>The "/" menu: Claude Code's commands matching what is typed after the slash.</summary>
+    public ObservableCollection<CommandOption> CommandOptions { get; } = [];
+
+    [ObservableProperty]
+    public partial bool IsCommandMenuOpen { get; set; }
+
+    // Esc closed the menu: it stays closed until the slash is typed again.
+    private bool _commandMenuDismissed;
+
+    private void UpdateCommandMenu()
+    {
+        var text = ComposerText;
+        if (!text.StartsWith('/') || text.Any(char.IsWhiteSpace) || IsPhoneSession)
+        {
+            _commandMenuDismissed = false;
+            IsCommandMenuOpen = false;
+            return;
+        }
+
+        if (_commandMenuDismissed)
+        {
+            return;
+        }
+
+        var query = text[1..];
+        var matches = _main.SlashCommands
+            .Select(c => (Command: c, Rank: c.Name.StartsWith(query, StringComparison.OrdinalIgnoreCase) ? 0 : c.Name.Contains(query, StringComparison.OrdinalIgnoreCase) ? 1 : 2))
+            .Where(m => m.Rank < 2)
+            .OrderBy(m => m.Rank)
+            .ThenBy(m => m.Command.Name.Contains(':'))
+            .ThenBy(m => m.Command.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(m => m.Command)
+            .ToList();
+
+        CommandOptions.Clear();
+        foreach (var command in matches)
+        {
+            CommandOptions.Add(new CommandOption(command));
+        }
+
+        if (CommandOptions.Count > 0)
+        {
+            CommandOptions[0].IsSelected = true;
+        }
+
+        IsCommandMenuOpen = CommandOptions.Count > 0;
+    }
+
+    public void MoveCommandSelection(int delta)
+    {
+        if (CommandOptions.Count == 0)
+        {
+            return;
+        }
+
+        var index = CommandOptions.ToList().FindIndex(o => o.IsSelected);
+        var next = ((index < 0 ? 0 : index + delta) % CommandOptions.Count + CommandOptions.Count) % CommandOptions.Count;
+        for (var i = 0; i < CommandOptions.Count; i++)
+        {
+            CommandOptions[i].IsSelected = i == next;
+        }
+    }
+
+    public CommandOption? SelectedCommand => CommandOptions.FirstOrDefault(o => o.IsSelected);
+
+    /// <summary>Puts <c>/name </c> in the composer; true when the command takes no arguments, so it can be sent as is.</summary>
+    public bool AcceptCommand(CommandOption option)
+    {
+        IsCommandMenuOpen = false;
+        _commandMenuDismissed = true;
+        ComposerText = "/" + option.Name + " ";
+        return !option.HasArgumentHint;
+    }
+
+    public void DismissCommandMenu()
+    {
+        _commandMenuDismissed = true;
+        IsCommandMenuOpen = false;
+    }
 
     public string ComposerPlaceholder => IsNew ? "Describe a task or ask a question" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowSendButton))]
+    [NotifyPropertyChangedFor(nameof(SendToolTip))]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
     public partial bool IsTurnRunning { get; set; }
 
@@ -423,26 +597,50 @@ public sealed partial class SessionViewModel : ObservableObject
     public async Task SendAsync()
     {
         var text = ComposerText.Trim();
-        if (text.Length == 0 || IsTurnRunning || IsPhoneSession)
+        if ((text.Length == 0 && Attachments.Count == 0) || IsPhoneSession)
         {
             return;
         }
 
+        // Two processes on one transcript would interleave it: the window or terminal running it keeps it.
+        if (!IsProcessRunning && SessionId is { } id && _main.IsRunningElsewhere(id))
+        {
+            Items.Add(new ErrorItem("This session is running in another Nomad window or a terminal. End it there first, or fork it here."));
+            ContentChanged?.Invoke();
+            return;
+        }
+
+        var images = Attachments.ToList();
         ComposerText = "";
-        await SendPromptAsync(text);
+        Attachments.Clear();
+        OnAttachmentsChanged();
+
+        // While Claude works, a prompt waits its turn (above the composer, with "Send now").
+        if (IsTurnRunning)
+        {
+            Queued.Add(new QueuedPrompt(text, images));
+            OnPropertyChanged(nameof(HasQueued));
+            return;
+        }
+
+        await SendPromptAsync(text, images);
     }
 
-    public async Task SendPromptAsync(string text)
+    public async Task SendPromptAsync(string text, IReadOnlyList<ImageAttachment>? images = null)
     {
+        images ??= [];
         var first = IsNew;
         if (first)
         {
-            Title = SessionTitles.Shorten(text);
+            Title = SessionTitles.Shorten(text.Length > 0 ? text : "Image");
             IsNew = false;
         }
 
         CloseGroup();
-        var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false);
+        var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false)
+        {
+            Images = images.Select(i => i.Preview).ToList(),
+        };
         _unseen = message;
         Items.Add(message);
         IsTurnRunning = true;
@@ -454,7 +652,7 @@ public sealed partial class SessionViewModel : ObservableObject
         try
         {
             await EnsureBackendAsync();
-            await _backend!.SendPromptAsync(text, message.Uuid);
+            await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image).ToList());
 
             // The process now holds the rewind / fork point and the transcript will record it.
             _resumeAt = null;
@@ -517,6 +715,9 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             _restartRequired = true;
         }
+
+        // Each model comes back at the effort last chosen with it.
+        await ApplyEffortAsync(_main.EffortFor(id));
     }
 
     [RelayCommand]
@@ -548,6 +749,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
     [RelayCommand]
     public async Task SelectEffortAsync(string id)
+    {
+        _main.RememberEffort(Model, id);
+        await ApplyEffortAsync(id);
+    }
+
+    private async Task ApplyEffortAsync(string id)
     {
         if (Effort == id)
         {
@@ -1108,6 +1315,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case AccountInfoEvent a:
                 _main.OnAccountInfo(a);
+                if (a.Commands is { Count: > 0 } commands)
+                {
+                    _main.OnSlashCommands(commands);
+                }
+
                 break;
 
             case TurnStartedEvent:
@@ -1419,6 +1631,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
         ContentChanged?.Invoke();
         _main.OnTurnCompleted(this);
+
+        // Queued prompts go out now; after a plain Stop they wait (for "Send now", or the next turn).
+        if (Queued.Count > 0 && (!result.Interrupted || _sendQueuedOnStop))
+        {
+            Dispatcher.UIThread.Post(() => _ = SendQueuedAsync());
+        }
     }
 
     private async void Answer(PermissionItem item, PermissionChoice choice)

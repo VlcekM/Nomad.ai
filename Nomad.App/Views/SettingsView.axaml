@@ -270,7 +270,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Default effort" Classes="rowlabel" />
-                  <TextBlock Text="Thinking effort of new sessions (passed as --effort)." Classes="rowhint" />
+                  <TextBlock Text="Opus 5.5&apos;s starting effort (passed as --effort). Each model then keeps the effort last chosen with it; the others start at High." Classes="rowhint" />
                 </StackPanel>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Efforts}" SelectedItem="{Binding DefaultEffort}">
                   <ComboBox.ItemTemplate>

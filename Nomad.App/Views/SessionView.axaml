@@ -147,6 +147,21 @@
       <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
     </Style>
 
+    <!-- The "/" menu's keyboard choice. -->
+    <Style Selector="Button.selected">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+    </Style>
+
+    <!-- "Show activity" off: thinking and tool lines are left out (their containers carry the class). -->
+    <Style Selector="ItemsControl.quiet > ContentPresenter.activity">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Images being dragged over the session: the composer lights up. -->
+    <Style Selector="Border#ComposerBar.dragover">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+    </Style>
+
     <!-- Section headers inside menus -->
     <Style Selector="TextBlock.menuheader">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
@@ -172,11 +187,28 @@
                 Background="{StaticResource BgRaisedBrush}"
                 CornerRadius="10"
                 Padding="12,6,12,7">
-          <SelectableTextBlock Text="{Binding Text}"
-                               TextWrapping="Wrap"
-                               FontSize="{DynamicResource BodyFontSize}"
-                               LineHeight="{DynamicResource BodyLineHeight}"
-                               Foreground="{StaticResource TextPrimaryBrush}" />
+          <StackPanel Spacing="6">
+            <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}" Margin="0,4,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="Bitmap">
+                  <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160">
+                    <Image Source="{Binding}" Stretch="Uniform" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <SelectableTextBlock Text="{Binding Text}"
+                                 IsVisible="{Binding HasText}"
+                                 TextWrapping="Wrap"
+                                 FontSize="{DynamicResource BodyFontSize}"
+                                 LineHeight="{DynamicResource BodyLineHeight}"
+                                 Foreground="{StaticResource TextPrimaryBrush}" />
+          </StackPanel>
         </Border>
         <StackPanel Grid.Row="1" Grid.Column="1"
                     Classes="msgactions"
@@ -220,7 +252,8 @@
                   IsVisible="{Binding !IsStreaming}" />
           </StackPanel>
         </Button>
-        <Border IsVisible="{Binding IsExpanded}"
+        <Border c:Fold.IsOpen="{Binding IsExpanded}"
+                IsVisible="False"
                 BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="2,0,0,0"
                 Padding="12,0,0,0"
@@ -256,7 +289,7 @@
           </StackPanel>
         </Button>
 
-        <ItemsControl ItemsSource="{Binding Calls}" IsVisible="{Binding IsExpanded}" Margin="0,2,0,4">
+        <ItemsControl ItemsSource="{Binding Calls}" c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="0,2,0,4">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:ToolCallItem">
               <StackPanel>
@@ -296,7 +329,8 @@
                     </Panel>
                   </Grid>
                 </Button>
-                <Border IsVisible="{Binding IsExpanded}"
+                <Border c:Fold.IsOpen="{Binding IsExpanded}"
+                        IsVisible="False"
                         Margin="30,2,0,6"
                         Background="{StaticResource BgCodeBrush}"
                         BorderBrush="{StaticResource BorderBrush}"
@@ -485,12 +519,15 @@
 
     <!-- Transcript -->
     <Panel Grid.Row="0">
+      <!-- SelectionAssist: a press beside text starts selecting it, as in a browser. -->
       <ScrollViewer Name="Scroller"
+                    c:SelectionAssist.IsEnabled="True"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,14,32,20">
           <ItemsControl Name="Transcript"
                         ItemsSource="{Binding Items}"
+                        Classes.quiet="{Binding !ShowActivity}"
                         Padding="14,0,10,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
@@ -507,11 +544,24 @@
                   ClipToBounds="True">
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,14,0,0" Height="22">
               <c:PixelSpinner Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding WorkingText}"
-                         Classes="chrome"
-                         TextTrimming="CharacterEllipsis"
-                         MaxWidth="600"
-                         VerticalAlignment="Center" />
+              <!-- A highlight sweeps over the words; a new phase ("Thinking" → "Running a command") slides up in. -->
+              <TransitioningContentControl Content="{Binding WorkingText}" ClipToBounds="True" Height="22" VerticalAlignment="Center">
+                <TransitioningContentControl.PageTransition>
+                  <CompositePageTransition>
+                    <CrossFade Duration="0:0:0.2" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
+                    <PageSlide Duration="0:0:0.2" Orientation="Vertical" SlideInEasing="CubicEaseOut" SlideOutEasing="CubicEaseOut" />
+                  </CompositePageTransition>
+                </TransitioningContentControl.PageTransition>
+                <TransitioningContentControl.ContentTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <c:Shimmer Text="{Binding}"
+                               IsActive="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).IsTurnRunning}"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="600"
+                               VerticalAlignment="Center" />
+                  </DataTemplate>
+                </TransitioningContentControl.ContentTemplate>
+              </TransitioningContentControl>
               <TextBlock Text="{Binding WorkingElapsed}" Classes="muted" VerticalAlignment="Center" />
             </StackPanel>
           </Border>
@@ -613,9 +663,90 @@
     </Border>
 
     <!-- Composer -->
-    <Panel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0" IsVisible="{Binding ShowComposer}">
-      <!-- The whole bar acts as the text box: I-beam over it, a click anywhere focuses it. -->
-      <Border Background="{StaticResource BgInputBrush}"
+    <StackPanel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0" IsVisible="{Binding ShowComposer}">
+      <!-- Queued prompts: written while Claude worked, sent when it is done (or now, stopping it). -->
+      <Border c:Fold.IsOpen="{Binding HasQueued}" IsVisible="False">
+        <Border Background="{StaticResource BgRaisedBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="12,8,8,8"
+                Margin="0,0,0,8">
+          <StackPanel Spacing="4">
+            <ItemsControl Name="QueueList" ItemsSource="{Binding Queued}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:QueuedPrompt">
+                  <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="26">
+                    <TextBlock Text="Queued" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding ImagesText}" IsVisible="{Binding HasImages}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnRemoveQueuedClick" ToolTip.Tip="Remove from the queue">
+                      <c:Icon Size="12" Data="{StaticResource IconClose}" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Theme="{StaticResource SecondaryButton}"
+                    Height="26"
+                    Padding="10,0"
+                    HorizontalAlignment="Left"
+                    Command="{Binding SendQueuedNowCommand}"
+                    ToolTip.Tip="Stop Claude and send these now">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Icon Size="12" Data="{StaticResource IconSendArrow}" />
+                <TextBlock Text="Send now" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
+      </Border>
+
+      <!-- The "/" menu: Claude Code's commands, filtered as the name is typed. -->
+      <Popup Name="CommandPopup"
+             IsOpen="{Binding IsCommandMenuOpen}"
+             PlacementTarget="{Binding #ComposerBar}"
+             Placement="TopEdgeAlignedLeft"
+             VerticalOffset="-6"
+             IsLightDismissEnabled="False"
+             Focusable="False">
+        <Border Name="CommandMenu"
+                Background="{StaticResource BgMenuBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="9"
+                Padding="5"
+                BoxShadow="0 8 24 0 #73000000">
+          <ScrollViewer Name="CommandScroller" MaxHeight="300" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding CommandOptions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CommandOption">
+                  <Button Theme="{StaticResource MenuItemButton}"
+                          Classes.selected="{Binding IsSelected}"
+                          Focusable="False"
+                          Click="OnCommandOptionClick">
+                    <Grid ColumnDefinitions="Auto,Auto,*">
+                      <TextBlock Text="{Binding Display}" FontFamily="{DynamicResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding ArgumentHint}" IsVisible="{Binding HasArgumentHint}" Classes="muted"
+                                 FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,0,0,0" MaxWidth="220"
+                                 TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                 Margin="14,0,0,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </Popup>
+
+      <!-- The whole bar acts as the text box: I-beam over it, a click anywhere focuses it. Images can be
+           pasted into it or dropped anywhere on the session. -->
+      <Border Name="ComposerBar"
+              Background="{StaticResource BgInputBrush}"
               BorderBrush="{StaticResource BorderInputBrush}"
               BorderThickness="1"
               CornerRadius="10"
@@ -623,11 +754,45 @@
               Classes="composer"
               Cursor="IBeam"
               PointerPressed="OnComposerBarPressed">
-        <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border.Transitions>
+          <Transitions>
+            <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          </Transitions>
+        </Border.Transitions>
+        <Grid RowDefinitions="Auto,Auto">
+        <!-- Attached images: thumbnails with a remove button. -->
+        <ItemsControl Name="AttachmentList" ItemsSource="{Binding Attachments}" Margin="12,10,12,0" IsVisible="{Binding HasAttachments}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="8" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="inf:ImageAttachment">
+              <Panel Width="60" Height="60" Cursor="Arrow" ToolTip.Tip="{Binding Name}">
+                <Border CornerRadius="7" ClipToBounds="True" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                  <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                </Border>
+                <Button Theme="{StaticResource RoundButton}"
+                        Width="20" Height="20"
+                        Padding="0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,-6,-6,0"
+                        Click="OnRemoveAttachmentClick"
+                        ToolTip.Tip="Remove">
+                  <c:Icon Size="10" Data="{StaticResource IconClose}" />
+                </Button>
+              </Panel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
+          <!-- The buttons stay level with the first line while the text grows. -->
           <Button Name="PlusButton"
                   Theme="{StaticResource IconButton}"
-                  Margin="7,0,0,7"
-                  VerticalAlignment="Bottom"
+                  Margin="7,7,0,0"
+                  VerticalAlignment="Top"
                   ToolTip.Tip="More">
             <c:Icon Data="{StaticResource IconPlus}" />
             <Button.Flyout>
@@ -639,11 +804,28 @@
                       <TextBlock Text="Open folder…" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
+                  <Button Theme="{StaticResource MenuItemButton}" Click="OnAttachImageClick">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <c:Icon Size="13" Data="{StaticResource IconFile}" />
+                      <TextBlock Text="Attach images…" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
                   <Button Theme="{StaticResource MenuItemButton}" Click="OnSettingsClick">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <c:Icon Size="13" Data="{StaticResource IconGear}" />
                       <TextBlock Text="Settings" VerticalAlignment="Center" />
                     </StackPanel>
+                  </Button>
+                  <Border Classes="rule" />
+                  <!-- Activity lines: thinking and tool groups between the replies. -->
+                  <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleActivityCommand}"
+                          ToolTip.Tip="Thinking and tool lines (&quot;Read a file&quot;) between the replies">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="Show activity" VerticalAlignment="Center" />
+                      <Border Grid.Column="1" Classes="switch" Classes.on="{Binding ShowActivity}" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Ellipse />
+                      </Border>
+                    </Grid>
                   </Button>
                 </StackPanel>
               </Flyout>
@@ -663,11 +845,12 @@
                    VerticalContentAlignment="Top"
                    ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
-          <Panel Grid.Column="2" Margin="0,0,8,7" VerticalAlignment="Bottom">
+          <!-- While Claude works, Send queues the prompt and Stop sits beside it. -->
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,7,8,0" VerticalAlignment="Top">
             <Button Theme="{StaticResource SendButton}"
                     Command="{Binding SendCommand}"
                     IsVisible="{Binding ShowSendButton}"
-                    ToolTip.Tip="Send (Enter)">
+                    ToolTip.Tip="{Binding SendToolTip}">
               <c:Icon Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
             </Button>
             <Button Theme="{StaticResource SendButton}"
@@ -677,10 +860,11 @@
                     ToolTip.Tip="Stop (Esc)">
               <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
             </Button>
-          </Panel>
+          </StackPanel>
+        </Grid>
         </Grid>
       </Border>
-    </Panel>
+    </StackPanel>
 
     <!-- Status row -->
     <Grid Grid.Row="3"

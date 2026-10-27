@@ -189,7 +189,17 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnDefaultModeChanged(ModeOption value) => Apply(s => s.DefaultPermissionMode = value.Id, appearance: false);
 
-    partial void OnDefaultEffortChanged(EffortOption value) => Apply(s => s.DefaultEffort = value.Id, appearance: false);
+    partial void OnDefaultEffortChanged(EffortOption value) => Apply(
+        s =>
+        {
+            // Choosing it here also replaces the effort Opus 5.5 last had in a session.
+            s.DefaultEffort = value.Id;
+            foreach (var key in s.EffortByModel.Keys.Where(k => k.StartsWith("claude-opus-5-5", StringComparison.Ordinal)).ToList())
+            {
+                s.EffortByModel.Remove(key);
+            }
+        },
+        appearance: false);
 
     // ------------------------------------------------------------------ Claude Code › Remote Control
 
