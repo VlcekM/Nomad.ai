@@ -26,9 +26,19 @@ public partial class App : Application
             ApplyAppearance(settings);
 
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
-            desktop.MainWindow = new MainWindow(vm);
+            var window = new MainWindow(vm);
+            desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) => ClaudeCliProcess.KillAllOwned();
+
+            // Launched again: show this window (from the tray too) rather than a second Nomad.ai.
+            if (Program.Instance is { } instance)
+            {
+                instance.ShowRequested += () => Avalonia.Threading.Dispatcher.UIThread.Post(window.BringToFront);
+                instance.Listen();
+                desktop.ShutdownRequested += (_, _) => instance.StopListening();
+                desktop.Exit += (_, _) => instance.StopListening();
+            }
         }
 
         base.OnFrameworkInitializationCompleted();

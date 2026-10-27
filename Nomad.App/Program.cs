@@ -15,12 +15,25 @@ internal static class Program
 
     public static string SettingsPath { get; private set; } = SettingsStore.DefaultPath;
 
+    /// <summary>This process as the one Nomad.ai of the user (null for scripted <c>--dev-*</c> runs).</summary>
+    public static SingleInstance? Instance { get; private set; }
+
     [STAThread]
     public static int Main(string[] args)
     {
         // First: Velopack runs its install, update and uninstall hooks here and may exit; an update downloaded
         // earlier but not applied yet is applied now and Nomad restarts into it (UpdateService).
         Velopack.VelopackApp.Build().Run();
+
+        // Already running: that window comes to the front instead.
+        if (!args.Any(a => a.StartsWith("--dev-", StringComparison.Ordinal)))
+        {
+            Instance = SingleInstance.Claim();
+            if (Instance is null)
+            {
+                return 0;
+            }
+        }
 
         Dev = DevOptions.Parse(args);
         SettingsPath = Dev.SettingsPath ?? SettingsStore.DefaultPath;
@@ -33,6 +46,7 @@ internal static class Program
         {
             // Every claude process this app started dies with it (the job object would also do this).
             ClaudeCliProcess.KillAllOwned();
+            Instance?.Dispose();
         }
     }
 
