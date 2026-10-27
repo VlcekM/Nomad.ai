@@ -27,7 +27,7 @@ public interface IAgentBackend : IAsyncDisposable
 
     Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default);
 
-    /// <summary>Stops the running turn (Esc / stop button).</summary>
+    /// <summary>Stops the running turn (the Stop button).</summary>
     Task InterruptAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Switches the model live. False when the running process cannot do it.</summary>

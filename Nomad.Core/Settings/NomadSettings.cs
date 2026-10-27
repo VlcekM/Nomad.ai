@@ -123,6 +123,9 @@ public sealed class NomadSettings
 
     /// <summary>The side panel's width, dragged at its left edge (240–560).</summary>
     public double SidePanelWidth { get; set; } = 296;
+
+    /// <summary>Side panel cards turned off in its menu ("Project", "Subagents", "Context", "Usage", "Mcp").</summary>
+    public List<string> HiddenPanelCards { get; set; } = [];
     public List<string> RecentFolders { get; set; } = [];
 
     /// <summary>Folders pinned on the new-session page: always shown there, first, in pin order.</summary>

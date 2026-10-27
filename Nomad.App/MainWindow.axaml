@@ -22,6 +22,19 @@
   </Window.KeyBindings>
 
   <Window.Styles>
+    <!-- The sidebar and side panel buttons fill their pane while it is shown (fading in and out). -->
+    <Style Selector="c|Icon.panefill">
+      <Setter Property="IsFilled" Value="True" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="c|Icon.panefill.on">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
     <!-- Resize grips (the sidebar's right edge, the side panel's left): a thin blue line fades in over the edge on
          hover and stays while dragging, as in the desktop app. -->
     <Style Selector="Border.resizegrip">
@@ -380,7 +393,10 @@
                 </Button.Flyout>
               </Button>
               <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Hide sidebar (Ctrl+B)" Foreground="{DynamicResource TextPrimaryBrush}">
-                <c:Icon Data="{StaticResource IconSidebar}" />
+                <Panel>
+                  <c:Icon Classes="panefill" Classes.on="{Binding IsSidebarOpen}" Data="{StaticResource IconSidebarFill}" />
+                  <c:Icon Data="{StaticResource IconSidebar}" />
+                </Panel>
               </Button>
               <Button Theme="{StaticResource IconButton}" Command="{Binding GoBackCommand}" ToolTip.Tip="Back" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconArrowLeft}" />
@@ -675,7 +691,10 @@
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
                       IsVisible="{Binding !IsSidebarOpen}">
             <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Show sidebar (Ctrl+B)">
-              <c:Icon Data="{StaticResource IconSidebar}" />
+              <Panel>
+                <c:Icon Classes="panefill" Classes.on="{Binding IsSidebarOpen}" Data="{StaticResource IconSidebarFill}" />
+                <c:Icon Data="{StaticResource IconSidebar}" />
+              </Panel>
             </Button>
             <Button Theme="{StaticResource IconButton}" Command="{Binding NewSessionCommand}" ToolTip.Tip="New session (Ctrl+N)">
               <c:Icon Data="{StaticResource IconPlus}" />
@@ -750,7 +769,10 @@
                     VerticalAlignment="Center"
                     Margin="0,0,10,0"
                     ToolTip.Tip="Side panel: project, context, usage, MCP servers (Ctrl+Shift+B)">
-              <c:Icon Data="{StaticResource IconPanelRight}" />
+              <Panel>
+                <c:Icon Classes="panefill" Classes.on="{Binding ShowSidePanel}" Data="{StaticResource IconPanelRightFill}" />
+                <c:Icon Data="{StaticResource IconPanelRight}" />
+              </Panel>
             </Button>
             <Button Theme="{StaticResource CaptionButton}" Click="OnMinimizeClick" ToolTip.Tip="Minimize">
               <c:Icon Data="{StaticResource IconCaptionMin}" StrokeThickness="1" />

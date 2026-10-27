@@ -1043,10 +1043,11 @@
                     Padding="10,0"
                     HorizontalAlignment="Left"
                     Command="{Binding SendQueuedNowCommand}"
-                    ToolTip.Tip="Stop Claude and send these now">
+                    ToolTip.Tip="Stop Claude and send these now (Shift+Enter in the composer)">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Size="12" Data="{StaticResource IconSendArrow}" />
                 <TextBlock Text="Send now" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                <TextBlock Text="Shift+Enter" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
           </StackPanel>
@@ -1253,7 +1254,7 @@
                     Classes="stop"
                     Command="{Binding StopCommand}"
                     IsVisible="{Binding IsTurnRunning}"
-                    ToolTip.Tip="Stop (Esc)">
+                    ToolTip.Tip="Stop">
               <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
             </Button>
           </StackPanel>

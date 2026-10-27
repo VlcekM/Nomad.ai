@@ -268,6 +268,12 @@ public partial class SessionView : UserControl
 
         switch (e.Key)
         {
+            // While Claude works, Shift+Enter stops it and sends at once; otherwise it is a new line.
+            case Key.Enter when e.KeyModifiers == KeyModifiers.Shift && vm.SendNowFromComposer():
+                _follow = true;
+                e.Handled = true;
+                break;
+
             case Key.Enter when (e.KeyModifiers & KeyModifiers.Shift) == 0:
                 e.Handled = true;
                 if (vm.PendingPermission is not null && string.IsNullOrWhiteSpace(vm.ComposerText))
@@ -348,12 +354,7 @@ public partial class SessionView : UserControl
             return true;
         }
 
-        if (vm.IsTurnRunning)
-        {
-            vm.StopCommand.Execute(null);
-            return true;
-        }
-
+        // A running turn is stopped with the Stop button only: Esc no longer interrupts it.
         return false;
     }
 

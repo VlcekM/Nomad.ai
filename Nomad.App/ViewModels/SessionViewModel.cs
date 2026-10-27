@@ -677,7 +677,37 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Something to send: while a turn runs, sending queues it.</summary>
     public bool ShowSendButton => HasComposerText || HasAttachments;
 
-    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done" : "Send (Enter)";
+    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done · Shift+Enter sends now" : "Send (Enter)";
+
+    /// <summary>
+    /// Shift+Enter while Claude works: the prompt goes in the queue and the queue is sent at once (Claude is stopped),
+    /// as "Send now" does. False when there is nothing to send, or no turn running (then it is a new line).
+    /// </summary>
+    public bool SendNowFromComposer()
+    {
+        if (!IsTurnRunning)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(ComposerText) || Attachments.Count > 0)
+        {
+            if (!SendCommand.CanExecute(null))
+            {
+                return false;
+            }
+
+            SendCommand.Execute(null);
+        }
+
+        if (Queued.Count == 0)
+        {
+            return false;
+        }
+
+        SendQueuedNowCommand.Execute(null);
+        return true;
+    }
 
     partial void OnComposerTextChanged(string value)
     {
@@ -950,12 +980,15 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question" : "Type / for commands";
+    // While Claude works: Enter queues the prompt, Shift+Enter stops Claude and sends it at once.
+    public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
+        : IsTurnRunning ? "Enter queues a message · Shift+Enter sends it now" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SendToolTip))]
+    [NotifyPropertyChangedFor(nameof(ComposerPlaceholder))]
     [NotifyPropertyChangedFor(nameof(IsIdle))]
     public partial bool IsTurnRunning { get; set; }
 

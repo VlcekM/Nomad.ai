@@ -58,6 +58,7 @@
   </UserControl.Styles>
 
   <Border Background="{DynamicResource BgMainBrush}">
+    <Grid RowDefinitions="*,Auto">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="4,4,12,12" Spacing="8">
 
@@ -123,7 +124,8 @@
         </Border>
 
         <!-- ============================================================ subagents -->
-        <Border Classes="card" IsVisible="{Binding HasSubagents}">
+        <Panel IsVisible="{Binding HasSubagents}">
+        <Border Classes="card">
           <StackPanel>
             <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Subagents" Click="OnHeaderClick">
               <StackPanel Orientation="Horizontal" Spacing="4">
@@ -169,6 +171,7 @@
             </ItemsControl>
           </StackPanel>
         </Border>
+        </Panel>
 
         <!-- ============================================================ context -->
         <Border Classes="card">
@@ -269,5 +272,39 @@
         </Border>
       </StackPanel>
     </ScrollViewer>
+
+    <!-- Bottom right: which cards the panel shows at all. -->
+    <Button Grid.Row="1"
+            Name="CardsButton"
+            Theme="{StaticResource IconButton}"
+            Width="26" Height="26"
+            HorizontalAlignment="Right"
+            Margin="0,0,10,8"
+            ToolTip.Tip="Cards">
+      <c:Icon Size="13" Data="{StaticResource IconSliders}" />
+      <Button.Flyout>
+        <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu" Opening="OnCardsMenuOpening">
+          <StackPanel Name="CardsMenu" Width="200">
+            <TextBlock Text="Show cards" Margin="8,3,8,3" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextMutedBrush}" />
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Project" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Project" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Subagents" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Context" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Context" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Usage" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Plan usage" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Mcp" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="MCP servers" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+          </StackPanel>
+        </Flyout>
+      </Button.Flyout>
+    </Button>
+    </Grid>
   </Border>
 </UserControl>

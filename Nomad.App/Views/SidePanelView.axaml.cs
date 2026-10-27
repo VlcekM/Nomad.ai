@@ -59,16 +59,74 @@ public partial class SidePanelView : UserControl
             return;
         }
 
-        // Folded cards stay folded (taken at once: nothing is laid out yet).
+        // Folded cards stay folded, and turned-off cards stay off (taken at once: nothing is laid out yet). The content's
+        // visibility is set too: Fold.IsOpen starts false, so folding a card that way alone would change nothing and
+        // leave it showing under a folded chevron.
         _restored = true;
-        foreach (var header in this.GetLogicalDescendants().OfType<Button>().Where(b => b.Classes.Contains("cardheader")))
+        foreach (var header in Headers())
         {
             if (CardOf(header) is { } card)
             {
                 var open = !main.Settings.CollapsedGroups.Contains(Key(header));
                 Fold.SetIsOpen(card.Content, open);
+                card.Content.IsVisible = open;
                 SetChevron(header, open);
             }
+
+            if (CardBorder(header) is { } border)
+            {
+                var shown = !main.Settings.HiddenPanelCards.Contains((string)header.Tag!);
+                Fold.SetIsOpen(border, shown);
+                border.IsVisible = shown;
+            }
+        }
+    }
+
+    private IEnumerable<Button> Headers() =>
+        this.GetLogicalDescendants().OfType<Button>().Where(b => b.Classes.Contains("cardheader"));
+
+    private static Border? CardBorder(Button header) => header.FindLogicalAncestorOfType<Border>();
+
+    /// <summary>The cards menu shows which cards are on.</summary>
+    private void OnCardsMenuOpening(object? sender, EventArgs e)
+    {
+        if (Main is not { } main)
+        {
+            return;
+        }
+
+        foreach (var item in CardsMenu.Children.OfType<Button>())
+        {
+            if (item.Tag is string key && item.GetLogicalDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("switch")) is { } toggle)
+            {
+                toggle.Classes.Set("on", !main.Settings.HiddenPanelCards.Contains(key));
+            }
+        }
+    }
+
+    /// <summary>Turns a card on or off: it folds away (or unfolds) and the choice is remembered.</summary>
+    private void OnCardToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string key } item || Main is not { } main)
+        {
+            return;
+        }
+
+        var shown = main.Settings.HiddenPanelCards.Remove(key);
+        if (!shown)
+        {
+            main.Settings.HiddenPanelCards.Add(key);
+        }
+
+        main.SaveSettings();
+        if (item.GetLogicalDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains("switch")) is { } toggle)
+        {
+            toggle.Classes.Set("on", shown);
+        }
+
+        if (Headers().FirstOrDefault(h => (string?)h.Tag == key) is { } header && CardBorder(header) is { } border)
+        {
+            Fold.SetIsOpen(border, shown);
         }
     }
 
