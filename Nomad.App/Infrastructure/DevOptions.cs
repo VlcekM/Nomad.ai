@@ -27,7 +27,6 @@ namespace Nomad.App.Infrastructure;
 /// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
 /// --dev-releases-repo &lt;o/r&gt;   list another repository's GitHub releases on the Updates page
 /// </code>
-/// The same flags can come from the <c>NOMAD_DEV_ARGS</c> environment variable (<see cref="FromEnvironment"/>).
 /// </summary>
 public sealed class DevOptions
 {
@@ -61,54 +60,6 @@ public sealed class DevOptions
         : [];
 
     public bool IsActive => Cwd is not null || Prompt is not null || ScreenshotPath is not null || SessionId is not null;
-
-    /// <summary>
-    /// Flags from the <c>NOMAD_DEV_ARGS</c> environment variable, for a start that can't be given arguments: Velopack's
-    /// Setup starts the app it installed, and its <c>-- args</c> crash it (1.2.161), so a test install gets them this way.
-    /// </summary>
-    public static string[] FromEnvironment()
-    {
-        var value = Environment.GetEnvironmentVariable("NOMAD_DEV_ARGS");
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return [];
-        }
-
-        // Split like a command line: spaces separate, double quotes group.
-        var list = new List<string>();
-        var current = new System.Text.StringBuilder();
-        var quoted = false;
-        var started = false;
-        foreach (var c in value)
-        {
-            if (c == '"')
-            {
-                quoted = !quoted;
-                started = true;
-            }
-            else if (char.IsWhiteSpace(c) && !quoted)
-            {
-                if (started)
-                {
-                    list.Add(current.ToString());
-                    current.Clear();
-                    started = false;
-                }
-            }
-            else
-            {
-                current.Append(c);
-                started = true;
-            }
-        }
-
-        if (started)
-        {
-            list.Add(current.ToString());
-        }
-
-        return [.. list];
-    }
 
     public static DevOptions Parse(string[] args)
     {

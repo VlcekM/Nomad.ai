@@ -22,7 +22,7 @@ internal static class Program
         // earlier but not applied yet is applied now and Nomad restarts into it (UpdateService).
         Velopack.VelopackApp.Build().Run();
 
-        Dev = DevOptions.Parse([.. args, .. DevOptions.FromEnvironment()]);
+        Dev = DevOptions.Parse(args);
         SettingsPath = Dev.SettingsPath ?? SettingsStore.DefaultPath;
         Settings = SettingsStore.Load(SettingsPath);
         try
