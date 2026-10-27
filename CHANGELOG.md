@@ -15,6 +15,7 @@ Newest first: the newest heading is also the version of local builds (`Directory
   import from JSON files.
 - Light mode: darker text, with more contrast against the white and paper backgrounds; the sidebar is now the lighter
   of the two backgrounds.
+- The accent is a copper of its own (#D2784B), a shade off the terracotta it was.
 
 ## v1.11.0
 

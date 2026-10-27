@@ -43,7 +43,7 @@ public static class MarkdownRenderer
     private static IBrush SubtleLine => Brush("BorderSubtleBrush", Color.Parse("#10FFFFFF"));
     private static IBrush CodeBg => Brush("BgCodeBrush", Color.Parse("#1A1A19"));
     private static IBrush RaisedBg => Brush("BgRaisedBrush", Color.Parse("#1F1F1F"));
-    private static IBrush InlineCode => Brush("InlineCodeBrush", Color.Parse("#DE8170"));
+    private static IBrush InlineCode => Brush("InlineCodeBrush", Color.Parse("#DE8F73"));
     private static IBrush Link => Brush("LinkBrush", Color.Parse("#6FA2EA"));
 
     /// <summary>Renders one top-level block. <paramref name="isFirst"/> drops the heading top margin.</summary>

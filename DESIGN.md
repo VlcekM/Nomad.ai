@@ -24,9 +24,9 @@ estimates to be tuned by visual review; the accent values are exact brand tokens
 | `Text.Primary`     | ≈ `#E9E7E2`                  | body text, titles                                     |
 | `Text.Secondary`   | ≈ `#A8A6A0`                  | tool-group lines, "· Max", meta                       |
 | `Text.Muted`       | ≈ `#7B7975`                  | section headers ("Recents"), placeholders, shortcuts  |
-| `Accent`           | `#D97757` = hsl(14.77 63.1% 59.6%) | AGENT label, running indicator, primary button, caret |
-| `Accent.Emphasis`  | `#C6613F` = hsl(15.11 54.2% 51.2%) | primary button hover / pressed                 |
-| `Accent.Subtle`    | `rgba(217,119,87,0.14)`      | accent-tinted backgrounds (card headers)              |
+| `Accent`           | `#D2784B` = hsl(20 60% 56%) | AGENT label, running indicator, primary button, caret |
+| `Accent.Emphasis`  | `#BE6437` = hsl(20 55% 48%) | primary button hover / pressed                 |
+| `Accent.Subtle`    | `rgba(210,120,75,0.14)`      | accent-tinted backgrounds (card headers)              |
 | `Success`          | ≈ `#5CB97A`                  | "Done", `+21` diff badge text                         |
 | `Danger`           | ≈ `#E0605A`                  | errors, `−1` diff badge text, Deny hover              |
 | `Link`             | ≈ `#7AA7F5`                  | markdown links (the old UI used blue links)           |

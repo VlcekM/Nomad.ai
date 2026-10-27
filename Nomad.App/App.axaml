@@ -18,7 +18,7 @@
     <FluentTheme>
       <FluentTheme.Palettes>
         <ColorPaletteResources x:Key="Dark"
-                               Accent="#D97757"
+                               Accent="#D2784B"
                                RegionColor="#141414"
                                AltHigh="#141414"
                                AltLow="#141414"
@@ -47,7 +47,7 @@
                                ListMedium="#2B2B29"
                                ErrorText="#E0605A" />
         <ColorPaletteResources x:Key="Light"
-                               Accent="#D97757"
+                               Accent="#D2784B"
                                RegionColor="#F3F2EC"
                                AltHigh="#F3F2EC"
                                AltLow="#F3F2EC"
