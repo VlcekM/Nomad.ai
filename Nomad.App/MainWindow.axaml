@@ -914,7 +914,34 @@
 
 
     <!-- ============================================================ settings -->
-    <Panel IsVisible="{Binding IsSettingsOpen}">
+    <!-- The dim fades in while the dialog grows a little into place, and back out. -->
+    <Panel Name="SettingsOverlay" IsVisible="{Binding IsSettingsShown}" Classes.raised="{Binding IsSettingsRaised}">
+      <Panel.Styles>
+        <Style Selector="Panel#SettingsOverlay">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="IsHitTestVisible" Value="False" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#SettingsOverlay.raised">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="views|SettingsView#SettingsHost">
+          <Setter Property="RenderTransform" Value="translateY(10px) scale(0.98)" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#SettingsOverlay.raised views|SettingsView#SettingsHost">
+          <Setter Property="RenderTransform" Value="translateY(0px) scale(1)" />
+        </Style>
+      </Panel.Styles>
       <Border Background="{DynamicResource BgOverlayBrush}" PointerPressed="OnOverlayPointerPressed" />
       <views:SettingsView Name="SettingsHost" DataContext="{Binding SettingsPage}" />
     </Panel>

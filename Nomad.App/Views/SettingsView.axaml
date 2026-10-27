@@ -91,6 +91,21 @@
     <Style Selector="c|Icon.chev.open">
       <Setter Property="RenderTransform" Value="rotate(90deg)" />
     </Style>
+    <!-- A page fades in and rises a little into place as it is shown. -->
+    <Style Selector="StackPanel.page[IsVisible=True]">
+      <Style.Animations>
+        <Animation Duration="0:0:0.2" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="TranslateTransform.Y" Value="8" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="TranslateTransform.Y" Value="0" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <Style Selector="Border.field">
       <Setter Property="Background" Value="{DynamicResource BgFieldBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource BorderFieldBrush}" />
@@ -144,7 +159,8 @@
           <Panel Margin="24,58,34,32">
 
             <!-- General -->
-            <StackPanel IsVisible="{Binding IsGeneralPage}">
+            <StackPanel Classes="page" IsVisible="{Binding IsGeneralPage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
               <TextBlock Text="Appearance" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
@@ -226,7 +242,7 @@
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleShowUsageRingCommand}">
-                  <Border Classes="switch" Classes.on="{Binding ShowUsageRing}">
+                  <Border Classes="switch large" Classes.on="{Binding ShowUsageRing}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -244,7 +260,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding ToggleAutoArchiveCommand}">
-                  <Border Classes="switch" Classes.on="{Binding AutoArchive}">
+                  <Border Classes="switch large" Classes.on="{Binding AutoArchive}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -275,7 +291,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding ToggleCloseToTrayCommand}">
-                  <Border Classes="switch" Classes.on="{Binding CloseToTray}">
+                  <Border Classes="switch large" Classes.on="{Binding CloseToTray}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -289,7 +305,7 @@
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleNotifyWhenDoneCommand}">
-                  <Border Classes="switch" Classes.on="{Binding NotifyWhenDone}">
+                  <Border Classes="switch large" Classes.on="{Binding NotifyWhenDone}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -302,7 +318,7 @@
                   <TextBlock Text="The taskbar button flashes then too, until you bring the window up." Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFlashTaskbarCommand}">
-                  <Border Classes="switch" Classes.on="{Binding FlashTaskbar}">
+                  <Border Classes="switch large" Classes.on="{Binding FlashTaskbar}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -321,7 +337,8 @@
             </StackPanel>
 
             <!-- Claude Code -->
-            <StackPanel IsVisible="{Binding IsClaudeCodePage}">
+            <StackPanel Classes="page" IsVisible="{Binding IsClaudeCodePage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
               <TextBlock Text="Claude Code" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
@@ -347,7 +364,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding ToggleConfirmModelSwitchCommand}">
-                  <Border Classes="switch" Classes.on="{Binding ConfirmModelSwitch}">
+                  <Border Classes="switch large" Classes.on="{Binding ConfirmModelSwitch}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -365,7 +382,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding TogglePromptSuggestionsCommand}">
-                  <Border Classes="switch" Classes.on="{Binding PromptSuggestions}">
+                  <Border Classes="switch large" Classes.on="{Binding PromptSuggestions}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -425,7 +442,7 @@
                              Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Command="{Binding ToggleRemoteControlByDefaultCommand}" VerticalAlignment="Center" Padding="4">
-                  <Border Classes="switch" Classes.on="{Binding RemoteControlByDefault}">
+                  <Border Classes="switch large" Classes.on="{Binding RemoteControlByDefault}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -493,7 +510,8 @@
             </StackPanel>
 
             <!-- Updates -->
-            <StackPanel IsVisible="{Binding IsUpdatesPage}">
+            <StackPanel Classes="page" IsVisible="{Binding IsUpdatesPage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
               <TextBlock Text="Updates" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
@@ -532,7 +550,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding ToggleAutoUpdateCommand}">
-                  <Border Classes="switch" Classes.on="{Binding AutoUpdate}">
+                  <Border Classes="switch large" Classes.on="{Binding AutoUpdate}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -549,7 +567,7 @@
                         Padding="6"
                         VerticalAlignment="Center"
                         Command="{Binding ToggleIncludePrereleasesCommand}">
-                  <Border Classes="switch" Classes.on="{Binding IncludePrereleases}">
+                  <Border Classes="switch large" Classes.on="{Binding IncludePrereleases}">
                     <Ellipse />
                   </Border>
                 </Button>

@@ -566,6 +566,14 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSettingsOpen { get; set; }
 
+    /// <summary>The settings dialog is on screen: from opening until its fade-out ends.</summary>
+    [ObservableProperty]
+    public partial bool IsSettingsShown { get; set; }
+
+    /// <summary>Faded in: set a frame after <see cref="IsSettingsShown"/>, so the fade runs from nothing.</summary>
+    [ObservableProperty]
+    public partial bool IsSettingsRaised { get; set; }
+
     /// <summary>The right-hand panel: project, context, plan usage and MCP servers (Ctrl+Shift+B).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowSidePanel))]
@@ -963,17 +971,39 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void OpenSettings()
     {
+        if (IsSettingsOpen)
+        {
+            return;
+        }
+
+        SettingsPage?.Detach();
         SettingsPage = new SettingsViewModel(this);
         IsSettingsOpen = true;
+        IsSettingsShown = true;
+        Dispatcher.UIThread.Post(() => IsSettingsRaised = IsSettingsOpen, DispatcherPriority.Loaded);
     }
 
     [RelayCommand]
     public void CloseSettings()
     {
+        if (!IsSettingsOpen)
+        {
+            return;
+        }
+
         IsSettingsOpen = false;
+        IsSettingsRaised = false;
         SettingsPage?.Detach();
-        SettingsPage = null;
         SaveSettings();
+        // The dialog keeps its page while it fades out.
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (!IsSettingsOpen)
+            {
+                IsSettingsShown = false;
+                SettingsPage = null;
+            }
+        }, TimeSpan.FromMilliseconds(220));
     }
 
     // ------------------------------------------------------------------ sessions list
