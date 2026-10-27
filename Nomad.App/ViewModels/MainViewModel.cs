@@ -908,8 +908,9 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {
             // Remote Control sessions stay up: without a process the phone cannot reach them. So do ones with a subagent
-            // or background command still at work, which would die with the process.
+            // or background command still at work, which would die with the process, and pinned ones.
             if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasRemoteControlUrl && !session.HasBackgroundWork
+                && !(session.SessionId is { } id && Settings.PinnedSessions.Contains(id))
                 && now - session.LastActivityUtc > IdleTimeout)
             {
                 _ = session.SleepAsync();
@@ -1096,6 +1097,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var byId = _all.ToDictionary(s => s.SessionId, StringComparer.Ordinal);
         var archived = new HashSet<string>(Settings.ArchivedSessions, StringComparer.Ordinal);
+        var pinned = new HashSet<string>(Settings.PinnedSessions, StringComparer.Ordinal);
         var merged = new List<SessionListItemViewModel>(summaries.Count);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var s in summaries)
@@ -1122,6 +1124,7 @@ public sealed partial class MainViewModel : ObservableObject
             vm.IsElsewhere = IsRunningElsewhere(s.SessionId);
             vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone || vm.IsElsewhere;
             vm.IsArchived = archived.Contains(s.SessionId);
+            vm.IsPinned = pinned.Contains(s.SessionId);
             merged.Add(vm);
         }
 
@@ -1324,9 +1327,9 @@ public sealed partial class MainViewModel : ObservableObject
         s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : ProjectName(s.WorkingDirectory);
 
     /// <summary>
-    /// A list's entries (Alive or Idle): the sessions (newest first) under their group headings, then the archived
-    /// ones. A collapsed group lists only its heading, except while searching. <paramref name="prefix"/> keeps the
-    /// lists' remembered collapsed groups apart.
+    /// A list's entries (Alive or Idle): the pinned sessions, then the rest (newest first) under their group headings,
+    /// then the archived ones. A collapsed group lists only its heading, except while searching.
+    /// <paramref name="prefix"/> keeps the lists' remembered collapsed groups apart.
     /// </summary>
     private List<object> Group(List<SessionListItemViewModel> sessions, List<SessionListItemViewModel> archived, string grouping, string prefix)
     {
@@ -1342,8 +1345,12 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
+        // Without grouping the pinned rows just come first (their pin marks them); otherwise under a heading of their own.
+        var pinned = sessions.Where(s => s.IsPinned).ToList();
+        sessions = sessions.Where(s => !s.IsPinned).ToList();
         if (grouping == "None")
         {
+            result.AddRange(pinned);
             result.AddRange(sessions);
         }
         else
@@ -1354,6 +1361,11 @@ public sealed partial class MainViewModel : ObservableObject
                 "Recent" => s => RecentGroup(s.LastActivityUtc, DateTime.UtcNow),
                 _ => s => DateGroup(s.LastActivityUtc),
             };
+
+            if (pinned.Count > 0)
+            {
+                AddGroup(Header(prefix + "Pinned", "Pinned"), pinned);
+            }
 
             // Groups in the order of their newest session; within a group, newest first.
             foreach (var group in sessions.GroupBy(key))
@@ -1519,6 +1531,33 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
+    // ------------------------------------------------------------------ pin
+
+    /// <summary>
+    /// Pins a session (to the top of its list, kept alive and out of auto-archive) or unpins it. Pinning an archived
+    /// one brings it back. The row folds away and unfolds in its new place.
+    /// </summary>
+    public async Task TogglePinnedAsync(SessionListItemViewModel item)
+    {
+        await FoldAwayAsync(item);
+        var pin = !item.IsPinned;
+        Settings.PinnedSessions.Remove(item.SessionId);
+        if (pin)
+        {
+            Settings.PinnedSessions.Add(item.SessionId);
+            if (item.IsArchived)
+            {
+                Unarchive(item);
+            }
+        }
+
+        SaveSettings();
+        item.IsPinned = pin;
+        ApplyFilter();
+        await Task.Delay(30);
+        item.IsLeaving = false;
+    }
+
     // ------------------------------------------------------------------ archive and delete
 
     /// <summary>Brings a session back; that counts as touching it, so auto-archive waits its full time again.</summary>
@@ -1543,7 +1582,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Archives the sessions untouched for <see cref="AutoArchiveAfter"/>: not the open one, nor one that is alive,
-    /// running a turn, or run by the phone or elsewhere. Listed rows fold away first when <paramref name="fold"/>.
+    /// running a turn, pinned, or run by the phone or elsewhere. Listed rows fold away first when <paramref name="fold"/>.
     /// </summary>
     private async Task AutoArchiveSessionsAsync(bool fold)
     {
@@ -1558,7 +1597,7 @@ public sealed partial class MainViewModel : ObservableObject
             var touched = Settings.UnarchivedUtc.TryGetValue(item.SessionId, out var unarchived) && unarchived > item.LastActivityUtc
                 ? unarchived
                 : item.LastActivityUtc;
-            return !item.IsArchived && touched < cutoff && !item.IsAlive && !item.IsRunning && item.CanManage
+            return !item.IsArchived && !item.IsPinned && touched < cutoff && !item.IsAlive && !item.IsRunning && item.CanManage
                 && item.SessionId != Current.SessionId && !(_open.TryGetValue(item.SessionId, out var s) && s.IsProcessRunning);
         }).ToList();
         if (due.Count == 0)

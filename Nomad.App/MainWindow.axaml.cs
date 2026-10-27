@@ -607,6 +607,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnTogglePinnedClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            _ = _vm.TogglePinnedAsync(item);
+        }
+    }
+
     private void OnDeleteSessionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })

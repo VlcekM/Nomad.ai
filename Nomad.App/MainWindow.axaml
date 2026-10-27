@@ -129,7 +129,7 @@
               <Setter Property="Margin" Value="4,0,0,0" />
               <Setter Property="IsHitTestVisible" Value="True" />
             </Style>
-            <Style Selector="Border.merged">
+            <Style Selector="Border.merged, Border.pinmark">
               <Setter Property="MaxWidth" Value="0" />
               <Setter Property="Opacity" Value="0" />
               <Setter Property="Margin" Value="0" />
@@ -142,7 +142,7 @@
                 </Transitions>
               </Setter>
             </Style>
-            <Style Selector="Border.merged.shown">
+            <Style Selector="Border.merged.shown, Border.pinmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
               <Setter Property="Margin" Value="0,0,6,0" />
@@ -298,6 +298,7 @@
                 <Button.ContextMenu>
                   <ContextMenu>
                     <MenuItem Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
+                    <MenuItem Tag="pin" Header="{Binding PinToggleText}" Click="OnTogglePinnedClick" />
                     <Separator />
                     <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" IsEnabled="{Binding CanManage}" />
                     <MenuItem Header="{Binding ArchiveToggleText}" Click="OnToggleArchivedClick" IsEnabled="{Binding CanManage}" />
@@ -309,6 +310,11 @@
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="26,Auto">
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Pinned: kept alive and out of auto-archive; folds in and out with the pin. -->
+                    <Border Classes="pinmark" Classes.shown="{Binding IsPinned}" Background="Transparent"
+                            ToolTip.Tip="Pinned">
+                      <c:Icon Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                    </Border>
                     <!-- Its worktree's branch has been merged into the repository: folds in once git says so. -->
                     <Border Classes="merged" Classes.shown="{Binding IsWorktreeMerged}" Background="Transparent"
                             ToolTip.Tip="Worktree merged">

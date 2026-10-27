@@ -77,6 +77,13 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ArchiveToggleText))]
     public partial bool IsArchived { get; set; }
 
+    /// <summary>Pinned: listed first in its list, its process never ended for being idle, never auto-archived.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinToggleText))]
+    public partial bool IsPinned { get; set; }
+
+    public string PinToggleText => IsPinned ? "Unpin" : "Pin";
+
     /// <summary>Being archived or deleted: the row folds away before it leaves the list.</summary>
     [ObservableProperty]
     public partial bool IsLeaving { get; set; }

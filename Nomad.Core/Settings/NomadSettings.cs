@@ -100,6 +100,9 @@ public sealed class NomadSettings
     /// <summary>Session ids archived from the sidebar: hidden from the list, their transcripts kept.</summary>
     public List<string> ArchivedSessions { get; set; } = [];
 
+    /// <summary>Session ids pinned in the sidebar: listed first, never ended for being idle nor auto-archived.</summary>
+    public List<string> PinnedSessions { get; set; } = [];
+
     /// <summary>Sessions untouched for <see cref="AutoArchiveHours"/> are archived (not while alive or open).</summary>
     public bool AutoArchive { get; set; } = true;
 
