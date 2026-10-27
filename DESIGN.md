@@ -161,9 +161,12 @@ between sections.
 
 ## 6. New-session view
 
-Transcript column empty except a centred card (width 320, `Bg.Main`, 1 px `Border`, radius 10):
-up to five recent folders as rows (folder icon, name, path as tooltip), a rule, "Open folder…".
-Clicking a row sets the session folder. Composer placeholder "Describe a task or ask a
+Transcript column empty except the six latest projects as cards (280×142, `Bg.Sidebar`, 1 px
+`Border.Card`, radius 10, 10 px apart, wrapping): folder name 500 + branch pill (mono 11 px on
+`Bg.Chip`), path 11 px muted, up to three commits (subject 12 px `Text.Chrome`, age 11 px muted), and a
+footer ("3 changed" in `Waiting` · "Last session 2 hours ago"). The git part fades in once read. Hover
+lightens the border; the session's folder has a `Check` border and ✓. Above them, "Recent projects" and
+the "No folder" / "Open folder…" links. Clicking a card sets the session folder. Composer placeholder "Describe a task or ask a
 question". Status row shows the folder chip ("No folder" when none), mode, model.
 Optional flourish: a small 16×12 pixel-art critter in `Accent` sitting at the right end of the
 composer's top edge, as the original had.
@@ -184,6 +187,5 @@ Persisted as JSON in `%APPDATA%\Nomad\settings.json`.
 
 ## 8. Out of scope for v1
 
-Light theme, chat (non-Code) mode, Artifacts, Scheduled, Customize, right-hand Environment /
-Context / Connectors panels, Agent Crew, worktrees, remote control, voice, file pane, slash-command
+Light theme, chat (non-Code) mode, Artifacts, Scheduled, Customize, Agent Crew, worktrees, remote control, voice, file pane, slash-command
 palette (slash commands are just sent as text), MCP configuration UI.

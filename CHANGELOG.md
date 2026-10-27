@@ -3,6 +3,18 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.4.0
+
+- New session: the latest projects as cards with their branch, changed files, last commits and last session; a click works there.
+- What you typed on the New page stays while you open other sessions, and its text across restarts.
+- Side panel (Ctrl+Shift+B or the title bar button): the folder's git state and commits, context, plan usage and MCP servers.
+- Plan usage: smaller text; weekly bars show the even pace behind them and when the limit runs out at this week's rate.
+  The last answer is shared between windows and shown, marked stale, when the endpoint refuses.
+- Composer: attachments sit above a dashed rule with their names; click an image to see it large (← → step through).
+- Queued prompts can be edited: the pencil, a double-click, or ↑ in an empty composer.
+- Only one Nomad.ai runs: launching it again brings the open window forward.
+- Middle-click autoscroll is 1.5× faster.
+
 ## v1.3.0
 
 - Switching the model of a conversation with history asks first (its cache does not carry over); also for a typed

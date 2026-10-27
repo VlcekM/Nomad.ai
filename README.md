@@ -134,7 +134,18 @@ the previous tag.
   per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), a filled effort slider (Low to Max), and
   a ring showing how much of the context window the session uses. Clicking the current model, or
   the chevron, opens the full picker with fast mode. Clicking the ring shows the plan usage limits
-  (session, weekly, weekly per model, with reset times), refreshed after each turn.
+  (session, weekly, weekly per model, with reset times), refreshed after each turn. Weekly bars carry
+  the even pace behind them (where using the week up evenly, 24/7, would be by now) and a forecast:
+  when the limit runs out at this week's rate, or how much is used by the reset. The last answer is
+  shared between windows (`usage-cache.json`) and shown, marked stale, when the endpoint refuses.
+- **New session.** The latest projects as cards (branch, changed files, the last commits, when Claude
+  last worked there); a click works there. What is typed (and attached) on the new-session page stays
+  while other sessions are open, and its text across restarts.
+- **Composer attachments.** Above a dashed rule, apart from the text: images named underneath, a click
+  shows one large (← → step through, Esc or a click closes); images in sent prompts open the same way.
+- **Side panel** (Ctrl+Shift+B, or the panel button in the title bar): the folder's git state and
+  latest commits (open it in Explorer or a terminal), the context window, plan usage and the MCP
+  servers (configured ones before the CLI starts, then their connection state). Each card folds.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, interface and transcript
   text size, transcript width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and
@@ -159,6 +170,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |
 | Ctrl+N | New session |
 | Ctrl+B | Show or hide the sidebar |
+| Ctrl+Shift+B | Show or hide the side panel |
 | Ctrl+, | Settings |
 
 ### Files
@@ -167,6 +179,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 |------|----------|
 | `%APPDATA%\Nomad\settings.json` | Nomad.ai settings, recent folders, window placement |
 | `%APPDATA%\Nomad\releases-cache.json` | The GitHub release list and its ETag (Settings → Updates) |
+| `%APPDATA%\Nomad\usage-cache.json` | The last plan usage answer, shared between windows |
 | `%LOCALAPPDATA%\Nomad\` | The Setup install (`current\` is replaced by each update) and the Claude font cache (`fonts\`) |
 | `%LOCALAPPDATA%\velopack\velopack_Nomad.log` | Velopack's log: update checks, downloads, applied updates, uninstall |
 | `%LOCALAPPDATA%\NomadData\scratch\` | Folders for sessions started with "No folder" |
@@ -220,6 +233,8 @@ read should be a free 304 from the ETag cache).
 | `--dev-size <W>x<H>` | Initial window size (window placement is then not saved) |
 | `--dev-menu model\|mode\|folder\|plus\|usage\|remote\|update\|list\|row` | Open a menu (the update chip's prompt, the sidebar's list options, the first Idle row's context menu) before the screenshot |
 | `--dev-settings-open [claude\|updates]` | Open the settings dialog (or that page) before the screenshot |
+| `--dev-side-panel` | Open the side panel (not saved) |
+| `--dev-queue "<text>"` | Put a prompt in the queue above the composer (repeatable) |
 | `--dev-settings <path>` | Use this settings file |
 | `--dev-lean` | Small CLI tool set, no MCP servers or skills |
 | `--dev-phone` | Start the phone folders' Remote Control servers (scripted runs skip them) |
