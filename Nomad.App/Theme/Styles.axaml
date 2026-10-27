@@ -115,6 +115,14 @@
     <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
     <Setter Property="Margin" Value="6,4" />
   </Style>
+  <!-- A context menu's separator: the same rule. -->
+  <Style Selector="ContextMenu Separator">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="MinHeight" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="Margin" Value="6,4" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
 
   <!-- Tooltips -->
   <Style Selector="ToolTip">
@@ -125,5 +133,8 @@
     <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
     <Setter Property="Padding" Value="8,5" />
+  </Style>
+  <Style Selector="ToolTip.fit">
+    <Setter Property="MaxWidth" Value="1000" />
   </Style>
 </Styles>

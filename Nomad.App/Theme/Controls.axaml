@@ -114,6 +114,79 @@
     <Setter Property="FontWeight" Value="Normal" />
   </ControlTheme>
 
+  <!-- Context menus look like the popup menus (FlyoutPresenter.menu with MenuItemButton rows). -->
+  <ControlTheme x:Key="ContextMenuItem" TargetType="MenuItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_LayoutRoot"
+                Background="{TemplateBinding Background}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                MinHeight="{TemplateBinding MinHeight}">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <ContentPresenter Name="PART_HeaderPresenter"
+                              Content="{TemplateBinding Header}"
+                              ContentTemplate="{TemplateBinding HeaderTemplate}"
+                              VerticalAlignment="Center" />
+            <TextBlock Name="PART_InputGestureText"
+                       Grid.Column="1"
+                       Margin="24,0,0,0"
+                       Text="{TemplateBinding InputGesture}"
+                       FontSize="{DynamicResource UiFontSizeSmall}"
+                       Foreground="{DynamicResource TextMutedBrush}"
+                       VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover, ^:selected">
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{DynamicResource BgPressedBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ContextMenu}" TargetType="ContextMenu">
+    <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="MinWidth" Value="160" />
+    <Setter Property="MaxWidth" Value="480" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="WindowManagerAddShadowHint" Value="False" />
+    <Setter Property="ItemContainerTheme" Value="{StaticResource ContextMenuItem}" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="{TemplateBinding CornerRadius}"
+                Padding="{TemplateBinding Padding}"
+                MinWidth="{TemplateBinding MinWidth}"
+                MaxWidth="{TemplateBinding MaxWidth}"
+                BoxShadow="0 8 24 0 #73000000">
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsPresenter Name="PART_ItemsPresenter"
+                            ItemsPanel="{TemplateBinding ItemsPanel}"
+                            KeyboardNavigation.TabNavigation="Continue" />
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
   <!-- Text-only line (tool groups, thinking): muted, brighter on hover, no fill. -->
   <ControlTheme x:Key="LineButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Padding" Value="0,2" />

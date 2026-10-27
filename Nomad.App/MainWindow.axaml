@@ -228,8 +228,13 @@
                       Padding="10,0,8,0"
                       Click="OnRecentClick"
                       DoubleTapped="OnSessionRowDoubleTapped"
-                      ToolTip.Tip="{Binding ToolTipText}"
                       ToolTip.ShowDelay="700">
+                <!-- As wide as its lines: the folder path never wraps. -->
+                <ToolTip.Tip>
+                  <ToolTip Classes="fit">
+                    <TextBlock Text="{Binding ToolTipText}" TextWrapping="NoWrap" />
+                  </ToolTip>
+                </ToolTip.Tip>
                 <Button.ContextMenu>
                   <ContextMenu>
                     <MenuItem Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
