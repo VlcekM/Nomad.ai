@@ -21,6 +21,10 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // First: Velopack runs its install, update and uninstall hooks here and may exit; an update downloaded
+        // earlier but not applied yet is applied now and Klodi restarts into it (UpdateService).
+        Velopack.VelopackApp.Build().Run();
+
         Dev = DevOptions.Parse(args);
         SettingsPath = Dev.SettingsPath ?? SettingsStore.DefaultPath;
         Settings = SettingsStore.Load(SettingsPath);
