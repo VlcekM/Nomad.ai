@@ -150,6 +150,82 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ sidebar resizing
+
+    private double? _gripOffset;
+    private Avalonia.Animation.Transitions? _sidebarTransitions;
+
+    private void OnSidebarGripPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (e.ClickCount == 2)
+        {
+            _vm.SidebarWidth = 375;
+            _vm.SaveSettings();
+            e.Handled = true;
+            return;
+        }
+
+        // The width follows the pointer at once: the open/close slide would make it lag behind.
+        _sidebarTransitions = Sidebar.Transitions;
+        Sidebar.Transitions = null;
+        _gripOffset = _vm.SidebarWidth - e.GetPosition(this).X;
+        e.Pointer.Capture(SidebarGrip);
+        e.Handled = true;
+    }
+
+    private void OnSidebarGripMoved(object? sender, PointerEventArgs e)
+    {
+        if (_gripOffset is { } offset)
+        {
+            _vm.SidebarWidth = e.GetPosition(this).X + offset;
+        }
+    }
+
+    private void OnSidebarGripReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_gripOffset is null)
+        {
+            return;
+        }
+
+        _gripOffset = null;
+        e.Pointer.Capture(null);
+        Sidebar.Transitions = _sidebarTransitions;
+        _vm.SaveSettings();
+    }
+
+    private void OnToggleArchivedClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            _ = _vm.ToggleArchivedAsync(item);
+        }
+    }
+
+    private void OnDeleteSessionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            _ = _vm.DeleteSessionAsync(item);
+        }
+    }
+
+    // The list options menu stays open, so the list can be watched regrouping behind it.
+    private void OnGroupingClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option })
+        {
+            _vm.SetGrouping(option.Id);
+        }
+    }
+
+    private void OnShowArchivedClick(object? sender, RoutedEventArgs e) => _vm.ShowArchived = !_vm.ShowArchived;
+
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
     /// <summary>The update chip: a downloaded update restarts at once, a found one opens the prompt with its notes.</summary>
@@ -273,10 +349,62 @@ public partial class MainWindow : Window
             DispatcherTimer.RunOnce(() => PressKey(KeyGesture.Parse(gesture)), TimeSpan.FromSeconds(at));
         }
 
+        if (dev.Compose is { } compose)
+        {
+            DispatcherTimer.RunOnce(() => _vm.Current.ComposerText = compose, TimeSpan.FromSeconds(1.5));
+        }
+
+        if (dev.PasteImage is { } image && Infrastructure.PromptImages.FromFile(image) is { } attachment)
+        {
+            _vm.Current.AddAttachments([attachment]);
+        }
+
+        if (dev.Drag is var (x1, y1, x2, y2, dragAt))
+        {
+            DispatcherTimer.RunOnce(() => _ = DragAsync(new Point(x1, y1), new Point(x2, y2)), TimeSpan.FromSeconds(dragAt));
+        }
+
         if (dev.ScreenshotPath is { } path)
         {
             await CaptureAndExitAsync(path);
         }
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessageW(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>
+    /// <c>--dev-drag</c>: a left-button drag sent as mouse messages to this window only (the real cursor never moves),
+    /// so Avalonia routes and captures it like a real one.
+    /// </summary>
+    private async Task DragAsync(Point from, Point to)
+    {
+        if (TryGetPlatformHandle()?.Handle is not { } hwnd)
+        {
+            return;
+        }
+
+        const uint mouseMove = 0x0200, buttonDown = 0x0201, buttonUp = 0x0202;
+        const int leftButton = 0x0001;
+        var scale = RenderScaling;
+        void Send(uint message, Point at, int keys)
+        {
+            var x = (int)Math.Round(at.X * scale);
+            var y = (int)Math.Round(at.Y * scale);
+            SendMessageW(hwnd, message, keys, (y << 16) | (x & 0xFFFF));
+        }
+
+        Send(mouseMove, from, 0);
+        Send(buttonDown, from, leftButton);
+        for (var i = 1; i <= 10; i++)
+        {
+            await Task.Delay(16);
+            Send(mouseMove, from + ((to - from) * (i / 10.0)), leftButton);
+        }
+
+        Send(buttonUp, to, 0);
+        var focused = FocusManager?.GetFocusedElement();
+        Console.Error.WriteLine($"--dev-drag {from} -> {to}: focused {focused?.GetType().Name}, selected \"{(focused as SelectableTextBlock)?.SelectedText}\"");
     }
 
     /// <summary><c>--dev-key</c>: a key press routed like a real one, from the focused control up.</summary>
@@ -344,6 +472,16 @@ public partial class MainWindow : Window
         if (dev.Menu == "update")
         {
             FlyoutBase.ShowAttachedFlyout(UpdateChip);
+        }
+        else if (dev.Menu == "list")
+        {
+            ListOptionsButton.Flyout?.ShowAt(ListOptionsButton);
+        }
+        else if (dev.Menu == "row")
+        {
+            // The first Idle row's context menu.
+            this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionListItemViewModel { IsAlive: false })
+                ?.ContextMenu?.Open();
         }
         else if (dev.Menu is { } menu)
         {

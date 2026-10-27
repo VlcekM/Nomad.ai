@@ -25,8 +25,9 @@
     <Grid ColumnDefinitions="Auto,*">
 
       <!-- ============================================================ sidebar -->
-      <!-- Ctrl+B or the sidebar button: the width slides between 375 and 0, the content stays
-           375 wide and right-aligned, so it slides out to the left instead of reflowing. -->
+      <!-- Ctrl+B or the sidebar button: the width slides between SidebarWidth and 0, the content keeps
+           its width and is right-aligned, so it slides out to the left instead of reflowing. -->
+      <!-- (Its right edge, SidebarGrip below, drags the width.) -->
       <Border Grid.Column="0"
               Name="Sidebar"
               Classes.closed="{Binding !IsSidebarOpen}"
@@ -36,7 +37,7 @@
               BorderThickness="0,0,1,0">
         <Border.Styles>
           <Style Selector="Border#Sidebar">
-            <Setter Property="Width" Value="375" />
+            <Setter Property="Width" Value="{Binding SidebarWidth}" />
           </Style>
           <Style Selector="Border#Sidebar.closed">
             <Setter Property="Width" Value="0" />
@@ -48,21 +49,46 @@
             <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
           </Transitions>
         </Border.Transitions>
-        <Grid Width="374" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
-          <Grid.Resources>
-            <!-- A session row, shared by the Alive and Idle lists; right-click moves it between them. -->
-            <DataTemplate x:Key="SessionRowTemplate" x:DataType="vm:SessionListItemViewModel">
+        <Grid Width="{Binding SidebarContentWidth}" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
+          <Grid.Styles>
+            <!-- Session rows fold their height and fade when they are archived or deleted. -->
+            <Style Selector="Button.sessionrow">
+              <Setter Property="Height" Value="26" />
+              <Setter Property="Margin" Value="8,2,11,2" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Height" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button.sessionrow.leaving">
+              <Setter Property="Height" Value="0" />
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Margin" Value="8,0,11,0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+            </Style>
+          </Grid.Styles>
+          <!-- Inherited by both lists: a session row, and the Idle list's group headings. -->
+          <Grid.DataTemplates>
+            <!-- Right-click: move it between Alive and Idle, archive it, or delete it. -->
+            <DataTemplate x:DataType="vm:SessionListItemViewModel">
               <Button Theme="{StaticResource RowButton}"
+                      Classes="sessionrow"
                       Classes.selected="{Binding IsSelected}"
-                      Height="26"
-                      Margin="8,2,11,2"
+                      Classes.leaving="{Binding IsLeaving}"
                       Padding="10,0,8,0"
                       Click="OnRecentClick"
                       ToolTip.Tip="{Binding ToolTipText}"
                       ToolTip.ShowDelay="700">
                 <Button.ContextMenu>
                   <ContextMenu>
-                    <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" />
+                    <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" IsEnabled="{Binding CanManage}" />
+                    <MenuItem Header="{Binding ArchiveToggleText}" Click="OnToggleArchivedClick" IsEnabled="{Binding CanManage}" />
+                    <Separator />
+                    <MenuItem Header="Delete" Click="OnDeleteSessionClick" IsEnabled="{Binding CanManage}"
+                              ToolTip.Tip="Moves the session's transcript to the Recycle Bin" />
                   </ContextMenu>
                 </Button.ContextMenu>
                 <Grid ColumnDefinitions="Auto,*,Auto">
@@ -73,6 +99,13 @@
                           VerticalAlignment="Center"
                           IsVisible="{Binding IsPhone}"
                           ToolTip.Tip="Running from the Claude app" />
+                  <!-- Run by another Nomad window or a terminal: alive, but not this window's to run. -->
+                  <c:Icon Size="12"
+                          Data="{StaticResource IconLaptop}"
+                          Margin="0,0,6,0"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsElsewhere}"
+                          ToolTip.Tip="Running in another Nomad window or a terminal" />
                   <TextBlock Grid.Column="1"
                              Text="{Binding Title}"
                              TextTrimming="CharacterEllipsis"
@@ -92,7 +125,14 @@
                 </Grid>
               </Button>
             </DataTemplate>
-          </Grid.Resources>
+            <DataTemplate x:DataType="vm:SessionGroupHeader">
+              <TextBlock Text="{Binding Title}"
+                         Margin="18,10,11,3"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         Foreground="{StaticResource TextMutedBrush}"
+                         TextTrimming="CharacterEllipsis" />
+            </DataTemplate>
+          </Grid.DataTemplates>
 
           <!-- Title bar part over the sidebar: drags the window. -->
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
@@ -181,16 +221,55 @@
                         IsVisible="{Binding HasAlive}"
                         HorizontalScrollBarVisibility="Disabled"
                         VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Alive}" ItemTemplate="{StaticResource SessionRowTemplate}" />
+            <ItemsControl ItemsSource="{Binding Alive}" />
           </ScrollViewer>
 
           <!-- Idle header -->
-          <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="18,18,11,2" Height="24">
+          <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto" Margin="18,18,11,2" Height="24">
             <TextBlock Text="Idle"
                        Classes="section"
                        VerticalAlignment="Center"
                        ToolTip.Tip="Sessions without a process. Sending a prompt resumes one." />
+            <!-- List options: grouping and archived sessions. -->
             <Button Grid.Column="1"
+                    Name="ListOptionsButton"
+                    Theme="{StaticResource IconButton}"
+                    Width="24" Height="24"
+                    ToolTip.Tip="List options">
+              <c:Icon Size="13" Data="{StaticResource IconSliders}" />
+              <Button.Flyout>
+                <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="menu">
+                  <StackPanel Width="210">
+                    <TextBlock Text="Group by"
+                               Margin="8,3,8,3"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               Foreground="{StaticResource TextMutedBrush}" />
+                    <ItemsControl ItemsSource="{Binding GroupingOptions}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MenuOption">
+                          <Button Theme="{StaticResource MenuItemButton}" Click="OnGroupingClick">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding Label}" />
+                              <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                            </Grid>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Classes="rule" />
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnShowArchivedClick">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Show archived" />
+                        <Border Grid.Column="1" Classes="switch" Classes.on="{Binding ShowArchived}" VerticalAlignment="Center">
+                          <Ellipse />
+                        </Border>
+                      </Grid>
+                    </Button>
+                  </StackPanel>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+            <Button Grid.Column="2"
                     Theme="{StaticResource IconButton}"
                     Width="24" Height="24"
                     Command="{Binding NewSessionCommand}"
@@ -202,7 +281,7 @@
           <!-- Idle list -->
           <Panel Grid.Row="6">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Recents}" ItemTemplate="{StaticResource SessionRowTemplate}" Margin="0,0,0,8">
+              <ItemsControl ItemsSource="{Binding Recents}" Margin="0,0,0,8">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
                     <VirtualizingStackPanel />
@@ -326,6 +405,20 @@
           </Border>
         </Grid>
       </Border>
+
+      <!-- The sidebar's right edge: drag to resize it, double-click for the default width. -->
+      <Border Grid.Column="0"
+              Name="SidebarGrip"
+              Width="7"
+              Margin="0,0,-4,0"
+              HorizontalAlignment="Right"
+              Background="Transparent"
+              Cursor="SizeWestEast"
+              ZIndex="1"
+              IsVisible="{Binding IsSidebarOpen}"
+              PointerPressed="OnSidebarGripPressed"
+              PointerMoved="OnSidebarGripMoved"
+              PointerReleased="OnSidebarGripReleased" />
 
       <!-- ============================================================ main -->
       <Grid Grid.Column="1" RowDefinitions="36,*">

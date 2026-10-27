@@ -40,11 +40,13 @@ public sealed partial class MainViewModel : ObservableObject
         PlanLabel = string.IsNullOrEmpty(settings.LastPlan) ? null : settings.LastPlan;
 
         ApplyDisplayName();
+        UpdateGroupingOptions();
 
-        Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
+        Current =new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
         if (dev.Model is not null)
         {
             Current.Model = dev.Model;
+            Current.Effort = EffortFor(dev.Model);
         }
 
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -62,6 +64,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _phoneTimer.Tick += (_, _) => _ = ScanPhoneSessionsAsync();
+
+        // Sessions another Nomad window or a terminal is running: alive here too, but theirs to run.
+        _elsewhereTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _elsewhereTimer.Tick += (_, _) => _ = ScanElsewhereAsync();
+        _elsewhereTimer.Start();
 
         // Scripted runs leave the folders to the user's own instance (one server per folder).
         if (!dev.IsActive || dev.Phone)
@@ -234,6 +241,56 @@ public sealed partial class MainViewModel : ObservableObject
 
     private bool IsPhone(string sessionId) => _phone.Values.Any(p => p.SessionId == sessionId);
 
+    // ------------------------------------------------------------------ sessions running elsewhere
+
+    private readonly DispatcherTimer _elsewhereTimer;
+    private IReadOnlySet<string> _elsewhere = new HashSet<string>();
+    private bool _elsewhereScanning;
+
+    /// <summary>A Claude Code process outside this Nomad (another window, a terminal) runs the session.</summary>
+    public bool IsRunningElsewhere(string sessionId) => _elsewhere.Contains(sessionId) && !(_open.TryGetValue(sessionId, out var s) && s.IsProcessRunning);
+
+    private async Task ScanElsewhereAsync()
+    {
+        if (_elsewhereScanning)
+        {
+            return;
+        }
+
+        _elsewhereScanning = true;
+        try
+        {
+            var found = await Task.Run(RemoteSessionScanner.RunningSessionIds);
+            if (!found.SetEquals(_elsewhere))
+            {
+                _elsewhere = found;
+                ApplyElsewhere();
+            }
+        }
+        finally
+        {
+            _elsewhereScanning = false;
+        }
+    }
+
+    private void ApplyElsewhere()
+    {
+        var changed = false;
+        foreach (var vm in _all)
+        {
+            var elsewhere = IsRunningElsewhere(vm.SessionId);
+            var alive = (_open.TryGetValue(vm.SessionId, out var live) && live.IsProcessRunning) || vm.IsPhone || elsewhere;
+            changed |= vm.IsElsewhere != elsewhere || vm.IsAlive != alive;
+            vm.IsElsewhere = elsewhere;
+            vm.IsAlive = alive;
+        }
+
+        if (changed)
+        {
+            ApplyFilter();
+        }
+    }
+
     /// <summary>A phone session was taken over by Nomad ("Continue here").</summary>
     public void OnPhoneSessionEnded(SessionViewModel session)
     {
@@ -267,8 +324,119 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Sessions with a running CLI process.</summary>
     public ObservableCollection<SessionListItemViewModel> Alive { get; } = [];
 
-    /// <summary>All other sessions (the Idle list).</summary>
-    public ObservableCollection<SessionListItemViewModel> Recents { get; } = [];
+    /// <summary>All other sessions (the Idle list): rows, under <see cref="SessionGroupHeader"/>s unless grouping is off.</summary>
+    public ObservableCollection<object> Recents { get; } = [];
+
+    /// <summary>The sliders menu's "Group by" choices.</summary>
+    public IReadOnlyList<MenuOption> GroupingOptions { get; } =
+    [
+        new("Date", "Date"),
+        new("Folder", "Folder"),
+        new("None", "None"),
+    ];
+
+    public bool ShowArchived
+    {
+        get => Settings.ShowArchived;
+        set
+        {
+            if (Settings.ShowArchived != value)
+            {
+                Settings.ShowArchived = value;
+                SaveSettings();
+                OnPropertyChanged();
+                ApplyFilter();
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ slash commands
+
+    // Before any Claude Code ran (so nothing is known yet): its commands that work in a Nomad session.
+    private static readonly Nomad.Core.Protocol.SlashCommand[] FallbackCommands =
+    [
+        new() { Name = "compact", Description = "Clear the conversation but keep a summary in context", ArgumentHint = "<optional custom summarization instructions>" },
+        new() { Name = "context", Description = "Show what fills the context window" },
+        new() { Name = "init", Description = "Initialize a CLAUDE.md file with codebase documentation" },
+        new() { Name = "review", Description = "Review a pull request" },
+        new() { Name = "security-review", Description = "Complete a security review of the pending changes on the current branch" },
+        new() { Name = "usage", Description = "Show plan usage limits" },
+    ];
+
+    /// <summary>The "/" menu's commands: the latest list a Claude Code process reported.</summary>
+    public IReadOnlyList<Nomad.Core.Protocol.SlashCommand> SlashCommands =>
+        Settings.SlashCommands.Count > 0 ? Settings.SlashCommands : FallbackCommands;
+
+    public void OnSlashCommands(IReadOnlyList<Nomad.Core.Protocol.SlashCommand> commands)
+    {
+        var names = commands.Select(c => c.Name);
+        if (!names.SequenceEqual(Settings.SlashCommands.Select(c => c.Name))
+            || !commands.Select(c => c.Description).SequenceEqual(Settings.SlashCommands.Select(c => c.Description)))
+        {
+            Settings.SlashCommands = commands.ToList();
+            SaveSettings();
+        }
+    }
+
+    // ------------------------------------------------------------------ sidebar width and activity lines
+
+    public const double MinSidebarWidth = 240;
+    public const double MaxSidebarWidth = 560;
+
+    /// <summary>The sidebar's width while open (its right edge drags it).</summary>
+    public double SidebarWidth
+    {
+        get => Math.Clamp(Settings.SidebarWidth, MinSidebarWidth, MaxSidebarWidth);
+        set
+        {
+            value = Math.Clamp(Math.Round(value), MinSidebarWidth, MaxSidebarWidth);
+            if (Math.Abs(Settings.SidebarWidth - value) > 0.1)
+            {
+                Settings.SidebarWidth = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SidebarContentWidth));
+            }
+        }
+    }
+
+    /// <summary>The sidebar's content, one pixel narrower than it (its right border).</summary>
+    public double SidebarContentWidth => SidebarWidth - 1;
+
+    /// <summary>Thinking and tool lines in the transcript; off, only prompts and replies are shown.</summary>
+    public bool ShowActivity
+    {
+        get => Settings.ShowActivity;
+        set
+        {
+            if (Settings.ShowActivity != value)
+            {
+                Settings.ShowActivity = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnShowActivityChanged();
+                }
+            }
+        }
+    }
+
+    public void SetGrouping(string id)
+    {
+        Settings.SessionGrouping = id;
+        SaveSettings();
+        UpdateGroupingOptions();
+        ApplyFilter();
+    }
+
+    private void UpdateGroupingOptions()
+    {
+        var current = GroupingOptions.Any(o => o.Id == Settings.SessionGrouping) ? Settings.SessionGrouping : "Date";
+        foreach (var option in GroupingOptions)
+        {
+            option.IsSelected = option.Id == current;
+        }
+    }
 
     [ObservableProperty]
     public partial bool HasAlive { get; set; }
@@ -293,6 +461,25 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     public string DefaultModel => Dev.Model ?? Settings.DefaultModel;
+
+    /// <summary>
+    /// The effort a session starts with on a model: the one last chosen with it, else high, except Opus 5.5, which
+    /// starts at the Default effort setting.
+    /// </summary>
+    public string EffortFor(string model) =>
+        Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
+        : model.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase) ? Settings.DefaultEffort
+        : "high";
+
+    public void RememberEffort(string model, string effort)
+    {
+        var key = model.ToLowerInvariant();
+        if (Settings.EffortByModel.GetValueOrDefault(key) != effort)
+        {
+            Settings.EffortByModel[key] = effort;
+            SaveSettings();
+        }
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNewSelected))]
@@ -430,7 +617,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Moves a session between Alive and Idle: ends its CLI process, or starts one that resumes it.</summary>
     public async Task ToggleAliveAsync(SessionListItemViewModel item)
     {
-        if (item.IsPhone)
+        if (!item.CanManage)
         {
             return; // Its process belongs to the phone.
         }
@@ -619,7 +806,7 @@ public sealed partial class MainViewModel : ObservableObject
         IReadOnlyList<SessionSummary> summaries;
         try
         {
-            summaries = await Task.Run(() => Store.Scan(cts.Token), cts.Token);
+            (summaries, _elsewhere) = await Task.Run(() => (Store.Scan(cts.Token), RemoteSessionScanner.RunningSessionIds()), cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -627,6 +814,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var byId = _all.ToDictionary(s => s.SessionId, StringComparer.Ordinal);
+        var archived = new HashSet<string>(Settings.ArchivedSessions, StringComparer.Ordinal);
         var merged = new List<SessionListItemViewModel>(summaries.Count);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var s in summaries)
@@ -647,7 +835,9 @@ public sealed partial class MainViewModel : ObservableObject
             // An open session knows its newest title (a generated one may not be on disk yet).
             vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
             vm.IsPhone = IsPhone(s.SessionId);
-            vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone;
+            vm.IsElsewhere = IsRunningElsewhere(s.SessionId);
+            vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone || vm.IsElsewhere;
+            vm.IsArchived = archived.Contains(s.SessionId);
             merged.Add(vm);
         }
 
@@ -683,14 +873,184 @@ public sealed partial class MainViewModel : ObservableObject
                 || (s.WorkingDirectory?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
-        var list = items.ToList();
+        // Archived sessions stay hidden unless asked for, or searched for.
+        var list = items.Where(s => !s.IsArchived || Settings.ShowArchived || query.Length > 0).ToList();
         Sync(Alive, list.Where(s => s.IsAlive).ToList());
-        Sync(Recents, list.Where(s => !s.IsAlive).ToList());
+        Sync(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
         HasAlive = Alive.Count > 0;
         HasNoSessions = _all.Count == 0;
     }
 
-    private static void Sync(ObservableCollection<SessionListItemViewModel> target, List<SessionListItemViewModel> list)
+    // Reused across filters, so a heading that stays keeps its row in the list.
+    private readonly Dictionary<string, SessionGroupHeader> _headers = new(StringComparer.Ordinal);
+
+    private SessionGroupHeader Header(string title)
+    {
+        if (!_headers.TryGetValue(title, out var header))
+        {
+            _headers[title] = header = new SessionGroupHeader(title);
+        }
+
+        return header;
+    }
+
+    /// <summary>The Idle list's entries: the sessions (newest first) under their group headings, then the archived ones.</summary>
+    private List<object> GroupIdle(List<SessionListItemViewModel> sessions, List<SessionListItemViewModel> archived)
+    {
+        var result = new List<object>(sessions.Count + archived.Count + 8);
+        if (Settings.SessionGrouping == "None")
+        {
+            result.AddRange(sessions);
+        }
+        else
+        {
+            Func<SessionListItemViewModel, string> key = Settings.SessionGrouping == "Folder"
+                ? s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : Format.FolderName(s.WorkingDirectory)
+                : s => DateGroup(s.LastActivityUtc);
+
+            // Groups in the order of their newest session; within a group, newest first.
+            foreach (var group in sessions.GroupBy(key))
+            {
+                result.Add(Header(group.Key));
+                result.AddRange(group);
+            }
+        }
+
+        if (archived.Count > 0)
+        {
+            result.Add(Header("Archived"));
+            result.AddRange(archived);
+        }
+
+        return result;
+    }
+
+    /// <summary>"Today", "Yesterday", "Previous 7 days", "Previous 30 days", then the month ("September 2026").</summary>
+    public static string DateGroup(DateTime utc)
+    {
+        var today = DateTime.Today;
+        var day = utc.ToLocalTime().Date;
+        return (today - day).TotalDays switch
+        {
+            <= 0 => "Today",
+            <= 1 => "Yesterday",
+            <= 7 => "Previous 7 days",
+            <= 30 => "Previous 30 days",
+            _ => day.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture),
+        };
+    }
+
+    // ------------------------------------------------------------------ archive and delete
+
+    /// <summary>Archives a session (ending its process) or brings it back.</summary>
+    public async Task ToggleArchivedAsync(SessionListItemViewModel item)
+    {
+        if (item.IsArchived)
+        {
+            Settings.ArchivedSessions.Remove(item.SessionId);
+            SaveSettings();
+            item.IsArchived = false;
+            ApplyFilter();
+            return;
+        }
+
+        if (!item.CanManage)
+        {
+            return; // Its process belongs to the phone.
+        }
+
+        if (!Settings.ShowArchived)
+        {
+            await FoldAwayAsync(item);
+        }
+
+        Settings.ArchivedSessions.Remove(item.SessionId);
+        Settings.ArchivedSessions.Add(item.SessionId);
+        SaveSettings();
+        item.IsArchived = true;
+        item.IsLeaving = false;
+        if (_open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning)
+        {
+            await session.SleepAsync();
+        }
+
+        ApplyFilter();
+    }
+
+    /// <summary>Ends a session's process and moves its transcript (and its folder of tool results) to the Recycle Bin.</summary>
+    public async Task DeleteSessionAsync(SessionListItemViewModel item)
+    {
+        if (!item.CanManage)
+        {
+            return;
+        }
+
+        await FoldAwayAsync(item);
+        if (_open.Remove(item.SessionId, out var session))
+        {
+            await session.ShutdownAsync();
+            DropFromHistory(session);
+            if (ReferenceEquals(session, Current))
+            {
+                _navigating = true;
+                try
+                {
+                    Current = new SessionViewModel(this, Settings.LastFolder);
+                }
+                finally
+                {
+                    _navigating = false;
+                }
+            }
+        }
+
+        var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
+        if (file is not null)
+        {
+            var folder = Path.Combine(Path.GetDirectoryName(file)!, item.SessionId);
+            var deleted = await Task.Run(() => RecycleBin.Delete([file, folder]));
+            if (!deleted && File.Exists(file))
+            {
+                // The shell said no (a file in use): the row comes back.
+                item.IsLeaving = false;
+                return;
+            }
+        }
+
+        _all.Remove(item);
+        if (Settings.ArchivedSessions.Remove(item.SessionId))
+        {
+            SaveSettings();
+        }
+
+        ApplyFilter();
+    }
+
+    /// <summary>Lets the row fold its height and fade (the row style's transitions) before it leaves the list.</summary>
+    private static async Task FoldAwayAsync(SessionListItemViewModel item)
+    {
+        item.IsLeaving = true;
+        await Task.Delay(200);
+    }
+
+    private void DropFromHistory(SessionViewModel session)
+    {
+        foreach (var stack in new[] { _back, _forward })
+        {
+            var kept = stack.Where(s => !ReferenceEquals(s, session)).Reverse().ToList();
+            stack.Clear();
+            foreach (var s in kept)
+            {
+                stack.Push(s);
+            }
+        }
+
+        GoBackCommand.NotifyCanExecuteChanged();
+        GoForwardCommand.NotifyCanExecuteChanged();
+    }
+
+    private static void Sync<T>(ObservableCollection<T> target, List<T> list)
+        where T : class
     {
         // Minimal-diff update keeps scroll position and avoids rebuilding every row.
         for (var i = 0; i < list.Count; i++)
@@ -743,9 +1103,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnAliveChanged(SessionViewModel session)
     {
-        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm && vm.IsAlive != session.IsProcessRunning)
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm && vm.IsAlive != (session.IsProcessRunning || IsRunningElsewhere(id)))
         {
-            vm.IsAlive = session.IsProcessRunning;
+            vm.IsAlive = session.IsProcessRunning || IsRunningElsewhere(id);
+            vm.IsElsewhere = IsRunningElsewhere(id);
             ApplyFilter();
         }
     }
@@ -857,11 +1218,10 @@ public sealed partial class MainViewModel : ObservableObject
     public static string ScratchRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NomadData", "scratch");
 
-    // Where earlier builds kept them (before Setup installs owned %LOCALAPPDATA%\Nomad, and as Klodi): not recent folders either.
+    // Where earlier builds kept them (before Setup installs owned %LOCALAPPDATA%\Nomad): not recent folders either.
     private static readonly string[] LegacyScratchRoots =
     [
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nomad", "scratch"),
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klodi", "scratch"),
     ];
 
     private static bool IsScratch(string folder) =>
@@ -909,6 +1269,7 @@ public sealed partial class MainViewModel : ObservableObject
         _idleTimer.Stop();
         _usageTimer.Stop();
         _phoneTimer.Stop();
+        _elsewhereTimer.Stop();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()).Concat(_servers.Values.Select(s => s.StopAsync())));
     }
