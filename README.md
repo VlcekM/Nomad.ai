@@ -104,6 +104,9 @@ the previous tag.
   shows its seen mark (✓ sent, ✓✓ picked up), its age, and Copy, Rewind (cut the conversation back
   to before it and put it in the composer; files are not restored) and Fork (a new session with the
   conversation through that turn).
+- **Window.** Middle-click a scrollable area to autoscroll, as in a browser. With "Close to the tray"
+  (Settings › General) the close button hides Nomad.ai to the notification area; its icon brings it back.
+  Switching the model of a conversation with history asks first, since its cache does not carry over.
 - **Prompt suggestions.** After a turn, Claude Code guesses the next prompt (`--prompt-suggestions`);
   it shows as grey text in the empty composer with a Tab hint. Tab, → or a right-click puts it in to
   edit or send, Esc dismisses it, typing replaces it. Settings › Claude Code turns it off.
@@ -152,7 +155,8 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 |------|--------|
 | Enter / Shift+Enter | Send / new line |
 | Esc | Deny a pending permission, otherwise stop the running turn |
-| Ctrl+1 … Ctrl+4 | Switch model |
+| Ctrl+1 … Ctrl+9 | Open the sidebar's sessions, top to bottom (hold Ctrl to see their numbers) |
+| Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |
 | Ctrl+N | New session |
 | Ctrl+B | Show or hide the sidebar |
 | Ctrl+, | Settings |

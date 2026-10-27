@@ -3,6 +3,17 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.3.0
+
+- Switching the model of a conversation with history asks first (its cache does not carry over); also for a typed
+  `/model <name>`. Settings › Claude Code turns the question off.
+- Slash command echoes (`<local-command-stdout>` and the like) no longer show as your prompts: their output is a muted line.
+- Inline code is real text: a selection can start, end and copy inside it.
+- The working row says what is happening ("Ping the loopback…", "Reading MainViewModel.cs"), in semibold.
+- Ctrl+1…9 opens the sidebar's sessions top to bottom; hold Ctrl to see their numbers. Models moved to Ctrl+Shift+1…4.
+- Middle-click autoscroll, as in a browser.
+- Close to the tray (Settings › General › Window): closing hides Nomad.ai to the notification area.
+
 ## v1.2.0
 
 - Prompt suggestions: after a turn, Claude Code's guess at your next prompt shows as grey text in the empty composer;

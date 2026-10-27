@@ -151,7 +151,7 @@ description under the label. Section headers 12 px `Text.Muted`. A 1 px `Border.
 between sections.
 
 - **Model menu:** header "Model · this session"; Opus 5.5, Fable 5.1, Sonnet 5.5, Haiku 5.5
-  (shortcuts 1–4, Ctrl+1..4 while the composer is focused); rule; "Effort  Medium ›" (sub-menu
+  (shortcuts 1–4, Ctrl+Shift+1..4 while the composer is focused); rule; "Effort  Medium ›" (sub-menu
   Low / Medium / High); rule; "Fast mode" header with an "Enable fast mode" toggle.
 - **Mode menu:** header "Mode"; Manual — "Always ask before making changes"; Accept edits —
   "Automatically accept all file edits"; Plan — "Create a plan before making changes";
