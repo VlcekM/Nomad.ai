@@ -311,23 +311,27 @@ public sealed partial class SessionViewModel : ObservableObject
 
     // ------------------------------------------------------------------ attachments
 
-    /// <summary>Images pasted or dropped into the composer, sent with the next prompt.</summary>
-    public ObservableCollection<ImageAttachment> Attachments { get; } = [];
+    /// <summary>Images and files pasted, dropped or picked into the composer, sent with the next prompt.</summary>
+    public ObservableCollection<Attachment> Attachments { get; } = [];
 
     public bool HasAttachments => Attachments.Count > 0;
 
-    public void AddAttachments(IEnumerable<ImageAttachment> images)
+    public void AddAttachments(IEnumerable<Attachment> attachments)
     {
-        foreach (var image in images)
+        foreach (var attachment in attachments)
         {
-            Attachments.Add(image);
+            // The same file twice would only repeat its path.
+            if (attachment.Path is null || !Attachments.Any(a => string.Equals(a.Path, attachment.Path, StringComparison.OrdinalIgnoreCase)))
+            {
+                Attachments.Add(attachment);
+            }
         }
 
         OnAttachmentsChanged();
     }
 
     [RelayCommand]
-    private void RemoveAttachment(ImageAttachment image)
+    private void RemoveAttachment(Attachment image)
     {
         Attachments.Remove(image);
         OnAttachmentsChanged();
@@ -381,10 +385,10 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         var text = string.Join("\n\n", Queued.Select(q => q.Text).Where(t => t.Length > 0));
-        var images = Queued.SelectMany(q => q.Images).ToList();
+        var attachments = Queued.SelectMany(q => q.Attachments).ToList();
         Queued.Clear();
         OnPropertyChanged(nameof(HasQueued));
-        await SendPromptAsync(text, images);
+        await SendPromptAsync(text, attachments);
     }
 
     // ------------------------------------------------------------------ slash commands
@@ -513,13 +517,25 @@ public sealed partial class SessionViewModel : ObservableObject
         WorkingElapsed = elapsed.TotalMinutes >= 1 ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s" : $"{elapsed.Seconds}s";
         WorkingText = Items.LastOrDefault() switch
         {
-            ThinkingItem { IsStreaming: true } => "Thinking",
+            ThinkingItem { IsStreaming: true } or ToolGroupItem { IsThinking: true } => "Thinking",
             ToolGroupItem { IsRunning: true, Summary.Length: > 0 } group => group.Summary,
             AssistantTextItem { IsStreaming: true } => "Writing",
             PermissionItem { IsAnswered: false } => "Waiting for you",
             _ => "Working",
         };
+
+        // As the desktop app: waiting on you, thinking (also before anything has come back), the running tool's kind.
+        WorkingActivity = PendingPermission is not null ? "blocked" : Items.LastOrDefault() switch
+        {
+            ThinkingItem { IsStreaming: true } or ToolGroupItem { IsThinking: true } or UserMessageItem => "think",
+            ToolGroupItem { IsRunning: true } group when group.Calls.LastOrDefault(c => c.IsRunning) is { } call => ToolText.MarkActivity(call.Name, call.Input),
+            _ => "default",
+        };
     }
+
+    /// <summary>The working mark's animation: "think", "read", "search", "code", "write", "compose", "blocked", "default".</summary>
+    [ObservableProperty]
+    public partial string WorkingActivity { get; set; } = "think";
 
     /// <summary>The agent status line is shown once a turn ran in this app session.</summary>
     [ObservableProperty]
@@ -580,6 +596,8 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial PermissionItem? PendingPermission { get; set; }
 
+    partial void OnPendingPermissionChanged(PermissionItem? value) => _main.OnWaitingChanged(this);
+
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
     /// <summary>The app's plan usage, for the ring's popup.</summary>
@@ -626,21 +644,25 @@ public sealed partial class SessionViewModel : ObservableObject
         await SendPromptAsync(text, images);
     }
 
-    public async Task SendPromptAsync(string text, IReadOnlyList<ImageAttachment>? images = null)
+    public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
     {
-        images ??= [];
+        attachments ??= [];
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files = attachments.Where(a => a.IsFile).ToList();
         var first = IsNew;
         if (first)
         {
-            Title = SessionTitles.Shorten(text.Length > 0 ? text : "Image");
+            Title = SessionTitles.Shorten(text.Length > 0 ? text : files.Count > 0 ? files[0].Name : "Image");
             IsNew = false;
         }
 
         CloseGroup();
         var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false)
         {
-            Images = images.Select(i => i.Preview).ToList(),
+            Images = images.Select(i => i.Preview!).ToList(),
+            Files = files,
         };
+        text = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
         _unseen = message;
         Items.Add(message);
         IsTurnRunning = true;
@@ -652,7 +674,7 @@ public sealed partial class SessionViewModel : ObservableObject
         try
         {
             await EnsureBackendAsync();
-            await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image).ToList());
+            await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image!).ToList());
 
             // The process now holds the rewind / fork point and the transcript will record it.
             _resumeAt = null;
@@ -924,7 +946,7 @@ public sealed partial class SessionViewModel : ObservableObject
             group.IsExpanded = true;
         }
 
-        foreach (var thinking in Items.OfType<ThinkingItem>())
+        foreach (var thinking in Items.OfType<ThinkingItem>().Concat(Items.OfType<ToolGroupItem>().SelectMany(g => g.Entries.OfType<ThinkingItem>())))
         {
             thinking.IsExpanded = true;
         }
@@ -963,15 +985,15 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 case HistoryUserMessage u:
                     CloseGroup();
-                    Items.Add(new UserMessageItem(u.Text, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true) { ParentUuid = u.ParentUuid });
+                    var (promptText, promptFiles) = AttachedFiles.Split(u.Text);
+                    Items.Add(new UserMessageItem(promptText, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true) { ParentUuid = u.ParentUuid, Files = promptFiles });
                     break;
                 case HistoryAssistantText a:
                     CloseGroup();
                     Items.Add(new AssistantTextItem(a.MessageId, -1, a.Text, streaming: false));
                     break;
                 case HistoryThinking t:
-                    CloseGroup();
-                    Items.Add(new ThinkingItem("", -1, t.Text, streaming: false));
+                    AddThinking(new ThinkingItem("", -1, t.Text, streaming: false));
                     break;
                 case HistoryToolCall c:
                     var call = AddCall(c.ToolUseId, c.Name);
@@ -1222,6 +1244,7 @@ public sealed partial class SessionViewModel : ObservableObject
         _openGroup = null;
         _unseen = null;
         ComposerText = message.Text;
+        AddAttachments(message.Files);
         ContentChanged?.Invoke();
     }
 
@@ -1329,14 +1352,24 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case RemotePromptEvent remote:
-                if (IsNew)
+                CloseGroup();
+
+                // A background task's end, which the CLI hands to Claude in the user's place: a notice, not a prompt.
+                if (TaskNotification.TryParse(remote.Text, out var summary))
                 {
-                    Title = SessionTitles.Shorten(remote.Text);
-                    IsNew = false;
+                    Items.Add(new NoticeItem(summary));
+                }
+                else
+                {
+                    if (IsNew)
+                    {
+                        Title = SessionTitles.Shorten(remote.Text);
+                        IsNew = false;
+                    }
+
+                    Items.Add(new UserMessageItem(remote.Text, remote.Uuid, DateTime.UtcNow, seen: true) { IsRemote = true });
                 }
 
-                CloseGroup();
-                Items.Add(new UserMessageItem(remote.Text, remote.Uuid, DateTime.UtcNow, seen: true) { IsRemote = true });
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 HasRun = true;
@@ -1460,14 +1493,49 @@ public sealed partial class SessionViewModel : ObservableObject
             return existing;
         }
 
-        CloseGroup();
-        TranscriptItem item = kind == AgentBlockKind.Thinking
-            ? new ThinkingItem(messageId, index, "", streaming: true)
-            : new AssistantTextItem(messageId, index, "", streaming: true);
+        TranscriptItem item;
+        if (kind == AgentBlockKind.Thinking)
+        {
+            item = new ThinkingItem(messageId, index, "", streaming: true);
+            AddThinking((ThinkingItem)item);
+        }
+        else
+        {
+            CloseGroup();
+            item = new AssistantTextItem(messageId, index, "", streaming: true);
+            Items.Add(item);
+        }
+
         _blocks[(messageId, index)] = item;
-        Items.Add(item);
         ContentChanged?.Invoke();
         return item;
+    }
+
+    /// <summary>
+    /// As in the desktop app, only text ends an activity group: thinking joins the open group, or stands as its
+    /// own line until a tool call opens a group and takes it in (<see cref="AddCall"/>).
+    /// </summary>
+    private void AddThinking(ThinkingItem thinking)
+    {
+        if (_openGroup is not null && Items.Contains(_openGroup))
+        {
+            _openGroup.AddThinking(thinking);
+        }
+        else
+        {
+            Items.Add(thinking);
+        }
+    }
+
+    private void RemoveThinking(ThinkingItem thinking)
+    {
+        if (!Items.Remove(thinking))
+        {
+            foreach (var group in Items.OfType<ToolGroupItem>())
+            {
+                group.RemoveThinking(thinking);
+            }
+        }
     }
 
     private void CompleteBlock(BlockCompletedEvent c)
@@ -1504,7 +1572,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     if (!thinking.HasText)
                     {
                         // Redacted / omitted thinking: nothing to expand, so no line at all.
-                        Items.Remove(thinking);
+                        RemoveThinking(thinking);
                     }
                 }
 
@@ -1521,12 +1589,25 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (_openGroup is null || !Items.Contains(_openGroup))
         {
+            // The thinking lines just before it become part of the group.
             _openGroup = new ToolGroupItem();
+            var thoughts = new List<ThinkingItem>();
+            while (Items.Count > 0 && Items[^1] is ThinkingItem thinking)
+            {
+                thoughts.Insert(0, thinking);
+                Items.RemoveAt(Items.Count - 1);
+            }
+
+            foreach (var thinking in thoughts)
+            {
+                _openGroup.AddThinking(thinking);
+            }
+
             Items.Add(_openGroup);
         }
 
         var call = new ToolCallItem(toolUseId, name, Folder) { Status = ToolStatus.Running };
-        _openGroup.Calls.Add(call);
+        _openGroup.AddCall(call);
         _calls[toolUseId] = call;
         _groupOfCall[toolUseId] = _openGroup;
         _turnToolCount++;
@@ -1572,7 +1653,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     th.IsStreaming = false;
                     if (!th.HasText)
                     {
-                        Items.Remove(th);
+                        RemoveThinking(th);
                     }
 
                     break;

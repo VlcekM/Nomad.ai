@@ -202,6 +202,32 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <ItemsControl ItemsSource="{Binding Files}" IsVisible="{Binding HasFiles}" Margin="0,4,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="inf:Attachment">
+                  <Border Height="40" MaxWidth="240" Padding="9,0,12,0" CornerRadius="7"
+                          Background="{StaticResource BgInputBrush}"
+                          BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                          ToolTip.Tip="{Binding ToolTip}">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <Panel VerticalAlignment="Center" Margin="0,0,8,0">
+                      <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
+                      <c:Icon Size="15" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
+                    </Panel>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <SelectableTextBlock Text="{Binding Text}"
                                  IsVisible="{Binding HasText}"
                                  TextWrapping="Wrap"
@@ -289,8 +315,48 @@
           </StackPanel>
         </Button>
 
-        <ItemsControl ItemsSource="{Binding Calls}" c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="0,2,0,4">
-          <ItemsControl.ItemTemplate>
+        <ItemsControl ItemsSource="{Binding Entries}" c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="0,2,0,4">
+          <ItemsControl.DataTemplates>
+            <!-- Thinking between the calls: "Thought" and its first line, expanding to the whole text. -->
+            <DataTemplate x:DataType="vm:ThinkingItem">
+              <StackPanel>
+                <Button Theme="{StaticResource FlatButton}"
+                        Command="{Binding ToggleCommand}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch"
+                        Padding="6,0"
+                        Height="28"
+                        Foreground="{StaticResource TextChromeBrush}">
+                  <Grid ColumnDefinitions="Auto,Auto,*">
+                    <c:Icon Data="{StaticResource IconThought}" Stroke="{StaticResource TextMutedBrush}" />
+                    <TextBlock Grid.Column="1"
+                               Text="Thought"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               FontWeight="Medium"
+                               Margin="8,0,10,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding FirstLine}"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Button>
+                <Border c:Fold.IsOpen="{Binding IsExpanded}"
+                        IsVisible="False"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="2,0,0,0"
+                        Padding="12,0,0,0"
+                        Margin="13,2,0,6">
+                  <SelectableTextBlock Text="{Binding DisplayText}"
+                                       TextWrapping="Wrap"
+                                       FontSize="{DynamicResource UiFontSize}"
+                                       LineHeight="20"
+                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                </Border>
+              </StackPanel>
+            </DataTemplate>
             <DataTemplate x:DataType="vm:ToolCallItem">
               <StackPanel>
                 <Button Theme="{StaticResource FlatButton}"
@@ -346,7 +412,7 @@
                 </Border>
               </StackPanel>
             </DataTemplate>
-          </ItemsControl.ItemTemplate>
+          </ItemsControl.DataTemplates>
         </ItemsControl>
       </StackPanel>
     </DataTemplate>
@@ -543,7 +609,7 @@
                   Padding="14,0,10,0"
                   ClipToBounds="True">
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,14,0,0" Height="22">
-              <c:PixelSpinner Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+              <c:ClayMark Activity="{Binding WorkingActivity}" Foreground="{StaticResource AccentBrush}" Margin="-3,0,-3,0" VerticalAlignment="Center" />
               <!-- A highlight sweeps over the words; a new phase ("Thinking" → "Running a command") slides up in. -->
               <TransitioningContentControl Content="{Binding WorkingText}" ClipToBounds="True" Height="22" VerticalAlignment="Center">
                 <TransitioningContentControl.PageTransition>
@@ -680,7 +746,7 @@
                     <TextBlock Text="Queued" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="0,0,10,0" />
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                      <TextBlock Text="{Binding ImagesText}" IsVisible="{Binding HasImages}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding AttachmentsText}" IsVisible="{Binding HasAttachments}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
                     </StackPanel>
                     <Button Grid.Column="2" Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnRemoveQueuedClick" ToolTip.Tip="Remove from the queue">
                       <c:Icon Size="12" Data="{StaticResource IconClose}" />
@@ -760,25 +826,47 @@
           </Transitions>
         </Border.Transitions>
         <Grid RowDefinitions="Auto,Auto">
-        <!-- Attached images: thumbnails with a remove button. -->
-        <ItemsControl Name="AttachmentList" ItemsSource="{Binding Attachments}" Margin="12,10,12,0" IsVisible="{Binding HasAttachments}">
+        <!-- Attached images (thumbnails) and files (chips), each with a remove button. The button overlaps the
+             corner from inside the item's own bounds, so nothing clips it. -->
+        <ItemsControl Name="AttachmentList" ItemsSource="{Binding Attachments}" Margin="10,4,12,0" IsVisible="{Binding HasAttachments}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="8" />
+              <WrapPanel ItemSpacing="4" LineSpacing="2" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="inf:ImageAttachment">
-              <Panel Width="60" Height="60" Cursor="Arrow" ToolTip.Tip="{Binding Name}">
-                <Border CornerRadius="7" ClipToBounds="True" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <DataTemplate x:DataType="inf:Attachment">
+              <Panel Cursor="Arrow" VerticalAlignment="Top" ToolTip.Tip="{Binding ToolTip}">
+                <Border Margin="2,8,8,0"
+                        Height="96" MinWidth="64" MaxWidth="192"
+                        CornerRadius="8" ClipToBounds="True"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        IsVisible="{Binding IsImage}">
                   <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                </Border>
+                <Border Margin="2,8,8,0"
+                        Height="52" MaxWidth="240"
+                        Padding="10,0,14,0"
+                        CornerRadius="8"
+                        Background="{StaticResource BgRaisedBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        IsVisible="{Binding IsFile}">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <Panel VerticalAlignment="Center" Margin="0,0,10,0">
+                      <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
+                      <c:Icon Size="18" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
+                    </Panel>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}" />
+                      <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+                    </StackPanel>
+                  </Grid>
                 </Border>
                 <Button Theme="{StaticResource RoundButton}"
                         Width="20" Height="20"
                         Padding="0"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
-                        Margin="0,-6,-6,0"
                         Click="OnRemoveAttachmentClick"
                         ToolTip.Tip="Remove">
                   <c:Icon Size="10" Data="{StaticResource IconClose}" />
@@ -804,10 +892,10 @@
                       <TextBlock Text="Open folder…" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
-                  <Button Theme="{StaticResource MenuItemButton}" Click="OnAttachImageClick">
+                  <Button Theme="{StaticResource MenuItemButton}" Click="OnAttachFilesClick">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                       <c:Icon Size="13" Data="{StaticResource IconFile}" />
-                      <TextBlock Text="Attach images…" VerticalAlignment="Center" />
+                      <TextBlock Text="Attach files…" VerticalAlignment="Center" />
                     </StackPanel>
                   </Button>
                   <Button Theme="{StaticResource MenuItemButton}" Click="OnSettingsClick">
