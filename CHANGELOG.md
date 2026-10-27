@@ -6,7 +6,8 @@ Newest first: the newest heading is also the version of local builds (`Directory
 ## v1.11.0
 
 - Sessions can be pinned in the sidebar: they sit first under a Pinned heading, never end for being idle and are never
-  auto-archived.
+  auto-archived. Dragging a session onto the "Drop to pin" zone under New pins it (or unpins a pinned one).
+- Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
 - Sidebar multi-select: Ctrl/Shift+click picks several sessions, and the row menu archives or deletes them all.
 - Project cards can be removed from Recent projects (right-click); they come back with the next session there.
 - Pinned project cards show a filled, brighter pin.

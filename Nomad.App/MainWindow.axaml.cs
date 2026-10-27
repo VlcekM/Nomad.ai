@@ -172,6 +172,12 @@ public partial class MainWindow : Window
         AddHandler(PointerReleasedEvent, (_, e) => _clickModifiers = e.KeyModifiers, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
 
+        // A session row dragged onto the zone under New is pinned (a pinned one unpinned).
+        AddHandler(PointerPressedEvent, OnRowDragPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerMovedEvent, OnRowDragMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, OnRowDragReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Sidebar.PointerCaptureLost += (_, _) => EndRowDrag(drop: false);
+
         var settings = vm.Settings;
         if (vm.Dev.Size is { } size)
         {
@@ -357,6 +363,96 @@ public partial class MainWindow : Window
         {
             _vm.ClearPicks();
             _ = _vm.OpenSessionAsync(item);
+        }
+    }
+
+    // ------------------------------------------------------------------ drag to pin
+
+    // The row pressed (and where), until the press ends; dragging once it has moved far enough.
+    private (Button Row, SessionListItemViewModel Item, Point From)? _rowPress;
+    private bool _rowDragging;
+
+    private void OnRowDragPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _rowPress = null;
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && e.KeyModifiers == KeyModifiers.None
+            && (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("sessionrow"))
+                is { DataContext: SessionListItemViewModel { IsRenaming: false } item } row)
+        {
+            _rowPress = (row, item, e.GetPosition(this));
+        }
+    }
+
+    private void OnRowDragMoved(object? sender, PointerEventArgs e)
+    {
+        if (_rowPress is not { } press)
+        {
+            return;
+        }
+
+        var at = e.GetPosition(this);
+        if (!_rowDragging)
+        {
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                _rowPress = null;
+                return;
+            }
+
+            if (Math.Abs(at.X - press.From.X) < 6 && Math.Abs(at.Y - press.From.Y) < 6)
+            {
+                return;
+            }
+
+            // The sidebar takes the pointer from the row, so letting go is no click on it.
+            _rowDragging = true;
+            e.Pointer.Capture(Sidebar);
+            press.Row.Classes.Add("dragged");
+            PinDropText.Text = press.Item.IsPinned ? "Drop to unpin" : "Drop to pin";
+            DragGhostText.Text = press.Item.Title;
+            DragGhost.Opacity = 0.95;
+            Controls.Fold.SetIsOpen(PinDropHost, true);
+        }
+
+        Canvas.SetLeft(DragGhost, at.X + 12);
+        Canvas.SetTop(DragGhost, at.Y + 8);
+        PinDropZone.Classes.Set("over", OverPinDropZone(e));
+        e.Handled = true;
+    }
+
+    private void OnRowDragReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_rowDragging)
+        {
+            var drop = OverPinDropZone(e);
+            EndRowDrag(drop);
+            e.Pointer.Capture(null);
+            e.Handled = true;
+        }
+
+        _rowPress = null;
+    }
+
+    // A little around the zone counts, so the drop doesn't have to be exact.
+    private bool OverPinDropZone(PointerEventArgs e) =>
+        PinDropZone.IsEffectivelyVisible && new Rect(PinDropZone.Bounds.Size).Inflate(6).Contains(e.GetPosition(PinDropZone));
+
+    private void EndRowDrag(bool drop)
+    {
+        if (!_rowDragging || _rowPress is not { } press)
+        {
+            return;
+        }
+
+        _rowDragging = false;
+        _rowPress = null;
+        press.Row.Classes.Remove("dragged");
+        DragGhost.Opacity = 0;
+        PinDropZone.Classes.Remove("over");
+        Controls.Fold.SetIsOpen(PinDropHost, false);
+        if (drop)
+        {
+            _ = _vm.TogglePinnedAsync(press.Item);
         }
     }
 

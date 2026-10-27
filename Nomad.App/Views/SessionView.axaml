@@ -320,9 +320,31 @@
       <Setter Property="RenderTransform" Value="scale(1)" />
     </Style>
 
-    <!-- Images being dragged over the session: the composer lights up. -->
+    <!-- Files being dragged over the session: the composer lights up, and the session says they can go in. -->
     <Style Selector="Border#ComposerBar.dragover">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Panel#DropOverlay">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#DropOverlay.on">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Panel#DropOverlay StackPanel.droptext">
+      <Setter Property="RenderTransform" Value="translateY(4px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#DropOverlay.on StackPanel.droptext">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
     </Style>
 
     <!-- Section headers inside menus -->
@@ -1818,6 +1840,22 @@
         </ScrollViewer>
       </Grid>
     </Border>
+
+    <!-- Files dragged over the session: a dashed frame says they can be dropped anywhere on it. -->
+    <Panel Name="DropOverlay" Grid.RowSpan="4" IsHitTestVisible="False">
+      <Border Background="{DynamicResource BgMainBrush}" Opacity="0.94" CornerRadius="0,8,0,0" />
+      <Rectangle Margin="14"
+                 RadiusX="10" RadiusY="10"
+                 Stroke="{DynamicResource AccentBrush}"
+                 StrokeThickness="1.5"
+                 StrokeDashArray="4,3"
+                 Fill="{DynamicResource AccentSubtleBrush}" />
+      <StackPanel Classes="droptext" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+        <c:Icon Size="22" Data="{StaticResource IconDownload}" Stroke="{DynamicResource AccentBrush}" HorizontalAlignment="Center" />
+        <TextBlock Text="Drop to attach" FontWeight="SemiBold" HorizontalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}" />
+        <TextBlock Text="Images and files go in with your next prompt" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Panel>
 
     <!-- An image, big: from a composer thumbnail or a sent prompt. A click or Esc closes it; ← → step through. -->
     <Panel Name="ImagePreview" Grid.RowSpan="4" Background="Transparent" PointerPressed="OnImagePreviewPressed">

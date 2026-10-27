@@ -93,8 +93,11 @@ public partial class SessionView : UserControl
 
         // Images dropped anywhere on the session are attached; other files go in as their paths.
         DragDrop.SetAllowDrop(this, true);
+        // Moving from one of its controls to another leaves the one and enters the next in the same breath, so the
+        // hint stays put; leaving the window takes it away.
+        AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
-        AddHandler(DragDrop.DragLeaveEvent, (_, _) => ComposerBar.Classes.Remove("dragover"));
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => ShowDropHint(false));
         AddHandler(DragDrop.DropEvent, OnDrop);
     }
 
@@ -1036,13 +1039,19 @@ public partial class SessionView : UserControl
     {
         var any = Vm is { IsPhoneSession: false } && DroppedFiles(e).Any();
         e.DragEffects = any ? DragDropEffects.Copy : DragDropEffects.None;
-        ComposerBar.Classes.Set("dragover", any);
+        ShowDropHint(any);
+    }
+
+    private void ShowDropHint(bool on)
+    {
+        ComposerBar.Classes.Set("dragover", on);
+        DropOverlay.Classes.Set("on", on);
     }
 
     // Images are attached as images, anything else (files, folders) as chips that send their paths.
     private void OnDrop(object? sender, DragEventArgs e)
     {
-        ComposerBar.Classes.Remove("dragover");
+        ShowDropHint(false);
         if (Vm is not { IsPhoneSession: false } vm)
         {
             return;

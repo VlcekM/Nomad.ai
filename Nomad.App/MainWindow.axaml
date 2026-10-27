@@ -107,6 +107,42 @@
             <Style Selector="Button.sessionrow.picked">
               <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
             </Style>
+            <!-- Being dragged (to the pin zone): the row stays in place, faded. -->
+            <Style Selector="Button.sessionrow.dragged">
+              <Setter Property="Opacity" Value="0.4" />
+            </Style>
+            <!-- The pin zone a dragged row can be dropped on: dashed, lighting up while the row is over it. -->
+            <Style Selector="Panel#PinDropZone > Rectangle">
+              <Setter Property="Fill" Value="Transparent" />
+              <Setter Property="Stroke" Value="{DynamicResource BorderInputBrush}" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <BrushTransition Property="Fill" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                  <BrushTransition Property="Stroke" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Panel#PinDropZone.over > Rectangle">
+              <Setter Property="Fill" Value="{DynamicResource AccentSubtleBrush}" />
+              <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+            </Style>
+            <Style Selector="Panel#PinDropZone TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Panel#PinDropZone.over TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            </Style>
+            <Style Selector="Panel#PinDropZone c|Icon">
+              <Setter Property="Stroke" Value="{DynamicResource TextMutedBrush}" />
+            </Style>
+            <Style Selector="Panel#PinDropZone.over c|Icon">
+              <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+            </Style>
             <!-- Idle sessions' titles are a little muted, back to full on hover or when selected. -->
             <Style Selector="Button.sessionrow.idle:not(.selected)">
               <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
@@ -515,9 +551,9 @@
             </Grid>
           </Border>
 
-          <!-- New -->
-          <Button Grid.Row="2"
-                  Theme="{StaticResource RowButton}"
+          <!-- New, and under it, while a session row is dragged, the zone that pins (or unpins) it. -->
+          <StackPanel Grid.Row="2">
+          <Button Theme="{StaticResource RowButton}"
                   Classes.selected="{Binding IsNewSelected}"
                   Command="{Binding NewSessionCommand}"
                   Height="26"
@@ -530,6 +566,16 @@
               <TextBlock Text="New" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <Border Name="PinDropHost" IsVisible="False" Padding="8,6,11,0">
+            <Panel Name="PinDropZone" Height="32">
+              <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="1" StrokeDashArray="4,3" />
+              <StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <c:Icon Size="13" Data="{StaticResource IconPin}" VerticalAlignment="Center" />
+                <TextBlock Name="PinDropText" Text="Drop to pin" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Panel>
+          </Border>
+          </StackPanel>
 
           <!-- Alive: sessions with a running CLI process. The heading folds the list. -->
           <Grid Grid.Row="3" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,3" Height="24" Background="Transparent"
@@ -1204,5 +1250,26 @@
         </Grid>
       </Border>
     </Panel>
+
+    <!-- A session row being dragged: its title follows the pointer. -->
+    <Canvas IsHitTestVisible="False">
+      <Border Name="DragGhost"
+              Opacity="0"
+              MaxWidth="240"
+              Height="26"
+              Padding="10,0"
+              CornerRadius="6"
+              Background="{DynamicResource BgMenuBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 4 14 0 #40000000">
+        <Border.Transitions>
+          <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          </Transitions>
+        </Border.Transitions>
+        <TextBlock Name="DragGhostText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </Border>
+    </Canvas>
   </Panel>
 </Window>
