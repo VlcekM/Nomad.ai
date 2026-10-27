@@ -136,9 +136,9 @@ public static class MarkdownRenderer
         }
     }
 
-    private static SelectableTextBlock NewTextBlock(double size, double lineHeight, IBrush foreground)
+    private static MarkdownTextBlock NewTextBlock(double size, double lineHeight, IBrush foreground)
     {
-        var tb = new SelectableTextBlock
+        var tb = new MarkdownTextBlock
         {
             FontSize = size,
             LineHeight = lineHeight,
@@ -189,8 +189,7 @@ public static class MarkdownRenderer
                     AddInlines(target, links, emphasis, s);
                     break;
                 case CodeInline code:
-                    target.Add(CodePill(code.Content));
-                    LinkSupport.Advance(target, 1);
+                    AppendCode(target, code.Content);
                     break;
                 case LinkInline { IsImage: true } image:
                     Append(target, "[" + PlainText(image) + "]", style);
@@ -276,29 +275,29 @@ public static class MarkdownRenderer
         }
     }
 
-    private static InlineUIContainer CodePill(string code)
+    // Real text, so its letters select like the rest; MarkdownTextBlock draws the pill behind it.
+    private static void AppendCode(InlineCollection target, string code)
     {
-        var style = MarkdownStyle.Current;
-        var text = new TextBlock
+        if (code.Length == 0)
         {
-            Text = code,
+            return;
+        }
+
+        // A thin space each side keeps the pill off its neighbours (and comes out again on copy).
+        target.Add(new Run(MarkdownTextBlock.PillGap));
+        LinkSupport.Advance(target, 1);
+        var style = MarkdownStyle.Current;
+        var start = LinkSupport.Position(target);
+        target.Add(new Run(code)
+        {
             FontFamily = style.CodeFont,
             FontSize = style.CodeSize,
             Foreground = InlineCode,
-            LineHeight = style.CodeSize + 4,
-        };
-        var border = new Border
-        {
-            Background = RaisedBg,
-            BorderBrush = Brush("InlineCodeBorderBrush", Color.Parse("#393939")),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(4, 0, 4, 0),
-            // Sit the pill on the text baseline: its text baseline lines up with the run's.
-            Margin = new Thickness(1, 0, 1, -Math.Round(style.CodeSize * 0.32)),
-            Child = text,
-        };
-        return new InlineUIContainer(border);
+        });
+        LinkSupport.Advance(target, code.Length);
+        MarkdownTextBlock.AddCodeRange(target, start, code.Length);
+        target.Add(new Run(MarkdownTextBlock.PillGap));
+        LinkSupport.Advance(target, 1);
     }
 
     private static string PlainText(ContainerInline container)
