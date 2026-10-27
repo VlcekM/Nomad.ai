@@ -3,11 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
-## v1.12.0
+## v1.13.0
 
-- Sessions can be pinned by dragging: a "Drop to pin" zone opens under New while a session is dragged (a pinned one
-  is unpinned there).
-- Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
+- The composer shows Markdown as it is typed: bold, italic, struck text, headings, quotes and links get their style
+  and the syntax around them is dimmed; `code` turns into a pill and fenced code blocks get a panel in the code font.
+- Lists in the composer: `- ` and `1. ` stand in from the left with a dot or number, Shift+Enter starts the next item
+  (numbered on) and ends the list in an empty one, Tab and Shift+Tab nest items, Backspace after a marker drops it.
+- Typing ``` at the start of a line opens a code block and closes it below, with the caret inside.
+- Running subagents each get a pulsing line below the chat (model, latest thought, time) and a mark in the sidebar.
+- Session rows fade their background without a white flash when the selection moves.
 - Alive and Idle scroll together in one list, headings and all; the Alive list is no longer capped in height.
 - The sidebar search has a × that clears it, shown while something is typed.
 - Color themes (Settings › Appearance): duplicate a theme and change any of its colors, for the dark and the light
@@ -16,6 +20,12 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - Light mode: darker text, with more contrast against the white and paper backgrounds; the sidebar is now the lighter
   of the two backgrounds.
 - The accent is a copper of its own (#D2784B), a shade off the terracotta it was.
+
+## v1.12.0
+
+- Sessions can be pinned by dragging: a "Drop to pin" zone opens under New while a session is dragged (a pinned one
+  is unpinned there).
+- Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
 
 ## v1.11.0
 
