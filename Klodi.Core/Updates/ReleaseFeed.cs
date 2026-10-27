@@ -80,7 +80,10 @@ public sealed class ReleaseFeed(HttpClient http, string repository, string cache
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    problem = $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase}" + (body is null ? "" : "; showing the last list");
+                    // Anonymous requests get 404 for a private repository as well as a missing one.
+                    problem = (response.StatusCode == HttpStatusCode.NotFound
+                        ? $"GitHub has no public releases of {repository}"
+                        : $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase}") + (body is null ? "" : "; showing the last list");
                     pages.Clear();
                     break;
                 }

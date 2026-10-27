@@ -1,11 +1,21 @@
+using System.Collections.ObjectModel;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Klodi.App.Infrastructure;
+using Klodi.App.Updates;
 using Klodi.Core.Process;
 using Klodi.Core.Settings;
+using Klodi.Core.Updates;
 
 namespace Klodi.App.ViewModels;
+
+public enum SettingsPageKind
+{
+    General,
+    ClaudeCode,
+    Updates,
+}
 
 /// <summary>
 /// The settings dialog. Every change is written to <see cref="KlodiSettings"/> and saved at once;
@@ -18,6 +28,8 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private readonly MainViewModel _main;
     private readonly bool _loaded;
+    private ReleaseList? _releaseList;
+    private bool _releasesRequested;
 
     public SettingsViewModel(MainViewModel main)
     {
@@ -34,6 +46,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         CliPath = s.CliPath;
         DisplayName = s.DisplayName ?? "";
         HardwareAcceleration = s.HardwareAcceleration;
+        AutoUpdate = s.AutoUpdate;
+        IncludePrereleases = s.IncludePrereleases;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
@@ -56,16 +70,27 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ------------------------------------------------------------------ navigation
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsClaudeCodePage))]
-    public partial bool IsGeneralPage { get; set; } = true;
+    [NotifyPropertyChangedFor(nameof(IsGeneralPage), nameof(IsClaudeCodePage), nameof(IsUpdatesPage))]
+    public partial SettingsPageKind Page { get; set; }
 
-    public bool IsClaudeCodePage => !IsGeneralPage;
+    public bool IsGeneralPage => Page == SettingsPageKind.General;
+
+    public bool IsClaudeCodePage => Page == SettingsPageKind.ClaudeCode;
+
+    public bool IsUpdatesPage => Page == SettingsPageKind.Updates;
 
     [RelayCommand]
-    private void ShowGeneral() => IsGeneralPage = true;
+    private void ShowGeneral() => Page = SettingsPageKind.General;
 
     [RelayCommand]
-    private void ShowClaudeCode() => IsGeneralPage = false;
+    private void ShowClaudeCode() => Page = SettingsPageKind.ClaudeCode;
+
+    [RelayCommand]
+    private void ShowUpdates()
+    {
+        Page = SettingsPageKind.Updates;
+        _ = LoadReleasesAsync();
+    }
 
     // ------------------------------------------------------------------ General › Appearance
 
@@ -164,6 +189,94 @@ public sealed partial class SettingsViewModel : ObservableObject
         var resolved = CliLocator.Resolve(string.IsNullOrWhiteSpace(CliPath) ? "claude" : CliPath.Trim());
         CliFound = resolved is not null;
         CliStatus = resolved is not null ? "Found: " + resolved : "Not found on PATH or at that location";
+    }
+
+    // ------------------------------------------------------------------ Updates
+
+    public UpdateService Updates => _main.Updates;
+
+    [ObservableProperty]
+    public partial bool AutoUpdate { get; set; }
+
+    [ObservableProperty]
+    public partial bool IncludePrereleases { get; set; }
+
+    /// <summary>The repository's releases, newest first (pre-releases only with the setting on).</summary>
+    public ObservableCollection<ReleaseItemViewModel> Releases { get; } = [];
+
+    /// <summary>"Loading releases…", why GitHub could not be asked, or that there are none; null when the list says it all.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasReleasesStatus))]
+    public partial string? ReleasesStatus { get; set; }
+
+    public bool HasReleasesStatus => !string.IsNullOrEmpty(ReleasesStatus);
+
+    [RelayCommand]
+    private void ToggleAutoUpdate() => AutoUpdate = !AutoUpdate;
+
+    [RelayCommand]
+    private void ToggleIncludePrereleases() => IncludePrereleases = !IncludePrereleases;
+
+    partial void OnAutoUpdateChanged(bool value) => Apply(s => s.AutoUpdate = value, appearance: false);
+
+    partial void OnIncludePrereleasesChanged(bool value)
+    {
+        Apply(s => s.IncludePrereleases = value, appearance: false);
+        if (_loaded)
+        {
+            Updates.OnPrereleasesChanged();
+            ShowReleases();
+        }
+    }
+
+    /// <summary>Reads the release list the first time the Updates page is shown (once per run; the feed caches it).</summary>
+    private async Task LoadReleasesAsync()
+    {
+        if (_releasesRequested)
+        {
+            return;
+        }
+
+        _releasesRequested = true;
+        ReleasesStatus = "Loading releases…";
+        try
+        {
+            _releaseList = await Updates.GetReleasesAsync();
+        }
+        catch (Exception ex)
+        {
+            ReleasesStatus = "The releases could not be read: " + ex.GetBaseException().Message;
+            return;
+        }
+
+        ShowReleases();
+    }
+
+    private void ShowReleases()
+    {
+        if (_releaseList is not { } list)
+        {
+            return;
+        }
+
+        Releases.Clear();
+        var expanded = 0;
+        foreach (var release in list.Releases)
+        {
+            var installed = Updates.IsCurrent(release.Version);
+            if (release.Prerelease && !IncludePrereleases && !installed)
+            {
+                continue;
+            }
+
+            // The newest release and the ones newer than this build (up to five) start expanded.
+            var newer = Updates.IsNewer(release.Version);
+            var expand = Releases.Count == 0 || (newer && expanded < 5);
+            expanded += expand ? 1 : 0;
+            Releases.Add(new ReleaseItemViewModel(release, installed, newer) { IsExpanded = expand });
+        }
+
+        ReleasesStatus = list.Problem ?? (Releases.Count == 0 ? "No releases yet." : null);
     }
 
     // ------------------------------------------------------------------ helpers

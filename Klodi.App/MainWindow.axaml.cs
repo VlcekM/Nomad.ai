@@ -248,6 +248,13 @@ public partial class MainWindow : Window
             {
                 _vm.SettingsPage?.ShowClaudeCodeCommand.Execute(null);
             }
+            else if (dev.SettingsUpdatesPage)
+            {
+                _vm.SettingsPage?.ShowUpdatesCommand.Execute(null);
+
+                // The release list comes from GitHub: wait for it (at most 20 s).
+                await Task.WhenAny(_vm.Updates.GetReleasesAsync(), Task.Delay(TimeSpan.FromSeconds(20)));
+            }
         }
 
         if (dev.Menu is { } menu)
