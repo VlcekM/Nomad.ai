@@ -25,6 +25,9 @@ public sealed class NomadSettings
     /// <summary>Show the activity lines (thinking, tool groups such as "Read a file"); off: only prompts and replies.</summary>
     public bool ShowActivity { get; set; } = true;
 
+    /// <summary>The ring at the end of the status row (plan usage; spins while a turn runs, opens the usage limits).</summary>
+    public bool ShowUsageRing { get; set; } = true;
+
     /// <summary>After a turn, the CLI guesses the next prompt; it shows as ghost text in an empty composer.</summary>
     public bool PromptSuggestions { get; set; } = true;
 

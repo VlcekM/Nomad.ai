@@ -452,6 +452,25 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The usage ring at the end of the status row.</summary>
+    public bool ShowUsageRing
+    {
+        get => Settings.ShowUsageRing;
+        set
+        {
+            if (Settings.ShowUsageRing != value)
+            {
+                Settings.ShowUsageRing = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnShowUsageRingChanged();
+                }
+            }
+        }
+    }
+
     public void SetGrouping(string id)
     {
         Settings.SessionGrouping = id;
@@ -1087,9 +1106,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// The newest sessions on a branch get their GitHub pull request and issue (gh, cached per repository for a few
     /// minutes): an icon each on their rows.
     /// </summary>
-    private async Task LoadGitHubLinksAsync()
+    private async Task LoadGitHubLinksAsync(SessionListItemViewModel? only = null)
     {
-        var rows = _all.Where(s => s.WorkingDirectory is not null && !string.IsNullOrEmpty(s.GitBranch) && s.GitBranch != "HEAD")
+        var rows = (only is null ? _all : [only])
+            .Where(s => s.WorkingDirectory is not null && !string.IsNullOrEmpty(s.GitBranch) && s.GitBranch != "HEAD")
             .Take(GitHubLinkSessions)
             .ToList();
         var lookups = rows.GroupBy(s => s.WorkingDirectory!, StringComparer.OrdinalIgnoreCase)
@@ -1125,6 +1145,28 @@ public sealed partial class MainViewModel : ObservableObject
                 row.Issue = issue ?? links.IssueFor(row.GitBranch, row.Title, null);
             }
         }
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex PullRequestUrl = new(
+        @"https://github\.com/[\w.-]+/[\w.-]+/pull/\d+", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// A pull request a live session has just mentioned (one it opened, say) comes onto its row at once, its icon
+    /// fading in, rather than at the next rescan.
+    /// </summary>
+    public void OnGitHubLinksMentioned(SessionViewModel session, string text)
+    {
+        if (!text.Contains("github.com/", StringComparison.Ordinal)
+            || PullRequestUrl.Matches(text).LastOrDefault()?.Value is not { } url
+            || session.SessionId is not { } id
+            || _all.FirstOrDefault(s => s.SessionId == id) is not { } row
+            || (row.HasPullRequest && string.Equals(row.PullRequestUrl, url, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        row.PullRequestUrl = url;
+        _ = LoadGitHubLinksAsync(row);
     }
 
     /// <summary>Every listed session, newest first (archived ones too): what the session search looks through.</summary>

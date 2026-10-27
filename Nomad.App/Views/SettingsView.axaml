@@ -217,6 +217,20 @@
                   </StackPanel>
                 </Border>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Usage ring" Classes="rowlabel" />
+                  <TextBlock Text="The ring at the end of the status row: your weekly plan usage, spinning while Claude works. Click it for the usage limits."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleShowUsageRingCommand}">
+                  <Border Classes="switch" Classes.on="{Binding ShowUsageRing}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
 
               <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">

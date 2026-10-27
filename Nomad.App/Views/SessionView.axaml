@@ -77,6 +77,25 @@
       <Setter Property="MaxHeight" Value="40" />
     </Style>
 
+    <!-- The usage ring at the end of the status row; turned off in the settings, it folds away. -->
+    <Style Selector="Button#UsageChip">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Margin" Value="2,0,8,0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button#UsageChip.off">
+      <Setter Property="Width" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
     <Style Selector="Border.pill">
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,0" />
@@ -1582,8 +1601,9 @@
       <Button Name="UsageChip"
               Grid.Column="5"
               Theme="{StaticResource ChipButton}"
-              Width="30" Padding="0"
-              Margin="2,0,8,0"
+              Padding="0"
+              Classes.off="{Binding !ShowUsageRing}"
+              ClipToBounds="True"
               HorizontalContentAlignment="Center">
         <!-- The weekly plan limit: how much is used, and when it resets. -->
         <ToolTip.Tip>
@@ -1595,12 +1615,19 @@
         </ToolTip.Tip>
         <c:Ring Width="17" Height="17"
                 StrokeWidth="2"
-                IsSpinning="{Binding IsTurnRunning}"
                 Fraction="{Binding Usage.WeeklyFraction}"
                 TrackBrush="{DynamicResource RingTrackBrush}"
                 ArcBrush="{DynamicResource RingBrush}"
                 SpinBrush="{DynamicResource RingBrush}"
-                VerticalAlignment="Center" />
+                VerticalAlignment="Center">
+          <!-- Hidden, it doesn't spin either. -->
+          <c:Ring.IsSpinning>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsTurnRunning" />
+              <Binding Path="ShowUsageRing" />
+            </MultiBinding>
+          </c:Ring.IsSpinning>
+        </c:Ring>
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
             <StackPanel Width="320" Margin="8,4,8,6" Spacing="10">
@@ -1739,7 +1766,9 @@
     </Border>
 
     <!-- An image, big: from a composer thumbnail or a sent prompt. A click or Esc closes it; ← → step through. -->
-    <Panel Name="ImagePreview" Grid.RowSpan="4" Background="#D90A0A0A" PointerPressed="OnImagePreviewPressed">
+    <Panel Name="ImagePreview" Grid.RowSpan="4" Background="Transparent" PointerPressed="OnImagePreviewPressed">
+      <!-- The dimmed backdrop, its upper right corner rounded where it meets the title bar. -->
+      <Border Background="#D90A0A0A" CornerRadius="0,8,0,0" />
       <StackPanel Classes="frame" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" Margin="48">
         <Border CornerRadius="8" ClipToBounds="True" BoxShadow="0 8 32 0 #80000000" HorizontalAlignment="Center">
           <Image Name="PreviewImage" Stretch="Uniform" StretchDirection="DownOnly" />

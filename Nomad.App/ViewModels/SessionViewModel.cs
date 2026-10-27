@@ -785,6 +785,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void OnShowActivityChanged() => OnPropertyChanged(nameof(ShowActivity));
 
+    /// <summary>The usage ring is shown in the status row (a setting).</summary>
+    public bool ShowUsageRing => _main.ShowUsageRing;
+
+    public void OnShowUsageRingChanged() => OnPropertyChanged(nameof(ShowUsageRing));
+
     [RelayCommand]
     private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
 
@@ -2129,6 +2134,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case BlockCompletedEvent c when c.ParentToolUseId is null:
                 CompleteBlock(c);
+                if (c.Kind == AgentBlockKind.Text && c.Text is { } said)
+                {
+                    _main.OnGitHubLinksMentioned(this, said);
+                }
+
                 break;
 
             case ToolCallEvent call when call.ParentToolUseId is null:
@@ -2144,6 +2154,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case ToolResultEvent r when r.ParentToolUseId is null:
                 CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+                _main.OnGitHubLinksMentioned(this, r.Text);
 
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
                 if (_subagentById.TryGetValue(r.ToolUseId, out var finished))

@@ -56,6 +56,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         CloseToTray = s.CloseToTray;
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
+        ShowUsageRing = s.ShowUsageRing;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
@@ -284,6 +285,20 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ToggleFlashTaskbar() => FlashTaskbar = !FlashTaskbar;
 
     partial void OnFlashTaskbarChanged(bool value) => Apply(s => s.FlashTaskbar = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool ShowUsageRing { get; set; }
+
+    [RelayCommand]
+    private void ToggleShowUsageRing() => ShowUsageRing = !ShowUsageRing;
+
+    partial void OnShowUsageRingChanged(bool value)
+    {
+        if (_loaded)
+        {
+            _main.ShowUsageRing = value;
+        }
+    }
 
     /// <summary>Folders the phone can start sessions in, each with its server's state.</summary>
     public ObservableCollection<PhoneFolderRow> PhoneFolders { get; } = [];
