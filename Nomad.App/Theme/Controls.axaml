@@ -1,0 +1,410 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Control themes. Nomad replaces Fluent's button/textbox/scrollbar templates with flat ones, so
+    hover and pressed states are exactly the palette's (Bg.Hover etc.) instead of Fluent's.
+  -->
+
+  <!-- Flat button: transparent, Bg.Hover on hover. The base of every Nomad button. -->
+  <ControlTheme x:Key="FlatButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}"
+                          Padding="{TemplateBinding Padding}"
+                          Content="{TemplateBinding Content}"
+                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                          Foreground="{TemplateBinding Foreground}"
+                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="#16FFFFFF" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.45" />
+    </Style>
+  </ControlTheme>
+
+  <!-- 28x28 icon button (title bar, composer "+", sidebar header "+"). -->
+  <ControlTheme x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </ControlTheme>
+
+  <!-- Window caption buttons, 46x36 (close turns Windows red). -->
+  <ControlTheme x:Key="CaptionButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Width" Value="46" />
+    <Setter Property="Height" Value="36" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^.close:pointerover">
+      <Setter Property="Background" Value="{StaticResource CaptionCloseHoverBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="^.close:pressed">
+      <Setter Property="Background" Value="#A32519" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Sidebar rows: 30 px, radius 6, selected = Bg.Selected + weight 500. -->
+  <ControlTheme x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="10,0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^.selected">
+      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Status-row chips (folder, mode, model): flat, Bg.Chip when hovered or open. -->
+  <ControlTheme x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="7,0" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+    </Style>
+    <Style Selector="^.open">
+      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+    </Style>
+    <!-- The current model among the model chips. -->
+    <Style Selector="^.selected">
+      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Popup menu items: 24 px rows, radius 6. -->
+  <ControlTheme x:Key="MenuItemButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="FontWeight" Value="Normal" />
+  </ControlTheme>
+
+  <!-- Text-only line (tool groups, thinking): muted, brighter on hover, no fill. -->
+  <ControlTheme x:Key="LineButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Padding" Value="0,2" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Small square button on the agent status line (stop). -->
+  <ControlTheme x:Key="SquareButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Background" Value="#373737" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="#424242" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Round "scroll to bottom" button. -->
+  <ControlTheme x:Key="RoundButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Background" Value="{StaticResource BgRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Composer send / stop: 28 px, accent fill for send. -->
+  <ControlTheme x:Key="SendButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+    </Style>
+    <Style Selector="^.stop">
+      <Setter Property="Background" Value="#373737" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="^.stop:pointerover">
+      <Setter Property="Background" Value="#444442" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Rows of the new-session folder card: 34 px. -->
+  <ControlTheme x:Key="CardRowButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Height" Value="34" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Question card option: a text row flush with the question; hover fill, brighter when chosen. -->
+  <ControlTheme x:Key="OptionButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Margin" Value="-8,0" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="^.selected">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Primary: accent fill, dark label. -->
+  <ControlTheme x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Secondary: raised fill with a border. -->
+  <ControlTheme x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Background" Value="{StaticResource BgRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Ghost: label only; Deny turns Danger on hover. -->
+  <ControlTheme x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Style Selector="^.danger:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Text box without chrome (composer, search boxes); the host draws the frame. -->
+  <ControlTheme x:Key="BareTextBox" TargetType="TextBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Cursor" Value="IBeam" />
+    <Setter Property="SelectionBrush" Value="#553A6EA5" />
+    <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="ScrollViewer.IsScrollChainingEnabled" Value="True" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+          <ScrollViewer Name="PART_ScrollViewer"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}"
+                        AllowAutoHide="True">
+            <Panel>
+              <TextBlock Name="PART_Watermark"
+                         Text="{TemplateBinding Watermark}"
+                         Foreground="{StaticResource TextMutedBrush}"
+                         TextWrapping="{TemplateBinding TextWrapping}"
+                         VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                         IsHitTestVisible="False"
+                         IsVisible="{TemplateBinding Text, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+              <TextPresenter Name="PART_TextPresenter"
+                             Text="{TemplateBinding Text, Mode=TwoWay}"
+                             CaretBlinkInterval="{TemplateBinding CaretBlinkInterval}"
+                             CaretIndex="{TemplateBinding CaretIndex}"
+                             SelectionStart="{TemplateBinding SelectionStart}"
+                             SelectionEnd="{TemplateBinding SelectionEnd}"
+                             TextAlignment="{TemplateBinding TextAlignment}"
+                             TextWrapping="{TemplateBinding TextWrapping}"
+                             LineHeight="{TemplateBinding LineHeight}"
+                             PasswordChar="{TemplateBinding PasswordChar}"
+                             RevealPassword="{TemplateBinding RevealPassword}"
+                             SelectionBrush="{TemplateBinding SelectionBrush}"
+                             SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                             CaretBrush="{TemplateBinding CaretBrush}"
+                             VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </Panel>
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
+  <!-- Thin scrollbars: 6 px thumb, no track or arrows; shown while the pointer is over the scroll area. -->
+  <ControlTheme x:Key="ThinThumb" TargetType="Thumb">
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="ThumbVisual" Background="{StaticResource ScrollThumbBrush}" CornerRadius="3" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover /template/ Border#ThumbVisual">
+      <Setter Property="Background" Value="{StaticResource ScrollThumbHoverBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <ControlTheme x:Key="{x:Type ScrollBar}" TargetType="ScrollBar">
+    <Setter Property="Cursor" Value="Arrow" />
+    <Style Selector="^:vertical">
+      <Setter Property="Width" Value="10" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Track Name="PART_Track"
+                 Margin="2,2"
+                 Minimum="{TemplateBinding Minimum}"
+                 Maximum="{TemplateBinding Maximum}"
+                 Value="{TemplateBinding Value, Mode=TwoWay}"
+                 ViewportSize="{TemplateBinding ViewportSize}"
+                 Orientation="{TemplateBinding Orientation}"
+                 IsDirectionReversed="True">
+            <Thumb Theme="{StaticResource ThinThumb}" Width="6" HorizontalAlignment="Center" />
+          </Track>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="^:horizontal">
+      <Setter Property="Height" Value="10" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Track Name="PART_Track"
+                 Margin="2,2"
+                 Minimum="{TemplateBinding Minimum}"
+                 Maximum="{TemplateBinding Maximum}"
+                 Value="{TemplateBinding Value, Mode=TwoWay}"
+                 ViewportSize="{TemplateBinding ViewportSize}"
+                 Orientation="{TemplateBinding Orientation}">
+            <Thumb Theme="{StaticResource ThinThumb}" Height="6" VerticalAlignment="Center" />
+          </Track>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+  </ControlTheme>
+
+  <!-- Segmented control segment (settings): checked = lighter fill with a 1 px border. -->
+  <ControlTheme x:Key="SegmentButton" TargetType="RadioButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="11,0" />
+    <Setter Property="Height" Value="27" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <ContentPresenter Name="PART_ContentPresenter"
+                          Background="{TemplateBinding Background}"
+                          BorderBrush="{TemplateBinding BorderBrush}"
+                          BorderThickness="{TemplateBinding BorderThickness}"
+                          CornerRadius="{TemplateBinding CornerRadius}"
+                          Padding="{TemplateBinding Padding}"
+                          Content="{TemplateBinding Content}"
+                          Foreground="{TemplateBinding Foreground}"
+                          VerticalContentAlignment="Center"
+                          HorizontalContentAlignment="Center" />
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="^:checked">
+      <Setter Property="Background" Value="#3C3C3A" />
+      <Setter Property="BorderBrush" Value="#4C4C4C" />
+      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Settings navigation rows: 32 px, selected = #383838. -->
+  <ControlTheme x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="#DCDCD8" />
+    <Style Selector="^.selected">
+      <Setter Property="Background" Value="#383838" />
+    </Style>
+  </ControlTheme>
+</ResourceDictionary>

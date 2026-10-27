@@ -5,7 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
-    <Product>Klodi</Product>
+    <Product>Nomad.ai</Product>
     <!-- The newest CHANGELOG.md section's version, so local builds match the latest release; the release workflow passes -p:Version. -->
     <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)CHANGELOG.md')), '(?m)^## v(\S+)').Groups[1].Value)</Version>
     <Copyright>Martin Vlček</Copyright>

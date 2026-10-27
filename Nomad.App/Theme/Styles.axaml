@@ -1,0 +1,113 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:c="using:Nomad.App.Controls"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{StaticResource BgMainBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+  </Style>
+
+  <!-- Every scroller eases to its wheel target instead of jumping (Controls/SmoothScroll.cs). -->
+  <Style Selector="ScrollViewer">
+    <Setter Property="c:SmoothScroll.IsEnabled" Value="True" />
+  </Style>
+
+  <!-- Text roles -->
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.chrome">
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+  </Style>
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.section">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.label">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="0.6" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+  </Style>
+  <Style Selector="TextBlock.mono, SelectableTextBlock.mono">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+  </Style>
+
+  <Style Selector="SelectableTextBlock">
+    <Setter Property="SelectionBrush" Value="#553A6EA5" />
+  </Style>
+
+  <!-- Scrollbars appear while the pointer is over the scroll area (or while scrolling). -->
+  <Style Selector="ScrollViewer /template/ ScrollBar">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ScrollViewer:pointerover /template/ ScrollBar">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
+  <!-- Popup menus -->
+  <Style Selector="FlyoutPresenter.menu">
+    <Setter Property="Background" Value="{StaticResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MaxWidth" Value="480" />
+    <Setter Property="MaxHeight" Value="640" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+  </Style>
+  <Style Selector="FlyoutPresenter.menu /template/ Border#LayoutRoot">
+    <Setter Property="BoxShadow" Value="0 8 24 0 #73000000" />
+  </Style>
+
+  <!-- Separators inside menus and lists -->
+  <!-- On/off switch (fast mode): a pill with a sliding knob. -->
+  <Style Selector="Border.switch">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="Background" Value="#4A4A48" />
+    <Setter Property="Padding" Value="2" />
+  </Style>
+  <Style Selector="Border.switch.on">
+    <Setter Property="Background" Value="{StaticResource RingBrush}" />
+  </Style>
+  <Style Selector="Border.switch > Ellipse">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
+    <Setter Property="Fill" Value="White" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Border.switch.on > Ellipse">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+
+  <Style Selector="Border.rule">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Background" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Margin" Value="6,4" />
+  </Style>
+
+  <!-- Tooltips -->
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{StaticResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    <Setter Property="Padding" Value="8,5" />
+  </Style>
+</Styles>

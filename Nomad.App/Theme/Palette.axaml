@@ -1,0 +1,107 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Nomad palette. Values measured off the reference screenshots of the pre-restyle Claude
+    desktop app (docs/reference, 1920x1080 at 100 %); where DESIGN.md's estimates differ, the
+    screenshots win. Accent values are the exact brand tokens.
+  -->
+
+  <!-- Surfaces -->
+  <Color x:Key="BgSidebarColor">#101010</Color>
+  <Color x:Key="BgMainColor">#141414</Color>
+  <Color x:Key="BgRaisedColor">#1F1F1F</Color>
+  <Color x:Key="BgSelectedColor">#2B2B29</Color>
+  <Color x:Key="BgHoverColor">#0BFFFFFF</Color>
+  <Color x:Key="BgInputColor">#20201E</Color>
+  <Color x:Key="BgSearchColor">#1C1C1C</Color>
+  <Color x:Key="BgCodeColor">#1A1A19</Color>
+  <Color x:Key="BgChipColor">#262626</Color>
+  <Color x:Key="BgMenuColor">#20201E</Color>
+  <Color x:Key="BgOverlayColor">#80000000</Color>
+
+  <!-- Lines -->
+  <Color x:Key="BorderColor">#363636</Color>
+  <Color x:Key="BorderInputColor">#4C4C4C</Color>
+  <Color x:Key="BorderCardColor">#2C2C2C</Color>
+  <Color x:Key="BorderDividerColor">#282828</Color>
+  <Color x:Key="BorderSubtleColor">#10FFFFFF</Color>
+
+  <!-- Text -->
+  <Color x:Key="TextPrimaryColor">#EEEDE8</Color>
+  <Color x:Key="TextChromeColor">#C4C3BB</Color>
+  <Color x:Key="TextSecondaryColor">#A8A6A0</Color>
+  <Color x:Key="TextMutedColor">#8A8883</Color>
+  <Color x:Key="TextOnAccentColor">#1A1A1A</Color>
+
+  <!-- Accents and states -->
+  <Color x:Key="AccentColor">#D97757</Color>
+  <Color x:Key="AccentEmphasisColor">#C6613F</Color>
+  <Color x:Key="AccentSubtleColor">#24D97757</Color>
+  <Color x:Key="SuccessColor">#3FA548</Color>
+  <Color x:Key="DiffAddColor">#52C664</Color>
+  <Color x:Key="DiffAddBgColor">#1B3B20</Color>
+  <Color x:Key="DiffDelColor">#E0485E</Color>
+  <Color x:Key="DiffDelBgColor">#431B20</Color>
+  <Color x:Key="DangerColor">#E0605A</Color>
+  <Color x:Key="DangerSubtleColor">#1FE0605A</Color>
+  <Color x:Key="LinkColor">#6FA2EA</Color>
+  <Color x:Key="UnreadColor">#327CD7</Color>
+  <Color x:Key="CheckColor">#2A74CC</Color>
+  <Color x:Key="RingColor">#2A78D6</Color>
+  <Color x:Key="InlineCodeColor">#DE8170</Color>
+  <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
+
+  <SolidColorBrush x:Key="BgSidebarBrush" Color="{StaticResource BgSidebarColor}" />
+  <SolidColorBrush x:Key="BgMainBrush" Color="{StaticResource BgMainColor}" />
+  <SolidColorBrush x:Key="BgRaisedBrush" Color="{StaticResource BgRaisedColor}" />
+  <SolidColorBrush x:Key="BgSelectedBrush" Color="{StaticResource BgSelectedColor}" />
+  <SolidColorBrush x:Key="BgHoverBrush" Color="{StaticResource BgHoverColor}" />
+  <SolidColorBrush x:Key="BgInputBrush" Color="{StaticResource BgInputColor}" />
+  <SolidColorBrush x:Key="BgSearchBrush" Color="{StaticResource BgSearchColor}" />
+  <SolidColorBrush x:Key="BgCodeBrush" Color="{StaticResource BgCodeColor}" />
+  <SolidColorBrush x:Key="BgChipBrush" Color="{StaticResource BgChipColor}" />
+  <SolidColorBrush x:Key="BgMenuBrush" Color="{StaticResource BgMenuColor}" />
+  <SolidColorBrush x:Key="BgOverlayBrush" Color="{StaticResource BgOverlayColor}" />
+  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+  <SolidColorBrush x:Key="BorderInputBrush" Color="{StaticResource BorderInputColor}" />
+  <SolidColorBrush x:Key="BorderCardBrush" Color="{StaticResource BorderCardColor}" />
+  <SolidColorBrush x:Key="BorderDividerBrush" Color="{StaticResource BorderDividerColor}" />
+  <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtleColor}" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+  <SolidColorBrush x:Key="TextChromeBrush" Color="{StaticResource TextChromeColor}" />
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+  <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+  <SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccentColor}" />
+  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+  <SolidColorBrush x:Key="AccentEmphasisBrush" Color="{StaticResource AccentEmphasisColor}" />
+  <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentSubtleColor}" />
+  <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+  <SolidColorBrush x:Key="DiffAddBrush" Color="{StaticResource DiffAddColor}" />
+  <SolidColorBrush x:Key="DiffAddBgBrush" Color="{StaticResource DiffAddBgColor}" />
+  <SolidColorBrush x:Key="DiffDelBrush" Color="{StaticResource DiffDelColor}" />
+  <SolidColorBrush x:Key="DiffDelBgBrush" Color="{StaticResource DiffDelBgColor}" />
+  <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+  <SolidColorBrush x:Key="DangerSubtleBrush" Color="{StaticResource DangerSubtleColor}" />
+  <SolidColorBrush x:Key="LinkBrush" Color="{StaticResource LinkColor}" />
+  <SolidColorBrush x:Key="UnreadBrush" Color="{StaticResource UnreadColor}" />
+  <SolidColorBrush x:Key="CheckBrush" Color="{StaticResource CheckColor}" />
+  <SolidColorBrush x:Key="RingBrush" Color="{StaticResource RingColor}" />
+  <SolidColorBrush x:Key="InlineCodeBrush" Color="{StaticResource InlineCodeColor}" />
+  <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="{StaticResource CaptionCloseHoverColor}" />
+  <SolidColorBrush x:Key="ScrollThumbBrush" Color="#1FFFFFFF" />
+  <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#33FFFFFF" />
+
+  <!-- Typography -->
+  <FontFamily x:Key="UiFont">fonts:Inter#Inter, Segoe UI</FontFamily>
+  <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
+  <x:Double x:Key="UiFontSize">13</x:Double>
+  <x:Double x:Key="UiFontSizeSmall">12</x:Double>
+  <x:Double x:Key="UiFontSizeTiny">11</x:Double>
+  <x:Double x:Key="UiFontSizeLarge">14</x:Double>
+  <x:Double x:Key="UiFontSizeTitle">16</x:Double>
+  <!-- Replaced at startup and when settings change (App.ApplyAppearance). -->
+  <x:Double x:Key="BodyFontSize">15</x:Double>
+  <x:Double x:Key="BodyLineHeight">21</x:Double>
+  <x:Double x:Key="CodeFontSize">13</x:Double>
+  <x:Double x:Key="ColumnMaxWidth">1280</x:Double>
+</ResourceDictionary>

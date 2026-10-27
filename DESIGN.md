@@ -1,6 +1,6 @@
-# Klodi — design reference
+# Nomad.ai — design reference
 
-Klodi is a native Windows client for Claude Code sessions. Its look is the Claude desktop app's
+Nomad.ai is a native Windows client for Claude Code sessions. Its look is the Claude desktop app's
 **Code** tab as it was before the late-October-2026 restyle: warm near-black surfaces, terracotta
 accent, light font weights, dense rows, normal-sized text. This file is the written reference for
 that look; the original screenshots live only in the conversation that started the project, so when
@@ -71,7 +71,7 @@ Window close-button hover: `#C42B1C` (Windows convention). Scrollbars: 6 px, thu
 │ row        │  ┌───────────────────────────────────────────────┐      │
 │            │  │ +  Type / for commands                      ↵ │      │  composer
 │            │  └───────────────────────────────────────────────┘      │
-│ MV Martin ⚙│  📁 Klodi   Accept edits                Opus 5.5 ˅  ◯   │  status row 32 px
+│ MV Martin ⚙│  📁 Nomad   Accept edits                Opus 5.5 ˅  ◯   │  status row 32 px
 └────────────┴─────────────────────────────────────────────────────────┘
    320 px
 ```
@@ -180,7 +180,7 @@ left, control on the right, 1 px `Border.Subtle` between rows):
 - Claude Code: CLI path (default `claude` on PATH), default model, default permission mode,
   default effort.
 
-Persisted as JSON in `%APPDATA%\Klodi\settings.json`.
+Persisted as JSON in `%APPDATA%\Nomad\settings.json`.
 
 ## 8. Out of scope for v1
 

@@ -1,0 +1,128 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Nomad.Core.Settings;
+
+/// <summary>User preferences, persisted as JSON in <c>%APPDATA%\Nomad\settings.json</c>.</summary>
+public sealed class NomadSettings
+{
+    // General › Appearance
+    public string InterfaceFont { get; set; } = "Inter";
+    public string CodeFont { get; set; } = "Cascadia Mono";
+
+    /// <summary>Small | Medium | Large (transcript body 13 / 14 / 15 px).</summary>
+    public string TextSize { get; set; } = "Medium";
+
+    /// <summary>Small | Medium | Large (sidebar, menus, status row: 12 / 13 / 14 px).</summary>
+    public string InterfaceTextSize { get; set; } = "Medium";
+
+    /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
+    public string TranscriptWidth { get; set; } = "Wide";
+
+    // Claude Code
+    public string CliPath { get; set; } = "claude";
+    public string DefaultModel { get; set; } = "claude-opus-5-5";
+
+    /// <summary>default | acceptEdits | plan | bypassPermissions.</summary>
+    public string DefaultPermissionMode { get; set; } = "default";
+
+    /// <summary>low | medium | high | xhigh | max; empty = leave it to the CLI. Medium as in the original app.</summary>
+    public string DefaultEffort { get; set; } = "medium";
+
+    // Remote Control
+    /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
+    public bool RemoteControlByDefault { get; set; } = true;
+
+    /// <summary>Folders where Nomad keeps a <c>claude remote-control</c> server, so the phone can start sessions there.</summary>
+    public List<string> PhoneFolders { get; set; } = [];
+
+    /// <summary>Session id → Remote Control bridge session, so a resumed session keeps its link (newest last, max 50).</summary>
+    public Dictionary<string, string> RemoteControlBridges { get; set; } = [];
+
+    // Updates (only a Setup install updates itself)
+
+    /// <summary>
+    /// Check GitHub at startup and every 6 hours, download a new version in the background and restart into it
+    /// when no turn is running. Off: only check and offer it.
+    /// </summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>Offer pre-releases as updates too.</summary>
+    public bool IncludePrereleases { get; set; }
+
+    // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
+    public string? DisplayName { get; set; }
+    public string? LastPlan { get; set; }
+
+    // Window and session state
+    public bool SidebarCollapsed { get; set; }
+    public List<string> RecentFolders { get; set; } = [];
+    public string? LastFolder { get; set; }
+    public double WindowWidth { get; set; } = 1400;
+    public double WindowHeight { get; set; } = 900;
+    public bool WindowMaximized { get; set; }
+
+    public NomadSettings Clone() =>
+        JsonSerializer.Deserialize(JsonSerializer.Serialize(this, SettingsJsonContext.Default.NomadSettings), SettingsJsonContext.Default.NomadSettings)!;
+
+    /// <summary>Remembers a session's Remote Control bridge, dropping the oldest beyond 50.</summary>
+    public void RememberBridge(string sessionId, string bridgeSessionId)
+    {
+        RemoteControlBridges.Remove(sessionId);
+        RemoteControlBridges[sessionId] = bridgeSessionId;
+        while (RemoteControlBridges.Count > 50)
+        {
+            RemoteControlBridges.Remove(RemoteControlBridges.Keys.First());
+        }
+    }
+
+    /// <summary>Moves a folder to the front of the recent list (max 10).</summary>
+    public void TouchRecentFolder(string folder)
+    {
+        RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
+        RecentFolders.Insert(0, folder);
+        if (RecentFolders.Count > 10)
+        {
+            RecentFolders.RemoveRange(10, RecentFolders.Count - 10);
+        }
+    }
+}
+
+/// <summary>Loads and saves <see cref="NomadSettings"/>.</summary>
+public static class SettingsStore
+{
+    public static string DefaultPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Nomad", "settings.json");
+
+    public static NomadSettings Load(string? path = null)
+    {
+        path ??= DefaultPath;
+        try
+        {
+            if (File.Exists(path))
+            {
+                var json = File.ReadAllText(path);
+                return JsonSerializer.Deserialize(json, SettingsJsonContext.Default.NomadSettings) ?? new NomadSettings();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            // A broken settings file falls back to defaults; it is overwritten on the next save.
+        }
+
+        return new NomadSettings();
+    }
+
+    public static void Save(NomadSettings settings, string? path = null)
+    {
+        path ??= DefaultPath;
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temp = path + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.NomadSettings));
+        File.Move(temp, path, overwrite: true);
+    }
+}
+
+[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(NomadSettings))]
+internal sealed partial class SettingsJsonContext : JsonSerializerContext;
