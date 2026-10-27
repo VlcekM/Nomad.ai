@@ -1021,6 +1021,37 @@ public sealed partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(RecentFolders));
         Current.RefreshFolders();
         _ = LoadGitHubLinksAsync();
+        _ = LoadWorktreeMergesAsync();
+    }
+
+    /// <summary>Sessions in a worktree learn whether its branch has been merged into the repository (local git only).</summary>
+    private async Task LoadWorktreeMergesAsync()
+    {
+        var rows = _all.Where(s => s.WorkingDirectory is { } w && Nomad.Core.Git.GitInfo.WorktreeOwner(w) is not null)
+            .Take(GitHubLinkSessions)
+            .ToList();
+        var lookups = rows.GroupBy(s => Nomad.Core.Git.GitInfo.WorktreeOwner(s.WorkingDirectory!)!, StringComparer.OrdinalIgnoreCase)
+            .Select(repo => (repo, Nomad.Core.Git.GitInfo.MergedBranchesAsync(repo.Key)))
+            .ToList();
+        foreach (var (repo, lookup) in lookups)
+        {
+            var merged = await lookup;
+            foreach (var row in repo)
+            {
+                // The branch its transcript recorded, else the one a worktree of that name was made on.
+                var branch = !string.IsNullOrEmpty(row.GitBranch) && row.GitBranch != "HEAD" ? row.GitBranch
+                    : "worktree-" + WorktreeName(row.WorkingDirectory!);
+                row.IsWorktreeMerged = merged?.Invoke(branch) == true;
+            }
+        }
+    }
+
+    /// <summary>The worktree's own folder name (<c>…\.claude\worktrees\&lt;name&gt;</c>), from any folder below it.</summary>
+    private static string WorktreeName(string folder)
+    {
+        var owner = Nomad.Core.Git.GitInfo.WorktreeOwner(folder)!;
+        var rest = folder[owner.Length..].Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        return rest.Length > 2 ? rest[2] : "";
     }
 
     private const int GitHubLinkSessions = 60;
