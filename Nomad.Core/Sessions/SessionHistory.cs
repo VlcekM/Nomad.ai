@@ -161,6 +161,13 @@ public sealed class SessionHistory
                     {
                         items.Add(new HistoryNotice("Interrupted"));
                     }
+                    else if (LocalCommandEcho.TryParse(trimmed, out var output))
+                    {
+                        if (output is not null)
+                        {
+                            items.Add(new HistoryNotice(output));
+                        }
+                    }
                     else if (TaskNotification.TryParse(trimmed, out var summary))
                     {
                         items.Add(new HistoryNotice(summary));

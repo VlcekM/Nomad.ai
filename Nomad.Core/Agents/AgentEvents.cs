@@ -37,6 +37,9 @@ public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 /// <summary>The Remote Control bridge's state: ready | connected | reconnecting | failed | disconnected.</summary>
 public sealed record RemoteControlStateEvent(string State) : AgentEvent;
 
+/// <summary>What a slash command printed ("Set model to …"), from its echo: shown as a notice.</summary>
+public sealed record CommandOutputEvent(string Text) : AgentEvent;
+
 /// <summary>The CLI's guess at the next prompt, after a turn: offered as ghost text in the composer.</summary>
 public sealed record PromptSuggestionEvent(string Text) : AgentEvent;
 

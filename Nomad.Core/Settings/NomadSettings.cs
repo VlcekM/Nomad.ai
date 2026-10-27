@@ -25,6 +25,12 @@ public sealed class NomadSettings
     /// <summary>After a turn, the CLI guesses the next prompt; it shows as ghost text in an empty composer.</summary>
     public bool PromptSuggestions { get; set; } = true;
 
+    /// <summary>Ask before switching the model of a conversation that has history (its cache does not carry over).</summary>
+    public bool ConfirmModelSwitch { get; set; } = true;
+
+    /// <summary>Closing the window hides it to the notification area instead; the tray icon's menu (or the app menu) exits.</summary>
+    public bool CloseToTray { get; set; }
+
     // Claude Code's slash commands, as the last CLI listed them: offered when "/" is typed before a process runs.
     public List<Protocol.SlashCommand> SlashCommands { get; set; } = [];
 

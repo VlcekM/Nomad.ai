@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Nomad.Core.Process;
 using Nomad.Core.Protocol;
+using Nomad.Core.Sessions;
 
 namespace Nomad.Core.Agents;
 
@@ -561,7 +562,15 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             && !(line.Uuid is { } uuid && _sentUuids.ContainsKey(uuid)))
         {
             var text = string.Join("\n", content.Select(b => b.Text).Where(t => !string.IsNullOrEmpty(t)));
-            if (text.Length > 0)
+            // A slash command's echo (its name, a caveat, its output) starts no turn.
+            if (LocalCommandEcho.TryParse(text, out var output))
+            {
+                if (output is not null)
+                {
+                    Raise(new CommandOutputEvent(output));
+                }
+            }
+            else if (text.Length > 0)
             {
                 _turnRunning = true;
                 _interruptRequested = false;
