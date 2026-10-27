@@ -377,9 +377,9 @@ public sealed partial class UpdateService : ObservableObject
     }
 
     /// <summary>
-    /// Velopack's ApplyUpdatesAndRestart, but silent and with a normal exit: Update.exe waits for Nomad to exit (up to
-    /// 60 s), applies the package without a window or dialog, and starts the new version with the same arguments. Nomad
-    /// then closes its window as the user would, so settings are saved and the phone servers stop cleanly.
+    /// Velopack's ApplyUpdatesAndRestart, but silent and with a normal exit: Nomad closes its window as the user would
+    /// (settings saved, phone servers stopped cleanly), and <see cref="OnExit"/> then has Update.exe apply the package
+    /// without a window or dialog and start the new version with the same arguments.
     /// </summary>
     private void Restart()
     {
@@ -391,30 +391,18 @@ public sealed partial class UpdateService : ObservableObject
         _restarting = true;
         OnPropertyChanged(nameof(CanAct));
         Status = $"Restarting into Nomad.ai {AvailableVersion}…";
-        try
-        {
-            _manager.WaitExitThenApplyUpdates(_update.TargetFullRelease, silent: true, restart: true, Environment.GetCommandLineArgs().Skip(1).ToArray());
-        }
-        catch (Exception ex)
-        {
-            _restarting = false;
-            RestartQueued = false;
-            OnPropertyChanged(nameof(CanAct));
-            Phase = UpdatePhase.Failed;
-            Status = "Could not apply the update: " + OneLine(ex);
-            return;
-        }
-
         RequestExit?.Invoke();
     }
 
     /// <summary>
-    /// Nomad is closing with an update downloaded: Update.exe waits for it to exit and applies it, so the next start
-    /// is the new version. (Called at exit, not when the download finished: the updater waits only 60 seconds.)
+    /// Nomad is exiting with an update downloaded: Update.exe applies it, and starts the new version if this exit is a
+    /// <see cref="Restart"/>. Started last, once the window has closed: Velopack 1.2.161's updater can fail to wait for
+    /// Nomad ("Failed to wait for process … Access is denied" in its log) and then goes on at once, stopping a Nomad
+    /// that is still running. If it cannot start, Velopack applies the update at the next start.
     /// </summary>
     public void OnExit()
     {
-        if (_manager is null || _update is null || Phase != UpdatePhase.Ready || _restarting || _applyOnExitStarted)
+        if (_manager is null || _update is null || Phase != UpdatePhase.Ready || _applyOnExitStarted)
         {
             return;
         }
@@ -422,7 +410,8 @@ public sealed partial class UpdateService : ObservableObject
         _applyOnExitStarted = true;
         try
         {
-            _manager.WaitExitThenApplyUpdates(_update.TargetFullRelease, silent: true, restart: false);
+            var args = _restarting ? Environment.GetCommandLineArgs().Skip(1).ToArray() : null;
+            _manager.WaitExitThenApplyUpdates(_update.TargetFullRelease, silent: true, restart: _restarting, args);
         }
         catch (Exception)
         {
