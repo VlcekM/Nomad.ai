@@ -22,6 +22,15 @@ public partial class SessionView : UserControl
         InitializeComponent();
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
+        Composer.AddHandler(KeyDownEvent, OnComposerShiftDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Composer.AddHandler(KeyUpEvent, (_, e) =>
+        {
+            if (e.Key is Key.LeftShift or Key.RightShift)
+            {
+                ShowSendInstantly(false);
+            }
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Composer.LostFocus += (_, _) => ShowSendInstantly(false);
         AddHandler(KeyDownEvent, OnViewKeyDown, RoutingStrategies.Bubble);
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         QueueList.AddHandler(KeyDownEvent, OnQueuedEditKeyDown, RoutingStrategies.Tunnel);
@@ -860,6 +869,45 @@ public partial class SessionView : UserControl
                 box.CaretIndex = box.Text?.Length ?? 0;
             }
         }, DispatcherPriority.Loaded);
+    }
+
+    private IDisposable? _sendInstantlyDelay;
+
+    /// <summary>
+    /// Shift held on its own while Claude works: after a moment "Send instantly" slides out of the send button. Any
+    /// other key (a capital letter being typed, Enter sending) takes it away again.
+    /// </summary>
+    private void OnComposerShiftDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.LeftShift or Key.RightShift))
+        {
+            ShowSendInstantly(false);
+            return;
+        }
+
+        if (_sendInstantlyDelay is null && SendInstantlyLabel.Opacity == 0)
+        {
+            _sendInstantlyDelay = DispatcherTimer.RunOnce(() =>
+            {
+                _sendInstantlyDelay = null;
+                ShowSendInstantly(Vm is { IsTurnRunning: true, ShowSendButton: true });
+            }, TimeSpan.FromMilliseconds(150));
+        }
+    }
+
+    private void ShowSendInstantly(bool show)
+    {
+        _sendInstantlyDelay?.Dispose();
+        _sendInstantlyDelay = null;
+        var width = 0.0;
+        if (show && SendInstantlyLabel.Child is { } text)
+        {
+            text.Measure(Size.Infinity);
+            width = text.DesiredSize.Width;
+        }
+
+        SendInstantlyLabel.Width = width;
+        SendInstantlyLabel.Opacity = show ? 1 : 0;
     }
 
     /// <summary>In a queued prompt's text box: Enter saves, Shift+Enter is a new line, Esc drops the edit.</summary>

@@ -1049,11 +1049,10 @@
                     Padding="10,0"
                     HorizontalAlignment="Left"
                     Command="{Binding SendQueuedNowCommand}"
-                    ToolTip.Tip="Stop Claude and send these now (Shift+Enter in the composer)">
+                    ToolTip.Tip="Stop Claude and send these now">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Size="12" Data="{StaticResource IconSendArrow}" />
                 <TextBlock Text="Send now" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
-                <TextBlock Text="Shift+Enter" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
           </StackPanel>
@@ -1250,11 +1249,25 @@
             <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
               <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
             </Border>
+            <!-- Shift held while Claude works: "Send instantly" slides out of the button, as Shift+Enter would. -->
             <Button Theme="{StaticResource SendButton}"
+                    Width="NaN"
+                    MinWidth="28"
                     Command="{Binding SendCommand}"
                     IsVisible="{Binding ShowSendButton}"
                     ToolTip.Tip="{Binding SendToolTip}">
-              <c:Icon Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+              <StackPanel Orientation="Horizontal">
+                <Border Name="SendInstantlyLabel" Width="0" Opacity="0" ClipToBounds="True">
+                  <Border.Transitions>
+                    <Transitions>
+                      <DoubleTransition Property="Width" Duration="0:0:0.3" Easing="CubicEaseOut" />
+                      <DoubleTransition Property="Opacity" Duration="0:0:0.3" Easing="CubicEaseOut" />
+                    </Transitions>
+                  </Border.Transitions>
+                  <TextBlock Text="Send instantly" FontSize="{DynamicResource UiFontSizeSmall}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                </Border>
+                <c:Icon Width="28" Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+              </StackPanel>
             </Button>
             <Button Theme="{StaticResource SendButton}"
                     Classes="stop"
