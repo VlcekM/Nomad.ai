@@ -22,6 +22,12 @@ public static partial class TaskNotification
         return true;
     }
 
+    /// <summary>The tool-use id of the task it reports on (a background subagent's Agent call), if given.</summary>
+    public static string? ToolUseId(string text) => ToolUseIdTag().Match(text) is { Success: true } m ? m.Groups[1].Value.Trim() : null;
+
     [GeneratedRegex(@"<summary>(.*?)</summary>", RegexOptions.Singleline)]
     private static partial Regex SummaryTag();
+
+    [GeneratedRegex(@"<tool-use-id>(.*?)</tool-use-id>", RegexOptions.Singleline)]
+    private static partial Regex ToolUseIdTag();
 }

@@ -122,6 +122,53 @@
           </StackPanel>
         </Border>
 
+        <!-- ============================================================ subagents -->
+        <Border Classes="card" IsVisible="{Binding HasSubagents}">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Subagents" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Subagents" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <ItemsControl ItemsSource="{Binding Subagents}" Margin="-6,2,-6,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SubagentViewModel">
+                  <!-- A click opens its conversation over the transcript. -->
+                  <Button Theme="{StaticResource FlatButton}"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch"
+                          Padding="6,5"
+                          Click="OnSubagentClick"
+                          ToolTip.Tip="Open its conversation">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                      <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                                IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" />
+                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                      </Panel>
+                      <c:EdgeFade Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextPrimaryBrush}" />
+                      </c:EdgeFade>
+                      <TextBlock Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                 VerticalAlignment="Center" Margin="8,0,0,0" />
+                      <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
+                        <Border IsVisible="{Binding HasAgentType}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="5,0" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding AgentType}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" />
+                        </Border>
+                        <TextBlock Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="210" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <!-- ============================================================ context -->
         <Border Classes="card">
           <StackPanel>

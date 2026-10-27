@@ -200,7 +200,7 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="Border.thumb:pointerover">
+    <Style Selector="Panel:pointerover > Border.thumb">
       <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}" />
     </Style>
 
@@ -708,6 +708,26 @@
         </StackPanel>
       </ScrollViewer>
 
+      <!-- Scrolled: the transcript fades out under the title bar instead of being cut off there. -->
+      <Border Name="TopFade"
+              Height="28"
+              VerticalAlignment="Top"
+              IsHitTestVisible="False"
+              Opacity="0"
+              Margin="0,0,10,0">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Color="{StaticResource BgMainColor}" Offset="0" />
+            <GradientStop Color="#00141414" Offset="1" />
+          </LinearGradientBrush>
+        </Border.Background>
+        <Border.Transitions>
+          <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          </Transitions>
+        </Border.Transitions>
+      </Border>
+
       <!-- New session: the latest projects as cards (click one to work there), then No folder / Open folder…. -->
       <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
@@ -993,14 +1013,13 @@
             <DataTemplate x:DataType="inf:Attachment">
               <Panel Cursor="Arrow" VerticalAlignment="Top" ToolTip.Tip="{Binding ToolTip}">
                 <StackPanel Margin="2,8,8,0" Spacing="4" IsVisible="{Binding IsImage}">
-                  <Border Classes="thumb"
-                          Width="{Binding PreviewWidth}" Height="96"
-                          CornerRadius="8" ClipToBounds="True"
-                          BorderThickness="1"
-                          Cursor="Hand"
-                          Tapped="OnAttachmentImageTapped">
-                    <Image Source="{Binding Preview}" Stretch="UniformToFill" />
-                  </Border>
+                  <!-- The picture clipped to the rounded shape, its edge drawn over it: no image pixels in the corners. -->
+                  <Panel Width="{Binding PreviewWidth}" Height="96" Cursor="Hand" Tapped="OnAttachmentImageTapped" Background="Transparent">
+                    <Border CornerRadius="8" ClipToBounds="True">
+                      <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                    </Border>
+                    <Border Classes="thumb" CornerRadius="8" BorderThickness="1" />
+                  </Panel>
                   <TextBlock Text="{Binding Name}"
                              Width="{Binding PreviewWidth}"
                              Classes="muted"
@@ -1397,6 +1416,106 @@
         </Button.Flyout>
       </Button>
     </Grid>
+
+    <!-- A subagent's conversation (from the side panel), over the transcript and composer. Esc or ← goes back. -->
+    <Border Grid.RowSpan="4"
+            Classes="subagent"
+            Classes.open="{Binding HasOpenSubagent}"
+            Background="{StaticResource BgMainBrush}">
+      <Border.Styles>
+        <Style Selector="Border.subagent">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="IsHitTestVisible" Value="False" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Border.subagent.open">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+      </Border.Styles>
+      <Grid RowDefinitions="Auto,*" DataContext="{Binding OpenSubagent}" x:DataType="vm:SubagentViewModel">
+        <Grid ColumnDefinitions="Auto,*,Auto" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,10,32,8">
+          <Button Theme="{StaticResource IconButton}" Click="OnCloseSubagentClick" ToolTip.Tip="Back to the session (Esc)">
+            <c:Icon Data="{StaticResource IconArrowLeft}" />
+          </Button>
+          <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center" Spacing="1">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding Description}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeLarge}" />
+              <Border IsVisible="{Binding HasAgentType}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AgentType}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" />
+              </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Subagent" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <TextBlock Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <TextBlock Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <TextBlock Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <TextBlock Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" MaxWidth="500" />
+            </StackPanel>
+          </StackPanel>
+          <c:Ring Grid.Column="2" Width="14" Height="14" StrokeWidth="1.8" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                  TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+        </Grid>
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" c:SelectionAssist.IsEnabled="True">
+          <StackPanel MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="46,6,42,24" Spacing="14">
+            <!-- What it was asked. -->
+            <Border Background="{StaticResource BgRaisedBrush}" CornerRadius="10" Padding="12,8" HorizontalAlignment="Right" MaxWidth="900">
+              <SelectableTextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="{DynamicResource BodyFontSize}"
+                                   LineHeight="{DynamicResource BodyLineHeight}" Foreground="{StaticResource TextPrimaryBrush}" />
+            </Border>
+            <ItemsControl ItemsSource="{Binding Entries}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.DataTemplates>
+                <DataTemplate x:DataType="vm:ToolCallItem">
+                  <StackPanel>
+                    <Button Theme="{StaticResource FlatButton}" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch" Padding="6,0" Height="28" Foreground="{StaticResource TextChromeBrush}">
+                      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                        <c:Icon Data="{Binding IconKey, Converter={x:Static inf:IconConverter.Instance}}" Stroke="{StaticResource TextMutedBrush}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Medium" Margin="8,0,10,0" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="{DynamicResource UiFontSizeSmall}" Classes.mono="{Binding SummaryIsCode}"
+                                   Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <Panel Grid.Column="3" Width="16" Height="16" Margin="8,0,2,0">
+                          <c:Ring Width="12" Height="12" StrokeWidth="1.5" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                  TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" />
+                          <c:Icon Data="{StaticResource IconCheck}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                          <c:Icon Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                        </Panel>
+                      </Grid>
+                    </Button>
+                    <Border c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="30,2,0,6" Background="{StaticResource BgCodeBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                      <ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12,10" Spacing="8">
+                          <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{StaticResource TextChromeBrush}" />
+                          <Border Height="1" Background="{StaticResource BorderBrush}" IsVisible="{Binding HasResult}" />
+                          <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{StaticResource TextSecondaryBrush}" />
+                        </StackPanel>
+                      </ScrollViewer>
+                    </Border>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.DataTemplates>
+            </ItemsControl>
+            <!-- Its answer, as the main agent got it. -->
+            <StackPanel IsVisible="{Binding HasResult}" Spacing="6">
+              <TextBlock Text="Returned" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
+                <md:MarkdownView Markdown="{Binding ResultText}" />
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
 
     <!-- An image, big: from a composer thumbnail or a sent prompt. A click or Esc closes it; ← → step through. -->
     <Panel Name="ImagePreview" Grid.RowSpan="4" Background="#D90A0A0A" PointerPressed="OnImagePreviewPressed">

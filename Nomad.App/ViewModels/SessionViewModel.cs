@@ -334,6 +334,85 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    // ------------------------------------------------------------------ subagents
+
+    /// <summary>The session's subagents (Agent / Task calls), newest first: the side panel lists them.</summary>
+    public ObservableCollection<SubagentViewModel> Subagents { get; } = [];
+
+    public bool HasSubagents => Subagents.Count > 0;
+
+    private readonly Dictionary<string, SubagentViewModel> _subagentById = new(StringComparer.Ordinal);
+    private DispatcherTimer? _subagentTimer;
+
+    /// <summary>The subagent whose conversation is open over the transcript.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOpenSubagent))]
+    public partial SubagentViewModel? OpenSubagent { get; set; }
+
+    public bool HasOpenSubagent => OpenSubagent is not null;
+
+    private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input)
+    {
+        if (!_subagentById.TryGetValue(toolUseId, out var agent))
+        {
+            agent = new SubagentViewModel(toolUseId, Folder);
+            _subagentById[toolUseId] = agent;
+            Subagents.Insert(0, agent);
+            OnPropertyChanged(nameof(HasSubagents));
+        }
+
+        agent.SetInput(input);
+
+        // Durations tick once a second, only while one runs.
+        _subagentTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickSubagents());
+        _subagentTimer.Start();
+    }
+
+    private void TickSubagents()
+    {
+        var running = false;
+        foreach (var agent in Subagents.Where(a => a.IsRunning))
+        {
+            agent.Tick();
+            running = true;
+        }
+
+        if (!running)
+        {
+            _subagentTimer?.Stop();
+        }
+    }
+
+    /// <summary>The CLI's events from inside a subagent (they carry its Agent call's id as their parent).</summary>
+    private bool HandleSubagentEvent(AgentEvent e)
+    {
+        switch (e)
+        {
+            case TextDeltaEvent { ParentToolUseId: { } parent } t when _subagentById.TryGetValue(parent, out var agent):
+                agent.AppendText(t.MessageId, t.Index, t.Text);
+                return true;
+            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Text } c when _subagentById.TryGetValue(parent, out var agent):
+                agent.CompleteText(c.MessageId, c.Index, c.Text);
+                return true;
+            case ToolCallEvent { ParentToolUseId: { } parent } call when _subagentById.TryGetValue(parent, out var agent):
+                agent.AddCall(call.ToolUseId, call.Name, call.Input);
+                return true;
+            case ToolResultEvent { ParentToolUseId: { } parent } r when _subagentById.TryGetValue(parent, out var agent):
+                agent.CompleteCall(r.ToolUseId, r.IsError, r.Text);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void FinishSubagents(bool includingBackground)
+    {
+        foreach (var agent in Subagents.Where(a => a.IsRunning && (includingBackground || !a.IsBackground)))
+        {
+            agent.Finish(failed: false, result: null);
+        }
+    }
+
     // ------------------------------------------------------------------ side panel
 
     /// <summary>The folder's project section in the side panel (null without a folder).</summary>
@@ -1646,6 +1725,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (TaskNotification.TryParse(remote.Text, out var summary))
                 {
                     Items.Add(new NoticeItem(summary));
+                    if (TaskNotification.ToolUseId(remote.Text) is { } taskId && _subagentById.TryGetValue(taskId, out var background))
+                    {
+                        background.Finish(failed: remote.Text.Contains("<status>failed</status>", StringComparison.OrdinalIgnoreCase), result: null);
+                    }
                 }
                 else
                 {
@@ -1709,11 +1792,33 @@ public sealed partial class SessionViewModel : ObservableObject
                 var item = _calls.TryGetValue(call.ToolUseId, out var existing) ? existing : AddCall(call.ToolUseId, call.Name);
                 item.SetInput(call.Input);
                 _groupOfCall[call.ToolUseId].Refresh();
+                if (ToolText.CategoryOf(call.Name) == ToolCategory.Agent)
+                {
+                    StartSubagent(call.ToolUseId, call.Input);
+                }
+
                 break;
 
             case ToolResultEvent r when r.ParentToolUseId is null:
                 CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+
+                // A background (async) subagent's call returns at once; it ends with a task notification later.
+                if (_subagentById.TryGetValue(r.ToolUseId, out var finished))
+                {
+                    if (!r.IsError && (finished.IsBackground || r.Text.TrimStart().StartsWith("Async agent launched", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        finished.MarkBackground();
+                    }
+                    else
+                    {
+                        finished.Finish(r.IsError, r.Text);
+                    }
+                }
+
                 ContentChanged?.Invoke();
+                break;
+
+            case not null when HandleSubagentEvent(e):
                 break;
 
             case PermissionRequestedEvent p:
@@ -1760,6 +1865,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
                 _backend = null;
                 ForgetBridgeProcess();
+                FinishSubagents(includingBackground: true);
                 _main.OnAliveChanged(this);
                 _main.ReassertTitle(this);
                 break;
@@ -1941,6 +2047,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
+        FinishSubagents(includingBackground: false);
         foreach (var block in _blocks.Values)
         {
             switch (block)

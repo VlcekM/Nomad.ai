@@ -145,6 +145,7 @@ public partial class SessionView : UserControl
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
         var atBottom = Scroller.Offset.Y >= Scroller.Extent.Height - Scroller.Viewport.Height - 24;
+        TopFade.Opacity = Scroller.Offset.Y > 4 ? 1 : 0;
         if (Math.Abs(e.OffsetDelta.Y) > 0.5)
         {
             // The user (or ScrollToEnd) moved: follow again only once back at the bottom.
@@ -629,6 +630,13 @@ public partial class SessionView : UserControl
     {
         if (!IsPreviewOpen)
         {
+            // A subagent's conversation is open: Esc goes back to the session.
+            if (e.Key == Key.Escape && Vm is { HasOpenSubagent: true } session)
+            {
+                session.OpenSubagent = null;
+                e.Handled = true;
+            }
+
             return;
         }
 
@@ -648,6 +656,16 @@ public partial class SessionView : UserControl
         }
 
         e.Handled = true;
+    }
+
+    private void OnCloseSubagentClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm)
+        {
+            vm.OpenSubagent = null;
+        }
+
+        FocusComposerSoon();
     }
 
     private void OnRemoveQueuedClick(object? sender, RoutedEventArgs e)

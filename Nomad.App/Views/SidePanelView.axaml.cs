@@ -15,6 +15,27 @@ public partial class SidePanelView : UserControl
     public SidePanelView()
     {
         InitializeComponent();
+        ApplyFontSizes();
+        if (Application.Current is { } app)
+        {
+            app.ResourcesChanged += (_, _) => ApplyFontSizes();
+        }
+    }
+
+    /// <summary>The panel reads a point larger than the chrome: its own copies of the interface sizes, one up.</summary>
+    private void ApplyFontSizes()
+    {
+        if (Application.Current?.Resources.TryGetValue("UiFontSize", out var value) != true || value is not double size
+            || (Resources.TryGetValue("UiFontSize", out var mine) && mine is double current && current == size + 1))
+        {
+            return;
+        }
+
+        Resources["UiFontSizeTiny"] = size - 1;
+        Resources["UiFontSizeSmall"] = size;
+        Resources["UiFontSize"] = size + 1;
+        Resources["UiFontSizeLarge"] = size + 2;
+        FontSize = size + 1;
     }
 
     private SessionViewModel? Vm => DataContext as SessionViewModel;
@@ -75,6 +96,14 @@ public partial class SidePanelView : UserControl
         foreach (var icon in header.GetLogicalDescendants().OfType<Icon>().Where(i => i.Classes.Contains("fold")))
         {
             icon.Classes.Set("closed", !open);
+        }
+    }
+
+    private void OnSubagentClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SubagentViewModel agent } && Vm is { } vm)
+        {
+            vm.OpenSubagent = agent;
         }
     }
 
