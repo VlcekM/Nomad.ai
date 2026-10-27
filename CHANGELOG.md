@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.4.1
+
+- Rename a session: double-click its row, right-click › Rename, or F2 for the current one.
+
 ## v1.4.0
 
 - New session: the latest projects as cards with their branch, changed files, last commits and last session; a click works there.

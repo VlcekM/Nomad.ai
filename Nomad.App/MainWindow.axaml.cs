@@ -39,6 +39,26 @@ public partial class MainWindow : Window
         // Ctrl+B on the way down, so it works while the composer (a TextBox) has focus.
         AddHandler(KeyDownEvent, (_, e) =>
         {
+            // The rename box sits in the row's button, which would take Enter and Space as a click: Enter saves, Esc keeps
+            // the old name, and Space stops here (the space itself still arrives as text input).
+            if (e.Source is TextBox { DataContext: SessionListItemViewModel { IsRenaming: true } renaming } && e.Key is Key.Enter or Key.Escape or Key.Space)
+            {
+                if (e.Key != Key.Space)
+                {
+                    vm.EndRename(renaming, save: e.Key == Key.Enter);
+                }
+
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
+            {
+                BeginRename(row);
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.B && e.KeyModifiers == KeyModifiers.Control)
             {
                 vm.ToggleSidebar();
@@ -191,6 +211,48 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: SessionListItemViewModel item })
         {
             _ = _vm.OpenSessionAsync(item);
+        }
+    }
+
+    private void OnRenameSessionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            BeginRename(item);
+        }
+    }
+
+    private void OnSessionRowDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel { IsRenaming: false } item })
+        {
+            BeginRename(item);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Puts the row's title in a text box, focused and all selected.</summary>
+    private void BeginRename(SessionListItemViewModel item)
+    {
+        _vm.BeginRename(item);
+        Dispatcher.UIThread.Post(() =>
+        {
+            var box = Sidebar.GetVisualDescendants().OfType<TextBox>()
+                .FirstOrDefault(t => t.Classes.Contains("rename") && ReferenceEquals(t.DataContext, item));
+            if (box is not null)
+            {
+                box.Focus();
+                box.SelectAll();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Clicking elsewhere keeps the new name.</summary>
+    private void OnRenameLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: SessionListItemViewModel { IsRenaming: true } item })
+        {
+            _vm.EndRename(item, save: true);
         }
     }
 

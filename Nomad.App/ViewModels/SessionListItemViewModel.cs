@@ -19,6 +19,13 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [ObservableProperty]
     public partial string Title { get; set; } = "";
 
+    /// <summary>The row shows a text box with <see cref="RenameText"/> in place of the title.</summary>
+    [ObservableProperty]
+    public partial bool IsRenaming { get; set; }
+
+    [ObservableProperty]
+    public partial string RenameText { get; set; } = "";
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial string? WorkingDirectory { get; set; }

@@ -1421,6 +1421,76 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Opens a sidebar row's title for editing (any other row being renamed is saved first).</summary>
+    public void BeginRename(SessionListItemViewModel item)
+    {
+        foreach (var other in _all.Where(s => s.IsRenaming && !ReferenceEquals(s, item)).ToList())
+        {
+            EndRename(other, save: true);
+        }
+
+        item.RenameText = item.Title;
+        item.IsRenaming = true;
+    }
+
+    /// <summary>Saves (as Claude Code's <c>/rename</c> does) or drops a rename. An empty or unchanged name keeps the title.</summary>
+    public void EndRename(SessionListItemViewModel item, bool save)
+    {
+        if (!item.IsRenaming)
+        {
+            return;
+        }
+
+        item.IsRenaming = false;
+        var title = item.RenameText.ReplaceLineEndings(" ").Trim();
+        if (!save || title.Length == 0 || title == item.Title)
+        {
+            return;
+        }
+
+        var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
+        if (file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            SessionStore.AppendCustomTitle(file, item.SessionId, title);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        item.Title = SessionTitles.Shorten(title);
+        if (_open.Values.Append(Current).FirstOrDefault(s => s.SessionId == item.SessionId) is { } session)
+        {
+            session.Title = item.Title;
+            session.RenamedTitle = title;
+        }
+    }
+
+    /// <summary>A renamed session's CLI has exited: its name goes back on top of the title the CLI re-appended.</summary>
+    public void ReassertTitle(SessionViewModel session)
+    {
+        if (session is { RenamedTitle: { } title, SessionId: { } id } && Store.FindTranscript(id) is { } file)
+        {
+            try
+            {
+                SessionStore.AppendCustomTitle(file, id, title);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The sidebar keeps showing the name until the next scan.
+            }
+        }
+    }
+
+    /// <summary>F2: rename the current session's row.</summary>
+    public SessionListItemViewModel? CurrentRow =>
+        Current.SessionId is { } id ? _all.FirstOrDefault(s => s.SessionId == id) : null;
+
     public void OnSessionTitleChanged(SessionViewModel session)
     {
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)

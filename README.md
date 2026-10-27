@@ -170,6 +170,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |
 | Ctrl+N | New session |
 | Ctrl+B | Show or hide the sidebar |
+| F2 | Rename the current session (also a double-click or right-click on its row) |
 | Ctrl+Shift+B | Show or hide the side panel |
 | Ctrl+, | Settings |
 
@@ -183,7 +184,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | `%LOCALAPPDATA%\Nomad\` | The Setup install (`current\` is replaced by each update) and the Claude font cache (`fonts\`) |
 | `%LOCALAPPDATA%\velopack\velopack_Nomad.log` | Velopack's log: update checks, downloads, applied updates, uninstall |
 | `%LOCALAPPDATA%\NomadData\scratch\` | Folders for sessions started with "No folder" |
-| `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Nomad.ai only reads them) |
+| `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Nomad.ai only reads them, except that Rename appends a `custom-title` record, as `/rename` does) |
 
 ## Project layout
 

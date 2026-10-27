@@ -75,6 +75,12 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TitleOrPlaceholder))]
     public partial string Title { get; set; } = "";
 
+    /// <summary>
+    /// The name given with Rename while this window ran the session: written again when its CLI exits, since the
+    /// CLI re-appends the title it knew to the transcript then.
+    /// </summary>
+    public string? RenamedTitle { get; set; }
+
     /// <summary>No prompt sent and no history: the new-session view.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComposerPlaceholder))]
@@ -1755,6 +1761,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 _backend = null;
                 ForgetBridgeProcess();
                 _main.OnAliveChanged(this);
+                _main.ReassertTitle(this);
                 break;
         }
     }

@@ -169,10 +169,13 @@
                       Classes.leaving="{Binding IsLeaving}"
                       Padding="10,0,8,0"
                       Click="OnRecentClick"
+                      DoubleTapped="OnSessionRowDoubleTapped"
                       ToolTip.Tip="{Binding ToolTipText}"
                       ToolTip.ShowDelay="700">
                 <Button.ContextMenu>
                   <ContextMenu>
+                    <MenuItem Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
+                    <Separator />
                     <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" IsEnabled="{Binding CanManage}" />
                     <MenuItem Header="{Binding ArchiveToggleText}" Click="OnToggleArchivedClick" IsEnabled="{Binding CanManage}" />
                     <Separator />
@@ -198,7 +201,24 @@
                   <TextBlock Grid.Column="1"
                              Text="{Binding Title}"
                              TextTrimming="CharacterEllipsis"
+                             IsVisible="{Binding !IsRenaming}"
                              VerticalAlignment="Center" />
+                  <!-- Rename (double-click, F2 or the context menu): Enter saves, Esc keeps the old name. -->
+                  <Border Grid.Column="1"
+                          IsVisible="{Binding IsRenaming}"
+                          Background="{StaticResource BgInputBrush}"
+                          BorderBrush="{StaticResource BorderInputBrush}"
+                          BorderThickness="1"
+                          CornerRadius="5"
+                          Padding="5,1"
+                          Margin="-6,0,0,0"
+                          VerticalAlignment="Center">
+                    <TextBox Classes="rename"
+                             Theme="{StaticResource BareTextBox}"
+                             Text="{Binding RenameText}"
+                             MaxLength="200"
+                             LostFocus="OnRenameLostFocus" />
+                  </Border>
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
                   <c:StatusMark Grid.Column="2"
                                 Margin="10,0,1,0"
