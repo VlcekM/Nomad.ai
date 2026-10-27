@@ -1278,7 +1278,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 _ = GenerateTitleAsync(_backend, text, firstTitle);
             }
 
-            // A new session gets its bridge once the prompt gave it a name.
+            // A new session gets its bridge once the prompt gave it a name (the generated one, if it waits for that).
             _ = SyncRemoteControlAsync();
         }
         catch (Exception ex)
@@ -1322,6 +1322,9 @@ public sealed partial class SessionViewModel : ObservableObject
             Title = title ?? fallback;
             _main.OnSessionTitleChanged(this);
         }
+
+        // The bridge waited for the name, as claude.ai keeps the first one it gets.
+        await SyncRemoteControlAsync();
     }
 
     /// <summary>A new session's title until its generated one arrives.</summary>
@@ -1522,7 +1525,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         var on = IsRemoteControl;
-        if (on == ReferenceEquals(_remoteOnBackend, backend))
+        if (on == ReferenceEquals(_remoteOnBackend, backend) || (on && Title == UntitledTitle))
         {
             return;
         }
