@@ -36,6 +36,7 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+        HookGitGlide();
 
         // A session done or waiting while the window is in the background: a notification and/or a flashing taskbar button.
         vm.TurnCompleted += session =>
@@ -335,6 +336,118 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: SessionListItemViewModel item })
         {
             _ = _vm.ToggleAliveAsync(item);
+        }
+    }
+
+    // ------------------------------------------------------------------ git chips between the status row and title bar
+
+    // A new session shows its branch and worktree switch under the composer; once started (or opening another session)
+    // they sit in the title bar. Crossing over, they glide from the old place to the new one.
+    private SessionViewModel? _gitWatched;
+    private (Rect? Branch, Rect? Worktree) _gitBefore;
+
+    private void HookGitGlide()
+    {
+        _vm.PropertyChanging += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.Current))
+            {
+                CaptureGit();
+            }
+        };
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.Current))
+            {
+                WatchGit(_vm.Current);
+                GlideGitSoon();
+            }
+        };
+        WatchGit(_vm.Current);
+    }
+
+    private void WatchGit(SessionViewModel session)
+    {
+        if (_gitWatched is { } old)
+        {
+            old.PropertyChanging -= OnGitSessionChanging;
+            old.PropertyChanged -= OnGitSessionChanged;
+        }
+
+        _gitWatched = session;
+        session.PropertyChanging += OnGitSessionChanging;
+        session.PropertyChanged += OnGitSessionChanged;
+    }
+
+    private void OnGitSessionChanging(object? sender, System.ComponentModel.PropertyChangingEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionViewModel.IsNew))
+        {
+            CaptureGit();
+        }
+    }
+
+    private void OnGitSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SessionViewModel.IsNew))
+        {
+            GlideGitSoon();
+        }
+    }
+
+    private (Control? Branch, Control? Worktree) StatusGit() =>
+        this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault() is { } view ? view.GitChips : default;
+
+    private Rect? Where(Control? control) =>
+        control is { IsEffectivelyVisible: true, Bounds.Width: > 0 } && control.TranslatePoint(default, this) is { } p
+            ? new Rect(p, control.Bounds.Size)
+            : null;
+
+    private void CaptureGit()
+    {
+        var (branch, worktree) = StatusGit();
+        _gitBefore = (Where(TitleBranch) ?? Where(branch), Where(TitleWorktree) ?? Where(worktree));
+    }
+
+    /// <summary>After the change is laid out (before it renders), each chip that moved between rows glides from where it was.</summary>
+    private void GlideGitSoon()
+    {
+        var before = _gitBefore;
+        _gitBefore = default;
+        if (before is (null, null))
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateLayout();
+            var (branch, worktree) = StatusGit();
+            Move(before.Branch, Where(TitleBranch) is not null ? TitleBranch : branch);
+            Move(before.Worktree, Where(TitleWorktree) is not null ? TitleWorktree : worktree);
+        }, DispatcherPriority.Normal);
+
+        void Move(Rect? from, Control? target)
+        {
+            if (from is not { } old || Where(target) is not { } now || Math.Abs(old.Y - now.Y) < 20)
+            {
+                return;
+            }
+
+            // The title bar is drawn under the content row: lift it while a chip flies up into it.
+            var intoTitle = target!.GetVisualAncestors().Contains(TitleBar);
+            if (intoTitle)
+            {
+                TitleBar.ZIndex = 1;
+            }
+
+            Controls.Glide.Play(target, old.Position - now.Position, 250, () =>
+            {
+                if (intoTitle)
+                {
+                    TitleBar.ZIndex = 0;
+                }
+            });
         }
     }
 

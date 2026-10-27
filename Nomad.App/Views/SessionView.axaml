@@ -375,6 +375,69 @@
       </Grid>
     </DataTemplate>
 
+    <!-- Files Claude sent (SendUserFile): the caption, images large (a click opens the viewer), other files as chips. -->
+    <DataTemplate DataType="{x:Type vm:SentFilesItem}" x:DataType="vm:SentFilesItem">
+      <StackPanel Spacing="8" Margin="0,10,0,4">
+        <SelectableTextBlock Text="{Binding Caption}"
+                             IsVisible="{Binding HasCaption}"
+                             TextWrapping="Wrap"
+                             FontSize="{DynamicResource BodyFontSize}"
+                             LineHeight="{DynamicResource BodyLineHeight}"
+                             Foreground="{DynamicResource TextPrimaryBrush}" />
+        <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemSpacing="8" LineSpacing="8" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="Bitmap">
+              <Border CornerRadius="8" ClipToBounds="True" MaxWidth="560" MaxHeight="400" Cursor="Hand"
+                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1"
+                      HorizontalAlignment="Left" Tapped="OnSentImageTapped">
+                <Border.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                  </ContextMenu>
+                </Border.ContextMenu>
+                <Image Source="{Binding}" Stretch="Uniform" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding Files}" IsVisible="{Binding HasFiles}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel ItemSpacing="6" LineSpacing="6" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="inf:Attachment">
+              <Border Height="40" MaxWidth="280" Padding="9,0,12,0" CornerRadius="7"
+                      Background="{DynamicResource BgInputBrush}"
+                      BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                      Cursor="Hand" Tapped="OnSentFileTapped"
+                      ToolTip.Tip="{Binding ToolTip}">
+                <Border.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="Open" Click="OnSentFileOpenClick" />
+                    <MenuItem Header="Show in Explorer" Click="OnSentFileRevealClick" />
+                  </ContextMenu>
+                </Border.ContextMenu>
+                <Grid ColumnDefinitions="Auto,*">
+                  <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type vm:AssistantTextItem}" x:DataType="vm:AssistantTextItem">
       <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" />
     </DataTemplate>
@@ -546,7 +609,7 @@
                   CornerRadius="10"
                   Padding="12,10,12,12">
             <StackPanel Spacing="12">
-              <ItemsControl ItemsSource="{Binding Questions}">
+              <ItemsControl ItemsSource="{Binding Questions}" ClipToBounds="False">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
                     <StackPanel Spacing="16" />
@@ -563,7 +626,7 @@
                                  Margin="0,0,0,2"
                                  Foreground="{DynamicResource TextPrimaryBrush}" />
                       <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
-                      <ItemsControl ItemsSource="{Binding Options}">
+                      <ItemsControl ItemsSource="{Binding Options}" Margin="-4,0">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:QuestionOption">
                             <Button Theme="{StaticResource OptionButton}"
@@ -611,7 +674,7 @@
                 <Button Theme="{StaticResource GhostButton}" Command="{Binding DenyCommand}" ToolTip.Tip="Esc">
                   <TextBlock Text="Skip" />
                 </Button>
-                <Button Theme="{StaticResource PrimaryButton}" Command="{Binding AllowCommand}" IsEnabled="{Binding CanSubmit}" ToolTip.Tip="Enter">
+                <Button Theme="{StaticResource InvertedButton}" Command="{Binding AllowCommand}" IsEnabled="{Binding CanSubmit}" ToolTip.Tip="Enter">
                   <TextBlock Text="Submit" />
                 </Button>
               </StackPanel>
@@ -1300,7 +1363,8 @@
             </Flyout>
           </FlyoutBase.AttachedFlyout>
         </Button>
-        <Button Theme="{StaticResource ChipButton}"
+        <Button Name="WorktreeToggle"
+                Theme="{StaticResource ChipButton}"
                 Classes="worktree"
                 Classes.on="{Binding UseWorktree}"
                 IsVisible="{Binding ShowWorktreeToggle}"

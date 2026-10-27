@@ -626,6 +626,7 @@
       <!-- ============================================================ main -->
       <Grid Grid.Column="1" RowDefinitions="36,*">
         <Grid Grid.Row="0"
+              Name="TitleBar"
               ColumnDefinitions="Auto,*,Auto"
               Background="Transparent"
               PointerPressed="OnTitleBarPointerPressed">
@@ -676,7 +677,8 @@
                        Margin="6,0,0,0"
                        IsVisible="{Binding !Current.HasTitle}"
                        VerticalAlignment="Center" />
-            <StackPanel Orientation="Horizontal"
+            <StackPanel Name="TitleBranch"
+                        Orientation="Horizontal"
                         Spacing="6"
                         Margin="6,0,0,0"
                         Background="Transparent"
@@ -690,7 +692,8 @@
                          TextTrimming="CharacterEllipsis"
                          VerticalAlignment="Center" />
             </StackPanel>
-            <Border Background="Transparent"
+            <Border Name="TitleWorktree"
+                    Background="Transparent"
                     Margin="8,0,0,0"
                     IsVisible="{Binding Current.IsWorktreeSession}"
                     ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
@@ -701,6 +704,7 @@
           <StackPanel Grid.Column="2" Orientation="Horizontal">
             <Button Theme="{StaticResource IconButton}"
                     Classes.on="{Binding IsSidePanelOpen}"
+                    IsVisible="{Binding !Current.IsNew}"
                     Command="{Binding ToggleSidePanelCommand}"
                     VerticalAlignment="Center"
                     Margin="0,0,10,0"
@@ -732,7 +736,8 @@
                on hover, fading out while the panel is open. -->
           <Border Grid.Column="1"
                   Name="PanelStrip"
-                  Classes.open="{Binding IsSidePanelOpen}"
+                  Classes.open="{Binding ShowSidePanel}"
+                  IsVisible="{Binding !Current.IsNew}"
                   Width="14"
                   Background="Transparent"
                   Cursor="Hand"
@@ -766,7 +771,7 @@
           </Border>
 
           <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
-          <Border Grid.Column="2" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
+          <Border Grid.Column="2" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding ShowSidePanel}" ClipToBounds="True">
             <Border.Styles>
               <Style Selector="Border.sidepanel">
                 <Setter Property="Width" Value="0" />
@@ -794,7 +799,7 @@
                   Classes="resizegrip"
                   Margin="-4,0,0,0"
                   HorizontalAlignment="Left"
-                  IsVisible="{Binding IsSidePanelOpen}"
+                  IsVisible="{Binding ShowSidePanel}"
                   PointerPressed="OnSidePanelGripPressed"
                   PointerMoved="OnSidePanelGripMoved"
                   PointerReleased="OnSidePanelGripReleased"

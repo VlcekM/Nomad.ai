@@ -174,6 +174,9 @@ public partial class SessionView : UserControl
         ScrollDownButton.IsVisible = false;
     }
 
+    /// <summary>The status row's git chips (branch, worktree switch), which glide to and from the title bar's.</summary>
+    public (Control Branch, Control Worktree) GitChips => (BranchChip, WorktreeToggle);
+
     public void FocusComposerSoon() =>
         Dispatcher.UIThread.Post(() => Composer.Focus(), DispatcherPriority.Loaded);
 
@@ -495,51 +498,15 @@ public partial class SessionView : UserControl
             {
                 if (from != to)
                 {
-                    Glide(c, from - to);
+                    var card = c;
+                    card.ZIndex = 1;
+                    Controls.Glide.Play(card, from - to, done: () => card.ZIndex = 0);
                 }
             }
             else
             {
                 Controls.Entrance.Play(c);
             }
-        }
-
-        static void Glide(Control control, Vector offset)
-        {
-            if (TopLevel.GetTopLevel(control) is not { } top)
-            {
-                return;
-            }
-
-            var transform = new Avalonia.Media.TranslateTransform(offset.X, offset.Y);
-            control.RenderTransform = transform;
-            control.ZIndex = 1;
-            TimeSpan? start = null;
-
-            void Step(TimeSpan time)
-            {
-                if (control.RenderTransform != transform)
-                {
-                    return;
-                }
-
-                start ??= time;
-                var t = Math.Clamp((time - start.Value).TotalMilliseconds / 220, 0, 1);
-                var rest = Math.Pow(1 - t, 3);
-                transform.X = offset.X * rest;
-                transform.Y = offset.Y * rest;
-                if (t < 1)
-                {
-                    top.RequestAnimationFrame(Step);
-                }
-                else
-                {
-                    control.RenderTransform = null;
-                    control.ZIndex = 0;
-                }
-            }
-
-            top.RequestAnimationFrame(Step);
         }
     }
 
@@ -690,6 +657,36 @@ public partial class SessionView : UserControl
             var images = all.Select((b, i) => (b, $"Image {i + 1}")).ToList();
             OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.b, shown)));
             e.Handled = true;
+        }
+    }
+
+    // A file Claude sent: a click opens it in its default app; right-click also reveals it in Explorer.
+    private void OnSentFileTapped(object? sender, TappedEventArgs e)
+    {
+        OpenSentFile(sender, reveal: false);
+        e.Handled = true;
+    }
+
+    private void OnSentFileOpenClick(object? sender, RoutedEventArgs e) => OpenSentFile(sender, reveal: false);
+
+    private void OnSentFileRevealClick(object? sender, RoutedEventArgs e) => OpenSentFile(sender, reveal: true);
+
+    private static void OpenSentFile(object? sender, bool reveal)
+    {
+        if ((sender as Control)?.DataContext is not Infrastructure.Attachment { Path: { } path })
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(reveal
+                ? new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false }
+                : new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // Gone, or nothing is registered to open it.
         }
     }
 

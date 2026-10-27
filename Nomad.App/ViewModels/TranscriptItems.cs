@@ -425,6 +425,67 @@ public partial class PermissionItem : TranscriptItem
     private void Deny() => _answer(this, PermissionChoice.Deny);
 }
 
+/// <summary>
+/// Files Claude sent with SendUserFile: images shown in the transcript (a click opens them large), other files as chips
+/// that open on a click, under the call's caption.
+/// </summary>
+public sealed class SentFilesItem : TranscriptItem
+{
+    public SentFilesItem(JsonElement input, string? cwd)
+    {
+        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("caption", out var caption) &&
+            caption.ValueKind == JsonValueKind.String)
+        {
+            Caption = caption.GetString() ?? "";
+        }
+
+        var images = new List<Avalonia.Media.Imaging.Bitmap>();
+        var files = new List<Attachment>();
+        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("files", out var list) &&
+            list.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in list.EnumerateArray())
+            {
+                if (entry.GetString() is not { Length: > 0 } path)
+                {
+                    continue;
+                }
+
+                if (!Path.IsPathRooted(path) && cwd is not null)
+                {
+                    path = Path.GetFullPath(Path.Combine(cwd, path));
+                }
+
+                if (PromptImages.FromPath(path) is { Preview: { } preview })
+                {
+                    images.Add(preview);
+                }
+                else
+                {
+                    files.Add(Attachment.ForFile(path));
+                }
+            }
+        }
+
+        Images = images;
+        Files = files;
+    }
+
+    public string Caption { get; } = "";
+
+    public bool HasCaption => Caption.Length > 0;
+
+    public IReadOnlyList<Avalonia.Media.Imaging.Bitmap> Images { get; }
+
+    public bool HasImages => Images.Count > 0;
+
+    public IReadOnlyList<Attachment> Files { get; }
+
+    public bool HasFiles => Files.Count > 0;
+
+    public bool IsEmpty => !HasImages && !HasFiles;
+}
+
 public sealed class ErrorItem(string message) : TranscriptItem
 {
     public string Message { get; } = message;

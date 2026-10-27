@@ -516,6 +516,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsNewSelected))]
+    [NotifyPropertyChangedFor(nameof(ShowSidePanel))]
     public partial SessionViewModel Current { get; set; }
 
     public bool IsNewSelected => Current.IsNew;
@@ -537,7 +538,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The right-hand panel: project, context, plan usage and MCP servers (Ctrl+Shift+B).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowSidePanel))]
     public partial bool IsSidePanelOpen { get; set; }
+
+    /// <summary>The side panel is shown: open, and not on the new-session page (it slides in once the session starts).</summary>
+    public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew;
 
     partial void OnIsSidePanelOpenChanged(bool value)
     {
@@ -682,6 +687,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (e.PropertyName == nameof(SessionViewModel.IsNew))
         {
             OnPropertyChanged(nameof(IsNewSelected));
+            OnPropertyChanged(nameof(ShowSidePanel));
 
             // The draft went out as a prompt: nothing to bring back after a restart.
             if (!Current.IsNew)

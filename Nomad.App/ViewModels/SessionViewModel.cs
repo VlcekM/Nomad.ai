@@ -2271,6 +2271,13 @@ public sealed partial class SessionViewModel : ObservableObject
         call.ResultText = text.Length > MaxResultChars ? text[..MaxResultChars] + "\n…" : text;
         (call.Added, call.Removed) = isError ? (0, 0) : ToolText.DiffStat(call.Name, structured);
         _groupOfCall[toolUseId].Refresh();
+
+        // Files sent to the user show in the transcript itself, after the activity line (which the next tool reopens).
+        if (call.Name == "SendUserFile" && !isError && new SentFilesItem(call.Input, call.Cwd) is { IsEmpty: false } sent)
+        {
+            CloseGroup();
+            Items.Add(sent);
+        }
     }
 
     private void FinishOpenCalls()

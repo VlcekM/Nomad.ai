@@ -199,10 +199,12 @@
     </Style>
   </ControlTheme>
 
-  <!-- Question card option: a text row flush with the question; hover fill, brighter when chosen. -->
+  <!-- Question card option: a rounded row, hover fill, brighter when chosen. (Its list sits 4 px out, so the text stays
+       near the question's: a negative margin here would be clipped by the list.) -->
   <ControlTheme x:Key="OptionButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Margin" Value="-8,0" />
-    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="CornerRadius" Value="7" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
@@ -229,6 +231,25 @@
     </Style>
     <Style Selector="^:pressed">
       <Setter Property="Background" Value="{DynamicResource AccentEmphasisBrush}" />
+    </Style>
+  </ControlTheme>
+
+  <!-- Inverted: the text colour as fill (white on dark, near-black on light), as the question card's Submit. -->
+  <ControlTheme x:Key="InvertedButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+    <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource BgMainBrush}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="Opacity" Value="0.88" />
+    </Style>
+    <Style Selector="^:pressed">
+      <Setter Property="Background" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="Opacity" Value="0.8" />
     </Style>
   </ControlTheme>
 
