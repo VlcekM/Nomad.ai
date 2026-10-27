@@ -12,6 +12,8 @@
   <!-- Every scroller eases to its wheel target instead of jumping (Controls/SmoothScroll.cs). -->
   <Style Selector="ScrollViewer">
     <Setter Property="c:SmoothScroll.IsEnabled" Value="True" />
+    <!-- Middle-button autoscroll, as in a browser (Controls/AutoScroll.cs). -->
+    <Setter Property="c:AutoScroll.IsEnabled" Value="True" />
   </Style>
 
   <!-- Text roles -->
