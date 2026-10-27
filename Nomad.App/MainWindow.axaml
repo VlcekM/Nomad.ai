@@ -121,6 +121,24 @@
               <Setter Property="Margin" Value="4,0,0,0" />
               <Setter Property="IsHitTestVisible" Value="True" />
             </Style>
+            <Style Selector="Border.merged">
+              <Setter Property="MaxWidth" Value="0" />
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Margin" Value="0" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Border.merged.shown">
+              <Setter Property="MaxWidth" Value="16" />
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="Margin" Value="0,0,6,0" />
+            </Style>
             <Style Selector="Button.sessionrow.leaving">
               <Setter Property="Height" Value="0" />
               <Setter Property="Opacity" Value="0" />
@@ -247,20 +265,27 @@
                   </ContextMenu>
                 </Button.ContextMenu>
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-                  <!-- Started from the phone: it runs in the Claude app, Nomad shows it live. -->
-                  <c:Icon Size="12"
-                          Data="{StaticResource IconPhone}"
-                          Margin="0,0,6,0"
-                          VerticalAlignment="Center"
-                          IsVisible="{Binding IsPhone}"
-                          ToolTip.Tip="Running from the Claude app" />
-                  <!-- Run by another Nomad window or a terminal: alive, but not this window's to run. -->
-                  <c:Icon Size="12"
-                          Data="{StaticResource IconLaptop}"
-                          Margin="0,0,6,0"
-                          VerticalAlignment="Center"
-                          IsVisible="{Binding IsElsewhere}"
-                          ToolTip.Tip="Running in another Nomad window or a terminal" />
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Its worktree's branch has been merged into the repository: folds in once git says so. -->
+                    <Border Classes="merged" Classes.shown="{Binding IsWorktreeMerged}" Background="Transparent"
+                            ToolTip.Tip="Worktree merged">
+                      <c:Icon Size="12" Data="{StaticResource IconPullRequestMerged}" Stroke="{DynamicResource TextPrimaryBrush}" />
+                    </Border>
+                    <!-- Started from the phone: it runs in the Claude app, Nomad shows it live. -->
+                    <c:Icon Size="12"
+                            Data="{StaticResource IconPhone}"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding IsPhone}"
+                            ToolTip.Tip="Running from the Claude app" />
+                    <!-- Run by another Nomad window or a terminal: alive, but not this window's to run. -->
+                    <c:Icon Size="12"
+                            Data="{StaticResource IconLaptop}"
+                            Margin="0,0,6,0"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding IsElsewhere}"
+                            ToolTip.Tip="Running in another Nomad window or a terminal" />
+                  </StackPanel>
                   <!-- A title too long for the row fades out before the marks rather than ending in "…". -->
                   <c:EdgeFade Grid.Column="1" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Title}" />

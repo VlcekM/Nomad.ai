@@ -162,6 +162,68 @@ public static class GitInfo
         return at > 0 ? folder[..at] : null;
     }
 
+    private static readonly Dictionary<string, (DateTime At, Task<Func<string, bool>?> Task)> MergeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Which branches of a repository were merged into what it has checked out: a test for a branch name. A branch
+    /// counts once a merge commit took in its tip (so a new worktree, still at the commit it started from, does not,
+    /// nor one that got more commits since); a deleted one by the merge's "Merge branch 'name'" subject. Null when it
+    /// is no repository.
+    /// </summary>
+    public static Task<Func<string, bool>?> MergedBranchesAsync(string repo)
+    {
+        var key = repo.TrimEnd('\\', '/');
+        lock (MergeCache)
+        {
+            if (MergeCache.TryGetValue(key, out var hit) && DateTime.UtcNow - hit.At < Fresh)
+            {
+                return hit.Task;
+            }
+
+            var task = Task.Run(() => ReadMergedAsync(key));
+            MergeCache[key] = (DateTime.UtcNow, task);
+            return task;
+        }
+    }
+
+    private static async Task<Func<string, bool>?> ReadMergedAsync(string repo)
+    {
+        if (!Directory.Exists(repo))
+        {
+            return null;
+        }
+
+        var merges = RunAsync(repo, "log", "--merges", "-n500", "--format=%P%x1f%s", "HEAD");
+        var refs = RunAsync(repo, "for-each-ref", "--format=%(refname:short)%x1f%(objectname)", "refs/heads");
+        if (await merges is not { } mergeText || await refs is not { } refText)
+        {
+            return null;
+        }
+
+        var takenIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var named = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var line in mergeText.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var fields = line.TrimEnd('\r').Split('\x1f');
+            foreach (var parent in fields[0].Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1))
+            {
+                takenIn.Add(parent);
+            }
+
+            if (fields.Length > 1 && fields[1].StartsWith("Merge branch '", StringComparison.Ordinal)
+                && fields[1].IndexOf('\'', 14) is var end and > 14)
+            {
+                named.Add(fields[1][14..end]);
+            }
+        }
+
+        var tips = refText.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r').Split('\x1f'))
+            .Where(f => f.Length == 2)
+            .ToDictionary(f => f[0], f => f[1], StringComparer.Ordinal);
+        return branch => tips.TryGetValue(branch, out var tip) ? takenIn.Contains(tip) : named.Contains(branch);
+    }
+
     /// <summary>Runs <c>git -C folder …</c>; its output, or null when it fails or takes too long.</summary>
     private static async Task<string?> RunAsync(string folder, params string[] args)
     {

@@ -137,6 +137,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsIssueNotPlanned))]
     public partial Nomad.Core.Git.IssueLink? Issue { get; set; }
 
+    /// <summary>It ran in a worktree whose branch has been merged into its repository: a merged icon on the row's left.</summary>
+    [ObservableProperty]
+    public partial bool IsWorktreeMerged { get; set; }
+
     public bool HasPullRequest => PullRequest is not null;
 
     public bool HasIssue => Issue is not null;
