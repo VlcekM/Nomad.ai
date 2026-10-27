@@ -33,6 +33,12 @@ public sealed record ClaudeCliOptions
     /// <summary>With a resume: continue under a new session id (<c>--fork-session</c>).</summary>
     public bool ForkSession { get; init; }
 
+    /// <summary>
+    /// The id a new (or forked) session gets (<c>--session-id</c>). Known up front, it is in the process's command line,
+    /// so another Nomad can tell the session is running (<see cref="Remote.RemoteSessionScanner.RunningSessionIds"/>).
+    /// </summary>
+    public string? NewSessionId { get; init; }
+
     /// <summary>Emit <c>stream_event</c> lines with raw API deltas.</summary>
     public bool IncludePartialMessages { get; init; } = true;
 

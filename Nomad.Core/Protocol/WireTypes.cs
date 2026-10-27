@@ -199,6 +199,17 @@ public sealed class InitializeResponse
     [JsonPropertyName("models")] public List<ModelInfo>? Models { get; set; }
     [JsonPropertyName("account")] public AccountInfo? Account { get; set; }
     [JsonPropertyName("output_style")] public string? OutputStyle { get; set; }
+
+    /// <summary>The slash commands this CLI runs in a session (built-in, custom and skills).</summary>
+    [JsonPropertyName("commands")] public List<SlashCommand>? Commands { get; set; }
+}
+
+/// <summary>A slash command as the CLI lists it: <c>compact</c>, "Clear conversation history but keep a summary…".</summary>
+public sealed class SlashCommand
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("description")] public string? Description { get; set; }
+    [JsonPropertyName("argumentHint")] public string? ArgumentHint { get; set; }
 }
 
 public sealed class ModelInfo

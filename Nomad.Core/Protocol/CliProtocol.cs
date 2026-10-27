@@ -69,10 +69,25 @@ public static class CliProtocol
         return null;
     }
 
-    public static string UserMessage(string text, string? uuid = null)
+    public static string UserMessage(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null)
     {
         var message = new OutgoingUserMessage { Uuid = uuid };
-        message.Message.Content.Add(new OutgoingTextBlock { Text = text });
+
+        // Images first, then the text that refers to them (as the API docs suggest).
+        foreach (var image in images ?? [])
+        {
+            message.Message.Content.Add(new OutgoingTextBlock
+            {
+                Type = "image",
+                Source = new OutgoingImageSource { MediaType = image.MediaType, Data = Convert.ToBase64String(image.Data) },
+            });
+        }
+
+        if (text.Length > 0 || message.Message.Content.Count == 0)
+        {
+            message.Message.Content.Add(new OutgoingTextBlock { Text = text });
+        }
+
         return JsonSerializer.Serialize(message, ProtocolJsonContext.Default.OutgoingUserMessage);
     }
 

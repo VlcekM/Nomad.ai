@@ -65,6 +65,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             ResumeSessionId = options.ResumeSessionId,
             ResumeSessionAt = options.ResumeSessionAt,
             ForkSession = options.ForkSession,
+            NewSessionId = string.IsNullOrWhiteSpace(options.ResumeSessionId) || options.ForkSession ? Guid.NewGuid().ToString() : null,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
             ExtraArguments = options.ExtraArguments,
         };
@@ -81,7 +82,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return Task.CompletedTask;
     }
 
-    public async Task SendPromptAsync(string text, string? uuid = null, CancellationToken cancellationToken = default)
+    public async Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default)
     {
         var cli = RequireRunning();
 
@@ -94,7 +95,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         Raise(new TurnStartedEvent(text));
         try
         {
-            await WriteAsync(cli, CliProtocol.UserMessage(text, uuid), cancellationToken).ConfigureAwait(false);
+            await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images), cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -339,7 +340,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                 Raise(new AccountInfoEvent(
                     InitializeInfo.Account?.SubscriptionType,
                     InitializeInfo.Account?.Email,
-                    InitializeInfo.Models ?? []));
+                    InitializeInfo.Models ?? [],
+                    InitializeInfo.Commands));
             }
         }
 

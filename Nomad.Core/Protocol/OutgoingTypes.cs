@@ -26,11 +26,23 @@ public sealed class OutgoingMessageBody
     [JsonPropertyName("content")] public List<OutgoingTextBlock> Content { get; set; } = [];
 }
 
+/// <summary>A prompt's content block: <c>text</c>, or <c>image</c> with a base64 <see cref="Source"/>.</summary>
 public sealed class OutgoingTextBlock
 {
     [JsonPropertyName("type")] public string Type { get; set; } = "text";
-    [JsonPropertyName("text")] public string Text { get; set; } = "";
+    [JsonPropertyName("text")] public string? Text { get; set; }
+    [JsonPropertyName("source")] public OutgoingImageSource? Source { get; set; }
 }
+
+public sealed class OutgoingImageSource
+{
+    [JsonPropertyName("type")] public string Type { get; set; } = "base64";
+    [JsonPropertyName("media_type")] public string MediaType { get; set; } = "image/png";
+    [JsonPropertyName("data")] public string Data { get; set; } = "";
+}
+
+/// <summary>An image attached to a prompt: its encoded bytes and their media type (image/png, image/jpeg, …).</summary>
+public sealed record PromptImage(byte[] Data, string MediaType);
 
 /// <summary>A client → CLI control request (initialize, interrupt, set_model, …).</summary>
 public sealed class OutgoingControlRequest

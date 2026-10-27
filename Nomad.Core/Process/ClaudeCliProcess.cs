@@ -152,6 +152,13 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             }
         }
 
+        // A new session, or a fork's new one (the CLI takes --session-id with --resume only together with --fork-session).
+        if (!string.IsNullOrWhiteSpace(o.NewSessionId) && (string.IsNullOrWhiteSpace(o.ResumeSessionId) || o.ForkSession))
+        {
+            args.Add("--session-id");
+            args.Add(o.NewSessionId);
+        }
+
         args.AddRange(o.ExtraArguments);
         return args;
     }

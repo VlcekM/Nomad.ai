@@ -19,6 +19,12 @@ public sealed class NomadSettings
     /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
 
+    /// <summary>Show the activity lines (thinking, tool groups such as "Read a file"); off: only prompts and replies.</summary>
+    public bool ShowActivity { get; set; } = true;
+
+    // Claude Code's slash commands, as the last CLI listed them: offered when "/" is typed before a process runs.
+    public List<Protocol.SlashCommand> SlashCommands { get; set; } = [];
+
     // Claude Code
     public string CliPath { get; set; } = "claude";
     public string DefaultModel { get; set; } = "claude-opus-5-5";
@@ -28,6 +34,9 @@ public sealed class NomadSettings
 
     /// <summary>low | medium | high | xhigh | max; empty = leave it to the CLI. Medium as in the original app.</summary>
     public string DefaultEffort { get; set; } = "medium";
+
+    /// <summary>The effort last chosen with each model (model id → effort); a model without one starts at high.</summary>
+    public Dictionary<string, string> EffortByModel { get; set; } = [];
 
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
@@ -54,8 +63,21 @@ public sealed class NomadSettings
     public string? DisplayName { get; set; }
     public string? LastPlan { get; set; }
 
+    // Sidebar session list (its sliders menu)
+    /// <summary>Date | Folder | None: how the Idle list is grouped.</summary>
+    public string SessionGrouping { get; set; } = "Date";
+
+    /// <summary>Archived sessions are listed too, in a group of their own.</summary>
+    public bool ShowArchived { get; set; }
+
+    /// <summary>Session ids archived from the sidebar: hidden from the list, their transcripts kept.</summary>
+    public List<string> ArchivedSessions { get; set; } = [];
+
     // Window and session state
     public bool SidebarCollapsed { get; set; }
+
+    /// <summary>The sidebar's width, dragged at its right edge (240–560).</summary>
+    public double SidebarWidth { get; set; } = 375;
     public List<string> RecentFolders { get; set; } = [];
     public string? LastFolder { get; set; }
     public double WindowWidth { get; set; } = 1400;

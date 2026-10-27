@@ -1,3 +1,5 @@
+using Nomad.Core.Protocol;
+
 namespace Nomad.Core.Agents;
 
 /// <summary>
@@ -21,7 +23,7 @@ public interface IAgentBackend : IAsyncDisposable
     /// <summary>Starts the agent process. Throws when the agent executable cannot be started.</summary>
     Task StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default);
 
-    Task SendPromptAsync(string text, string? uuid = null, CancellationToken cancellationToken = default);
+    Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default);
 
     Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default);
 

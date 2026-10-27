@@ -84,24 +84,70 @@ public static partial class RemoteSessionScanner
         string.Concat(folder.TrimEnd('\\', '/').Select(c => char.IsAsciiLetterOrDigit(c) ? c : '-'));
 
     /// <summary>The value after <c>--session-id</c> (separate or <c>=</c> form).</summary>
-    internal static string? SessionId(string commandLine)
+    internal static string? SessionId(string commandLine) => Option(commandLine, "--session-id");
+
+    /// <summary>The value of an option, given as <c>--name value</c> or <c>--name=value</c>.</summary>
+    private static string? Option(string commandLine, params string[] names)
     {
         var parts = commandLine.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < parts.Length; i++)
         {
             var part = parts[i].Trim('"');
-            if (part == "--session-id" && i + 1 < parts.Length)
+            foreach (var name in names)
             {
-                return parts[i + 1].Trim('"');
-            }
+                if (part == name && i + 1 < parts.Length)
+                {
+                    return parts[i + 1].Trim('"');
+                }
 
-            if (part.StartsWith("--session-id=", StringComparison.Ordinal))
-            {
-                return part["--session-id=".Length..];
+                if (part.StartsWith(name + "=", StringComparison.Ordinal))
+                {
+                    return part[(name.Length + 1)..];
+                }
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Sessions a <c>claude</c> process outside this Nomad is running: another Nomad window (which starts every session
+    /// with <c>--session-id</c> or <c>--resume</c>) or a terminal (<c>claude --resume &lt;id&gt;</c>). Processes of this
+    /// Nomad's own job are left out. Safe to call from a background thread.
+    /// </summary>
+    public static IReadOnlySet<string> RunningSessionIds()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        if (!OperatingSystem.IsWindows())
+        {
+            return ids;
+        }
+
+        var ours = new HashSet<int>(ChildProcessJob.ProcessIds());
+        ours.UnionWith(ClaudeCliProcess.OwnedProcessIds);
+        foreach (var process in System.Diagnostics.Process.GetProcesses())
+        {
+            using (process)
+            {
+                // The native CLI, or the npm one running under node.
+                if (process.ProcessName is not ("claude" or "node") || ours.Contains(process.Id)
+                    || CommandLine(process.Id) is not { } commandLine
+                    || !commandLine.Contains("claude", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // A fork runs under its new id; otherwise the resumed one, or the id a new session was given.
+                var forked = commandLine.Contains("--fork-session", StringComparison.Ordinal);
+                var id = forked ? Option(commandLine, "--session-id") : Option(commandLine, "--resume", "-r") ?? Option(commandLine, "--session-id");
+                if (id is not null && Guid.TryParse(id, out _))
+                {
+                    ids.Add(id);
+                }
+            }
+        }
+
+        return ids;
     }
 
     private static unsafe string? CommandLine(int pid)

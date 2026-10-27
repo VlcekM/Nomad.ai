@@ -26,7 +26,7 @@ public sealed record SessionStartedEvent(
     string? AgentVersion) : AgentEvent;
 
 /// <summary>Account and model catalogue, when the backend reports them.</summary>
-public sealed record AccountInfoEvent(string? SubscriptionType, string? Email, IReadOnlyList<ModelInfo> Models) : AgentEvent;
+public sealed record AccountInfoEvent(string? SubscriptionType, string? Email, IReadOnlyList<ModelInfo> Models, IReadOnlyList<SlashCommand>? Commands = null) : AgentEvent;
 
 /// <summary>We sent a prompt; a turn is now running.</summary>
 public sealed record TurnStartedEvent(string Prompt) : AgentEvent;
