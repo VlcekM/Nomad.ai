@@ -38,6 +38,48 @@ recognized", put the Visual Studio Installer folder on `PATH` first:
 $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:PATH
 ```
 
+## Install and update
+
+Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/releases)) has two downloads:
+
+- **`Nomad-win-x64-Setup.exe`** installs Nomad.ai for your Windows user, without admin rights, into
+  `%LOCALAPPDATA%\Nomad`, with Start menu and desktop shortcuts and an entry in Settings → Apps for
+  uninstalling. This copy updates itself.
+- **`Nomad-win-x64-Portable.zip`** runs from any folder and never updates itself; Settings → Updates
+  links to the releases page instead.
+
+An installed Nomad.ai checks GitHub at startup and every 6 hours ([Velopack](https://velopack.io)).
+With **Install updates automatically** on (the default), a new version is downloaded in the background
+and Nomad.ai restarts into it, but only when that interrupts nothing: no turn or phone session
+running, no prompt being typed, no session connected through Remote Control. Otherwise a **Restart to
+update** chip appears next to the gear in the sidebar footer, and the update is installed when Nomad.ai
+closes. With the setting off, the chip offers the new version with its release notes and installs it
+on click. Settings → Updates shows the version, both switches (the other one includes pre-releases),
+a **Check for updates** button and every release with its notes. The check reads GitHub anonymously,
+so it needs the repository to be public.
+
+Setup empties `%LOCALAPPDATA%\Nomad` before it installs, and uninstalling deletes it, shortcuts and
+the Apps entry included. Both take the Claude font cache in `%LOCALAPPDATA%\Nomad\fonts` with them
+(Nomad.ai unpacks the fonts again at its next start); updates leave it alone. Builds from before the
+move to `%LOCALAPPDATA%\NomadData` kept their scratch folders in `%LOCALAPPDATA%\Nomad\scratch`, so
+move anything worth keeping out of there before the first install. Settings (`%APPDATA%\Nomad`) and
+scratch folders (`%LOCALAPPDATA%\NomadData`) stay.
+
+### Cutting a release
+
+1. Add a `## v<version>` section at the top of `CHANGELOG.md` with a few bullets and push it. Local
+   builds take their version from the newest heading.
+2. Run the **Release** workflow (`.github/workflows/release.yml`) with that version, from the Actions
+   tab or with `gh workflow run release.yml -f version=0.1.0` (add `-f prerelease=true` for a
+   pre-release, which is not marked Latest).
+
+The workflow checks the version, that the tag `v<version>` is new and that the changelog section is
+not empty, publishes `Nomad.App` with NativeAOT on `windows-latest` (`-p:Version=<version>`), packs
+it with `vpk` (pack id `Nomad`, channel `win-x64`, the tent icon) and creates the `v<version>`
+release with Setup, the portable zip, the update feed (`releases.win-x64.json` and the `.nupkg`) and
+`SHA256SUMS`. The changelog section is the release notes, followed by GitHub's generated notes since
+the previous tag.
+
 ## What it does
 
 - **Sessions.** The sidebar lists the sessions stored by the CLI in `%USERPROFILE%\.claude\projects`,
@@ -81,7 +123,8 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   text size, transcript width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and
   Anthropic Mono are offered too: they are unpacked from the app's WOFF2 files into
-  `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai.
+  `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai. The Updates page is described under
+  Install and update.
 
 ### Memory and rendering
 
@@ -106,6 +149,9 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Path | Contents |
 |------|----------|
 | `%APPDATA%\Nomad\settings.json` | Nomad.ai settings, recent folders, window placement |
+| `%APPDATA%\Nomad\releases-cache.json` | The GitHub release list and its ETag (Settings → Updates) |
+| `%LOCALAPPDATA%\Nomad\` | The Setup install (`current\` is replaced by each update) and the Claude font cache (`fonts\`) |
+| `%LOCALAPPDATA%\velopack\velopack_Nomad.log` | Velopack's log: update checks, downloads, applied updates, uninstall |
 | `%LOCALAPPDATA%\NomadData\scratch\` | Folders for sessions started with "No folder" |
 | `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Nomad.ai only reads them) |
 
@@ -113,10 +159,20 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 
 | Project | Role |
 |---------|------|
-| `Nomad.Core` | CLI process host (Job object, so children die with Nomad.ai), stream-json protocol records with source-generated JSON, `IAgentBackend` / `ClaudeCodeBackend`, session store and history reader, settings |
-| `Nomad.App` | Avalonia UI: frameless window, sidebar, session view, own Markdig-to-Avalonia renderer, menus, settings dialog |
+| `Nomad.Core` | CLI process host (Job object, so children die with Nomad.ai), stream-json protocol records with source-generated JSON, `IAgentBackend` / `ClaudeCodeBackend`, session store and history reader, settings, GitHub release list |
+| `Nomad.App` | Avalonia UI: frameless window, sidebar, session view, own Markdig-to-Avalonia renderer, menus, settings dialog, self-update |
 | `Nomad.Probe` | Console test bench that runs Nomad.Core against the real CLI |
 | `Nomad.Core.Tests` | A few xUnit tests over captured stream-json fixtures and session titles |
+
+### Dependencies
+
+| Package | Used for |
+|---------|----------|
+| Avalonia 11.3.22 (Desktop, Fluent theme, Inter font) | The UI |
+| CommunityToolkit.Mvvm 8.4.2 | View models (source-generated properties and commands) |
+| Markdig 1.4.2 | Markdown parsing for the transcript and release notes |
+| Velopack 1.2.161 | Setup, the portable zip and self-update (`vpk` 1.2.161 packs releases) |
+| xUnit 2.9.3 | `Nomad.Core.Tests` |
 
 ## Probe
 
@@ -128,7 +184,8 @@ dotnet run --project Nomad.Probe -- <scenario> --cwd <folder> [--model claude-ha
 ```
 
 Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `controls`, `title`,
-`sessions`, `history <file>`.
+`sessions`, `history <file>`, `releases [owner/repo]` (the GitHub release list, read twice: the second
+read should be a free 304 from the ETag cache).
 
 ## Development flags
 
@@ -144,8 +201,8 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 | `--dev-after <seconds>` | …this many seconds after start (default 5) |
 | `--dev-wait-turn` | …or as soon as the first turn has finished |
 | `--dev-size <W>x<H>` | Initial window size (window placement is then not saved) |
-| `--dev-menu model\|mode\|folder\|plus\|usage\|remote` | Open a menu before the screenshot |
-| `--dev-settings-open [claude]` | Open the settings dialog before the screenshot |
+| `--dev-menu model\|mode\|folder\|plus\|usage\|remote\|update` | Open a menu (or the update chip's prompt) before the screenshot |
+| `--dev-settings-open [claude\|updates]` | Open the settings dialog (or that page) before the screenshot |
 | `--dev-settings <path>` | Use this settings file |
 | `--dev-lean` | Small CLI tool set, no MCP servers or skills |
 | `--dev-phone` | Start the phone folders' Remote Control servers (scripted runs skip them) |
@@ -153,6 +210,10 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 | `--dev-answer allow\|session\|deny\|pick` | Answer every permission request automatically (questions get their first options; `pick` only selects them) |
 | `--dev-set textSize=Large` | Change an appearance setting live (`textSize`, `width`) |
 | `--dev-stop-after <seconds>` | Press Stop this long after the dev prompt was sent |
+| `--dev-key <gesture> <seconds>` | Press a key (e.g. `Ctrl+B`) on the focused control this long after start |
+| `--dev-update-source <folder>` | An installed build updates from this local `vpk` output folder instead of GitHub |
+| `--dev-update-after <seconds>` | The first update check this long after start, not at once (to catch the update chip folding in) |
+| `--dev-releases-repo <owner/repo>` | List another repository's GitHub releases on the Updates page |
 
 Example:
 
