@@ -59,14 +59,12 @@ public static class ColorThemeStore
                 return null;
             }
 
-            var theme = JsonSerializer.Deserialize(File.ReadAllText(path), ColorThemeJsonContext.Default.CustomTheme);
+            var theme = FromJson(File.ReadAllText(path));
             if (theme is null)
             {
                 return null;
             }
 
-            theme.Dark ??= [];
-            theme.Light ??= [];
             if (string.IsNullOrWhiteSpace(theme.Name))
             {
                 theme.Name = id;
@@ -85,8 +83,32 @@ public static class ColorThemeStore
         Directory.CreateDirectory(folder);
         var path = PathOf(folder, id);
         var temp = path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(theme, ColorThemeJsonContext.Default.CustomTheme));
+        File.WriteAllText(temp, ToJson(theme));
         File.Move(temp, path, overwrite: true);
+    }
+
+    public static string ToJson(CustomTheme theme) => JsonSerializer.Serialize(theme, ColorThemeJsonContext.Default.CustomTheme);
+
+    /// <summary>A theme read from JSON (a file of its own or an exported one); null if it isn't one.</summary>
+    public static CustomTheme? FromJson(string json)
+    {
+        try
+        {
+            var theme = JsonSerializer.Deserialize(json, ColorThemeJsonContext.Default.CustomTheme);
+            if (theme is null)
+            {
+                return null;
+            }
+
+            theme.Name ??= "";
+            theme.Dark ??= [];
+            theme.Light ??= [];
+            return theme;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public static string PathOf(string folder, string id) => Path.Combine(folder, id + ".json");

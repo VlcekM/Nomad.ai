@@ -30,6 +30,20 @@ public class ColorThemeTests
     }
 
     [Fact]
+    public void AnExportedThemeIsReadBackAndJunkIsNot()
+    {
+        var json = ColorThemeStore.ToJson(new CustomTheme { Name = "Ocean", Light = { ["BgMain"] = "#F4F8FC" } });
+
+        var theme = ColorThemeStore.FromJson(json);
+
+        Assert.Equal("Ocean", theme?.Name);
+        Assert.Equal("#F4F8FC", theme?.Light["BgMain"]);
+        Assert.Empty(theme!.Dark);
+        Assert.Null(ColorThemeStore.FromJson("not json"));
+        Assert.Empty(ColorThemeStore.FromJson("{}")!.Dark);
+    }
+
+    [Fact]
     public void ANewThemeNeverTakesTheBuiltInThemesId()
     {
         Assert.Equal("nomad-2", ColorThemeStore.NewId(Path.Combine(AppContext.BaseDirectory, "no-such-folder"), "Nomad", "nomad"));

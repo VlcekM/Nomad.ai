@@ -217,7 +217,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12,16,12">
                   <TextBlock Text="Color theme" Classes="rowlabel" />
-                  <TextBlock Text="Nomad is built in. Duplicate a theme to make one of your own and change its colors."
+                  <TextBlock Text="Nomad is built in. Duplicate a theme to make one of your own and change its colors, or import one exported as JSON."
                              Classes="rowhint" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -235,6 +235,16 @@
                       <TextBlock Text="Duplicate" FontWeight="Medium" />
                     </StackPanel>
                   </Button>
+                  <Button Theme="{StaticResource LineButton}" Click="OnImportThemeClick" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          ToolTip.Tip="Add a theme from a JSON file">
+                    <TextBlock Text="Import…" FontWeight="Medium" />
+                  </Button>
+                  <Button Theme="{StaticResource LineButton}" Click="OnExportThemeClick" VerticalAlignment="Center"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          ToolTip.Tip="Save this theme as a JSON file">
+                    <TextBlock Text="Export…" FontWeight="Medium" />
+                  </Button>
                   <Button Theme="{StaticResource IconButton}" Command="{Binding DeleteThemeCommand}" VerticalAlignment="Center"
                           IsVisible="{Binding IsCustomTheme}"
                           ToolTip.Tip="Delete this theme (to the Recycle Bin)">
@@ -242,6 +252,10 @@
                   </Button>
                 </StackPanel>
               </Grid>
+
+              <!-- Why an import or export failed. -->
+              <TextBlock Classes="rowhint failed" Text="{Binding ThemeFileProblem}" Margin="0,0,0,12"
+                         c:Fold.IsOpen="{Binding ThemeFileProblem, Converter={x:Static ObjectConverters.IsNotNull}}" IsVisible="False" />
 
               <!-- A custom theme's name and colors, folding open under its picker. -->
               <StackPanel c:Fold.IsOpen="{Binding IsCustomTheme}" IsVisible="False">

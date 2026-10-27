@@ -581,31 +581,90 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        var name = source.Name + " copy";
-        for (var n = 2; ColorThemes.Any(c => string.Equals(c.Name, name, StringComparison.CurrentCultureIgnoreCase)); n++)
+        AddTheme(new CustomTheme
         {
-            name = $"{source.Name} copy {n}";
-        }
-
-        var copy = new CustomTheme
-        {
-            Name = name,
+            Name = UniqueThemeName(source.Name + " copy"),
             Dark = new Dictionary<string, string>(_theme?.Dark ?? []),
             Light = new Dictionary<string, string>(_theme?.Light ?? []),
+        });
+    }
+
+    /// <summary>Why the last import or export failed; null when it didn't.</summary>
+    [ObservableProperty]
+    public partial string? ThemeFileProblem { get; set; }
+
+    /// <summary>
+    /// The selected theme as JSON to export, with a file name for it. The built-in theme is written with all its
+    /// colors (a starting point for a theme by hand); a custom one with the colors it sets.
+    /// </summary>
+    public (string FileName, string Json) ExportSelectedTheme()
+    {
+        var theme = _theme ?? new CustomTheme
+        {
+            Name = Themes.DefaultName,
+            Dark = Themes.DefaultColors(ThemeVariant.Dark),
+            Light = Themes.DefaultColors(ThemeVariant.Light),
         };
-        var id = ColorThemeStore.NewId(Themes.Folder, name, Themes.DefaultId);
-        try
+        var id = SelectedColorTheme is { IsBuiltIn: false } choice ? choice.Id : Themes.DefaultId;
+        return (id + ".json", ColorThemeStore.ToJson(theme));
+    }
+
+    /// <summary>Adds the theme in an exported file (named after it if it has no name) and selects it.</summary>
+    public void ImportTheme(string json, string fileName)
+    {
+        var theme = ColorThemeStore.FromJson(json);
+        if (theme is null)
         {
-            ColorThemeStore.Save(Themes.Folder, id, copy);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
+            ThemeFileProblem = $"{fileName} isn't a theme: it isn't JSON with a name and dark and light colors.";
             return;
         }
 
-        var choice = new ThemeChoice(id, name);
+        // Only the tokens this version knows, with colors it can read.
+        Dictionary<string, string> Valid(Dictionary<string, string> colors) => colors
+            .Where(c => Themes.Tokens.Any(t => t.Key == c.Key) && Themes.TryParse(c.Value, out _))
+            .ToDictionary(c => c.Key, c => c.Value.Trim().StartsWith('#') ? c.Value.Trim() : "#" + c.Value.Trim());
+        var dark = Valid(theme.Dark);
+        var light = Valid(theme.Light);
+        var name = string.IsNullOrWhiteSpace(theme.Name) ? Path.GetFileNameWithoutExtension(fileName) : theme.Name.Trim();
+        if (string.IsNullOrWhiteSpace(theme.Name) && dark.Count == 0 && light.Count == 0)
+        {
+            ThemeFileProblem = $"{fileName} has no theme in it: no name and no colors Nomad.ai knows.";
+            return;
+        }
+
+        ThemeFileProblem = null;
+        AddTheme(new CustomTheme { Name = UniqueThemeName(name), Dark = dark, Light = light });
+    }
+
+    private void AddTheme(CustomTheme theme)
+    {
+        var id = ColorThemeStore.NewId(Themes.Folder, theme.Name, Themes.DefaultId);
+        try
+        {
+            ColorThemeStore.Save(Themes.Folder, id, theme);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ThemeFileProblem = "Couldn't save the theme: " + ex.Message;
+            return;
+        }
+
+        ThemeFileProblem = null;
+        var choice = new ThemeChoice(id, theme.Name);
         ColorThemes.Add(choice);
         SelectedColorTheme = choice;
+    }
+
+    // "Ocean", or "Ocean 2" (3, …) when a theme is called that already.
+    private string UniqueThemeName(string name)
+    {
+        var unique = name;
+        for (var n = 2; ColorThemes.Any(c => string.Equals(c.Name, unique, StringComparison.CurrentCultureIgnoreCase)); n++)
+        {
+            unique = $"{name} {n}";
+        }
+
+        return unique;
     }
 
     /// <summary>Moves the selected custom theme's file to the Recycle Bin and goes back to the built-in theme.</summary>

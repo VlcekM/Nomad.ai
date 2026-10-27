@@ -10,7 +10,8 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
 - Alive and Idle scroll together in one list, headings and all; the Alive list is no longer capped in height.
 - Color themes (Settings › Appearance): duplicate a theme and change any of its colors, for the dark and the light
-  mode, applied at once. Nomad stays the built-in default and can't be changed or deleted.
+  mode, applied at once. Nomad stays the built-in default and can't be changed or deleted. Themes export to and
+  import from JSON files.
 - Light mode: darker text, with more contrast against the white and paper backgrounds.
 
 ## v1.11.0
