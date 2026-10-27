@@ -153,6 +153,10 @@
     <Style Selector="^:disabled">
       <Setter Property="Opacity" Value="0.45" />
     </Style>
+    <!-- Delete and the like. -->
+    <Style Selector="^.danger">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
   </ControlTheme>
 
   <ControlTheme x:Key="{x:Type ContextMenu}" TargetType="ContextMenu">

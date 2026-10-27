@@ -26,6 +26,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
+/// --dev-pick &lt;n&gt;              pick the first n Idle rows (as Ctrl+clicks would) after start; with --dev-menu row, it opens on them
 /// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
 /// --dev-search "&lt;query&gt;"     open the session search (Ctrl+T) with this query after start
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
@@ -73,6 +74,9 @@ public sealed class DevOptions
 
     /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
     public bool DragCtrl { get; private set; }
+
+    /// <summary><c>--dev-pick n</c>: the first n Idle rows are picked.</summary>
+    public int Pick { get; private set; }
     public List<string> PasteImages { get; } = [];
     public string? Compose { get; private set; }
 
@@ -167,6 +171,7 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-drag-ctrl": o.DragCtrl = true; break;
+                case "--dev-pick": o.Pick = int.TryParse(Next(), out var pick) ? pick : 0; break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
                 case "--dev-search": o.Search = Next(); break;
                 case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;

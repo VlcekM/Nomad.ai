@@ -98,9 +98,14 @@
                   <DoubleTransition Property="Height" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
                   <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
                 </Transitions>
               </Setter>
+            </Style>
+            <!-- Picked with Ctrl or Shift+click: a soft accent wash, over hover and the open row's grey. -->
+            <Style Selector="Button.sessionrow.picked">
+              <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
             </Style>
             <!-- Idle sessions' titles are a little muted, back to full on hover or when selected. -->
             <Style Selector="Button.sessionrow.idle:not(.selected)">
@@ -280,6 +285,7 @@
               <Button Theme="{StaticResource RowButton}"
                       Classes="sessionrow"
                       Classes.selected="{Binding IsSelected}"
+                      Classes.picked="{Binding IsPicked}"
                       Classes.leaving="{Binding IsLeaving}"
                       Classes.idle="{Binding !IsAlive}"
                       Classes.twoline="{Binding ShowProject}"
@@ -296,15 +302,16 @@
                   </ToolTip>
                 </ToolTip.Tip>
                 <Button.ContextMenu>
+                  <!-- Headers are set as it is asked for: with several rows picked it acts on them all ("Delete 5 sessions"). -->
                   <ContextMenu>
-                    <MenuItem Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
+                    <MenuItem Tag="rename" Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
                     <MenuItem Tag="pin" Header="{Binding PinToggleText}" Click="OnTogglePinnedClick" />
                     <Separator />
-                    <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" IsEnabled="{Binding CanManage}" />
-                    <MenuItem Header="{Binding ArchiveToggleText}" Click="OnToggleArchivedClick" IsEnabled="{Binding CanManage}" />
+                    <MenuItem Tag="alive" Header="Make alive" Click="OnToggleAliveClick" />
+                    <MenuItem Tag="archive" Header="Archive" Click="OnToggleArchivedClick" />
                     <Separator />
-                    <MenuItem Header="Delete" Click="OnDeleteSessionClick" IsEnabled="{Binding CanManage}"
-                              ToolTip.Tip="Moves the session's transcript to the Recycle Bin" />
+                    <MenuItem Tag="delete" Header="Delete" Classes="danger" Click="OnDeleteSessionClick"
+                              ToolTip.Tip="Moves the transcript to the Recycle Bin" />
                   </ContextMenu>
                 </Button.ContextMenu>
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->

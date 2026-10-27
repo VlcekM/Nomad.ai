@@ -45,6 +45,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    /// <summary>Picked with Ctrl or Shift+click: its context menu acts on every picked row.</summary>
+    [ObservableProperty]
+    public partial bool IsPicked { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Mark))]
     public partial bool IsRunning { get; set; }

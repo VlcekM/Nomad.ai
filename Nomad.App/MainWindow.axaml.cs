@@ -69,6 +69,8 @@ public partial class MainWindow : Window
         // Ctrl+B on the way down, so it works while the composer (a TextBox) has focus.
         AddHandler(KeyDownEvent, (_, e) =>
         {
+            _clickModifiers = e.KeyModifiers;
+
             // The rename box sits in the row's button, which would take Enter and Space as a click: Enter saves, Esc keeps
             // the old name, and Space stops here (the space itself still arrives as text input).
             if (e.Source is TextBox { DataContext: SessionListItemViewModel { IsRenaming: true } renaming } && e.Key is Key.Enter or Key.Escape or Key.Space)
@@ -116,6 +118,13 @@ public partial class MainWindow : Window
                 }
             }
 
+            // Esc lets the sidebar's picked rows go (and otherwise does what it did).
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && vm.ClearPicks())
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
             {
                 BeginRename(row);
@@ -157,6 +166,11 @@ public partial class MainWindow : Window
             }
         }, RoutingStrategies.Tunnel);
         Deactivated += (_, _) => HideShortcutHints();
+
+        // A row's Click carries no modifiers: Ctrl or Shift held at the press (or key) picks rows instead of opening one.
+        AddHandler(PointerPressedEvent, (_, e) => _clickModifiers = e.KeyModifiers, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerReleasedEvent, (_, e) => _clickModifiers = e.KeyModifiers, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
 
         var settings = vm.Settings;
         if (vm.Dev.Size is { } size)
@@ -320,10 +334,28 @@ public partial class MainWindow : Window
 
     // ------------------------------------------------------------------ sidebar and menus
 
+    // The modifiers of the last press or key, for the clicks that follow (a Click carries none of its own).
+    private KeyModifiers _clickModifiers;
+
+    // Ctrl+click picks a row, Shift+click a run of them (for the context menu); a plain click opens it.
     private void OnRecentClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Control { DataContext: SessionListItemViewModel item })
+        if (sender is not Control { DataContext: SessionListItemViewModel item })
         {
+            return;
+        }
+
+        if (_clickModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _vm.PickRange(item);
+        }
+        else if (_clickModifiers.HasFlag(KeyModifiers.Control))
+        {
+            _vm.TogglePick(item);
+        }
+        else
+        {
+            _vm.ClearPicks();
             _ = _vm.OpenSessionAsync(item);
         }
     }
@@ -363,7 +395,7 @@ public partial class MainWindow : Window
 
     private void OnSessionRowDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is Control { DataContext: SessionListItemViewModel { IsRenaming: false } item })
+        if (_clickModifiers == KeyModifiers.None && sender is Control { DataContext: SessionListItemViewModel { IsRenaming: false } item })
         {
             BeginRename(item);
             e.Handled = true;
@@ -416,7 +448,8 @@ public partial class MainWindow : Window
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })
         {
-            _ = _vm.ToggleAliveAsync(item);
+            var targets = _vm.MenuTargets(item);
+            _ = targets.Count > 1 ? _vm.SetAliveAsync(targets, !item.IsAlive) : _vm.ToggleAliveAsync(item);
         }
     }
 
@@ -603,7 +636,7 @@ public partial class MainWindow : Window
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })
         {
-            _ = _vm.ToggleArchivedAsync(item);
+            _ = _vm.SetArchivedAsync(_vm.MenuTargets(item), !item.IsArchived);
         }
     }
 
@@ -619,7 +652,48 @@ public partial class MainWindow : Window
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })
         {
-            _ = _vm.DeleteSessionAsync(item);
+            _ = _vm.DeleteSessionsAsync(_vm.MenuTargets(item));
+        }
+    }
+
+    // A row's menu names what it acts on: the row, or every picked row when it is one of them.
+    // On the way down, before the row opens its menu (whose DataContext is only set once it is open).
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if ((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("sessionrow"))
+            is { DataContext: SessionListItemViewModel item, ContextMenu: { } menu })
+        {
+            PrepareSessionMenu(menu, item);
+        }
+    }
+
+    private void PrepareSessionMenu(ContextMenu menu, SessionListItemViewModel item)
+    {
+
+        var targets = _vm.MenuTargets(item);
+        var many = targets.Count > 1;
+        var count = many ? $" {targets.Count} sessions" : "";
+        var manageable = targets.Any(s => s.CanManage);
+        foreach (var entry in menu.Items.OfType<MenuItem>())
+        {
+            switch (entry.Tag)
+            {
+                case "rename" or "pin":
+                    entry.IsEnabled = !many;
+                    break;
+                case "alive":
+                    entry.Header = many ? $"Make{count} {(item.IsAlive ? "idle" : "alive")}" : item.AliveToggleText;
+                    entry.IsEnabled = manageable;
+                    break;
+                case "archive":
+                    entry.Header = (item.IsArchived ? "Unarchive" : "Archive") + count;
+                    entry.IsEnabled = item.IsArchived || manageable;
+                    break;
+                case "delete":
+                    entry.Header = "Delete" + count;
+                    entry.IsEnabled = manageable;
+                    break;
+            }
         }
     }
 
@@ -1036,6 +1110,11 @@ public partial class MainWindow : Window
             }
         }
 
+        foreach (var row in _vm.Recents.OfType<SessionListItemViewModel>().Take(dev.Pick))
+        {
+            _vm.TogglePick(row);
+        }
+
         if (dev.Menu == "update")
         {
             FlyoutBase.ShowAttachedFlyout(UpdateChip);
@@ -1050,9 +1129,15 @@ public partial class MainWindow : Window
         }
         else if (dev.Menu == "row")
         {
-            // The first Idle row's context menu.
-            this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionListItemViewModel { IsAlive: false })
-                ?.ContextMenu?.Open();
+            // The first Idle row's context menu, asked for as a right-click asks (so the window names its entries).
+            if (this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionListItemViewModel { IsAlive: false }) is { } rowButton)
+            {
+                rowButton.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent, Source = rowButton });
+                if (rowButton.ContextMenu is { IsOpen: false } rowMenu)
+                {
+                    rowMenu.Open();
+                }
+            }
         }
         else if (dev.Menu is { } menu)
         {

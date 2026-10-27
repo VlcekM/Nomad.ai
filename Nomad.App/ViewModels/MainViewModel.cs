@@ -1476,13 +1476,93 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Numbers the rows the sidebar shows, top to bottom (Alive, then Idle), 1 to 9.</summary>
     private void NumberRows()
     {
-        var shown = (IsAliveCollapsed ? [] : Alive.OfType<SessionListItemViewModel>())
-            .Concat(IsIdleCollapsed ? [] : Recents.OfType<SessionListItemViewModel>())
-            .Take(9)
-            .ToList();
+        var shown = ShownRows().Take(9).ToList();
         foreach (var item in _all)
         {
             item.ShortcutNumber = shown.IndexOf(item) + 1;
+        }
+    }
+
+    /// <summary>The rows the sidebar shows, top to bottom (Alive, then Idle).</summary>
+    private List<SessionListItemViewModel> ShownRows() =>
+        (IsAliveCollapsed ? [] : Alive.OfType<SessionListItemViewModel>())
+            .Concat(IsIdleCollapsed ? [] : Recents.OfType<SessionListItemViewModel>())
+            .ToList();
+
+    // ------------------------------------------------------------------ picking several rows
+
+    // Where Shift+click picks from: the last row Ctrl+clicked (else the open session's).
+    private SessionListItemViewModel? _pickAnchor;
+
+    /// <summary>Ctrl+click: picks the row or lets it go. The first pick takes the open session's row along.</summary>
+    public void TogglePick(SessionListItemViewModel item)
+    {
+        if (!_all.Any(s => s.IsPicked) && CurrentRow is { } open && !ReferenceEquals(open, item) && ShownRows().Contains(open))
+        {
+            open.IsPicked = true;
+        }
+
+        item.IsPicked = !item.IsPicked;
+        _pickAnchor = item;
+    }
+
+    /// <summary>Shift+click: picks the shown rows from the anchor to this one, and only those.</summary>
+    public void PickRange(SessionListItemViewModel item)
+    {
+        var rows = ShownRows();
+        var to = rows.IndexOf(item);
+        if (to < 0)
+        {
+            return;
+        }
+
+        var anchor = _pickAnchor is { } a && rows.Contains(a) ? a : CurrentRow is { } open && rows.Contains(open) ? open : item;
+        var from = rows.IndexOf(anchor);
+        var range = rows.Skip(Math.Min(from, to)).Take(Math.Abs(to - from) + 1).ToHashSet();
+        foreach (var row in _all)
+        {
+            row.IsPicked = range.Contains(row);
+        }
+
+        _pickAnchor = anchor;
+    }
+
+    /// <summary>Lets every picked row go. False when none was.</summary>
+    public bool ClearPicks()
+    {
+        _pickAnchor = null;
+        var any = false;
+        foreach (var row in _all.Where(s => s.IsPicked))
+        {
+            row.IsPicked = false;
+            any = true;
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// What a row's context menu acts on: every shown picked row when it is one of them, else the row alone
+    /// (and the picks go, as a right-click elsewhere in Explorer does).
+    /// </summary>
+    public List<SessionListItemViewModel> MenuTargets(SessionListItemViewModel item)
+    {
+        if (item.IsPicked)
+        {
+            return ShownRows().Where(s => s.IsPicked).ToList();
+        }
+
+        ClearPicks();
+        return [item];
+    }
+
+    /// <summary>Makes the rows alive or idle, the ones not so already.</summary>
+    public async Task SetAliveAsync(IReadOnlyList<SessionListItemViewModel> items, bool alive)
+    {
+        ClearPicks();
+        foreach (var item in items.Where(s => s.IsAlive != alive).ToList())
+        {
+            await ToggleAliveAsync(item);
         }
     }
 
@@ -1539,7 +1619,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task TogglePinnedAsync(SessionListItemViewModel item)
     {
-        await FoldAwayAsync(item);
+        await FoldAwayAsync([item]);
         var pin = !item.IsPinned;
         Settings.PinnedSessions.Remove(item.SessionId);
         if (pin)
@@ -1628,48 +1708,75 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Archives a session (ending its process) or brings it back.</summary>
-    public async Task ToggleArchivedAsync(SessionListItemViewModel item)
+    public Task ToggleArchivedAsync(SessionListItemViewModel item) => SetArchivedAsync([item], !item.IsArchived);
+
+    /// <summary>Archives the rows together (ending their processes), or brings them back.</summary>
+    public async Task SetArchivedAsync(IReadOnlyList<SessionListItemViewModel> items, bool archive)
     {
-        if (item.IsArchived)
+        ClearPicks();
+        if (!archive)
         {
-            Unarchive(item);
+            foreach (var item in items.Where(s => s.IsArchived))
+            {
+                Unarchive(item);
+            }
+
             ApplyFilter();
             return;
         }
 
-        if (!item.CanManage)
+        // Not the ones whose process belongs to the phone or elsewhere.
+        var due = items.Where(s => !s.IsArchived && s.CanManage).ToList();
+        if (due.Count == 0)
         {
-            return; // Its process belongs to the phone.
+            return;
         }
 
         if (!Settings.ShowArchived)
         {
-            await FoldAwayAsync(item);
+            await FoldAwayAsync(due);
         }
 
-        Settings.ArchivedSessions.Remove(item.SessionId);
-        Settings.ArchivedSessions.Add(item.SessionId);
-        Settings.UnarchivedUtc.Remove(item.SessionId);
-        SaveSettings();
-        item.IsArchived = true;
-        item.IsLeaving = false;
-        if (_open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning)
+        foreach (var item in due)
         {
-            await session.SleepAsync();
+            Settings.ArchivedSessions.Remove(item.SessionId);
+            Settings.ArchivedSessions.Add(item.SessionId);
+            Settings.UnarchivedUtc.Remove(item.SessionId);
+            item.IsArchived = true;
+            item.IsLeaving = false;
+        }
+
+        SaveSettings();
+        await Task.WhenAll(due
+            .Select(item => _open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning ? session.SleepAsync() : Task.CompletedTask)
+            .ToList());
+        ApplyFilter();
+    }
+
+    public Task DeleteSessionAsync(SessionListItemViewModel item) => DeleteSessionsAsync([item]);
+
+    /// <summary>Deletes the rows together: they fold away at once, then go one by one.</summary>
+    public async Task DeleteSessionsAsync(IReadOnlyList<SessionListItemViewModel> items)
+    {
+        ClearPicks();
+        var due = items.Where(s => s.CanManage).ToList();
+        if (due.Count == 0)
+        {
+            return;
+        }
+
+        await FoldAwayAsync(due);
+        foreach (var item in due)
+        {
+            await DeleteFoldedAsync(item);
         }
 
         ApplyFilter();
     }
 
     /// <summary>Ends a session's process and moves its transcript (and its folder of tool results) to the Recycle Bin.</summary>
-    public async Task DeleteSessionAsync(SessionListItemViewModel item)
+    private async Task DeleteFoldedAsync(SessionListItemViewModel item)
     {
-        if (!item.CanManage)
-        {
-            return;
-        }
-
-        await FoldAwayAsync(item);
         if (_open.Remove(item.SessionId, out var session))
         {
             await session.ShutdownAsync();
@@ -1706,14 +1813,18 @@ public sealed partial class MainViewModel : ObservableObject
         {
             SaveSettings();
         }
-
-        ApplyFilter();
     }
 
-    /// <summary>Lets the row fold its height and fade (the row style's transitions) before it leaves the list.</summary>
-    private static async Task FoldAwayAsync(SessionListItemViewModel item)
+    /// <summary>Lets the rows fold their height and fade (the row style's transitions) before they leave the list.</summary>
+    private static Task FoldAwayAsync(SessionListItemViewModel item) => FoldAwayAsync([item]);
+
+    private static async Task FoldAwayAsync(IEnumerable<SessionListItemViewModel> items)
     {
-        item.IsLeaving = true;
+        foreach (var item in items)
+        {
+            item.IsLeaving = true;
+        }
+
         await Task.Delay(200);
     }
 
