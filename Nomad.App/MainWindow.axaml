@@ -87,7 +87,7 @@
             <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
           </Transitions>
         </Border.Transitions>
-        <Grid Name="SidebarGrid" Width="{Binding SidebarContentWidth}" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
+        <Grid Width="{Binding SidebarContentWidth}" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,*,Auto">
           <Grid.Styles>
             <!-- Session rows fold their height and fade when they are archived or deleted. -->
             <Style Selector="Button.sessionrow">
@@ -234,21 +234,6 @@
             </Style>
             <Style Selector="Button.groupheader:pointerover TextBlock">
               <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
-            </Style>
-
-            <Style Selector="Panel#IdleList">
-              <Setter Property="RenderTransform" Value="translateY(0px)" />
-              <Setter Property="Transitions">
-                <Transitions>
-                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
-                  <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
-                </Transitions>
-              </Setter>
-            </Style>
-            <Style Selector="Panel#IdleList.collapsed">
-              <Setter Property="Opacity" Value="0" />
-              <Setter Property="RenderTransform" Value="translateY(-6px)" />
-              <Setter Property="IsHitTestVisible" Value="False" />
             </Style>
 
             <!-- A heading's list options show only while the pointer is over the heading (or its menu is open). -->
@@ -578,8 +563,12 @@
           </Border>
           </StackPanel>
 
+          <!-- Alive and Idle scroll together, headings and all. -->
+          <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="0,0,0,8">
+
           <!-- Alive: sessions with a running CLI process. The heading folds the list. -->
-          <Grid Grid.Row="3" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,3" Height="24" Background="Transparent"
+          <Grid Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,3" Height="24" Background="Transparent"
                 IsVisible="{Binding HasAlive}">
             <Button Grid.ColumnSpan="3"
                     Theme="{StaticResource RowButton}"
@@ -640,18 +629,15 @@
               </Button.Flyout>
             </Button>
           </Grid>
-          <!-- As tall as its rows; it scrolls only once they would push Idle's heading out of the sidebar (MainWindow.FitAliveList). -->
-          <Panel Grid.Row="4" Name="AliveList" IsVisible="{Binding HasAlive}">
-            <ScrollViewer Name="AliveScroll"
-                          c:Fold.IsOpen="{Binding !IsAliveCollapsed}"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Alive}" />
-            </ScrollViewer>
+          <!-- IsVisible once at start: Fold only acts on a change, so a list folded in the last run starts folded. -->
+          <Panel IsVisible="{Binding HasAlive}">
+            <ItemsControl ItemsSource="{Binding Alive}"
+                          IsVisible="{Binding !IsAliveCollapsed, Mode=OneTime}"
+                          c:Fold.IsOpen="{Binding !IsAliveCollapsed}" />
           </Panel>
 
           <!-- Idle header: the heading folds the list. -->
-          <Grid Grid.Row="5" Name="IdleHeader" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
+          <Grid Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
             <!-- The whole heading folds the list; the list options button sits on top of it. -->
             <Button Grid.ColumnSpan="3"
                     Theme="{StaticResource RowButton}"
@@ -711,17 +697,15 @@
             </Button>
           </Grid>
 
-          <!-- Idle list: folded, it fades and slides up out of sight (the space below it was empty anyway). -->
-          <Panel Grid.Row="6" Name="IdleList" Classes.collapsed="{Binding IsIdleCollapsed}">
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-              <ItemsControl ItemsSource="{Binding Recents}" Margin="0,0,0,8">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <VirtualizingStackPanel />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-              </ItemsControl>
-            </ScrollViewer>
+          <!-- Idle list: folds like Alive's. -->
+          <Panel IsVisible="{Binding !IsIdleCollapsed, Mode=OneTime}" c:Fold.IsOpen="{Binding !IsIdleCollapsed}">
+            <ItemsControl ItemsSource="{Binding Recents}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
             <TextBlock Text="No sessions yet"
                        Classes="muted"
                        FontSize="{DynamicResource UiFontSizeSmall}"
@@ -738,9 +722,11 @@
                         VerticalAlignment="Top" />
           </Panel>
 
+          </StackPanel>
+          </ScrollViewer>
+
           <!-- Account footer -->
-          <Border Grid.Row="7"
-                  Name="AccountFooter"
+          <Border Grid.Row="4"
                   Height="48"
                   BorderBrush="{DynamicResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
