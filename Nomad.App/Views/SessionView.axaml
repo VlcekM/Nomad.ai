@@ -128,13 +128,13 @@
     </Style>
 
     <!-- Remote Control chip: dim while off; a dot, green once claude.ai is connected. -->
-    <!-- Worktree: muted while off, the accent while on. -->
+    <!-- Worktree: muted while off, the accent while on. The hover fill isn't animated: Transparent is #00FFFFFF, so
+         fading it to the chip colour passes through white. -->
     <Style Selector="Button.worktree">
       <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
-          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
         </Transitions>
       </Setter>
     </Style>
@@ -1371,7 +1371,10 @@
                 Click="OnWorktreeClick"
                 Margin="2,0,0,0"
                 ToolTip.Tip="{Binding WorktreeToolTip}">
-          <c:Icon Size="13" Data="{StaticResource IconWorktree}" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Size="13" Data="{StaticResource IconWorktree}" />
+            <TextBlock Classes="status branchtext" Text="Worktree" VerticalAlignment="Center" />
+          </StackPanel>
         </Button>
       </StackPanel>
       </StackPanel>
