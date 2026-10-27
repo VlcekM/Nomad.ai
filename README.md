@@ -81,7 +81,7 @@ The renderer is chosen at startup, so the switch applies after a restart.
 | Path | Contents |
 |------|----------|
 | `%APPDATA%\Klodi\settings.json` | Klodi settings, recent folders, window placement |
-| `%LOCALAPPDATA%\Klodi\scratch\` | Folders for sessions started with "No folder" |
+| `%LOCALAPPDATA%\KlodiData\scratch\` | Folders for sessions started with "No folder" |
 | `%USERPROFILE%\.claude\projects\` | Session transcripts (owned by the CLI; Klodi only reads them) |
 
 ## Project layout

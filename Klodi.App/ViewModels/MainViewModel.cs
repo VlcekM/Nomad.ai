@@ -510,11 +510,19 @@ public sealed partial class MainViewModel : ObservableObject
         Current.RefreshFolders();
     }
 
+    /// <summary>
+    /// Folders of "No folder" sessions. Not under %LOCALAPPDATA%\Klodi: that is the Setup install's folder, which
+    /// Velopack replaces on install and deletes on uninstall.
+    /// </summary>
     public static string ScratchRoot =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "KlodiData", "scratch");
+
+    private static string LegacyScratchRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Klodi", "scratch");
 
     private static bool IsScratch(string folder) =>
-        folder.StartsWith(ScratchRoot, StringComparison.OrdinalIgnoreCase);
+        folder.StartsWith(ScratchRoot, StringComparison.OrdinalIgnoreCase) ||
+        folder.StartsWith(LegacyScratchRoot, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>"No folder": Claude works in a fresh scratch folder.</summary>
     public string CreateScratchFolder()
