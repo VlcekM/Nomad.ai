@@ -493,7 +493,7 @@ public partial class SessionView : UserControl
 
     private void OnRemoveAttachmentClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Control { DataContext: Infrastructure.ImageAttachment image })
+        if (sender is Control { DataContext: Infrastructure.Attachment image })
         {
             Vm?.RemoveAttachmentCommand.Execute(image);
         }
@@ -507,7 +507,7 @@ public partial class SessionView : UserControl
         }
     }
 
-    private async void OnAttachImageClick(object? sender, RoutedEventArgs e)
+    private async void OnAttachFilesClick(object? sender, RoutedEventArgs e)
     {
         HideMenus();
         if (Vm is not { } vm || TopLevel.GetTopLevel(this) is not { } top)
@@ -517,12 +517,16 @@ public partial class SessionView : UserControl
 
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Attach images",
+            Title = "Attach files",
             AllowMultiple = true,
-            FileTypeFilter = [new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"] }],
+            FileTypeFilter =
+            [
+                new FilePickerFileType("All files") { Patterns = ["*"] },
+                new FilePickerFileType("Images") { Patterns = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.bmp"] },
+            ],
         });
 
-        vm.AddAttachments(files.Select(f => f.TryGetLocalPath()).OfType<string>().Select(Infrastructure.PromptImages.FromFile).OfType<Infrastructure.ImageAttachment>());
+        vm.AddAttachments(files.Select(f => f.TryGetLocalPath()).OfType<string>().Select(Infrastructure.PromptImages.FromPath));
         FocusComposerSoon();
     }
 
@@ -536,6 +540,7 @@ public partial class SessionView : UserControl
         ComposerBar.Classes.Set("dragover", any);
     }
 
+    // Images are attached as images, anything else (files, folders) as chips that send their paths.
     private void OnDrop(object? sender, DragEventArgs e)
     {
         ComposerBar.Classes.Remove("dragover");
@@ -544,18 +549,7 @@ public partial class SessionView : UserControl
             return;
         }
 
-        var files = DroppedFiles(e).ToList();
-        vm.AddAttachments(files.Where(Infrastructure.PromptImages.IsImageFile).Select(Infrastructure.PromptImages.FromFile).OfType<Infrastructure.ImageAttachment>());
-
-        // Anything else is mentioned by path, for Claude to read.
-        var others = files.Where(f => !Infrastructure.PromptImages.IsImageFile(f)).ToList();
-        if (others.Count > 0)
-        {
-            var text = vm.ComposerText;
-            var separator = text.Length == 0 || char.IsWhiteSpace(text[^1]) ? "" : " ";
-            vm.ComposerText = text + separator + string.Join(" ", others.Select(f => f.Contains(' ') ? $"\"{f}\"" : f)) + " ";
-        }
-
+        vm.AddAttachments(DroppedFiles(e).Select(Infrastructure.PromptImages.FromPath).ToList());
         Composer.Focus();
         Composer.CaretIndex = Composer.Text?.Length ?? 0;
         e.Handled = true;

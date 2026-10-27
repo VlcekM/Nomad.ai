@@ -226,6 +226,14 @@ public partial class MainWindow : Window
 
     private void OnShowArchivedClick(object? sender, RoutedEventArgs e) => _vm.ShowArchived = !_vm.ShowArchived;
 
+    private void OnGroupHeaderClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionGroupHeader header })
+        {
+            _ = _vm.ToggleGroupAsync(header);
+        }
+    }
+
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
     /// <summary>The update chip: a downloaded update restarts at once, a found one opens the prompt with its notes.</summary>
@@ -354,9 +362,9 @@ public partial class MainWindow : Window
             DispatcherTimer.RunOnce(() => _vm.Current.ComposerText = compose, TimeSpan.FromSeconds(1.5));
         }
 
-        if (dev.PasteImage is { } image && Infrastructure.PromptImages.FromFile(image) is { } attachment)
+        if (dev.PasteImages.Count > 0)
         {
-            _vm.Current.AddAttachments([attachment]);
+            _vm.Current.AddAttachments(dev.PasteImages.Select(Infrastructure.PromptImages.FromPath));
         }
 
         if (dev.Drag is var (x1, y1, x2, y2, dragAt))

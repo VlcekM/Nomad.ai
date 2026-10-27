@@ -6,17 +6,49 @@ using Nomad.Core.Protocol;
 
 namespace Nomad.App.Infrastructure;
 
-/// <summary>An image attached to the composer: what is sent, and a thumbnail to show.</summary>
-public sealed class ImageAttachment(PromptImage image, Bitmap preview, string name)
+/// <summary>
+/// Something attached to the composer: an image (sent as an image block, shown as a thumbnail), or any other file
+/// or folder (its path goes into the prompt for Claude to read, shown as a chip).
+/// </summary>
+public sealed class Attachment
 {
-    public PromptImage Image { get; } = image;
+    private Attachment(PromptImage? image, Bitmap? preview, string? path, string name)
+    {
+        Image = image;
+        Preview = preview;
+        Path = path;
+        Name = name;
+        IsFolder = path is not null && Directory.Exists(path);
+    }
 
-    public Bitmap Preview { get; } = preview;
+    public static Attachment ForImage(PromptImage image, Bitmap preview, string name) => new(image, preview, null, name);
 
-    public string Name { get; } = name;
+    public static Attachment ForFile(string path) =>
+        new(null, null, path, System.IO.Path.GetFileName(path.TrimEnd('\\', '/')) is { Length: > 0 } name ? name : path);
+
+    public PromptImage? Image { get; }
+
+    public Bitmap? Preview { get; }
+
+    /// <summary>A file's or folder's full path; null for an image.</summary>
+    public string? Path { get; }
+
+    public string Name { get; }
+
+    public bool IsImage => Image is not null;
+
+    public bool IsFile => Image is null;
+
+    public bool IsFolder { get; }
+
+    /// <summary>The chip's second line: "CS", "PDF", "Folder".</summary>
+    public string Kind => IsFolder ? "Folder"
+        : System.IO.Path.GetExtension(Name).TrimStart('.').ToUpperInvariant() is { Length: > 0 } ext ? ext : "File";
+
+    public string ToolTip => Path ?? Name;
 }
 
-/// <summary>Turns files and clipboard data into prompt images the API accepts.</summary>
+/// <summary>Turns files and clipboard data into attachments: images the API accepts, other files by path.</summary>
 public static class PromptImages
 {
     /// <summary>Longer sides are scaled down to this: the API scales them anyway, and this keeps a prompt small.</summary>
@@ -37,7 +69,11 @@ public static class PromptImages
 
     public static bool IsImageFile(string path) => MediaTypes.ContainsKey(Path.GetExtension(path));
 
-    public static ImageAttachment? FromFile(string path)
+    /// <summary>An image file as an image (a chip when it can't be decoded); any other file or folder as a chip.</summary>
+    public static Attachment FromPath(string path) =>
+        (IsImageFile(path) ? FromFile(path) : null) ?? Attachment.ForFile(path);
+
+    public static Attachment? FromFile(string path)
     {
         try
         {
@@ -50,7 +86,7 @@ public static class PromptImages
     }
 
     /// <summary>Decodes an image; re-encodes it as PNG when it is too large, or a type the API doesn't take (BMP).</summary>
-    public static ImageAttachment? FromBytes(byte[] data, string mediaType, string name)
+    public static Attachment? FromBytes(byte[] data, string mediaType, string name)
     {
         Bitmap bitmap;
         try
@@ -83,7 +119,7 @@ public static class PromptImages
             mediaType = "image/png";
         }
 
-        return new ImageAttachment(new PromptImage(data, mediaType), bitmap, name);
+        return Attachment.ForImage(new PromptImage(data, mediaType), bitmap, name);
     }
 
     // ------------------------------------------------------------------ clipboard (Win32: Avalonia 11 reads text only)
@@ -120,10 +156,10 @@ public static class PromptImages
     private static extern unsafe uint DragQueryFile(IntPtr drop, uint index, char* file, uint length);
 
     /// <summary>
-    /// What a paste should attach: image files copied in Explorer, or a copied image (PNG, else a bitmap). Null when
+    /// What a paste should attach: files copied in Explorer, or a copied image (PNG, else a bitmap). Null when
     /// the clipboard holds text: then the text box pastes it as usual.
     /// </summary>
-    public static List<ImageAttachment>? FromClipboard()
+    public static List<Attachment>? FromClipboard()
     {
         if (!OpenClipboard(IntPtr.Zero))
         {
@@ -134,8 +170,8 @@ public static class PromptImages
         {
             if (IsClipboardFormatAvailable(CfHdrop))
             {
-                var images = ReadFiles().Where(IsImageFile).Select(FromFile).OfType<ImageAttachment>().ToList();
-                return images.Count > 0 ? images : null;
+                var files = ReadFiles().Select(FromPath).ToList();
+                return files.Count > 0 ? files : null;
             }
 
             if (IsClipboardFormatAvailable(CfUnicodeText))

@@ -26,7 +26,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-compose "&lt;text&gt;"      put this text in the composer after start (\n for new lines)
-/// --dev-paste-image &lt;png&gt;    attach this image to the composer, as a paste would
+/// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
 /// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
 /// --dev-update-after &lt;seconds&gt;  first update check this long after start (to catch the update chip folding in)
 /// --dev-releases-repo &lt;o/r&gt;   list another repository's GitHub releases on the Updates page
@@ -57,7 +57,7 @@ public sealed class DevOptions
     public double? StopAfterSeconds { get; private set; }
     public (string Gesture, double Seconds)? Key { get; private set; }
     public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
-    public string? PasteImage { get; private set; }
+    public List<string> PasteImages { get; } = [];
     public string? Compose { get; private set; }
     public string? UpdateSource { get; private set; }
     public double? UpdateCheckAfterSeconds { get; private set; }
@@ -139,7 +139,7 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
-                case "--dev-paste-image": o.PasteImage = Path.GetFullPath(Next()); break;
+                case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;
                 case "--dev-stop-after":
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var stop))
                     {

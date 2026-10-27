@@ -44,26 +44,41 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
 
     public bool HasImages => Images.Count > 0;
 
+    /// <summary>Files attached to it, shown as chips (their @-mentions are left out of <see cref="Text"/>).</summary>
+    public IReadOnlyList<Attachment> Files { get; init; } = [];
+
+    public bool HasFiles => Files.Count > 0;
+
     public bool HasText => Text.Length > 0;
 
     public void Tick() => TimeText = Format.Ago(SentUtc);
 }
 
 /// <summary>A prompt waiting for the running turn to end.</summary>
-public sealed class QueuedPrompt(string text, IReadOnlyList<ImageAttachment> images)
+public sealed class QueuedPrompt(string text, IReadOnlyList<Attachment> attachments)
 {
     public string Text { get; } = text;
 
-    public IReadOnlyList<ImageAttachment> Images { get; } = images;
+    public IReadOnlyList<Attachment> Attachments { get; } = attachments;
 
-    /// <summary>"Fix the tests" or "2 images".</summary>
-    public string Label => Text.Length > 0
-        ? Text.ReplaceLineEndings(" ")
-        : Format.Count(Images.Count, "image", "images", "an");
+    /// <summary>"Fix the tests", "2 images" or "an image and a file".</summary>
+    public string Label => Text.Length > 0 ? Text.ReplaceLineEndings(" ") : AttachmentsText;
 
-    public bool HasImages => Images.Count > 0 && Text.Length > 0;
+    public bool HasAttachments => Attachments.Count > 0 && Text.Length > 0;
 
-    public string ImagesText => Format.Count(Images.Count, "image", "images", "an");
+    public string AttachmentsText
+    {
+        get
+        {
+            var images = Attachments.Count(a => a.IsImage);
+            var files = Attachments.Count - images;
+            return string.Join(" and ", new[]
+            {
+                images > 0 ? Format.Count(images, "image", "images", "an") : null,
+                files > 0 ? Format.Count(files, "file", "files", "a") : null,
+            }.OfType<string>());
+        }
+    }
 }
 
 /// <summary>A row of the "/" menu.</summary>
@@ -121,11 +136,14 @@ public sealed partial class ThinkingItem : TranscriptItem
     public int BlockIndex { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasText), nameof(DisplayText))]
+    [NotifyPropertyChangedFor(nameof(HasText), nameof(DisplayText), nameof(FirstLine))]
     public partial string Text { get; set; }
 
     /// <summary>The text without the trailing blank lines summarized thinking ends with.</summary>
     public string DisplayText => Text.Trim();
+
+    /// <summary>Its first line, beside "Thought" in an expanded activity group.</summary>
+    public string FirstLine => DisplayText.ReplaceLineEndings("\n").Split('\n', 2)[0].Trim('*', ' ');
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Label))]
@@ -208,8 +226,12 @@ public sealed partial class ToolCallItem : ObservableObject
 
     public bool HasResult => !string.IsNullOrEmpty(ResultText);
 
+    /// <summary>The call's input, once known (it picks the working mark's activity).</summary>
+    public JsonElement Input { get; private set; }
+
     public void SetInput(JsonElement input)
     {
+        Input = input.Clone();
         Summary = ToolText.Summary(Name, input, Cwd);
         InputText = ToolText.PrettyJson(input);
     }
@@ -218,10 +240,37 @@ public sealed partial class ToolCallItem : ObservableObject
     private void Toggle() => IsExpanded = !IsExpanded;
 }
 
-/// <summary>Consecutive tool calls between two text blocks, collapsed into one line.</summary>
+/// <summary>
+/// The activity between two text blocks, collapsed into one line: tool calls, and the thinking between them (as the
+/// desktop app folds it). Expanded, it lists both in order.
+/// </summary>
 public sealed partial class ToolGroupItem : TranscriptItem
 {
     public ObservableCollection<ToolCallItem> Calls { get; } = [];
+
+    /// <summary>The calls and thinking blocks, in order.</summary>
+    public ObservableCollection<object> Entries { get; } = [];
+
+    public void AddCall(ToolCallItem call)
+    {
+        Calls.Add(call);
+        Entries.Add(call);
+    }
+
+    public void AddThinking(ThinkingItem thinking)
+    {
+        Entries.Add(thinking);
+        OnPropertyChanged(nameof(IsThinking));
+    }
+
+    public void RemoveThinking(ThinkingItem thinking)
+    {
+        Entries.Remove(thinking);
+        OnPropertyChanged(nameof(IsThinking));
+    }
+
+    /// <summary>Its newest entry is thinking that still streams (the working row says "Thinking").</summary>
+    public bool IsThinking => Entries.LastOrDefault() is ThinkingItem { IsStreaming: true };
 
     [ObservableProperty]
     public partial string Summary { get; set; } = "";
