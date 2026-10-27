@@ -1684,7 +1684,7 @@
         </c:Ring>
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-            <StackPanel Width="320" Margin="8,4,8,6" Spacing="10">
+            <StackPanel Classes="usage" Background="Transparent" Width="320" Margin="8,4,8,6" Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Usage.Title}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" Foreground="{DynamicResource TextPrimaryBrush}">
@@ -1707,11 +1707,10 @@
                          TextWrapping="Wrap"
                          FontSize="{DynamicResource UiFontSizeSmall}"
                          IsVisible="{Binding Usage.IsUnavailable}" />
-              <TextBlock Text="{Binding Usage.StaleText}"
-                         Classes="muted"
-                         FontSize="{DynamicResource UiFontSizeTiny}"
-                         Margin="0,8,0,0"
-                         IsVisible="{Binding Usage.IsStale}" />
+              <ContentControl Content="{Binding Usage}"
+                              ContentTemplate="{StaticResource UsageStaleTemplate}"
+                              Margin="0,8,0,0"
+                              IsVisible="{Binding Usage.IsStale}" />
               <Border Classes="rule" Margin="-8,0" />
               <TextBlock Text="{Binding ContextToolTip}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
             </StackPanel>

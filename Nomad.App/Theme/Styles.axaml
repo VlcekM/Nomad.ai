@@ -24,6 +24,31 @@
   <Style Selector="TextBlock.muted.warn">
     <Setter Property="Foreground" Value="{DynamicResource WaitingBrush}" />
   </Style>
+  <!-- A plan limit's reset time: fades in only while the pointer is over its card (or the usage popup). -->
+  <Style Selector="TextBlock.resets">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector=":is(Control).usage:pointerover TextBlock.resets">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <!-- The usage card's retry button while it reads again. -->
+  <Style Selector="c|Icon.spin">
+    <Style.Animations>
+      <Animation Duration="0:0:0.9" IterationCount="Infinite">
+        <KeyFrame Cue="0%">
+          <Setter Property="RotateTransform.Angle" Value="0" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="RotateTransform.Angle" Value="360" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
   <!-- A plan limit that is close to (or past) running out. -->
   <Style Selector="c|FillSlider.high">
     <Setter Property="FillBrush" Value="{DynamicResource DangerBrush}" />

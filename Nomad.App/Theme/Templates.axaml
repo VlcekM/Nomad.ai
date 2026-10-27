@@ -10,7 +10,7 @@
     <StackPanel Spacing="5">
       <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Text="{Binding Label}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" />
-        <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted resets" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" Margin="8,0,0,0" />
         <TextBlock Grid.Column="2" Text="{Binding PercentText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" />
       </Grid>
       <!-- Not a slider here: a hover only shows the pace. -->
@@ -30,6 +30,30 @@
                  Classes="muted"
                  Classes.warn="{Binding IsForecastShort}"
                  TextWrapping="Wrap"
+                 FontSize="{DynamicResource UiFontSizeTiny}" />
+    </StackPanel>
+  </DataTemplate>
+
+  <!-- "Couldn't refresh · as of 22:42" with a retry button; after a retry that fails too, why unfolds beneath. -->
+  <DataTemplate x:Key="UsageStaleTemplate" x:DataType="vm:UsageViewModel">
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding StaleText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Theme="{StaticResource LineButton}" Command="{Binding RetryCommand}" ToolTip.Tip="Try again"
+                Padding="4,2" Margin="4,-2,-4,-2" VerticalAlignment="Center">
+          <c:Icon Size="12" Data="{StaticResource IconUpdate}" Classes.spin="{Binding IsRetrying}">
+            <c:Icon.RenderTransform>
+              <RotateTransform />
+            </c:Icon.RenderTransform>
+          </c:Icon>
+        </Button>
+      </Grid>
+      <TextBlock Text="{Binding StaleReason}"
+                 c:Fold.IsOpen="{Binding IsStaleReasonShown}"
+                 IsVisible="False"
+                 Classes="muted warn"
+                 TextWrapping="Wrap"
+                 Margin="0,2,0,0"
                  FontSize="{DynamicResource UiFontSizeTiny}" />
     </StackPanel>
   </DataTemplate>

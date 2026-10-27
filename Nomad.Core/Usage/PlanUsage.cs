@@ -57,9 +57,10 @@ public sealed record PlanPace(double Fraction, bool CanForecast, DateTimeOffset?
 
 /// <summary>
 /// The plan's usage limits, as the claude.ai usage page shows them. <see cref="StaleSince"/> is set when the
-/// endpoint could not be reached and these are the last ones read (then from that time).
+/// endpoint could not be reached and these are the last ones read (then from that time), with
+/// <see cref="StaleReason"/> saying why.
 /// </summary>
-public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits, DateTimeOffset? StaleSince = null)
+public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits, DateTimeOffset? StaleSince = null, string? StaleReason = null)
 {
     public PlanLimit? Session => Limits.FirstOrDefault(l => l.Kind == "session");
 }
@@ -125,17 +126,28 @@ public static partial class PlanUsageClient
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Add("anthropic-beta", "oauth-2025-04-20");
             string? json = null;
+            string reason;
             try
             {
                 using var response = await Http.SendAsync(request, cancellationToken);
                 if (response.IsSuccessStatusCode)
                 {
                     json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    reason = "The usage endpoint answered in a way Nomad.ai doesn't understand.";
+                }
+                else
+                {
+                    reason = Refusal(response);
                 }
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
                 // Offline: the cache may still do.
+                reason = $"Couldn't reach the usage endpoint: {ex.Message}";
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                reason = "The usage endpoint didn't answer within 10 seconds.";
             }
 
             if (json is not null && Parse(json, planName) is { } usage)
@@ -145,13 +157,32 @@ public static partial class PlanUsageClient
             }
 
             return cached is { } old && DateTimeOffset.UtcNow - old.At < CacheUsable
-                ? Parse(old.Json, planName) is { } stale ? stale with { StaleSince = old.At } : null
+                ? Parse(old.Json, planName) is { } stale ? stale with { StaleSince = old.At, StaleReason = reason } : null
                 : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return null;
         }
+    }
+
+    /// <summary>Why the endpoint said no: "The usage endpoint is rate-limiting (HTTP 429), try again in 4 min."</summary>
+    private static string Refusal(HttpResponseMessage response)
+    {
+        var code = (int)response.StatusCode;
+        var wait = response.Headers.RetryAfter is { } retry
+            ? retry.Delta ?? (retry.Date is { } date ? date - DateTimeOffset.UtcNow : null)
+            : null;
+        var after = wait is { } w && w > TimeSpan.Zero
+            ? w.TotalMinutes >= 1 ? $", try again in {Math.Ceiling(w.TotalMinutes):0} min" : $", try again in {Math.Ceiling(w.TotalSeconds):0} s"
+            : "";
+        return code switch
+        {
+            429 => $"The usage endpoint is rate-limiting (HTTP 429){after}.",
+            401 or 403 => $"The usage endpoint refused the sign-in (HTTP {code}); Claude Code renews it on its next run.",
+            >= 500 => $"The usage endpoint is having trouble (HTTP {code}){after}.",
+            _ => $"The usage endpoint said HTTP {code} {response.ReasonPhrase}{after}.",
+        };
     }
 
     private static (string Json, DateTimeOffset At)? ReadCache()

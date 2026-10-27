@@ -17,6 +17,8 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - The session list is kept between runs, so the app starts faster; placeholder rows show while things load.
 - Settings: bigger switches that glide, and the dialog and its pages fade in smoothly.
 - The app icon's tent sits centred in its tile.
+- Plan usage: "Couldn't refresh" gets a retry button that says why it still can't; reset times show only on hover,
+  and the per-model weekly row (Fable) drops its reset and forecast.
 
 ## v1.10.0
 

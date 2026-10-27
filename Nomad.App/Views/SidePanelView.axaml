@@ -245,7 +245,7 @@
         </Border>
 
         <!-- ============================================================ plan usage -->
-        <Border Classes="card">
+        <Border Classes="card usage">
           <StackPanel>
             <Grid ColumnDefinitions="*,Auto">
               <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Usage" Click="OnHeaderClick">
@@ -272,11 +272,10 @@
                          TextWrapping="Wrap"
                          FontSize="{DynamicResource UiFontSizeSmall}"
                          IsVisible="{Binding Usage.IsUnavailable}" />
-              <TextBlock Text="{Binding Usage.StaleText}"
-                         Classes="muted"
-                         FontSize="{DynamicResource UiFontSizeTiny}"
-                         Margin="0,8,0,0"
-                         IsVisible="{Binding Usage.IsStale}" />
+              <ContentControl Content="{Binding Usage}"
+                              ContentTemplate="{StaticResource UsageStaleTemplate}"
+                              Margin="0,8,0,0"
+                              IsVisible="{Binding Usage.IsStale}" />
             </StackPanel>
           </StackPanel>
         </Border>

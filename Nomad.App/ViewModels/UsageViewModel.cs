@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Usage;
 
@@ -54,6 +55,38 @@ public sealed partial class UsageViewModel : ObservableObject
 
     public bool IsStale => StaleText.Length > 0;
 
+    /// <summary>Why it couldn't refresh: shown under the stale line once its refresh button is clicked.</summary>
+    [ObservableProperty]
+    public partial string StaleReason { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsStaleReasonShown { get; set; }
+
+    /// <summary>The stale line's refresh button is reading again (its icon spins).</summary>
+    [ObservableProperty]
+    public partial bool IsRetrying { get; set; }
+
+    /// <summary>The stale line's refresh button: reads again at once and says why, if it still can't.</summary>
+    [RelayCommand]
+    private async Task RetryAsync()
+    {
+        if (IsRetrying)
+        {
+            return;
+        }
+
+        IsRetrying = true;
+        try
+        {
+            await RefreshAsync(force: true);
+        }
+        finally
+        {
+            IsRetrying = false;
+            IsStaleReasonShown = IsStale;
+        }
+    }
+
     /// <summary>How much of the weekly limit is used (the ring in the status row).</summary>
     [ObservableProperty]
     public partial double WeeklyFraction { get; set; }
@@ -103,6 +136,8 @@ public sealed partial class UsageViewModel : ObservableObject
 
             Title = usage.PlanName is { } plan ? $"Plan usage limits · {plan}" : "Plan usage limits";
             StaleText = usage.StaleSince is { } since ? $"Couldn't refresh · as of {Format.When(since)}" : "";
+            StaleReason = usage.StaleReason ?? "";
+            IsStaleReasonShown &= IsStale;
             Rows.Clear();
             foreach (var limit in usage.Limits)
             {
@@ -128,9 +163,11 @@ public sealed partial class UsageViewModel : ObservableObject
 
     public static UsageRow Row(PlanLimit limit, DateTimeOffset now)
     {
+        // A one-model weekly limit (Fable) resets with the all-models one, so it shows neither the reset nor a forecast.
+        var scoped = limit.Kind == "weekly_scoped";
         var row = new UsageRow(
             limit.Label,
-            Format.ResetsAt(limit.ResetsAt),
+            scoped ? "" : Format.ResetsAt(limit.ResetsAt),
             $"{limit.Percent}%",
             Math.Clamp(limit.Percent / 100.0, 0, 1),
             limit.Severity != "normal");
@@ -144,7 +181,7 @@ public sealed partial class UsageViewModel : ObservableObject
             PaceFraction = pace.Fraction,
             PaceToolTip = $"Even pace: {pace.Fraction * 100:0}% by now, using the week up evenly, around the clock",
         };
-        if (!pace.CanForecast)
+        if (!pace.CanForecast || scoped)
         {
             return row;
         }
