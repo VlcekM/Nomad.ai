@@ -198,6 +198,19 @@
               <Setter Property="IsHitTestVisible" Value="False" />
             </Style>
 
+            <!-- The Idle heading's list options show only while the pointer is over the heading (or its menu is open). -->
+            <Style Selector="Grid.idleheader Button#ListOptionsButton">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Grid.idleheader:pointerover Button#ListOptionsButton, Grid.idleheader Button#ListOptionsButton:flyout-open, Grid.idleheader Button#ListOptionsButton:focus-visible">
+              <Setter Property="Opacity" Value="1" />
+            </Style>
+
             <!-- The Ctrl+number badge fades in over the row's mark while Ctrl is held. -->
             <Style Selector="Border.shortcut">
               <Setter Property="Opacity" Value="0" />
@@ -508,7 +521,7 @@
           </Panel>
 
           <!-- Idle header: the heading folds the list. -->
-          <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto,Auto" Margin="8,18,11,2" Height="24">
+          <Grid Grid.Row="5" Classes="idleheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
             <Button Theme="{StaticResource RowButton}"
                     Classes="groupheader"
                     Classes.collapsed="{Binding IsIdleCollapsed}"
@@ -563,13 +576,6 @@
                   </StackPanel>
                 </Flyout>
               </Button.Flyout>
-            </Button>
-            <Button Grid.Column="3"
-                    Theme="{StaticResource IconButton}"
-                    Width="24" Height="24"
-                    Command="{Binding NewSessionCommand}"
-                    ToolTip.Tip="New session">
-              <c:Icon Size="13" Data="{StaticResource IconPlus}" />
             </Button>
           </Grid>
 
