@@ -866,6 +866,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Opens a stored session by id (dev hook <c>--dev-session</c>).</summary>
     public async Task OpenSessionByIdAsync(string sessionId)
     {
+        if (FindItem(sessionId) is { } item)
+        {
+            await OpenSessionAsync(item);
+        }
+    }
+
+    /// <summary>A session's sidebar row, or one made from its transcript if the list doesn't have it.</summary>
+    private SessionListItemViewModel? FindItem(string sessionId)
+    {
         var item = _all.FirstOrDefault(s => s.SessionId == sessionId);
         if (item is null && Store.FindTranscript(sessionId) is { } file && Store.GetSummary(file) is { } summary)
         {
@@ -878,10 +887,7 @@ public sealed partial class MainViewModel : ObservableObject
             };
         }
 
-        if (item is not null)
-        {
-            await OpenSessionAsync(item);
-        }
+        return item;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
@@ -1806,8 +1812,70 @@ public sealed partial class MainViewModel : ObservableObject
         !HasRunningTurns && !LiveSessions.Any(s => s.HasComposerText || (s.IsProcessRunning && s.HasRemoteControlUrl))
         && _draft is not { HasAttachments: true };
 
+    private bool _shuttingDown;
+
+    /// <summary>The prompt a session whose turn Nomad's exit cut short is resumed with at the next start.</summary>
+    public const string InterruptedPrompt = "You were interrupted by an app restart. Continue";
+
+    /// <summary>
+    /// Keeps <see cref="NomadSettings.InterruptedSessions"/> in step with the running turns (saved at once, so a crash
+    /// leaves it right). Frozen once Nomad shuts down: the turns its exit ends are the ones to resume.
+    /// </summary>
+    public void OnTurnRunningChanged(SessionViewModel session)
+    {
+        if (_shuttingDown || Dev.IsActive || session.SessionId is not { } id || session.IsPhoneSession)
+        {
+            return;
+        }
+
+        var list = Settings.InterruptedSessions;
+        var changed = session.IsTurnRunning ? !list.Contains(id) : list.Remove(id);
+        if (changed)
+        {
+            if (session.IsTurnRunning)
+            {
+                list.Add(id);
+            }
+
+            SaveSettings();
+        }
+    }
+
+    /// <summary>At startup: the sessions whose turn the last exit interrupted wake in the background and carry on.</summary>
+    public async Task ResumeInterruptedAsync()
+    {
+        if (Dev.IsActive || Settings.InterruptedSessions.Count == 0)
+        {
+            return;
+        }
+
+        var ids = Settings.InterruptedSessions.ToList();
+        Settings.InterruptedSessions.Clear();
+        SaveSettings();
+        foreach (var id in ids)
+        {
+            var item = FindItem(id);
+            if (item?.FilePath is null || !item.CanManage || IsRunningElsewhere(id))
+            {
+                continue;
+            }
+
+            if (!_open.TryGetValue(id, out var session))
+            {
+                session = CreateStoredSession(item);
+                await LoadHistoryAsync(session, item);
+            }
+
+            if (!session.IsTurnRunning)
+            {
+                _ = session.SendPromptAsync(InterruptedPrompt);
+            }
+        }
+    }
+
     public async Task ShutdownAsync()
     {
+        _shuttingDown = true;
         _idleTimer.Stop();
         _usageTimer.Stop();
         _phoneTimer.Stop();

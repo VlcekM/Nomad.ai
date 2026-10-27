@@ -782,6 +782,7 @@ public partial class MainWindow : Window
         }
 
         await _vm.RefreshSessionsAsync();
+        _ = _vm.ResumeInterruptedAsync();
 
         _vm.Updates.RequestExit = Exit;
         _vm.Updates.Start();

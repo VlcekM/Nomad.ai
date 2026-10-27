@@ -48,6 +48,19 @@
       <Setter Property="Stroke" Value="{DynamicResource TextChromeBrush}" />
     </Style>
 
+    <!-- A running tool group the working row already describes: faded out, its place kept. -->
+    <Style Selector="Button.toolgroup">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.toolgroup.echoed">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
     <!-- The working row: folded and transparent when idle. -->
     <Style Selector="Border.working">
       <Setter Property="Opacity" Value="0" />
@@ -472,15 +485,8 @@
 
     <DataTemplate DataType="{x:Type vm:ToolGroupItem}" x:DataType="vm:ToolGroupItem">
       <StackPanel Spacing="2">
-        <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
+        <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}" Classes="toolgroup" Classes.echoed="{Binding IsEchoed}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <c:Ring Width="12" Height="12"
-                    StrokeWidth="1.5"
-                    IsSpinning="{Binding IsRunning}"
-                    IsVisible="{Binding IsRunning}"
-                    TrackBrush="{DynamicResource RingTrackBrush}"
-                    SpinBrush="{DynamicResource AccentBrush}"
-                    VerticalAlignment="Center" />
             <TextBlock Text="{Binding Summary}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
             <Border Classes="pill add" IsVisible="{Binding HasAdded}">
               <TextBlock Text="{Binding AddedText}" />

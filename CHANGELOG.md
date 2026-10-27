@@ -16,6 +16,8 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - The side panel stays closed on the New page and slides in once the session starts.
 - Files Claude sends (SendUserFile) show in the transcript: images large, other files as chips that open on a click.
 - Question card: rounded option highlights with some room around them, and a white Submit button.
+- Sessions whose turn was cut short by Nomad.ai closing (a restart, an update, a crash) carry on by themselves at the
+  next start, told "You were interrupted by an app restart. Continue".
 
 ## v1.6.0
 

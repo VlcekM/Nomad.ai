@@ -115,6 +115,12 @@ public sealed class NomadSettings
     // Window and session state
     public bool SidebarCollapsed { get; set; }
 
+    /// <summary>
+    /// Sessions whose turn is running. Nomad's CLIs die with it, so if it goes down mid-turn (a restart, a crash) these
+    /// are resumed at the next start and told to continue.
+    /// </summary>
+    public List<string> InterruptedSessions { get; set; } = [];
+
     /// <summary>The right-hand panel (project, context, usage, MCP servers) is shown.</summary>
     public bool SidePanelOpen { get; set; }
 
