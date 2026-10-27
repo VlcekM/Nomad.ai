@@ -18,6 +18,9 @@ internal static class Program
     /// <summary>This process as the one Nomad.ai of the user (null for scripted <c>--dev-*</c> runs).</summary>
     public static SingleInstance? Instance { get; private set; }
 
+    /// <summary>The session a clicked notification asks for (it opens once the sessions are loaded).</summary>
+    public static string? LaunchSessionId { get; private set; }
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -25,10 +28,11 @@ internal static class Program
         // earlier but not applied yet is applied now and Nomad restarts into it (UpdateService).
         Velopack.VelopackApp.Build().Run();
 
-        // Already running: that window comes to the front instead.
+        // A notification clicked names its session. Already running: that window comes to the front instead (on it).
+        LaunchSessionId = WindowsToast.SessionFromLaunch(args);
         if (!args.Any(a => a.StartsWith("--dev-", StringComparison.Ordinal)))
         {
-            Instance = SingleInstance.Claim();
+            Instance = SingleInstance.Claim(LaunchSessionId);
             if (Instance is null)
             {
                 return 0;

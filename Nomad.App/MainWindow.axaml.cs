@@ -44,11 +44,11 @@ public partial class MainWindow : Window
             if (session.Queued.Count == 0)
             {
                 var reply = session.Items.OfType<AssistantTextItem>().LastOrDefault()?.Text;
-                CallForAttention(session.Title, string.IsNullOrWhiteSpace(reply) ? "Finished" : Nomad.Core.Sessions.SessionTitles.Shorten(reply, 140));
+                CallForAttention(session, string.IsNullOrWhiteSpace(reply) ? "Finished" : Nomad.Core.Sessions.SessionTitles.Shorten(reply, 140));
             }
         };
         vm.PermissionRequested += session => CallForAttention(
-            session.Title,
+            session,
             session.PendingPermission is QuestionItem ? "Claude has a question for you" : session.PendingPermission?.Title ?? "Needs your answer");
 
         // The mouse's back and forward buttons go back and forward between sessions, as the title bar's arrows do.
@@ -714,11 +714,18 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>Nomad.ai was launched again: this window shows, restored and in front.</summary>
-    public void BringToFront() => ShowFromTray();
+    /// <summary>Nomad.ai was launched again: this window shows, restored and in front (on a notification's session).</summary>
+    public void BringToFront(string? sessionId)
+    {
+        ShowFromTray();
+        if (sessionId is not null)
+        {
+            _ = _vm.OpenSessionByIdAsync(sessionId);
+        }
+    }
 
     /// <summary>Only while Nomad.ai is not the window in front (minimized, in the tray or behind another app).</summary>
-    private void CallForAttention(string? title, string text)
+    private void CallForAttention(SessionViewModel session, string text)
     {
         if (IsActive && IsVisible && WindowState != WindowState.Minimized)
         {
@@ -727,7 +734,7 @@ public partial class MainWindow : Window
 
         if (_vm.Settings.NotifyWhenDone)
         {
-            Infrastructure.WindowsToast.Show(string.IsNullOrWhiteSpace(title) ? "Nomad.ai" : title, text);
+            Infrastructure.WindowsToast.Show(string.IsNullOrWhiteSpace(session.Title) ? "Nomad.ai" : session.Title, text, session.SessionId);
         }
 
         if (_vm.Settings.FlashTaskbar && IsVisible && TryGetPlatformHandle()?.Handle is { } hwnd)
@@ -859,7 +866,7 @@ public partial class MainWindow : Window
         _vm.Updates.RequestExit = Exit;
         _vm.Updates.Start();
 
-        if (dev.SessionId is { } sessionId)
+        if ((dev.SessionId ?? Program.LaunchSessionId) is { } sessionId)
         {
             await _vm.OpenSessionByIdAsync(sessionId);
         }

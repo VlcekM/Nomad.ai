@@ -8,7 +8,8 @@ namespace Nomad.App.Infrastructure;
 /// Windows notifications (toasts) for an unpackaged app, without the WinRT projections (the app is NativeAOT with COM
 /// interop off): the few WinRT calls are made through their vtables. The app id is registered under
 /// <c>HKCU\Software\Classes\AppUserModelId</c>, which is all Windows 10 1903+ needs to show its toasts, and a click
-/// opens <c>nomad-ai:</c>, a protocol that starts Nomad.ai, which then just brings the running one to the front.
+/// opens <c>nomad-ai:open?session=…</c>, a protocol that starts Nomad.ai, which hands it to the running one: that comes
+/// to the front with the session open.
 /// Best effort: anything failing means no toast.
 /// </summary>
 public static unsafe class WindowsToast
@@ -62,8 +63,8 @@ public static unsafe class WindowsToast
         }
     }
 
-    /// <summary>Shows a toast with a title and a line of text; a click brings Nomad.ai to the front.</summary>
-    public static void Show(string title, string text)
+    /// <summary>Shows a toast with a title and a line of text; a click brings Nomad.ai to the front on that session.</summary>
+    public static void Show(string title, string text, string? sessionId)
     {
         if (!_registered || !OperatingSystem.IsWindowsVersionAtLeast(10, 0, 18362))
         {
@@ -71,7 +72,7 @@ public static unsafe class WindowsToast
         }
 
         var xml = $"""
-            <toast launch="{Protocol}:open" activationType="protocol">
+            <toast launch="{Escape(Launch(sessionId))}" activationType="protocol">
               <visual><binding template="ToastGeneric"><text>{Escape(title)}</text><text>{Escape(text)}</text></binding></visual>
             </toast>
             """;
@@ -152,6 +153,17 @@ public static unsafe class WindowsToast
     }
 
     private static string Escape(string text) => SecurityElement.Escape(text) ?? "";
+
+    private static string Launch(string? sessionId) =>
+        sessionId is null ? $"{Protocol}:open" : $"{Protocol}:open?session={Uri.EscapeDataString(sessionId)}";
+
+    /// <summary>The session a toast's click-through (a launch argument) asks for, if any.</summary>
+    public static string? SessionFromLaunch(IEnumerable<string> args)
+    {
+        const string prefix = Protocol + ":open?session=";
+        var arg = args.FirstOrDefault(a => a.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        return arg is null ? null : Uri.UnescapeDataString(arg[prefix.Length..].TrimEnd('/'));
+    }
 
     private static nint Slot(nint instance, int index) => (*(nint**)instance)[index];
 

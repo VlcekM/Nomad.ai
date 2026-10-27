@@ -5,7 +5,8 @@ namespace Nomad.App.Infrastructure;
 
 /// <summary>
 /// One Nomad.ai per Windows user. The first instance holds a named mutex and answers on a named pipe; a second one
-/// asks it to show its window (lets it take the foreground) and exits. While the first is exiting (an update
+/// asks it to show its window (lets it take the foreground), on a session if the launch named one (a notification
+/// clicked), and exits. While the first is exiting (an update
 /// restart, a quick relaunch) it no longer answers, and the new one waits for the mutex instead.
 /// Scripted runs (<c>--dev-*</c>) are exempt, so screenshots work beside the user's own instance.
 /// </summary>
@@ -21,11 +22,11 @@ internal sealed partial class SingleInstance : IDisposable
 
     private SingleInstance(Mutex mutex) => _mutex = mutex;
 
-    /// <summary>Raised on a thread-pool thread when another launch asks this instance to show itself.</summary>
-    public event Action? ShowRequested;
+    /// <summary>Raised on a thread-pool thread when another launch asks this instance to show itself (and a session).</summary>
+    public event Action<string?>? ShowRequested;
 
     /// <summary>This process is the instance (null: another one was asked to show itself; exit).</summary>
-    public static SingleInstance? Claim()
+    public static SingleInstance? Claim(string? sessionId)
     {
         var mutex = new Mutex(false, @"Local\" + Name);
         if (Acquire(mutex, TimeSpan.Zero))
@@ -33,7 +34,7 @@ internal sealed partial class SingleInstance : IDisposable
             return new SingleInstance(mutex);
         }
 
-        if (AskToShow())
+        if (AskToShow(sessionId))
         {
             mutex.Dispose();
             return null;
@@ -61,7 +62,7 @@ internal sealed partial class SingleInstance : IDisposable
         }
     }
 
-    private static bool AskToShow()
+    private static bool AskToShow(string? sessionId)
     {
         try
         {
@@ -69,7 +70,18 @@ internal sealed partial class SingleInstance : IDisposable
             AllowSetForegroundWindow(-1);
             using var pipe = new NamedPipeClientStream(".", Name, PipeDirection.InOut);
             pipe.Connect(1500);
-            pipe.WriteByte(1);
+
+            // 1: show; 2: show this session (its id follows, length first).
+            var id = System.Text.Encoding.UTF8.GetBytes(sessionId ?? "");
+            if (id.Length is 0 or > 255)
+            {
+                pipe.WriteByte(1);
+            }
+            else
+            {
+                pipe.Write([2, (byte)id.Length, .. id]);
+            }
+
             pipe.Flush();
             return pipe.ReadByte() == 1;
         }
@@ -97,9 +109,18 @@ internal sealed partial class SingleInstance : IDisposable
                     await using var pipe = new NamedPipeServerStream(Name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                     await pipe.WaitForConnectionAsync(_stop.Token);
                     var buffer = new byte[1];
-                    if (await pipe.ReadAsync(buffer, _stop.Token) == 1 && buffer[0] == 1)
+                    if (await pipe.ReadAsync(buffer, _stop.Token) == 1 && buffer[0] is 1 or 2)
                     {
-                        ShowRequested?.Invoke();
+                        string? sessionId = null;
+                        if (buffer[0] == 2)
+                        {
+                            await pipe.ReadExactlyAsync(buffer, _stop.Token);
+                            var id = new byte[buffer[0]];
+                            await pipe.ReadExactlyAsync(id, _stop.Token);
+                            sessionId = System.Text.Encoding.UTF8.GetString(id);
+                        }
+
+                        ShowRequested?.Invoke(sessionId);
                         pipe.WriteByte(1);
                         await pipe.FlushAsync(_stop.Token);
                     }

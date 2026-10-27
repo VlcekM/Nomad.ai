@@ -60,7 +60,7 @@ public partial class App : Application
             // Launched again: show this window (from the tray too) rather than a second Nomad.ai.
             if (Program.Instance is { } instance)
             {
-                instance.ShowRequested += () => Avalonia.Threading.Dispatcher.UIThread.Post(window.BringToFront);
+                instance.ShowRequested += sessionId => Avalonia.Threading.Dispatcher.UIThread.Post(() => window.BringToFront(sessionId));
                 instance.Listen();
                 desktop.ShutdownRequested += (_, _) => instance.StopListening();
                 desktop.Exit += (_, _) => instance.StopListening();
