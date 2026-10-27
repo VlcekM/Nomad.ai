@@ -169,6 +169,40 @@ public sealed class SessionStore
     }
 
     /// <summary>
+    /// Renames a session the way Claude Code's <c>/rename</c> does: a <c>custom-title</c> record appended to its
+    /// transcript (the last one wins). The only write Nomad makes to a transcript.
+    /// </summary>
+    public static void AppendCustomTitle(string file, string sessionId, string title)
+    {
+        using var buffer = new MemoryStream();
+        using (var json = new System.Text.Json.Utf8JsonWriter(buffer))
+        {
+            json.WriteStartObject();
+            json.WriteString("type", "custom-title");
+            json.WriteString("customTitle", title);
+            json.WriteString("sessionId", sessionId);
+            json.WriteEndObject();
+        }
+
+        using var stream = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+
+        // Start on a line of its own, even if the last record has no newline yet.
+        var newline = new[] { (byte)'\n' };
+        if (stream.Length > 0)
+        {
+            stream.Seek(-1, SeekOrigin.End);
+            if (stream.ReadByte() != '\n')
+            {
+                stream.Write(newline);
+            }
+        }
+
+        stream.Seek(0, SeekOrigin.End);
+        stream.Write(buffer.ToArray());
+        stream.Write(newline);
+    }
+
+    /// <summary>
     /// The record before <paramref name="uuid"/> in a transcript (its <c>parentUuid</c>): where a
     /// rewind to just before that message resumes. Null when the record is the first, or not found.
     /// </summary>
