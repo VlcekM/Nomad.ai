@@ -1377,8 +1377,14 @@
           <StackPanel Orientation="Horizontal" Spacing="6">
             <c:Icon Size="13" Data="{StaticResource IconGitBranch}" />
             <TextBlock Classes="status branchtext" Text="{Binding GitChipText}" MaxWidth="180" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-            <TextBlock Classes="status ahead" Classes.on="{Binding HasGitAhead}" IsVisible="{Binding HasGitAhead}"
-                       Text="{Binding GitAheadText}" ToolTip.Tip="{Binding GitAheadToolTip}" VerticalAlignment="Center" />
+            <!-- Unpushed commits: "| ↑ N", the count bold white; its tooltip shows at once. -->
+            <StackPanel Classes="ahead" Classes.on="{Binding HasGitAhead}" IsVisible="{Binding HasGitAhead}"
+                        Orientation="Horizontal" Spacing="3" Background="Transparent"
+                        ToolTip.Tip="{Binding GitAheadToolTip}" ToolTip.ShowDelay="0">
+              <TextBlock Classes="status" Text="|" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,3,0" VerticalAlignment="Center" />
+              <TextBlock Classes="status" Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+              <TextBlock Classes="status" Text="{Binding GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+            </StackPanel>
           </StackPanel>
           <FlyoutBase.AttachedFlyout>
             <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">

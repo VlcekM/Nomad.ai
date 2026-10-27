@@ -793,13 +793,20 @@
                          MaxWidth="220"
                          TextTrimming="CharacterEllipsis"
                          VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Current.GitAheadText}"
-                         Classes="muted ahead"
-                         Classes.on="{Binding Current.HasGitAhead}"
-                         IsVisible="{Binding Current.HasGitAhead}"
-                         ToolTip.Tip="{Binding Current.GitAheadToolTip}"
-                         FontSize="{DynamicResource UiFontSizeSmall}"
-                         VerticalAlignment="Center" />
+              <!-- Unpushed commits: "| ↑ N", the count bold white; its tooltip shows at once. -->
+              <StackPanel Classes="ahead"
+                          Classes.on="{Binding Current.HasGitAhead}"
+                          IsVisible="{Binding Current.HasGitAhead}"
+                          Orientation="Horizontal"
+                          Spacing="3"
+                          Background="Transparent"
+                          TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
+                          ToolTip.Tip="{Binding Current.GitAheadToolTip}"
+                          ToolTip.ShowDelay="0">
+                <TextBlock Text="|" Classes="muted" Margin="0,0,3,0" VerticalAlignment="Center" />
+                <TextBlock Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Current.GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+              </StackPanel>
             </StackPanel>
             <Border Name="TitleWorktree"
                     Background="Transparent"

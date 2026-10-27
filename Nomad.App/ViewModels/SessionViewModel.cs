@@ -237,13 +237,10 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Commits on the chip's branch not pushed to its upstream yet (shown as ↑N next to it).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasGitAhead))]
-    [NotifyPropertyChangedFor(nameof(GitAheadText))]
     [NotifyPropertyChangedFor(nameof(GitAheadToolTip))]
     public partial int GitAhead { get; set; }
 
     public bool HasGitAhead => GitAhead > 0;
-
-    public string GitAheadText => $"↑{GitAhead}";
 
     public string GitAheadToolTip => GitAhead == 1 ? "1 commit not pushed yet" : $"{GitAhead} commits not pushed yet";
 

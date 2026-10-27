@@ -29,7 +29,7 @@
     <Setter Property="FillBrush" Value="{DynamicResource DangerBrush}" />
   </Style>
   <!-- A branch's unpushed commits (↑N): fades in when it shows. -->
-  <Style Selector="TextBlock.ahead">
+  <Style Selector="StackPanel.ahead">
     <Setter Property="Opacity" Value="0" />
     <Setter Property="Transitions">
       <Transitions>
@@ -37,7 +37,7 @@
       </Transitions>
     </Setter>
   </Style>
-  <Style Selector="TextBlock.ahead.on">
+  <Style Selector="StackPanel.ahead.on">
     <Setter Property="Opacity" Value="1" />
   </Style>
   <Style Selector="TextBlock.chrome">
