@@ -48,7 +48,6 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     /// <summary>The session has a running CLI process (the sidebar's Alive list).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AliveToggleText))]
-    [NotifyPropertyChangedFor(nameof(IsAsleep))]
     public partial bool IsAlive { get; set; }
 
     /// <summary>Started from the phone and still running there (through a Remote Control server).</summary>
@@ -96,18 +95,6 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     public partial bool IsWaiting { get; set; }
 
     /// <summary>The mark on the right: asking beats working, working beats unread.</summary>
-    /// <summary>Idle with nothing to show: the row gets a sleeping moon.</summary>
-    public bool IsAsleep => !IsAlive && Mark == SessionMark.None;
-
-    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        base.OnPropertyChanged(e);
-        if (e.PropertyName == nameof(Mark))
-        {
-            OnPropertyChanged(nameof(IsAsleep));
-        }
-    }
-
     public SessionMark Mark => IsWaiting ? SessionMark.Waiting : IsRunning ? SessionMark.Working : IsUnread ? SessionMark.Unread : SessionMark.None;
 
     /// <summary>The branch its transcript last recorded (null: not a repository, or not known yet).</summary>

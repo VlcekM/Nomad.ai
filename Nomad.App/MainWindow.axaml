@@ -225,7 +225,7 @@
               <Setter Property="Opacity" Value="1" />
             </Style>
 
-            <!-- Alive / Idle: a heading with a count badge. -->
+            <!-- Alive / Idle: a heading (Alive's with a count badge, Idle's with a sleeping moon). -->
             <Style Selector="TextBlock.sectiontitle">
               <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
               <Setter Property="FontWeight" Value="SemiBold" />
@@ -334,16 +334,6 @@
                       </Panel>
                     </Border>
                   </StackPanel>
-                  <!-- Idle (no CLI process): a sleeping moon, unless a mark has something to say. -->
-                  <c:Icon Grid.Column="3"
-                          Classes="sleep"
-                          Size="13"
-                          Data="{StaticResource IconSleep}"
-                          Stroke="{DynamicResource TextMutedBrush}"
-                          IsVisible="{Binding IsAsleep}"
-                          Margin="8,0,0,0"
-                          VerticalAlignment="Center"
-                          ToolTip.Tip="Idle: no Claude Code process (it starts again with the next prompt)" />
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
                   <c:StatusMark Grid.Column="3"
                                 Margin="10,0,1,0"
@@ -532,9 +522,7 @@
                     ToolTip.ShowDelay="700">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Idle" Classes="sectiontitle" />
-                <Border Classes="sectioncount">
-                  <TextBlock Text="{Binding IdleCount}" />
-                </Border>
+                <c:Icon Size="12" Margin="6,0,0,0" Data="{StaticResource IconSleep}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
                 <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>

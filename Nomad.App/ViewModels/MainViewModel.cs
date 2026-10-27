@@ -494,10 +494,6 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial int AliveCount { get; set; }
 
-    /// <summary>Idle sessions listed (archived ones not counted).</summary>
-    [ObservableProperty]
-    public partial int IdleCount { get; set; }
-
     [ObservableProperty]
     public partial string UserName { get; set; } = "";
 
@@ -1188,7 +1184,6 @@ public sealed partial class MainViewModel : ObservableObject
         SyncList(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
         HasAlive = Alive.Count > 0;
         AliveCount = Alive.Count;
-        IdleCount = list.Count(s => !s.IsAlive && !s.IsArchived);
         HasNoSessions = _all.Count == 0;
         NumberRows();
     }
