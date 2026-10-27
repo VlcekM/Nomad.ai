@@ -456,7 +456,7 @@
                                    Margin="{TemplateBinding Padding}"
                                    CaretBrush="Transparent"
                                    MarkerBrush="{DynamicResource TextMutedBrush}"
-                                   ListBrush="{DynamicResource AccentBrush}"
+                                   ListBrush="{DynamicResource TextPrimaryBrush}"
                                    CodeBrush="{DynamicResource InlineCodeBrush}"
                                    LinkBrush="{DynamicResource LinkBrush}"
                                    QuoteBrush="{DynamicResource TextSecondaryBrush}"

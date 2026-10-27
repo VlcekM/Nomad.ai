@@ -11,7 +11,7 @@ namespace Nomad.App.Controls;
 /// <c>*italic*</c> italic, <c>`code`</c> as a pill (its backticks hidden; <see cref="MarkdownBackdrop"/> draws the
 /// pills and code blocks), fenced blocks in the code font, headings bold, quotes and links in their colours, the
 /// syntax around them quiet. List markers stand in from the left as in the transcript: a bullet as a dot, a
-/// number in the accent, each drawn by a run over the marker's own characters, so the caret steps over them as
+/// number, each drawn by a run over the marker's own characters, so the caret steps over them as
 /// over text. Every style keeps the line height, so the box never jumps while typing.
 /// </summary>
 public sealed class MarkdownPresenter : TextPresenter
