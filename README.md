@@ -88,12 +88,19 @@ the previous tag.
   CLI process are listed under **Alive**, the rest under **Idle**. A process quiet for an hour is
   ended and its session moves to Idle; right-click a session to make it idle or alive by hand, to
   archive it, or to delete it (into the Recycle Bin). The sliders icon groups the Idle list by date
-  (the default), by folder or not at all, and shows archived sessions. Sessions another Nomad window
+  (the default), by folder or not at all, and shows archived sessions; a click on a group heading folds
+  it, and the Alive heading folds its list. Sessions untouched for 24 hours (Settings, at least 1) are
+  archived on their own. On the right of a row, the working mark shows a running turn, a yellow dot a
+  question or permission waiting for you, and a blue dot a finished turn not seen yet. Sessions another Nomad window
   or a terminal runs are listed as Alive with a laptop icon.
 - **Transcript.** Streaming markdown (headings, lists, tables, code blocks, inline code, links),
-  collapsible tool groups ("Ran 2 commands", "Edited a file", with +/− counts), a "Thought process"
-  line with the summarized thinking, an error card, and, while a turn runs, a working row (animated
-  pixel mark, what Claude is doing, elapsed time). New text fades in as it streams. Hovering a prompt
+  collapsible activity groups ("Ran 2 commands", "Edited a file", with +/− counts) that hold the tool
+  calls and the thinking between them (as the desktop app: only text ends a group), a "Thought process"
+  line for thinking outside a group, an error card, and, while a turn runs, a working row (animated
+  mark, what Claude is doing, elapsed time). The mark is the desktop app's own animation per activity
+  (thinking, reading, searching, running code, writing, waiting for you), read at start from the installed
+  Claude app; without it, a pixel spinner. Background-task notifications show as a muted notice line,
+  not as a prompt. New text fades in as it streams. Hovering a prompt
   shows its seen mark (✓ sent, ✓✓ picked up), its age, and Copy, Rewind (cut the conversation back
   to before it and put it in the composer; files are not restored) and Fork (a new session with the
   conversation through that turn).
@@ -216,7 +223,7 @@ read should be a free 304 from the ETag cache).
 | `--dev-key <gesture> <seconds>` | Press a key (e.g. `Ctrl+B`) on the focused control this long after start |
 | `--dev-drag x1,y1,x2,y2 <seconds>` | Drag with the left button between two window points (sent to Nomad's window only; the cursor never moves) |
 | `--dev-compose "<text>"` | Put text in the composer (`\n` for new lines) |
-| `--dev-paste-image <png>` | Attach an image to the composer, as a paste would |
+| `--dev-paste-image <file>` | Attach an image (or any file, as a chip) to the composer, as a paste would; repeatable |
 | `--dev-update-source <folder>` | An installed build updates from this local `vpk` output folder instead of GitHub |
 | `--dev-update-after <seconds>` | The first update check this long after start, not at once (to catch the update chip folding in) |
 | `--dev-releases-repo <owner/repo>` | List another repository's GitHub releases on the Updates page |

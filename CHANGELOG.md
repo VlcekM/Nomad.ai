@@ -3,6 +3,19 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.1.0
+
+- Composer: attach any file or folder (+ menu, drop or paste); images stay images, other files go in as @-mentions and
+  show as chips, also in the sent prompt. Image previews are larger and their remove button is no longer cut off.
+- The working row shows the desktop app's own working mark, a different animation for thinking, reading, searching,
+  running commands, writing and waiting for you (read from the installed Claude app; a pixel spinner without it).
+- Sidebar: a row shows the working mark while Claude works, a yellow dot while it asks something, and a blue dot when
+  it finished and you haven't looked yet. Group headings and the Alive heading fold their lists; Alive and Idle have
+  count badges.
+- Sessions untouched for 24 hours are archived on their own (Settings › General › Sessions; at least 1 hour, or off).
+- Thinking between tool calls folds into the activity group as in the desktop app: only text ends a group.
+- Background-task notifications show as a muted line instead of a prompt bubble.
+
 ## v1.0.0
 
 - The executable is now `Nomad.ai.exe`: Discord's game list has a `nomad.exe`, so Discord put its overlay on Nomad.
