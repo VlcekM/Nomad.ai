@@ -18,16 +18,18 @@ Never start the app visibly to check a change: the user works on this PC. Take a
 taskbar button), renders it to a PNG and exits, so it never interrupts the user.
 
 Build into a scratch folder, not `bin\`, so the user's own running instance (which locks
-`bin\Debug\...\Nomad.exe`) is never in the way and never has to be stopped:
+`bin\Debug\...\Nomad.ai.exe`) is never in the way and never has to be stopped:
 
 ```powershell
 dotnet build Nomad.App -o <scratch>\build
-<scratch>\build\Nomad.exe --dev-size 1400x900 --dev-after 5 --dev-screenshot <scratch>\shot.png
+<scratch>\build\Nomad.ai.exe --dev-size 1400x900 --dev-after 5 --dev-screenshot <scratch>\shot.png
 ```
 
 Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/DevOptions.cs`):
 
-- `--dev-menu model|mode|folder|plus|usage|remote` opens a status-row menu first; `--dev-settings-open` the settings.
+- `--dev-menu model|mode|folder|plus|usage|remote` opens a status-row menu first (`list` the sidebar's list options, `row` an Idle row's context menu); `--dev-settings-open` the settings.
+- `--dev-compose "/co"` types into the composer, `--dev-paste-image <png>` attaches an image, and
+  `--dev-drag x1,y1,x2,y2 <seconds>` drags the mouse inside the window (clicks, text selection).
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a
