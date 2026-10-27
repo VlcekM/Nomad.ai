@@ -8,6 +8,7 @@
         <ResourceInclude Source="avares://Nomad.ai/Theme/Palette.axaml" />
         <ResourceInclude Source="avares://Nomad.ai/Theme/Icons.axaml" />
         <ResourceInclude Source="avares://Nomad.ai/Theme/Controls.axaml" />
+        <ResourceInclude Source="avares://Nomad.ai/Theme/Templates.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>

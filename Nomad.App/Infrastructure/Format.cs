@@ -70,6 +70,20 @@ public static class Format
         };
     }
 
+    /// <summary>"now", "5m", "3h", "2d", then "12 Oct".</summary>
+    public static string AgoShort(DateTime utc)
+    {
+        var age = DateTime.UtcNow - utc;
+        return age.TotalMinutes switch
+        {
+            < 1 => "now",
+            < 60 => $"{(int)age.TotalMinutes}m",
+            < 24 * 60 => $"{(int)age.TotalHours}h",
+            < 14 * 24 * 60 => $"{(int)age.TotalDays}d",
+            _ => utc.ToLocalTime().ToString("d MMM", CultureInfo.InvariantCulture),
+        };
+    }
+
     /// <summary>"Resets in 1 hr 25 min" within a day, else "Resets Fri 09:00" (local time).</summary>
     public static string ResetsAt(DateTimeOffset? at)
     {
@@ -92,6 +106,25 @@ public static class Format
 
         return "Resets " + time.ToLocalTime().ToString("ddd HH:mm", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>"today 14:00", "tomorrow 09:30", else "Thu 14:00" (local time).</summary>
+    public static string When(DateTimeOffset at)
+    {
+        var local = at.ToLocalTime();
+        var today = DateTime.Now.Date;
+        var time = local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        return local.Date == today ? "today " + time
+            : local.Date == today.AddDays(1) ? "tomorrow " + time
+            : local.ToString("ddd ", CultureInfo.InvariantCulture) + time;
+    }
+
+    /// <summary>"40 min", "5 hr", "2 days".</summary>
+    public static string Span(TimeSpan span) => span.TotalMinutes switch
+    {
+        < 60 => $"{Math.Max(1, (int)span.TotalMinutes)} min",
+        < 48 * 60 => $"{(int)span.TotalHours} hr",
+        _ => $"{(int)span.TotalDays} days",
+    };
 
     public static string Capitalize(string s) =>
         string.IsNullOrEmpty(s) ? s : char.ToUpperInvariant(s[0]) + s[1..];

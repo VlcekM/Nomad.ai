@@ -20,6 +20,14 @@
   <Style Selector="TextBlock.muted">
     <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
   </Style>
+  <!-- A plan limit that, at the rate so far, runs out before it resets. -->
+  <Style Selector="TextBlock.muted.warn">
+    <Setter Property="Foreground" Value="{StaticResource WaitingBrush}" />
+  </Style>
+  <!-- A plan limit that is close to (or past) running out. -->
+  <Style Selector="c|FillSlider.high">
+    <Setter Property="FillBrush" Value="{StaticResource DangerBrush}" />
+  </Style>
   <Style Selector="TextBlock.chrome">
     <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
   </Style>

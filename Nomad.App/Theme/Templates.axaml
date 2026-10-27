@@ -1,0 +1,36 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="using:Nomad.App.ViewModels"
+                    xmlns:c="using:Nomad.App.Controls">
+
+  <!-- A plan limit: label, reset time and percent over a bar; weekly ones also show the even pace (the lighter
+       fill behind: where using the week up evenly, 24/7, would be by now) and a forecast. The usage popup and the
+       side panel both use it. -->
+  <DataTemplate x:Key="UsageRowTemplate" x:DataType="vm:UsageRow">
+    <StackPanel Spacing="5">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Text="{Binding Label}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <TextBlock Grid.Column="2" Text="{Binding PercentText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" />
+      </Grid>
+      <!-- Not a slider here: a hover only shows the pace. -->
+      <Panel Background="Transparent" ToolTip.Tip="{Binding PaceToolTip}" ToolTip.IsEnabled="{Binding HasPace}">
+        <c:FillSlider Height="5" Thickness="5"
+                      Maximum="1"
+                      Value="{Binding Fraction}"
+                      PaceValue="{Binding PaceFraction}"
+                      PaceBrush="#5C2A78D6"
+                      IsHitTestVisible="False"
+                      TrackBrush="#3A3A38"
+                      FillBrush="{StaticResource RingBrush}"
+                      Classes.high="{Binding IsHigh}" />
+      </Panel>
+      <TextBlock Text="{Binding ForecastText}"
+                 IsVisible="{Binding HasForecast}"
+                 Classes="muted"
+                 Classes.warn="{Binding IsForecastShort}"
+                 TextWrapping="Wrap"
+                 FontSize="{DynamicResource UiFontSizeTiny}" />
+    </StackPanel>
+  </DataTemplate>
+</ResourceDictionary>

@@ -41,6 +41,16 @@ public sealed class FillSlider : Control
     public static readonly StyledProperty<double> MagnetDistanceProperty =
         AvaloniaProperty.Register<FillSlider, double>(nameof(MagnetDistance), 7);
 
+    /// <summary>
+    /// A second, quieter fill behind the main one, up to this value (none when negative): the plan usage bars' even
+    /// pace. Where the main fill covers it, a thin gap in the main fill still marks it.
+    /// </summary>
+    public static readonly StyledProperty<double> PaceValueProperty =
+        AvaloniaProperty.Register<FillSlider, double>(nameof(PaceValue), -1);
+
+    public static readonly StyledProperty<IBrush?> PaceBrushProperty =
+        AvaloniaProperty.Register<FillSlider, IBrush?>(nameof(PaceBrush));
+
     private static readonly TimeSpan GlideTime = TimeSpan.FromMilliseconds(140);
 
     private bool _dragging;
@@ -51,7 +61,7 @@ public sealed class FillSlider : Control
 
     static FillSlider()
     {
-        AffectsRender<FillSlider>(TrackBrushProperty, FillBrushProperty, KnobBrushProperty, TickBrushProperty, ThicknessProperty);
+        AffectsRender<FillSlider>(PaceValueProperty, PaceBrushProperty, TrackBrushProperty, FillBrushProperty, KnobBrushProperty, TickBrushProperty, ThicknessProperty);
         FocusableProperty.OverrideDefaultValue<FillSlider>(false);
         CursorProperty.OverrideDefaultValue<FillSlider>(new Cursor(StandardCursorType.Hand));
     }
@@ -96,6 +106,18 @@ public sealed class FillSlider : Control
     {
         get => GetValue(MagnetDistanceProperty);
         set => SetValue(MagnetDistanceProperty, value);
+    }
+
+    public double PaceValue
+    {
+        get => GetValue(PaceValueProperty);
+        set => SetValue(PaceValueProperty, value);
+    }
+
+    public IBrush? PaceBrush
+    {
+        get => GetValue(PaceBrushProperty);
+        set => SetValue(PaceBrushProperty, value);
     }
 
     /// <summary>A circle at the current position (none when null).</summary>
@@ -241,11 +263,24 @@ public sealed class FillSlider : Control
             context.DrawRectangle(track, null, bounds, radius, radius);
         }
 
+        var hasPace = PaceValue >= 0 && PaceBrush is not null;
+        var paceX = hasPace ? XOf(PaceValue) : 0;
+        if (hasPace)
+        {
+            context.DrawRectangle(PaceBrush, null, bounds.WithWidth(paceX + radius), radius, radius);
+        }
+
         // The fill always covers the knob, so the lowest level still shows as filled.
         var x = XOf(_shown);
         if (FillBrush is { } brush)
         {
             context.DrawRectangle(brush, null, bounds.WithWidth(x + radius), radius, radius);
+        }
+
+        // Pace under the fill: a thin gap in it, the track's colour.
+        if (hasPace && TrackBrush is { } gap && paceX + radius < x - 1)
+        {
+            context.FillRectangle(gap, new Rect(Math.Round(paceX + radius) - 1, bounds.Y, 1.5, bounds.Height));
         }
 
         // Small columns at each whole level: where the value snaps to.
