@@ -252,6 +252,23 @@
     <Style Selector="Button.project:pointerover Button.pin, Button.pin.pinned">
       <Setter Property="Opacity" Value="1" />
     </Style>
+    <!-- Pinned: the outline crossfades to a filled pin. -->
+    <Style Selector="Button.pin :is(Control).pin-off, Button.pin :is(Control).pin-on">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.pin :is(Control).pin-on">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.pin.pinned :is(Control).pin-on">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.pin.pinned :is(Control).pin-off">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
     <Style Selector="StackPanel.gitpart">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
@@ -908,7 +925,13 @@
                       </Border>
                       <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
                               Click="OnPinClick" ToolTip.Tip="{Binding PinToolTip}">
-                        <c:Icon Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                        <Panel>
+                          <c:Icon Classes="pin-off" Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                          <Panel Classes="pin-on">
+                            <c:Icon Size="13" Data="{StaticResource IconPinHead}" Stroke="{DynamicResource TextPrimaryBrush}" IsFilled="True" />
+                            <c:Icon Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextPrimaryBrush}" />
+                          </Panel>
+                        </Panel>
                       </Button>
                       <c:Icon Grid.Column="4" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="8,0,0,0" VerticalAlignment="Center" />
                     </Grid>
