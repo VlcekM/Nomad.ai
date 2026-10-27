@@ -81,9 +81,11 @@ jobs:
           # NativeAOT links with Visual Studio's C++ tools, which the runner has. -p:Version overrides the default
           # version (CHANGELOG.md's newest heading, Directory.Build.props).
           dotnet publish Nomad.App -c Release -r win-x64 -p:Version="$VERSION" -o pub
-          # The changelog section goes into the package too: the update prompt shows it when GitHub can't be asked.
+          # --runtime: an x64 package (vpk assumes x86 without it). The changelog section goes into the package too: the
+          # update prompt shows it when GitHub can't be asked.
           vpk pack --packId Nomad --packVersion "$VERSION" --packTitle "Nomad.ai" --packDir pub --mainExe Nomad.exe \
-            --channel win-x64 --icon Nomad.App/Assets/nomad.ico --releaseNotes "$RUNNER_TEMP/changes.md" --outputDir out
+            --runtime win-x64 --channel win-x64 --icon Nomad.App/Assets/nomad.ico --releaseNotes "$RUNNER_TEMP/changes.md" \
+            --outputDir out
 
       - uses: actions/upload-artifact@v4
         with:
