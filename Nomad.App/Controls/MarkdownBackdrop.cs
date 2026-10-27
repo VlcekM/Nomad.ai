@@ -109,18 +109,35 @@ public sealed class MarkdownBackdrop : Control
                 // The block's spans run on without a gap (line breaks included): one panel, the box's full width.
                 var start = spans[i].Start;
                 var end = start + spans[i].Length;
+                var closed = presenter.ClosingFences.Contains(start);
                 while (i + 1 < spans.Count && spans[i + 1].Style.HasFlag(SpanStyle.CodeBlock) && spans[i + 1].Start == end)
                 {
                     i++;
                     end = spans[i].Start + spans[i].Length;
+                    closed |= presenter.ClosingFences.Contains(spans[i].Start);
+                }
+
+                // Not the break after the last line: hit-testing it would reach into the line below.
+                var text = presenter.Text ?? "";
+                var last = Math.Min(end, text.Length);
+                while (last > start && text[last - 1] is '\n' or '\r')
+                {
+                    last--;
                 }
 
                 var top = double.MaxValue;
                 var bottom = double.MinValue;
-                foreach (var rect in layout.HitTestTextRange(start, end - start))
+                foreach (var rect in layout.HitTestTextRange(start, last - start))
                 {
                     top = Math.Min(top, rect.Top);
                     bottom = Math.Max(bottom, rect.Bottom);
+                }
+
+                // The fences' lines are taller by the room around the block, which stays outside the panel.
+                top += presenter.FenceGap;
+                if (closed)
+                {
+                    bottom -= presenter.FenceGap;
                 }
 
                 if (top < bottom)

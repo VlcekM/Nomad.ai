@@ -38,6 +38,7 @@ public sealed class MarkdownPresenter : TextPresenter
     private const double CodeScale = 0.92;
 
     private IReadOnlyList<MarkdownSpan> _spans = [];
+    private readonly HashSet<int> _closingFences = [];
 
     public IBrush? MarkerBrush
     {
@@ -78,6 +79,13 @@ public sealed class MarkdownPresenter : TextPresenter
     /// <summary>The styled stretches of the text, as of the last layout.</summary>
     public IReadOnlyList<MarkdownSpan> Spans => _spans;
 
+    /// <summary>The room above a code block's opening fence and below its closing one, outside its panel (the fences' lines
+    /// grow a little more, for room inside it).</summary>
+    public double FenceGap => Math.Round(FontSize * 0.7);
+
+    /// <summary>Where the fences that close a code block start, as of the last layout.</summary>
+    public IReadOnlySet<int> ClosingFences => _closingFences;
+
     /// <summary>The text layout is to be made again (the text, the selection, its width or a style changed).</summary>
     public event EventHandler? LayoutChanged;
 
@@ -114,8 +122,10 @@ public sealed class MarkdownPresenter : TextPresenter
         var spans = MarkdownSpans.Highlight(text);
         _spans = spans;
         var styled = new List<(int Start, int End, TextRunProperties Properties)>(spans.Count);
-        var markers = new SortedList<int, ListMarker>();
+        var markers = new SortedList<int, DrawableTextRun>();
         var levels = new Stack<int>();
+        var inBlock = false;
+        _closingFences.Clear();
         foreach (var span in spans)
         {
             if ((span.Style & (SpanStyle.Bullet | SpanStyle.Number)) != 0)
@@ -141,6 +151,21 @@ public sealed class MarkdownPresenter : TextPresenter
                 var number = span.Style.HasFlag(SpanStyle.Number) ? text.Substring(span.Start, span.Length) : null;
                 markers.Add(lineStart, new ListMarker(indent + span.Length, levels.Count - 1, number, defaults,
                     ListBrush ?? Foreground ?? Brushes.Gray));
+            }
+            else if (span.Style == (SpanStyle.Marker | SpanStyle.CodeBlock) && text[span.Start] is '`' or '~')
+            {
+                // A fence: its first character, drawn by a run with room above (opening) or below (closing),
+                // spaces the block off from the text around it.
+                var properties = Properties(span.Style);
+                var opening = !inBlock;
+                inBlock = opening;
+                markers.Add(span.Start, new FenceRun(text[span.Start], properties, FenceGap + Math.Round(FontSize * 0.3), opening));
+                if (!opening)
+                {
+                    _closingFences.Add(span.Start);
+                }
+
+                styled.Add((span.Start + 1, span.Start + span.Length, properties));
             }
             else
             {
@@ -190,12 +215,12 @@ public sealed class MarkdownPresenter : TextPresenter
             style.HasFlag(SpanStyle.Strike) ? TextDecorations.Strikethrough : null, foreground);
     }
 
-    /// <summary>The text in runs of one style each, with the list markers as <see cref="ListMarker"/>s.</summary>
+    /// <summary>The text in runs of one style each, with list markers and fences as drawn runs.</summary>
     private sealed class Source(
         string text,
         TextRunProperties defaults,
         List<(int Start, int End, TextRunProperties Properties)> styled,
-        SortedList<int, ListMarker> markers) : ITextSource
+        SortedList<int, DrawableTextRun> markers) : ITextSource
     {
         public TextRun? GetTextRun(int index)
         {
@@ -290,5 +315,33 @@ public sealed class MarkdownPresenter : TextPresenter
 
             _shape.Draw(context, new Point(origin.X + _size.Width - _shape.WidthIncludingTrailingWhitespace, origin.Y));
         }
+    }
+
+    /// <summary>
+    /// A code fence's first character, in a run taller than the line by <c>room</c>: above it for an opening fence,
+    /// below for a closing one. The line grows by that much and the code block stands off the text around it.
+    /// </summary>
+    private sealed class FenceRun : DrawableTextRun
+    {
+        private readonly TextLayout _shape;
+        private readonly double _above;
+        private readonly Size _size;
+
+        public FenceRun(char fence, TextRunProperties properties, double room, bool opening)
+        {
+            Properties = properties;
+            _shape = new TextLayout(fence.ToString(), properties.Typeface, properties.FontRenderingEmSize, properties.ForegroundBrush);
+            _above = opening ? room : 0;
+            _size = new Size(_shape.WidthIncludingTrailingWhitespace, _shape.Height + room);
+        }
+
+        public override TextRunProperties? Properties { get; }
+
+        public override Size Size => _size;
+
+        public override double Baseline => _shape.Baseline + _above;
+
+        public override void Draw(DrawingContext context, Point origin) =>
+            _shape.Draw(context, new Point(origin.X, origin.Y + _above));
     }
 }
