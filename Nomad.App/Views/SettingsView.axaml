@@ -209,6 +209,37 @@
                 </Border>
               </Grid>
 
+              <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Archive old sessions" Classes="rowlabel" />
+                  <TextBlock Text="Archive sessions left untouched for a while. Alive and open ones are kept; &quot;Show archived&quot; in the sidebar lists them again."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleAutoArchiveCommand}">
+                  <Border Classes="switch" Classes.on="{Binding AutoArchive}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding AutoArchive}">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Archive after" Classes="rowlabel" />
+                  <TextBlock Text="Hours without activity before a session is archived (at least 1)." Classes="rowhint" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Border Classes="field" Width="72">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="24" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                  <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+
               <TextBlock Text="Account" Classes="pagetitle" Margin="0,40,0,10" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">

@@ -51,6 +51,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         CliPath = s.CliPath;
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
+        AutoArchive = s.AutoArchive;
+        AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
@@ -288,6 +290,56 @@ public sealed partial class SettingsViewModel : ObservableObject
         CliFound = resolved is not null;
         CliStatus = resolved is not null ? "Found: " + resolved : "Not found on PATH or at that location";
     }
+
+    // ------------------------------------------------------------------ Sessions
+
+    [ObservableProperty]
+    public partial bool AutoArchive { get; set; }
+
+    /// <summary>The auto-archive time in whole hours, as typed: a number below 1 becomes 1, anything else waits.</summary>
+    [ObservableProperty]
+    public partial string AutoArchiveHoursText { get; set; } = "24";
+
+    [RelayCommand]
+    private void ToggleAutoArchive() => AutoArchive = !AutoArchive;
+
+    partial void OnAutoArchiveChanged(bool value)
+    {
+        Apply(s => s.AutoArchive = value, appearance: false);
+        if (_loaded)
+        {
+            _main.ApplyAutoArchive();
+        }
+    }
+
+    partial void OnAutoArchiveHoursTextChanged(string value)
+    {
+        if (!int.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var hours))
+        {
+            return;
+        }
+
+        if (hours < 1)
+        {
+            AutoArchiveHoursText = "1";
+            return;
+        }
+
+        Apply(s => s.AutoArchiveHours = hours, appearance: false);
+        if (_loaded)
+        {
+            // Typing "12" passes through "1": archive only once the number has settled.
+            _archiveDelay ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromSeconds(2), Avalonia.Threading.DispatcherPriority.Background, (_, _) =>
+            {
+                _archiveDelay!.Stop();
+                _main.ApplyAutoArchive();
+            });
+            _archiveDelay.Stop();
+            _archiveDelay.Start();
+        }
+    }
+
+    private Avalonia.Threading.DispatcherTimer? _archiveDelay;
 
     // ------------------------------------------------------------------ Updates
 
