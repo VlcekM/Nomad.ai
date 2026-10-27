@@ -158,8 +158,8 @@
     </ResourceDictionary>
     <ResourceDictionary x:Key="Light">
       <!-- Surfaces -->
-      <Color x:Key="BgSidebarColor">#F3F2EC</Color>
-      <Color x:Key="BgMainColor">#FAF9F5</Color>
+      <Color x:Key="BgSidebarColor">#FAF9F5</Color>
+      <Color x:Key="BgMainColor">#F3F2EC</Color>
       <Color x:Key="BgRaisedColor">#F0EEE6</Color>
       <Color x:Key="BgSelectedColor">#E6E4DB</Color>
       <Color x:Key="BgHoverColor">#0A000000</Color>
@@ -177,7 +177,7 @@
       <Color x:Key="BgNavSelectedColor">#E6E4DB</Color>
       <Color x:Key="BgFieldColor">#FFFFFF</Color>
       <Color x:Key="BgSettingsColor">#F7F6F2</Color>
-      <Color x:Key="BgMainClearColor">#00FAF9F5</Color>
+      <Color x:Key="BgMainClearColor">#00F3F2EC</Color>
       <!-- Lines -->
       <Color x:Key="BorderColor">#DEDCD3</Color>
       <Color x:Key="BorderInputColor">#C9C7BE</Color>
@@ -225,8 +225,8 @@
       <Color x:Key="JumpArrowColor">#2C2B28</Color>
       <Color x:Key="ShimmerBaseColor">#6E6D67</Color>
       <Color x:Key="ShimmerHighlightColor">#141413</Color>
-      <SolidColorBrush x:Key="BgSidebarBrush" Color="#F3F2EC" />
-      <SolidColorBrush x:Key="BgMainBrush" Color="#FAF9F5" />
+      <SolidColorBrush x:Key="BgSidebarBrush" Color="#FAF9F5" />
+      <SolidColorBrush x:Key="BgMainBrush" Color="#F3F2EC" />
       <SolidColorBrush x:Key="BgRaisedBrush" Color="#F0EEE6" />
       <SolidColorBrush x:Key="BgSelectedBrush" Color="#E6E4DB" />
       <SolidColorBrush x:Key="BgHoverBrush" Color="#0A000000" />
@@ -244,7 +244,7 @@
       <SolidColorBrush x:Key="BgNavSelectedBrush" Color="#E6E4DB" />
       <SolidColorBrush x:Key="BgFieldBrush" Color="#FFFFFF" />
       <SolidColorBrush x:Key="BgSettingsBrush" Color="#F7F6F2" />
-      <SolidColorBrush x:Key="BgMainClearBrush" Color="#00FAF9F5" />
+      <SolidColorBrush x:Key="BgMainClearBrush" Color="#00F3F2EC" />
       <SolidColorBrush x:Key="BorderBrush" Color="#DEDCD3" />
       <SolidColorBrush x:Key="BorderInputBrush" Color="#C9C7BE" />
       <SolidColorBrush x:Key="BorderCardBrush" Color="#E3E1D8" />
