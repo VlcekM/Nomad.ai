@@ -146,7 +146,8 @@ the previous tag.
 - **Side panel** (Ctrl+Shift+B, the panel button in the title bar, or the strip on the right edge): the
   folder's git state and latest commits (open it in Explorer or a terminal), the session's subagents
   (duration, last status; a click opens a subagent's own conversation), the context window, plan usage
-  and the MCP servers (configured ones before the CLI starts, then their connection state). Each card folds.
+  and the MCP servers (configured ones before the CLI starts, then their connection state). Each card folds;
+  drag its left edge to resize it, as the sidebar's right edge (double-click for the default width).
 - **Paths in replies.** A URL in `inline code` opens with a click; a file or folder path that exists
   (absolute, or relative to the session's folder, `:line` suffixes ignored) with Ctrl+click shows it
   selected in Explorer. Right-click either for Show in Explorer, Open and Copy.

@@ -308,52 +308,81 @@ public partial class MainWindow : Window
         }
     }
 
-    // ------------------------------------------------------------------ sidebar resizing
+    // ------------------------------------------------------------------ sidebar and side panel resizing
 
     private double? _gripOffset;
-    private Avalonia.Animation.Transitions? _sidebarTransitions;
+    private Border? _gripPane;
+    private Avalonia.Animation.Transitions? _paneTransitions;
 
-    private void OnSidebarGripPressed(object? sender, PointerPressedEventArgs e)
+    private void OnSidebarGripPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginGripDrag(e, SidebarGrip, Sidebar, _vm.SidebarWidth - e.GetPosition(this).X, () =>
+            _vm.SidebarWidth = 375);
+
+    private void OnSidebarGripMoved(object? sender, PointerEventArgs e)
+    {
+        if (_gripOffset is { } offset && _gripPane == Sidebar)
+        {
+            _vm.SidebarWidth = e.GetPosition(this).X + offset;
+        }
+    }
+
+    private void OnSidebarGripReleased(object? sender, PointerReleasedEventArgs e) => EndGripDrag(e.Pointer);
+
+    // The side panel grows to the left: its width is measured from the window's right edge.
+    private void OnSidePanelGripPressed(object? sender, PointerPressedEventArgs e) =>
+        BeginGripDrag(e, SidePanelGrip, SidePanel, _vm.SidePanelWidth + e.GetPosition(this).X, () =>
+            _vm.SidePanelWidth = MainViewModel.DefaultSidePanelWidth);
+
+    private void OnSidePanelGripMoved(object? sender, PointerEventArgs e)
+    {
+        if (_gripOffset is { } offset && _gripPane == SidePanel)
+        {
+            _vm.SidePanelWidth = offset - e.GetPosition(this).X;
+        }
+    }
+
+    private void OnSidePanelGripReleased(object? sender, PointerReleasedEventArgs e) => EndGripDrag(e.Pointer);
+
+    private void OnGripCaptureLost(object? sender, PointerCaptureLostEventArgs e) => EndGripDrag(null);
+
+    /// <summary>Starts dragging a pane's edge (a double-click resets its width instead).</summary>
+    private void BeginGripDrag(PointerPressedEventArgs e, Border grip, Border pane, double offset, Action reset)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             return;
         }
 
+        e.Handled = true;
         if (e.ClickCount == 2)
         {
-            _vm.SidebarWidth = 375;
+            reset();
             _vm.SaveSettings();
-            e.Handled = true;
             return;
         }
 
         // The width follows the pointer at once: the open/close slide would make it lag behind.
-        _sidebarTransitions = Sidebar.Transitions;
-        Sidebar.Transitions = null;
-        _gripOffset = _vm.SidebarWidth - e.GetPosition(this).X;
-        e.Pointer.Capture(SidebarGrip);
-        e.Handled = true;
+        _paneTransitions = pane.Transitions;
+        pane.Transitions = null;
+        _gripPane = pane;
+        _gripOffset = offset;
+        grip.Classes.Add("dragging");
+        e.Pointer.Capture(grip);
     }
 
-    private void OnSidebarGripMoved(object? sender, PointerEventArgs e)
+    private void EndGripDrag(IPointer? pointer)
     {
-        if (_gripOffset is { } offset)
-        {
-            _vm.SidebarWidth = e.GetPosition(this).X + offset;
-        }
-    }
-
-    private void OnSidebarGripReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (_gripOffset is null)
+        if (_gripOffset is null || _gripPane is not { } pane)
         {
             return;
         }
 
         _gripOffset = null;
-        e.Pointer.Capture(null);
-        Sidebar.Transitions = _sidebarTransitions;
+        _gripPane = null;
+        pointer?.Capture(null);
+        pane.Transitions = _paneTransitions;
+        SidebarGrip.Classes.Remove("dragging");
+        SidePanelGrip.Classes.Remove("dragging");
         _vm.SaveSettings();
     }
 
@@ -668,6 +697,7 @@ public partial class MainWindow : Window
         }
 
         Send(buttonUp, to, 0);
+        Send(mouseMove, to, 0); // the pointer stays there: hover styles show as after a real drag
         var focused = FocusManager?.GetFocusedElement();
         Console.Error.WriteLine($"--dev-drag {from} -> {to}: focused {focused?.GetType().Name}, selected \"{(focused as SelectableTextBlock)?.SelectedText}\"");
     }

@@ -411,6 +411,23 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The sidebar's content, one pixel narrower than it (its right border).</summary>
     public double SidebarContentWidth => SidebarWidth - 1;
 
+    public const double DefaultSidePanelWidth = 296;
+
+    /// <summary>The side panel's width while open (its left edge drags it).</summary>
+    public double SidePanelWidth
+    {
+        get => Math.Clamp(Settings.SidePanelWidth, MinSidebarWidth, MaxSidebarWidth);
+        set
+        {
+            value = Math.Clamp(Math.Round(value), MinSidebarWidth, MaxSidebarWidth);
+            if (Math.Abs(Settings.SidePanelWidth - value) > 0.1)
+            {
+                Settings.SidePanelWidth = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     /// <summary>Thinking and tool lines in the transcript; off, only prompts and replies are shown.</summary>
     public bool ShowActivity
     {

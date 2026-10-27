@@ -21,6 +21,31 @@
     <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding OpenSettingsCommand}" />
   </Window.KeyBindings>
 
+  <Window.Styles>
+    <!-- Resize grips (the sidebar's right edge, the side panel's left): a thin blue line fades in over the edge on
+         hover and stays while dragging, as in the desktop app. -->
+    <Style Selector="Border.resizegrip">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="SizeWestEast" />
+      <Setter Property="ZIndex" Value="1" />
+    </Style>
+    <Style Selector="Border.resizegrip > Border">
+      <Setter Property="Width" Value="2" />
+      <Setter Property="Background" Value="{DynamicResource RingBrush}" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.resizegrip:pointerover > Border, Border.resizegrip.dragging > Border">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+  </Window.Styles>
+
   <Panel>
     <Grid ColumnDefinitions="Auto,*">
 
@@ -589,19 +614,20 @@
         </Grid>
       </Border>
 
-      <!-- The sidebar's right edge: drag to resize it, double-click for the default width. -->
+      <!-- The sidebar's right edge: drag to resize it, double-click for the default width. The line sits over the
+           sidebar's border. -->
       <Border Grid.Column="0"
               Name="SidebarGrip"
-              Width="7"
+              Classes="resizegrip"
               Margin="0,0,-4,0"
               HorizontalAlignment="Right"
-              Background="Transparent"
-              Cursor="SizeWestEast"
-              ZIndex="1"
               IsVisible="{Binding IsSidebarOpen}"
               PointerPressed="OnSidebarGripPressed"
               PointerMoved="OnSidebarGripMoved"
-              PointerReleased="OnSidebarGripReleased" />
+              PointerReleased="OnSidebarGripReleased"
+              PointerCaptureLost="OnGripCaptureLost">
+        <Border HorizontalAlignment="Right" Margin="0,0,3,0" />
+      </Border>
 
       <!-- ============================================================ main -->
       <Grid Grid.Column="1" RowDefinitions="36,*">
@@ -667,34 +693,41 @@
             </ContentControl.ContentTemplate>
           </ContentControl>
 
-          <!-- A thin strip on the right edge toggles the side panel; a handle shows on hover. -->
+          <!-- A thin strip on the right edge toggles the side panel: "Side panel" written sideways along it, brighter
+               on hover. -->
           <Border Grid.Column="1"
                   Name="PanelStrip"
-                  Width="12"
+                  Width="14"
                   Background="Transparent"
                   Cursor="Hand"
                   PointerPressed="OnPanelStripPressed"
                   ToolTip.Tip="Side panel (Ctrl+Shift+B)"
                   ToolTip.Placement="Left">
             <Border.Styles>
-              <Style Selector="Border#PanelStrip > Border">
-                <Setter Property="Opacity" Value="0" />
+              <Style Selector="Border#PanelStrip TextBlock">
+                <Setter Property="Opacity" Value="0.55" />
                 <Setter Property="Transitions">
                   <Transitions>
                     <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
                   </Transitions>
                 </Setter>
               </Style>
-              <Style Selector="Border#PanelStrip:pointerover > Border">
+              <Style Selector="Border#PanelStrip:pointerover TextBlock">
                 <Setter Property="Opacity" Value="1" />
               </Style>
             </Border.Styles>
-            <Border Width="4" Height="44" CornerRadius="2" Background="{DynamicResource BorderInputBrush}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <LayoutTransformControl HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+              <LayoutTransformControl.LayoutTransform>
+                <RotateTransform Angle="90" />
+              </LayoutTransformControl.LayoutTransform>
+              <TextBlock Text="Side panel"
+                         FontSize="{DynamicResource UiFontSizeTiny}"
+                         Foreground="{DynamicResource TextMutedBrush}" />
+            </LayoutTransformControl>
           </Border>
 
           <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
-          <Border Grid.Column="2" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
+          <Border Grid.Column="2" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
             <Border.Styles>
               <Style Selector="Border.sidepanel">
                 <Setter Property="Width" Value="0" />
@@ -702,7 +735,7 @@
                 <Setter Property="IsHitTestVisible" Value="False" />
               </Style>
               <Style Selector="Border.sidepanel.open">
-                <Setter Property="Width" Value="296" />
+                <Setter Property="Width" Value="{Binding SidePanelWidth}" />
                 <Setter Property="Opacity" Value="1" />
                 <Setter Property="IsHitTestVisible" Value="True" />
               </Style>
@@ -713,7 +746,21 @@
                 <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
               </Transitions>
             </Border.Transitions>
-            <views:SidePanelView DataContext="{Binding Current}" Width="296" HorizontalAlignment="Left" />
+            <views:SidePanelView DataContext="{Binding Current}" Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).SidePanelWidth}" HorizontalAlignment="Left" />
+          </Border>
+
+          <!-- The side panel's left edge: drag to resize it, double-click for the default width. -->
+          <Border Grid.Column="2"
+                  Name="SidePanelGrip"
+                  Classes="resizegrip"
+                  Margin="-4,0,0,0"
+                  HorizontalAlignment="Left"
+                  IsVisible="{Binding IsSidePanelOpen}"
+                  PointerPressed="OnSidePanelGripPressed"
+                  PointerMoved="OnSidePanelGripMoved"
+                  PointerReleased="OnSidePanelGripReleased"
+                  PointerCaptureLost="OnGripCaptureLost">
+            <Border HorizontalAlignment="Left" Margin="3,0,0,0" />
           </Border>
         </Grid>
       </Grid>

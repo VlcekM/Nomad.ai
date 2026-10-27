@@ -120,6 +120,9 @@ public sealed class NomadSettings
 
     /// <summary>The sidebar's width, dragged at its right edge (240–560).</summary>
     public double SidebarWidth { get; set; } = 375;
+
+    /// <summary>The side panel's width, dragged at its left edge (240–560).</summary>
+    public double SidePanelWidth { get; set; } = 296;
     public List<string> RecentFolders { get; set; } = [];
 
     /// <summary>Folders pinned on the new-session page: always shown there, first, in pin order.</summary>
