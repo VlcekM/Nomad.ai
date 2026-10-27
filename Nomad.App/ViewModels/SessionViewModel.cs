@@ -691,12 +691,20 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>Tasks whose end the transcript already noted: a CLI may report one both as a system line and a prompt.</summary>
+    private readonly HashSet<string> _notedTasks = new(StringComparer.Ordinal);
+
     /// <summary>
-    /// A background task ended: a background subagent (by its Agent call's id) or a background command (by its call's id,
-    /// or the task id its call returned).
+    /// A background task ended: the transcript notes it, and a background subagent (by its Agent call's id) or a
+    /// background command (by its call's id, or the task id its call returned) shows it ended.
     /// </summary>
-    private void FinishTask(string? toolUseId, string? taskId, string? status, string? summary)
+    private void FinishTask(string? toolUseId, string? taskId, string? status, string summary)
     {
+        if (_notedTasks.Add(taskId ?? toolUseId ?? summary))
+        {
+            Items.Add(new NoticeItem(summary));
+        }
+
         if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
         {
             agent.Finish(failed: status == "failed", result: null);
@@ -2177,7 +2185,6 @@ public sealed partial class SessionViewModel : ObservableObject
                 // A background task's end, which the CLI hands to Claude in the user's place: a notice, not a prompt.
                 if (TaskNotification.TryParse(remote.Text, out var summary))
                 {
-                    Items.Add(new NoticeItem(summary));
                     FinishTask(TaskNotification.ToolUseId(remote.Text), TaskNotification.TaskId(remote.Text), TaskNotification.Status(remote.Text), summary);
                 }
                 else
@@ -2222,7 +2229,9 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case TaskNotificationEvent ended:
-                FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary);
+                CloseGroup();
+                FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary ?? "Background task finished");
+                ContentChanged?.Invoke();
                 break;
 
             case BlockStartedEvent b when b.ParentToolUseId is null:
