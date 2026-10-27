@@ -3,7 +3,8 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <RootNamespace>Nomad.App</RootNamespace>
-    <AssemblyName>Nomad</AssemblyName>
+    <!-- Not Nomad.exe: Discord's game list has a game "Nomad" with that exe name, so Discord took this app for it and put its overlay on it. -->
+    <AssemblyName>Nomad.ai</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\nomad.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
