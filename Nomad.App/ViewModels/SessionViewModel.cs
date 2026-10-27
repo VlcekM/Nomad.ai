@@ -677,11 +677,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Something to send: while a turn runs, sending queues it.</summary>
     public bool ShowSendButton => HasComposerText || HasAttachments;
 
-    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done · Shift+Enter sends now" : "Send (Enter)";
+    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now" : "Send (Enter)";
 
     /// <summary>
-    /// Shift+Enter while Claude works: the prompt goes in the queue and the queue is sent at once (Claude is stopped),
-    /// as "Send now" does. False when there is nothing to send, or no turn running (then it is a new line).
+    /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
+    /// (Claude is stopped), as "Send now" does. False when there is nothing to send, or no turn running (then it is a plain send).
     /// </summary>
     public bool SendNowFromComposer()
     {
@@ -990,9 +990,9 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    // While Claude works: Enter queues the prompt, Shift+Enter stops Claude and sends it at once.
+    // While Claude works: Enter queues the prompt, Ctrl+Enter stops Claude and sends it at once.
     public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
-        : IsTurnRunning ? "Enter queues a message · Shift+Enter sends it now" : "Type / for commands";
+        : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
 

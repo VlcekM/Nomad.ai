@@ -1054,10 +1054,11 @@
                     Padding="10,0"
                     HorizontalAlignment="Left"
                     Command="{Binding SendQueuedNowCommand}"
-                    ToolTip.Tip="Stop Claude and send these now">
+                    ToolTip.Tip="Stop Claude and send these now (Ctrl+Enter in the composer)">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <c:Icon Size="12" Data="{StaticResource IconSendArrow}" />
                 <TextBlock Text="Send now" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                <TextBlock Text="Ctrl+Enter" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
           </StackPanel>
@@ -1254,8 +1255,9 @@
             <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
               <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
             </Border>
-            <!-- Shift held while Claude works: "Send instantly" slides out of the button, as Shift+Enter would. -->
-            <Button Theme="{StaticResource SendButton}"
+            <!-- Ctrl held while Claude works: "Send instantly" slides out of the button; Ctrl+click (or Ctrl+Enter) does it. -->
+            <Button Name="SendButton"
+                    Theme="{StaticResource SendButton}"
                     Width="NaN"
                     MinWidth="28"
                     Command="{Binding SendCommand}"

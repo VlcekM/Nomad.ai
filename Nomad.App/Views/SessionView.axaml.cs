@@ -22,15 +22,25 @@ public partial class SessionView : UserControl
         InitializeComponent();
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
-        Composer.AddHandler(KeyDownEvent, OnComposerShiftDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        Composer.AddHandler(KeyDownEvent, OnComposerCtrlDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         Composer.AddHandler(KeyUpEvent, (_, e) =>
         {
-            if (e.Key is Key.LeftShift or Key.RightShift)
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl)
             {
                 ShowSendInstantly(false);
             }
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         Composer.LostFocus += (_, _) => ShowSendInstantly(false);
+        SendButton.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (e.KeyModifiers == KeyModifiers.Control && e.GetCurrentPoint(SendButton).Properties.IsLeftButtonPressed
+                && Vm is { } vm && vm.SendNowFromComposer())
+            {
+                _follow = true;
+                ShowSendInstantly(false);
+                e.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnViewKeyDown, RoutingStrategies.Bubble);
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         QueueList.AddHandler(KeyDownEvent, OnQueuedEditKeyDown, RoutingStrategies.Tunnel);
@@ -281,8 +291,8 @@ public partial class SessionView : UserControl
 
         switch (e.Key)
         {
-            // While Claude works, Shift+Enter stops it and sends at once; otherwise it is a new line.
-            case Key.Enter when e.KeyModifiers == KeyModifiers.Shift && vm.SendNowFromComposer():
+            // While Claude works, Ctrl+Enter stops it and sends at once.
+            case Key.Enter when e.KeyModifiers == KeyModifiers.Control && vm.SendNowFromComposer():
                 _follow = true;
                 e.Handled = true;
                 break;
@@ -882,12 +892,12 @@ public partial class SessionView : UserControl
     private IDisposable? _sendInstantlyDelay;
 
     /// <summary>
-    /// Shift held on its own while Claude works: after a moment "Send instantly" slides out of the send button. Any
-    /// other key (a capital letter being typed, Enter sending) takes it away again.
+    /// Ctrl held on its own while Claude works: after a moment "Send instantly" slides out of the send button. Any
+    /// other key (a shortcut, Enter sending) takes it away again.
     /// </summary>
-    private void OnComposerShiftDown(object? sender, KeyEventArgs e)
+    private void OnComposerCtrlDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key is not (Key.LeftShift or Key.RightShift))
+        if (e.Key is not (Key.LeftCtrl or Key.RightCtrl))
         {
             ShowSendInstantly(false);
             return;
