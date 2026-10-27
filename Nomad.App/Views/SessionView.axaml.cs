@@ -29,15 +29,19 @@ public partial class SessionView : UserControl
 
         // Chips keep their hover fill while their menu is open, as in the original.
         TrackOpen(ModelChip, ModelChip.Flyout);
-        TrackOpen(ModeChip, ModeChip.Flyout);
+        TrackOpen(ModeRow, FlyoutBase.GetAttachedFlyout(ModeRow));
         TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
         TrackOpen(UsageChip, UsageChip.Flyout);
+        if (ModelChip.Flyout is { } models)
+        {
+            models.Closed += (_, _) => FlyoutBase.GetAttachedFlyout(ModeRow)?.Hide();
+        }
 
         // A click anywhere on the page puts the caret in the composer, unless it went to a control
         // of its own or selected some text.
         AddHandler(PointerReleasedEvent, OnPageClicked, RoutingStrategies.Bubble, handledEventsToo: true);
 
-        // Below these widths the full row (folder, git, mode, four model chips, effort, ring) would not fit: first the
+        // Below these widths the full row (folder, git, four model chips, effort, ring) would not fit: first the
         // other model chips go, then the branch name and the effort's name.
         SizeChanged += (_, e) =>
         {
@@ -368,7 +372,8 @@ public partial class SessionView : UserControl
                 ModelChip.Flyout?.ShowAt(ModelChip);
                 break;
             case "mode":
-                ModeChip.Flyout?.ShowAt(ModeChip);
+                ModelChip.Flyout?.ShowAt(ModelChip);
+                Dispatcher.UIThread.Post(() => FlyoutBase.ShowAttachedFlyout(ModeRow), DispatcherPriority.Loaded);
                 break;
             case "folder":
                 FlyoutBase.ShowAttachedFlyout(FolderChip);
@@ -391,7 +396,7 @@ public partial class SessionView : UserControl
     private void HideMenus()
     {
         ModelChip.Flyout?.Hide();
-        ModeChip.Flyout?.Hide();
+        FlyoutBase.GetAttachedFlyout(ModeRow)?.Hide();
         PlusButton.Flyout?.Hide();
         UsageChip.Flyout?.Hide();
         RemoteChip.Flyout?.Hide();
@@ -537,6 +542,9 @@ public partial class SessionView : UserControl
 
         FocusComposerSoon();
     }
+
+    /// <summary>The model menu's Mode row: the modes open in a menu of their own beside it.</summary>
+    private void OnModeRowClick(object? sender, RoutedEventArgs e) => FlyoutBase.ShowAttachedFlyout(ModeRow);
 
     private void OnModeOptionClick(object? sender, RoutedEventArgs e)
     {
