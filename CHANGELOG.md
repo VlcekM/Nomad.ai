@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.2.0
+
+- Prompt suggestions: after a turn, Claude Code's guess at your next prompt shows as grey text in the empty composer;
+  Tab, → or a right-click puts it in, Esc dismisses it (Settings › Claude Code to turn it off).
+- The CLI now runs with the SDK entrypoint (`sdk-cli`), which its prompt suggestions need.
+- Dev flags: `--dev-log` writes the lines to and from the CLI, `--dev-cli-debug` the CLI's debug log.
+
 ## v1.1.1
 
 - Sidebar: the Idle heading folds its list too (remembered between runs).

@@ -104,6 +104,9 @@ the previous tag.
   shows its seen mark (✓ sent, ✓✓ picked up), its age, and Copy, Rewind (cut the conversation back
   to before it and put it in the composer; files are not restored) and Fork (a new session with the
   conversation through that turn).
+- **Prompt suggestions.** After a turn, Claude Code guesses the next prompt (`--prompt-suggestions`);
+  it shows as grey text in the empty composer with a Tab hint. Tab, → or a right-click puts it in to
+  edit or send, Esc dismisses it, typing replaces it. Settings › Claude Code turns it off.
 - **Permissions.** Tool requests appear as a card with Allow, Allow for session and Deny (Enter
   allows, Esc denies), shown with the command or a small diff. Answered cards shrink to one line.
   When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
@@ -224,6 +227,8 @@ read should be a free 304 from the ETag cache).
 | `--dev-drag x1,y1,x2,y2 <seconds>` | Drag with the left button between two window points (sent to Nomad's window only; the cursor never moves) |
 | `--dev-compose "<text>"` | Put text in the composer (`\n` for new lines) |
 | `--dev-paste-image <file>` | Attach an image (or any file, as a chip) to the composer, as a paste would; repeatable |
+| `--dev-log <file>` | Append every line to and from the CLI to a file (`> ` sent, `< ` received) |
+| `--dev-cli-debug <file>` | Have the CLI write its debug log to a file (`--debug-file`) |
 | `--dev-update-source <folder>` | An installed build updates from this local `vpk` output folder instead of GitHub |
 | `--dev-update-after <seconds>` | The first update check this long after start, not at once (to catch the update chip folding in) |
 | `--dev-releases-repo <owner/repo>` | List another repository's GitHub releases on the Updates page |
