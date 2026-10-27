@@ -595,6 +595,15 @@
                        FontSize="{DynamicResource UiFontSizeSmall}"
                        Margin="18,6,0,0"
                        IsVisible="{Binding HasNoSessions}" />
+            <!-- The first start, nothing saved from a last run yet: rows to come while the transcripts are read. -->
+            <c:Skeleton IsActive="{Binding ShowSessionsSkeleton}"
+                        Rows="8"
+                        RowHeight="9"
+                        RowSpacing="21"
+                        Widths="0.8,0.62,0.72,0.55,0.68,0.6,0.76,0.5"
+                        Fill="{DynamicResource SkeletonBrush}"
+                        Margin="18,11,30,0"
+                        VerticalAlignment="Top" />
           </Panel>
 
           <!-- Account footer -->

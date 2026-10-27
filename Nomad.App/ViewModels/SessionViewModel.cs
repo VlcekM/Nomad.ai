@@ -662,6 +662,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public ObservableCollection<ConnectorRow> Connectors { get; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNoConnectors))]
     public partial bool HasConnectors { get; set; }
 
     private bool _connectorsFromCli;
@@ -688,12 +689,20 @@ public sealed partial class SessionViewModel : ObservableObject
     private async Task LoadConfiguredConnectorsAsync()
     {
         var folder = Folder;
+        IsLoadingConnectors = Connectors.Count == 0;
         var servers = await McpServers.ConfiguredAsync(folder);
         if (!_connectorsFromCli && folder == Folder)
         {
             SetConnectors(servers);
         }
     }
+
+    /// <summary>The MCP card has nothing to show yet: its placeholder rows stand in for "None configured".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNoConnectors))]
+    public partial bool IsLoadingConnectors { get; set; }
+
+    public bool ShowNoConnectors => !HasConnectors && !IsLoadingConnectors;
 
     private void SetConnectors(IEnumerable<McpServerInfo> servers)
     {
@@ -704,6 +713,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         HasConnectors = Connectors.Count > 0;
+        IsLoadingConnectors = false;
     }
 
     // ------------------------------------------------------------------ composer

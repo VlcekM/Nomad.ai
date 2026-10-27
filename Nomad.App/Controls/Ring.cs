@@ -7,7 +7,8 @@ namespace Nomad.App.Controls;
 
 /// <summary>
 /// The status-row ring: idle it shows a faint track with an arc for the share of the context
-/// window in use; while a turn runs it spins an accent arc. Also used as the 12 px tool spinner.
+/// window in use; while a turn runs it spins an accent arc. While <see cref="IsPending"/> (its value not loaded yet)
+/// a faint arc circles slowly, appearing only if that takes more than a moment. Also used as the 12 px tool spinner.
 /// </summary>
 public sealed class Ring : Control
 {
@@ -29,7 +30,15 @@ public sealed class Ring : Control
     public static readonly StyledProperty<double> StrokeWidthProperty =
         AvaloniaProperty.Register<Ring, double>(nameof(StrokeWidth), 1.6);
 
+    public static readonly StyledProperty<bool> IsPendingProperty =
+        AvaloniaProperty.Register<Ring, bool>(nameof(IsPending));
+
+    /// <summary>A load shorter than this shows no pending arc.</summary>
+    private const double PendingDelayMs = 250;
+    private const double PendingFadeMs = 200;
+
     private DispatcherTimer? _timer;
+    private readonly System.Diagnostics.Stopwatch _pending = new();
     private double _angle;
 
     static Ring()
@@ -41,6 +50,12 @@ public sealed class Ring : Control
     {
         get => GetValue(IsSpinningProperty);
         set => SetValue(IsSpinningProperty, value);
+    }
+
+    public bool IsPending
+    {
+        get => GetValue(IsPendingProperty);
+        set => SetValue(IsPendingProperty, value);
     }
 
     public double Fraction
@@ -76,8 +91,13 @@ public sealed class Ring : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == IsSpinningProperty)
+        if (change.Property == IsSpinningProperty || change.Property == IsPendingProperty)
         {
+            if (change.Property == IsPendingProperty && IsPending)
+            {
+                _pending.Restart();
+            }
+
             UpdateTimer();
             InvalidateVisual();
         }
@@ -97,11 +117,11 @@ public sealed class Ring : Control
 
     private void UpdateTimer()
     {
-        if (IsSpinning && VisualRoot is not null)
+        if ((IsSpinning || IsPending) && VisualRoot is not null)
         {
             _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
             {
-                _angle = (_angle + 6) % 360;
+                _angle = (_angle + (IsSpinning ? 6 : 3)) % 360;
                 InvalidateVisual();
             });
             _timer.Start();
@@ -132,6 +152,18 @@ public sealed class Ring : Control
         if (IsSpinning)
         {
             DrawArc(context, SpinBrush ?? ArcBrush, center, radius, w, _angle - 90, 100);
+        }
+        else if (IsPending)
+        {
+            // Half strength, fading in once the delay is over.
+            var shown = (_pending.Elapsed.TotalMilliseconds - PendingDelayMs) / PendingFadeMs;
+            if (shown > 0)
+            {
+                using (context.PushOpacity(0.5 * (1 - Math.Pow(1 - Math.Min(shown, 1), 3))))
+                {
+                    DrawArc(context, ArcBrush, center, radius, w, _angle - 90, 70);
+                }
+            }
         }
         else if (Fraction > 0.001)
         {

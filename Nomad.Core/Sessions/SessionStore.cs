@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Nomad.Core.Sessions;
 
@@ -17,7 +19,8 @@ public sealed record SessionSummary(
 
 /// <summary>
 /// Lists and loads Claude Code sessions from <c>~/.claude/projects</c>. Summaries are read from the
-/// head and tail of each transcript only, and cached by (size, mtime), so rescans are cheap.
+/// head and tail of each transcript only, and cached by (size, mtime), so rescans are cheap. With a
+/// <see cref="CachePath"/> the cache is kept between runs, so a start reads only the transcripts that changed.
 /// </summary>
 public sealed class SessionStore
 {
@@ -25,17 +28,101 @@ public sealed class SessionStore
     public const int TailBytes = 128 * 1024;
     public const long DefaultHistoryBytes = 4 * 1024 * 1024;
 
-    private readonly ConcurrentDictionary<string, (long Size, DateTime Mtime, SessionSummary? Summary)> _cache = new(StringComparer.OrdinalIgnoreCase);
+    // Bump when ReadSummary learns something new: summaries saved by an older version are then read again.
+    private const int CacheVersion = 1;
 
-    public SessionStore(string? projectsRoot = null)
+    private readonly ConcurrentDictionary<string, (long Size, DateTime Mtime, SessionSummary? Summary)> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Lock _saveLock = new();
+    private volatile bool _cacheDirty;
+
+    public SessionStore(string? projectsRoot = null, string? cachePath = null)
     {
         ProjectsRoot = projectsRoot ?? DefaultProjectsRoot;
+        CachePath = cachePath;
     }
 
     public static string DefaultProjectsRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects");
 
     public string ProjectsRoot { get; }
+
+    /// <summary>The file the summaries are kept in between runs; null keeps them in memory only.</summary>
+    public string? CachePath { get; }
+
+    /// <summary>
+    /// The summaries the last run saved, most recently active first, without opening a transcript (they may be
+    /// out of date until the next <see cref="Scan"/>). They also seed the cache. Safe to call from a background thread.
+    /// </summary>
+    public IReadOnlyList<SessionSummary> LoadCache()
+    {
+        var result = new List<SessionSummary>();
+        if (CachePath is null)
+        {
+            return result;
+        }
+
+        SessionCacheFile? saved;
+        try
+        {
+            using var stream = File.OpenRead(CachePath);
+            saved = JsonSerializer.Deserialize(stream, SessionCacheJsonContext.Default.SessionCacheFile);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return result;
+        }
+
+        if (saved is not { Version: CacheVersion })
+        {
+            return result;
+        }
+
+        foreach (var entry in saved.Entries)
+        {
+            var mtime = new DateTime(entry.MtimeTicks, DateTimeKind.Utc);
+            if (_cache.TryAdd(entry.File, (entry.Size, mtime, entry.Summary)) && entry.Summary is { } summary)
+            {
+                result.Add(summary);
+            }
+        }
+
+        result.Sort((a, b) => b.LastActivityUtc.CompareTo(a.LastActivityUtc));
+        return result;
+    }
+
+    /// <summary>Writes the cache to <see cref="CachePath"/> if it changed since it was loaded or last saved.</summary>
+    public void SaveCache()
+    {
+        if (CachePath is null || !_cacheDirty)
+        {
+            return;
+        }
+
+        lock (_saveLock)
+        {
+            _cacheDirty = false;
+            var file = new SessionCacheFile
+            {
+                Version = CacheVersion,
+                Entries = _cache.Select(e => new SessionCacheEntry(e.Key, e.Value.Size, e.Value.Mtime.Ticks, e.Value.Summary)).ToList(),
+            };
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(CachePath))!);
+                var temp = CachePath + "." + Environment.ProcessId + ".tmp";
+                using (var stream = File.Create(temp))
+                {
+                    JsonSerializer.Serialize(stream, file, SessionCacheJsonContext.Default.SessionCacheFile);
+                }
+
+                File.Move(temp, CachePath, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                _cacheDirty = true; // Another Nomad.ai writing it at the same moment: the next scan tries again.
+            }
+        }
+    }
 
     /// <summary>All sessions, most recently active first. Safe to call from a background thread.</summary>
     public IReadOnlyList<SessionSummary> Scan(CancellationToken cancellationToken = default)
@@ -56,6 +143,8 @@ public sealed class SessionStore
             return result;
         }
 
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var complete = true;
         foreach (var dir in dirs)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -66,16 +155,29 @@ public sealed class SessionStore
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                complete = false;
                 continue;
             }
 
             foreach (var file in files)
             {
+                seen.Add(file);
                 var summary = GetSummary(file);
                 if (summary is not null)
                 {
                     result.Add(summary);
                 }
+            }
+        }
+
+        // Transcripts deleted since: out of the cache (only after a full listing, so a folder that could not be read
+        // keeps its entries).
+        if (complete)
+        {
+            foreach (var gone in _cache.Keys.Where(k => !seen.Contains(k)).ToList())
+            {
+                _cache.TryRemove(gone, out _);
+                _cacheDirty = true;
             }
         }
 
@@ -116,6 +218,7 @@ public sealed class SessionStore
         }
 
         _cache[file] = (info.Length, info.LastWriteTimeUtc, summary);
+        _cacheDirty = true;
         return summary;
     }
 
@@ -436,3 +539,18 @@ public sealed class SessionStore
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }
+
+/// <summary>The summaries cache as saved between runs (<see cref="SessionStore.CachePath"/>).</summary>
+internal sealed class SessionCacheFile
+{
+    public int Version { get; set; }
+
+    public List<SessionCacheEntry> Entries { get; set; } = [];
+}
+
+/// <summary>One transcript: its size and write time when read, and its summary (null for an empty session).</summary>
+internal sealed record SessionCacheEntry(string File, long Size, long MtimeTicks, SessionSummary? Summary);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(SessionCacheFile))]
+internal sealed partial class SessionCacheJsonContext : JsonSerializerContext;

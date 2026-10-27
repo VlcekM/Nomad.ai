@@ -79,6 +79,10 @@ public sealed partial class UsageViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsUnavailable { get; set; }
 
+    /// <summary>The first read hasn't come back yet (the ring and the usage cards show placeholders).</summary>
+    [ObservableProperty]
+    public partial bool IsLoading { get; set; } = true;
+
     public async Task RefreshAsync(bool force = false)
     {
         if (_fetching || (!force && DateTime.UtcNow - _fetchedUtc < MinInterval))
@@ -118,6 +122,7 @@ public sealed partial class UsageViewModel : ObservableObject
         finally
         {
             _fetching = false;
+            IsLoading = false;
         }
     }
 

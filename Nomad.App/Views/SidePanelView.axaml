@@ -97,6 +97,7 @@
                     </Button>
                   </StackPanel>
                 </Grid>
+                <c:Skeleton IsActive="{Binding !Project.IsLoaded}" Rows="3" RowHeight="8" RowSpacing="11" Widths="0.8,0.62,0.72" Fill="{DynamicResource SkeletonBrush}" />
                 <ItemsControl ItemsSource="{Binding Project.Commits}" IsVisible="{Binding Project.HasCommits}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -217,6 +218,7 @@
               </Button>
             </Grid>
             <StackPanel Margin="0,4,0,0">
+              <c:Skeleton IsActive="{Binding Usage.IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
               <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -263,8 +265,10 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <c:Skeleton IsActive="{Binding IsLoadingConnectors}" Rows="2" RowHeight="8" RowSpacing="16" Widths="0.55,0.4"
+                          Fill="{DynamicResource SkeletonBrush}" Margin="0,8,0,0" VerticalAlignment="Top" />
               <TextBlock Text="None configured for this folder."
-                         IsVisible="{Binding !HasConnectors}"
+                         IsVisible="{Binding ShowNoConnectors}"
                          Classes="muted"
                          FontSize="{DynamicResource UiFontSizeSmall}" />
             </Panel>

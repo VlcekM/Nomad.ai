@@ -39,7 +39,8 @@ public sealed partial class MainViewModel : ObservableObject
         Settings = settings;
         _settingsPath = settingsPath;
         Dev = dev;
-        Store = new SessionStore();
+        // The session list is kept beside the settings between runs, so a start re-reads only the transcripts that changed.
+        Store = new SessionStore(cachePath: Path.Combine(Path.GetDirectoryName(Path.GetFullPath(settingsPath)) ?? AppContext.BaseDirectory, "sessions-cache.json"));
         IsSidebarOpen = !settings.SidebarCollapsed;
         PlanLabel = string.IsNullOrEmpty(settings.LastPlan) ? null : settings.LastPlan;
 
@@ -98,6 +99,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         Search = new SessionSearchViewModel(this);
         Updates = new UpdateService(this);
+
+        // The list the last run saw, there in the window's first frame; the scan at start brings it up to date.
+        MergeSummaries(Store.LoadCache());
     }
 
     // ------------------------------------------------------------------ phone (Remote Control servers)
@@ -983,13 +987,42 @@ public sealed partial class MainViewModel : ObservableObject
         IReadOnlyList<SessionSummary> summaries;
         try
         {
-            (summaries, _elsewhere) = await Task.Run(() => (Store.Scan(cts.Token), RemoteSessionScanner.RunningSessionIds()), cts.Token);
+            (summaries, _elsewhere) = await Task.Run(
+                () =>
+                {
+                    var scanned = Store.Scan(cts.Token);
+                    Store.SaveCache();
+                    return (scanned, RemoteSessionScanner.RunningSessionIds());
+                },
+                cts.Token);
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
+        IsLoadingSessions = false;
+        MergeSummaries(summaries);
+        await AutoArchiveSessionsAsync(fold: false);
+        OnPropertyChanged(nameof(RecentFolders));
+        Current.RefreshFolders();
+        _ = LoadGitHubLinksAsync();
+        _ = LoadWorktreeMergesAsync();
+    }
+
+    /// <summary>
+    /// The first scan hasn't finished: the list shows what the last run saw, or placeholder rows when there is
+    /// nothing saved (the first start).
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsLoadingSessions { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowSessionsSkeleton { get; set; }
+
+    /// <summary>Brings the list's rows in line with these summaries (keeping the rows of sessions still there).</summary>
+    private void MergeSummaries(IReadOnlyList<SessionSummary> summaries)
+    {
         var byId = _all.ToDictionary(s => s.SessionId, StringComparer.Ordinal);
         var archived = new HashSet<string>(Settings.ArchivedSessions, StringComparer.Ordinal);
         var merged = new List<SessionListItemViewModel>(summaries.Count);
@@ -1039,11 +1072,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         ApplyFilter();
-        await AutoArchiveSessionsAsync(fold: false);
-        OnPropertyChanged(nameof(RecentFolders));
-        Current.RefreshFolders();
-        _ = LoadGitHubLinksAsync();
-        _ = LoadWorktreeMergesAsync();
     }
 
     /// <summary>Sessions in a worktree learn whether its branch has been merged into the repository (local git only).</summary>
@@ -1190,7 +1218,8 @@ public sealed partial class MainViewModel : ObservableObject
         SyncList(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
         HasAlive = Alive.Count > 0;
         AliveCount = Alive.Count;
-        HasNoSessions = _all.Count == 0;
+        HasNoSessions = _all.Count == 0 && !IsLoadingSessions;
+        ShowSessionsSkeleton = _all.Count == 0 && IsLoadingSessions;
         NumberRows();
     }
 

@@ -942,26 +942,30 @@
                       <TextBlock Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" IsVisible="{Binding HasBothFooterParts}" />
                       <TextBlock Text="{Binding LastSessionText}" IsVisible="{Binding HasLastSession}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                    <!-- The latest commits. -->
-                    <StackPanel Classes="gitpart" Classes.loaded="{Binding IsLoaded}" Margin="0,9,0,6">
-                      <ItemsControl ItemsSource="{Binding TopCommits}" IsVisible="{Binding HasCommits}">
-                        <ItemsControl.ItemsPanel>
-                          <ItemsPanelTemplate>
-                            <StackPanel Spacing="3" />
-                          </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="vm:CommitRow">
-                            <Grid ColumnDefinitions="Auto,*,Auto">
-                              <Ellipse Width="4" Height="4" Fill="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
-                              <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
-                              <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                            </Grid>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                      <TextBlock Text="Not a git repository" IsVisible="{Binding IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" Margin="1,0,0,0" />
-                    </StackPanel>
+                    <!-- The latest commits, with placeholder rows while git is read. -->
+                    <Panel Margin="0,9,0,6">
+                      <c:Skeleton IsActive="{Binding !IsLoaded}" Rows="3" RowHeight="8" RowSpacing="12" Widths="0.78,0.6,0.7"
+                                  Fill="{DynamicResource SkeletonBrush}" Margin="18,4,40,0" VerticalAlignment="Top" />
+                      <StackPanel Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
+                        <ItemsControl ItemsSource="{Binding TopCommits}" IsVisible="{Binding HasCommits}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Spacing="3" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CommitRow">
+                              <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Ellipse Width="4" Height="4" Fill="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Not a git repository" IsVisible="{Binding IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" Margin="1,0,0,0" />
+                      </StackPanel>
+                    </Panel>
                   </DockPanel>
                 </Button>
               </DataTemplate>
@@ -1656,6 +1660,18 @@
                 ArcBrush="{DynamicResource RingBrush}"
                 SpinBrush="{DynamicResource RingBrush}"
                 VerticalAlignment="Center">
+          <c:Ring.Transitions>
+            <Transitions>
+              <DoubleTransition Property="Fraction" Duration="0:0:0.25" Easing="CubicEaseOut" />
+            </Transitions>
+          </c:Ring.Transitions>
+          <!-- The plan usage not read yet: a faint arc circles until it is (hidden, it doesn't). -->
+          <c:Ring.IsPending>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="Usage.IsLoading" />
+              <Binding Path="ShowUsageRing" />
+            </MultiBinding>
+          </c:Ring.IsPending>
           <!-- Hidden, it doesn't spin either. -->
           <c:Ring.IsSpinning>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -1676,6 +1692,7 @@
                   </StackPanel>
                 </Button>
               </Grid>
+              <c:Skeleton IsActive="{Binding Usage.IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
               <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
