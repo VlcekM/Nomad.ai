@@ -91,6 +91,12 @@ public sealed class NomadSettings
     /// <summary>Archived sessions are listed too, in a group of their own.</summary>
     public bool ShowArchived { get; set; }
 
+    /// <summary>How the Alive list is grouped: the same choices as <see cref="SessionGrouping"/>.</summary>
+    public string AliveGrouping { get; set; } = "None";
+
+    /// <summary>Alive rows show their project's name on a second line.</summary>
+    public bool AliveShowProject { get; set; }
+
     /// <summary>Session ids archived from the sidebar: hidden from the list, their transcripts kept.</summary>
     public List<string> ArchivedSessions { get; set; } = [];
 
@@ -106,7 +112,10 @@ public sealed class NomadSettings
     /// </summary>
     public Dictionary<string, DateTime> UnarchivedUtc { get; set; } = [];
 
-    /// <summary>Collapsed Idle groups, as "Grouping:Title" ("Date:Yesterday", "Folder:Nomad.ai", "Archived").</summary>
+    /// <summary>
+    /// Collapsed groups, as "Grouping:Title" ("Date:Yesterday", "Folder:Nomad.ai", "Archived"); the Alive list's
+    /// with "Alive:" before it ("Alive:Folder:Nomad.ai").
+    /// </summary>
     public List<string> CollapsedGroups { get; set; } = [];
 
     /// <summary>The Alive section is folded to its heading.</summary>
