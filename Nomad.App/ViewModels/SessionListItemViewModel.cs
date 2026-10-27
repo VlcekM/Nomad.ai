@@ -117,8 +117,17 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Mark))]
     public partial bool IsWaiting { get; set; }
 
-    /// <summary>The mark on the right: asking beats working, working beats unread.</summary>
-    public SessionMark Mark => IsWaiting ? SessionMark.Waiting : IsRunning ? SessionMark.Working : IsUnread ? SessionMark.Unread : SessionMark.None;
+    /// <summary>Its subagents are at work (during a turn, or in the background after it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Mark))]
+    public partial bool HasRunningSubagents { get; set; }
+
+    /// <summary>The mark on the right: asking beats subagents, subagents beat working, working beats unread.</summary>
+    public SessionMark Mark => IsWaiting ? SessionMark.Waiting
+        : HasRunningSubagents ? SessionMark.Subagents
+        : IsRunning ? SessionMark.Working
+        : IsUnread ? SessionMark.Unread
+        : SessionMark.None;
 
     /// <summary>The branch its transcript last recorded (null: not a repository, or not known yet).</summary>
     public string? GitBranch { get; set; }

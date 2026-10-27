@@ -876,6 +876,14 @@ public partial class SessionView : UserControl
         e.Handled = true;
     }
 
+    private void OnSubagentLineTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: SubagentViewModel agent } && Vm is { } vm)
+        {
+            vm.OpenSubagent = agent;
+        }
+    }
+
     private void OnCloseSubagentClick(object? sender, RoutedEventArgs e)
     {
         if (Vm is { } vm)

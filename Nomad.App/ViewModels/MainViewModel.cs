@@ -705,6 +705,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
+    [RelayCommand]
+    private void ClearSearch() => SearchText = "";
+
     partial void OnIsSidebarOpenChanged(bool value)
     {
         Settings.SidebarCollapsed = !value;
@@ -1892,6 +1895,7 @@ public sealed partial class MainViewModel : ObservableObject
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
         vm.IsWaiting = session.PendingPermission is not null;
+        vm.HasRunningSubagents = session.HasRunningSubagents;
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
@@ -2066,6 +2070,15 @@ public sealed partial class MainViewModel : ObservableObject
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {
             vm.IsWaiting = session.PendingPermission is not null;
+        }
+    }
+
+    /// <summary>A subagent started or ended: the row's subagent mark.</summary>
+    public void OnSubagentsChanged(SessionViewModel session)
+    {
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
+        {
+            vm.HasRunningSubagents = session.HasRunningSubagents;
         }
     }
 

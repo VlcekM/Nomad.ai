@@ -77,6 +77,38 @@
       <Setter Property="MaxHeight" Value="40" />
     </Style>
 
+    <!-- A running subagent's line: folds and fades in and out like the working row; its words pulse softly while it runs. -->
+    <Style Selector="Border.subagentline">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="MaxHeight" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="MaxHeight" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.subagentline.on">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="MaxHeight" Value="28" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="TextBlock.subagentpulse">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.subagentline.on TextBlock.subagentpulse">
+      <Style.Animations>
+        <Animation Duration="0:0:1.8" IterationCount="Infinite" Easing="SineEaseInOut" PlaybackDirection="Alternate">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="0.45" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.subagentline:pointerover TextBlock.subagentpulse">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+
     <!-- The usage ring at the end of the status row; turned off in the settings, it folds away. -->
     <Style Selector="Button#UsageChip">
       <Setter Property="Width" Value="30" />
@@ -878,6 +910,24 @@
               <TextBlock Text="{Binding WorkingElapsed}" Classes="muted" VerticalAlignment="Center" />
             </StackPanel>
           </Border>
+
+          <!-- Subagents at work, one pulsing line each: "Opus 5.5: its latest thought", and for how long. They stay
+               after the turn while background ones run, and fold away as each ends; a click opens its conversation. -->
+          <ItemsControl ItemsSource="{Binding Subagents}" Padding="14,0,10,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:SubagentViewModel">
+                <Border Classes="subagentline" Classes.on="{Binding IsRunning}" ClipToBounds="True"
+                        Background="Transparent" Cursor="Hand" Tapped="OnSubagentLineTapped"
+                        ToolTip.Tip="{Binding Description}">
+                  <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0" Height="20">
+                    <TextBlock Classes="subagentpulse" Text="{Binding LiveText}" FontStyle="Italic"
+                               TextTrimming="CharacterEllipsis" MaxWidth="600" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding DurationText}" Classes="muted" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </ScrollViewer>
 
