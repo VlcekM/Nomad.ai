@@ -412,6 +412,56 @@
     </Setter>
   </ControlTheme>
 
+  <!-- BareTextBox showing Markdown as it is typed (MarkdownPresenter), list bullets as dots, and list writing
+       (MarkdownEditing): the composer. -->
+  <ControlTheme x:Key="MarkdownTextBox" TargetType="TextBox" BasedOn="{StaticResource BareTextBox}">
+    <Setter Property="c:MarkdownEditing.IsEnabled" Value="True" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+          <ScrollViewer Name="PART_ScrollViewer"
+                        HorizontalScrollBarVisibility="{TemplateBinding (ScrollViewer.HorizontalScrollBarVisibility)}"
+                        VerticalScrollBarVisibility="{TemplateBinding (ScrollViewer.VerticalScrollBarVisibility)}"
+                        IsScrollChainingEnabled="{TemplateBinding (ScrollViewer.IsScrollChainingEnabled)}"
+                        AllowAutoHide="True">
+            <Panel>
+              <TextBlock Name="PART_Watermark"
+                         Text="{TemplateBinding Watermark}"
+                         Foreground="{DynamicResource TextMutedBrush}"
+                         TextWrapping="{TemplateBinding TextWrapping}"
+                         VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                         IsHitTestVisible="False"
+                         IsVisible="{TemplateBinding Text, Converter={x:Static StringConverters.IsNullOrEmpty}}" />
+              <c:MarkdownPresenter Name="PART_TextPresenter"
+                                   Text="{TemplateBinding Text, Mode=TwoWay}"
+                                   CaretBlinkInterval="{TemplateBinding CaretBlinkInterval}"
+                                   CaretIndex="{TemplateBinding CaretIndex}"
+                                   SelectionStart="{TemplateBinding SelectionStart}"
+                                   SelectionEnd="{TemplateBinding SelectionEnd}"
+                                   TextAlignment="{TemplateBinding TextAlignment}"
+                                   TextWrapping="{TemplateBinding TextWrapping}"
+                                   LineHeight="{TemplateBinding LineHeight}"
+                                   PasswordChar="{TemplateBinding PasswordChar}"
+                                   RevealPassword="{TemplateBinding RevealPassword}"
+                                   SelectionBrush="{TemplateBinding SelectionBrush}"
+                                   SelectionForegroundBrush="{TemplateBinding SelectionForegroundBrush}"
+                                   CaretBrush="Transparent"
+                                   MarkerBrush="{DynamicResource TextMutedBrush}"
+                                   ListBrush="{DynamicResource AccentBrush}"
+                                   CodeBrush="{DynamicResource InlineCodeBrush}"
+                                   LinkBrush="{DynamicResource LinkBrush}"
+                                   QuoteBrush="{DynamicResource TextSecondaryBrush}"
+                                   CodeFontFamily="{DynamicResource MonoFont}"
+                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+              <c:MarkdownBullets Presenter="{Binding #PART_TextPresenter}" Fill="{DynamicResource AccentBrush}" />
+              <c:TextCaret Presenter="{Binding #PART_TextPresenter}" CaretBrush="{TemplateBinding CaretBrush}" />
+            </Panel>
+          </ScrollViewer>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+
   <!-- Thin scrollbars: 6 px thumb, no track or arrows; shown while the pointer is over the scroll area. -->
   <ControlTheme x:Key="ThinThumb" TargetType="Thumb">
     <Setter Property="Template">

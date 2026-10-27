@@ -51,6 +51,13 @@ public partial class App : Application
             _ = Task.Run(() => Infrastructure.WindowsToast.Register(protocol: realStart));
             ApplyAppearance(settings);
 
+            if (Program.Dev.Sandbox == "composer")
+            {
+                desktop.MainWindow = new Views.ComposerSandbox();
+                base.OnFrameworkInitializationCompleted();
+                return;
+            }
+
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
             var window = new MainWindow(vm);
             desktop.MainWindow = window;

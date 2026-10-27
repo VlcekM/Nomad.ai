@@ -1358,7 +1358,7 @@
 
           <TextBox Name="Composer"
                    Grid.Column="1"
-                   Theme="{StaticResource BareTextBox}"
+                   Theme="{StaticResource MarkdownTextBox}"
                    Text="{Binding ComposerText}"
                    Watermark="{Binding ComposerPlaceholder}"
                    AcceptsReturn="True"
