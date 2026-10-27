@@ -28,6 +28,9 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <!-- SkiaSharp 3 draws Segoe UI Emoji's COLRv1 glyphs; the 2.88 Avalonia pulls in by default draws them broken. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Markdig" Version="1.4.2" />
     <!-- Self-update (UpdateService); the release workflow's vpk must be the same version. -->

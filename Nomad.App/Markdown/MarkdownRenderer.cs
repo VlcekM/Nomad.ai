@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.VisualTree;
 using Markdig;
 using Markdig.Extensions.Tables;
@@ -623,6 +624,9 @@ public static partial class LinkSupport
         // Seen on the way down (before the text block starts a selection) and whether or not it handled them.
         Point? pressedAt = null;
         string? ctrlPath = null;
+
+        // The path tip says how to open it; it is the only tip on the text, so it can come up quickly.
+        ToolTip.SetShowDelay(block, 150);
         block.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
         {
             pressedAt = e.GetPosition(block);
@@ -671,7 +675,7 @@ public static partial class LinkSupport
 
             var link = Hit(block, e.GetPosition(block));
             var path = link?.Url.StartsWith(PathPrefix, StringComparison.Ordinal) == true ? ResolvePath(block, link.Url) : null;
-            var hand = link is not null && (path is null ? !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal) : e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            var hand = link is not null && (path is not null || !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal));
             block.Cursor = hand ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
             var tip = path is not null ? "Ctrl+click to show in Explorer · right-click for more" : null;
             if (!Equals(ToolTip.GetTip(block), tip))
@@ -831,9 +835,29 @@ public static partial class LinkSupport
 
         // Against the rectangles the link covers, one per line (as the code pills are drawn): a text position from
         // HitTestPoint is unreliable on the later lines of a wrapped path, which has no spaces to break at.
+        // Each rectangle is stretched to its whole line: the range's rectangle only covers the glyphs, and with the
+        // LineHeight larger than the font the leading above them was left out of the link.
         var local = point - new Point(block.Padding.Left, block.Padding.Top);
-        return links.FirstOrDefault(l => block.TextLayout.HitTestTextRange(l.Start, l.End - l.Start)
-            .Any(rect => rect.Inflate(new Thickness(3, 2)).Contains(local)));
+        var layout = block.TextLayout;
+        return links.FirstOrDefault(l => layout.HitTestTextRange(l.Start, l.End - l.Start)
+            .Any(rect => ToLine(layout, rect).Inflate(new Thickness(3, 1)).Contains(local)));
+    }
+
+    private static Rect ToLine(TextLayout layout, Rect rect)
+    {
+        var top = 0.0;
+        var middle = rect.Center.Y;
+        foreach (var line in layout.TextLines)
+        {
+            if (middle < top + line.Height)
+            {
+                return new Rect(rect.X, top, rect.Width, line.Height);
+            }
+
+            top += line.Height;
+        }
+
+        return rect;
     }
 
     /// <summary>Opens web and mail links in the default browser; other schemes are ignored.</summary>

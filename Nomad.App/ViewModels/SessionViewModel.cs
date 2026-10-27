@@ -1664,6 +1664,19 @@ public sealed partial class SessionViewModel : ObservableObject
         AppendHistory(history, summary.LastActivityUtc);
     }
 
+    private static Avalonia.Media.Imaging.Bitmap? DecodeImage(HistoryImage image)
+    {
+        try
+        {
+            using var stream = new MemoryStream(Convert.FromBase64String(image.Base64));
+            return new Avalonia.Media.Imaging.Bitmap(stream);
+        }
+        catch (Exception)
+        {
+            return null; // Corrupt or a type Skia can't read.
+        }
+    }
+
     /// <summary>Adds the history items not shown yet (all of them on the first load).</summary>
     private void AppendHistory(SessionHistory history, DateTime fallbackTimeUtc)
     {
@@ -1679,7 +1692,12 @@ public sealed partial class SessionViewModel : ObservableObject
                 case HistoryUserMessage u:
                     CloseGroup();
                     var (promptText, promptFiles) = AttachedFiles.Split(u.Text);
-                    Items.Add(new UserMessageItem(promptText, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true) { ParentUuid = u.ParentUuid, Files = promptFiles });
+                    Items.Add(new UserMessageItem(promptText, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true)
+                    {
+                        ParentUuid = u.ParentUuid,
+                        Files = promptFiles,
+                        Images = u.Images.Select(DecodeImage).OfType<Avalonia.Media.Imaging.Bitmap>().ToList(),
+                    });
                     break;
                 case HistoryAssistantText a:
                     CloseGroup();
@@ -1820,7 +1838,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 IsNew = false;
                 if (string.IsNullOrEmpty(Title))
                 {
-                    Title = SessionTitles.Shorten(first.Text);
+                    Title = SessionTitles.Shorten(first.Text.Length > 0 ? first.Text : "Image");
                 }
             }
 

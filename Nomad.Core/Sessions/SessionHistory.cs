@@ -15,7 +15,12 @@ public sealed record HistoryUserMessage(string Text) : HistoryItem
     public string? ParentUuid { get; init; }
 
     public DateTime? TimestampUtc { get; init; }
+
+    /// <summary>The images sent with it, base64 as stored (decoded only when shown).</summary>
+    public IReadOnlyList<HistoryImage> Images { get; init; } = [];
 }
+
+public sealed record HistoryImage(string MediaType, string Base64);
 
 public sealed record HistoryAssistantText(string MessageId, string Text) : HistoryItem;
 
@@ -148,6 +153,7 @@ public sealed class SessionHistory
         }
 
         var texts = new List<string>();
+        var images = new List<HistoryImage>();
         foreach (var block in blocks)
         {
             switch (block.Type)
@@ -178,16 +184,20 @@ public sealed class SessionHistory
                     }
 
                     break;
-                case "image":
-                    texts.Add("[image]");
+                case "image" when block.Source.ValueKind == JsonValueKind.Object
+                    && block.Source.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.String:
+                    images.Add(new HistoryImage(
+                        block.Source.TryGetProperty("media_type", out var type) && type.ValueKind == JsonValueKind.String ? type.GetString()! : "image/png",
+                        data.GetString()!));
                     break;
             }
         }
 
-        if (texts.Count > 0)
+        if (texts.Count > 0 || images.Count > 0)
         {
             items.Add(new HistoryUserMessage(string.Join("\n\n", texts))
             {
+                Images = images,
                 Uuid = record.Uuid,
                 ParentUuid = record.ParentUuid ?? record.LogicalParentUuid,
                 TimestampUtc = DateTime.TryParse(record.Timestamp, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var at) ? at : null,

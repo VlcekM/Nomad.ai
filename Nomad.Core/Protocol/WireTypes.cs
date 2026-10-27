@@ -22,6 +22,9 @@ public sealed class WireContentBlock
     [JsonPropertyName("content")] public JsonElement Content { get; set; }
 
     [JsonPropertyName("is_error")] public bool? IsError { get; set; }
+
+    /// <summary>An image block's data: <c>{"type":"base64","media_type":"image/png","data":"..."}</c>.</summary>
+    [JsonPropertyName("source")] public JsonElement Source { get; set; }
 }
 
 /// <summary>An API message (assistant reply or user turn).</summary>
