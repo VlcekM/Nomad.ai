@@ -854,7 +854,7 @@
           </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
           <ContentControl Content="{Binding Current}">
             <ContentControl.ContentTemplate>
               <DataTemplate x:DataType="vm:SessionViewModel">
@@ -863,46 +863,8 @@
             </ContentControl.ContentTemplate>
           </ContentControl>
 
-          <!-- A thin strip on the right edge toggles the side panel: "Side panel" written sideways along it, brighter
-               on hover, fading out while the panel is open. -->
-          <Border Grid.Column="1"
-                  Name="PanelStrip"
-                  Classes.open="{Binding ShowSidePanel}"
-                  IsVisible="{Binding !Current.IsNew}"
-                  Width="14"
-                  Background="Transparent"
-                  Cursor="Hand"
-                  PointerPressed="OnPanelStripPressed"
-                  ToolTip.Tip="Side panel (Ctrl+Shift+B)"
-                  ToolTip.Placement="Left">
-            <Border.Styles>
-              <Style Selector="Border#PanelStrip TextBlock">
-                <Setter Property="Opacity" Value="0.55" />
-                <Setter Property="Transitions">
-                  <Transitions>
-                    <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
-                  </Transitions>
-                </Setter>
-              </Style>
-              <Style Selector="Border#PanelStrip:pointerover TextBlock">
-                <Setter Property="Opacity" Value="1" />
-              </Style>
-              <Style Selector="Border#PanelStrip.open TextBlock">
-                <Setter Property="Opacity" Value="0" />
-              </Style>
-            </Border.Styles>
-            <LayoutTransformControl HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
-              <LayoutTransformControl.LayoutTransform>
-                <RotateTransform Angle="90" />
-              </LayoutTransformControl.LayoutTransform>
-              <TextBlock Text="Side panel"
-                         FontSize="{DynamicResource UiFontSizeTiny}"
-                         Foreground="{DynamicResource TextMutedBrush}" />
-            </LayoutTransformControl>
-          </Border>
-
           <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
-          <Border Grid.Column="2" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding ShowSidePanel}" ClipToBounds="True">
+          <Border Grid.Column="1" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding ShowSidePanel}" ClipToBounds="True">
             <Border.Styles>
               <Style Selector="Border.sidepanel">
                 <Setter Property="Width" Value="0" />
@@ -925,7 +887,7 @@
           </Border>
 
           <!-- The side panel's left edge: drag to resize it, double-click for the default width. -->
-          <Border Grid.Column="2"
+          <Border Grid.Column="1"
                   Name="SidePanelGrip"
                   Classes="resizegrip"
                   Margin="-4,0,0,0"

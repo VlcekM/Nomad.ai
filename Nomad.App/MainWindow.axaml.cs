@@ -328,15 +328,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnPanelStripPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            _vm.ToggleSidePanel();
-            e.Handled = true;
-        }
-    }
-
     // A row's GitHub icons open their pull request or issue (and keep the press from opening the session).
     private void OnPullRequestIconPressed(object? sender, PointerPressedEventArgs e) =>
         OpenLink(e, (sender as Control)?.DataContext is SessionListItemViewModel { PullRequest.Url: { } url } ? url : null);

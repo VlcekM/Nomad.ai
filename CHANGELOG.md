@@ -6,7 +6,15 @@ Newest first: the newest heading is also the version of local builds (`Directory
 ## v1.9.0
 
 - The branch chip (and a started session's branch in the title bar) shows ↑N when the branch has commits not pushed
-  yet.
+  yet, and how many files have uncommitted changes; both are re-read every 5 seconds.
+- Reopened chats show their images again; emoji are drawn in color.
+- Ctrl+T search opens at once, even with many sessions.
+- Remote Control sessions started from Nomad.ai get their generated title on claude.ai instead of "Untitled session".
+- A setting hides the usage ring.
+- Holding Ctrl shows the sessions' Ctrl+number badges at once.
+- The Idle heading shows a moon instead of a count and folds the list when clicked anywhere; idle titles are muted.
+- Links react on their whole line; file links show a hand cursor.
+- The thin "Side panel" strip on the right edge is gone (Ctrl+Shift+B and the pane icon still toggle the panel).
 - Clicking a notification opens its session, also when Nomad.ai is already running.
 - Send instantly is on Ctrl: Ctrl+Enter or Ctrl+click sends at once while Claude works, and holding Ctrl slides the
   label into the send button.
