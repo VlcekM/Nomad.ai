@@ -3,10 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
-## v1.9.0
+## v1.10.0
 
-- The branch chip (and a started session's branch in the title bar) shows ↑N when the branch has commits not pushed
-  yet, and how many files have uncommitted changes; both are re-read every 5 seconds.
+- The branch chip also shows how many files have uncommitted changes; the branch, ↑N and changes are re-read every 5
+  seconds.
 - Reopened chats show their images again; emoji are drawn in color.
 - Ctrl+T search opens at once, even with many sessions.
 - Remote Control sessions started from Nomad.ai get their generated title on claude.ai instead of "Untitled session".
@@ -15,6 +15,11 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - The Idle heading shows a moon instead of a count and folds the list when clicked anywhere; idle titles are muted.
 - Links react on their whole line; file links show a hand cursor.
 - The thin "Side panel" strip on the right edge is gone (Ctrl+Shift+B and the pane icon still toggle the panel).
+
+## v1.9.0
+
+- The branch chip (and a started session's branch in the title bar) shows ↑N when the branch has commits not pushed
+  yet.
 - Clicking a notification opens its session, also when Nomad.ai is already running.
 - Send instantly is on Ctrl: Ctrl+Enter or Ctrl+click sends at once while Claude works, and holding Ctrl slides the
   label into the send button.
