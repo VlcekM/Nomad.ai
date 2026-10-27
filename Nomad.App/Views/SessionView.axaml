@@ -60,10 +60,6 @@
       <Setter Property="MaxHeight" Value="40" />
     </Style>
 
-    <!-- A plan limit that is close to (or past) running out. -->
-    <Style Selector="c|FillSlider.high">
-      <Setter Property="FillBrush" Value="{StaticResource DangerBrush}" />
-    </Style>
     <Style Selector="Border.pill">
       <Setter Property="CornerRadius" Value="3" />
       <Setter Property="Padding" Value="4,0" />
@@ -157,6 +153,83 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
+    <!-- New-session project cards: a lighter edge on hover, the check colour when it is the session's folder. -->
+    <Style Selector="Button.project">
+      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderCardBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="12,10,12,10" />
+      <Setter Property="Width" Value="280" />
+      <Setter Property="Height" Value="142" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.project:pointerover /template/ ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderInputBrush}" />
+      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
+    </Style>
+    <Style Selector="Button.project.selected /template/ ContentPresenter">
+      <Setter Property="BorderBrush" Value="{StaticResource CheckBrush}" />
+    </Style>
+    <Style Selector="StackPanel.gitpart">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="StackPanel.gitpart.loaded">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Attachment thumbnails: a lighter edge on hover says they open. -->
+    <Style Selector="Border.thumb">
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.thumb:pointerover">
+      <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}" />
+    </Style>
+
+    <!-- The image preview: fades in over the session while the picture grows into place. -->
+    <Style Selector="Panel#ImagePreview">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#ImagePreview.open">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Panel#ImagePreview StackPanel.frame">
+      <Setter Property="RenderTransform" Value="scale(0.96)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#ImagePreview.open StackPanel.frame">
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
+
     <!-- Images being dragged over the session: the composer lights up. -->
     <Style Selector="Border#ComposerBar.dragover">
       <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
@@ -196,7 +269,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="Bitmap">
-                  <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160">
+                  <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160" Cursor="Hand" Tapped="OnSentImageTapped">
                     <Image Source="{Binding}" Stretch="Uniform" />
                   </Border>
                 </DataTemplate>
@@ -635,51 +708,82 @@
         </StackPanel>
       </ScrollViewer>
 
-      <!-- New session: recent folders card -->
-      <Border IsVisible="{Binding IsNew}"
-              Width="320"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
-              Background="{StaticResource BgMainBrush}"
-              BorderBrush="{StaticResource BorderCardBrush}"
-              BorderThickness="1"
-              CornerRadius="10"
-              ClipToBounds="True">
-        <StackPanel>
-          <ItemsControl ItemsSource="{Binding CardFolders}" Margin="0,2,0,0">
+      <!-- New session: the latest projects as cards (click one to work there), then No folder / Open folder…. -->
+      <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
+          <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
+            <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
+            <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
+                <TextBlock Text="No folder" FontSize="{DynamicResource UiFontSizeSmall}" />
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Theme="{StaticResource LineButton}" Click="OnOpenFolderClick">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <c:Icon Size="12" Data="{StaticResource IconFolderOpen}" />
+                <TextBlock Text="Open folder…" FontSize="{DynamicResource UiFontSizeSmall}" />
+              </StackPanel>
+            </Button>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Projects}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="10" LineSpacing="10" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:MenuOption">
-                <Button Theme="{StaticResource CardRowButton}"
-                        CornerRadius="0"
-                        Padding="12,0"
-                        Click="OnFolderOptionClick"
-                        ToolTip.Tip="{Binding ToolTip}">
-                  <Grid ColumnDefinitions="Auto,*,Auto">
-                    <c:Icon Size="13" Data="{StaticResource IconFolder}" />
-                    <TextBlock Grid.Column="1"
-                               Text="{Binding Label}"
-                               Margin="8,0,0,0"
-                               TextTrimming="CharacterEllipsis"
-                               VerticalAlignment="Center" />
-                    <c:Icon Grid.Column="2"
-                          Size="13"
-                          Data="{StaticResource IconCheck}"
-                          Stroke="{StaticResource CheckBrush}"
-                          IsVisible="{Binding IsSelected}" />
-                  </Grid>
+              <DataTemplate x:DataType="vm:ProjectViewModel">
+                <Button Theme="{StaticResource FlatButton}"
+                        Classes="project"
+                        Classes.selected="{Binding IsSelected}"
+                        Click="OnProjectClick"
+                        ToolTip.Tip="{Binding Path}">
+                  <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto">
+                      <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"
+                                 TextTrimming="CharacterEllipsis" Margin="8,0" VerticalAlignment="Center" />
+                      <Border Grid.Column="2" IsVisible="{Binding HasBranch}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Branch}" FontFamily="{DynamicResource MonoFont}"
+                                   FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
+                      </Border>
+                      <c:Icon Grid.Column="3" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding Path}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                               TextTrimming="CharacterEllipsis" Margin="22,1,0,0" />
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
+                      <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Classes="muted" Classes.warn="{Binding HasChanges}" FontSize="{DynamicResource UiFontSizeTiny}" />
+                      <TextBlock Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" IsVisible="{Binding HasBothFooterParts}" />
+                      <TextBlock Text="{Binding LastSessionText}" IsVisible="{Binding HasLastSession}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <!-- The latest commits. -->
+                    <StackPanel Classes="gitpart" Classes.loaded="{Binding IsLoaded}" Margin="0,9,0,6">
+                      <ItemsControl ItemsSource="{Binding TopCommits}" IsVisible="{Binding HasCommits}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Spacing="3" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:CommitRow">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                              <Ellipse Width="4" Height="4" Fill="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
+                              <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBlock Text="Not a git repository" IsVisible="{Binding IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" Margin="1,0,0,0" />
+                    </StackPanel>
+                  </DockPanel>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <Border Height="1" Background="{StaticResource BorderCardBrush}" Margin="0,2,0,0" IsVisible="{Binding HasCardFolders}" />
-          <Button Theme="{StaticResource CardRowButton}" CornerRadius="0" Height="40" Padding="12,0" Click="OnOpenFolderClick">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <c:Icon Size="13" Data="{StaticResource IconFolderOpen}" />
-              <TextBlock Text="Open folder…" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
         </StackPanel>
-      </Border>
+      </ScrollViewer>
 
       <c:Ring Width="22" Height="22"
               IsSpinning="{Binding IsLoadingHistory}"
@@ -764,16 +868,40 @@
           <StackPanel Spacing="4">
             <ItemsControl Name="QueueList" ItemsSource="{Binding Queued}">
               <ItemsControl.ItemTemplate>
+                <!-- Double-click or the pencil (↑ in an empty composer: the last one) edits it in place: Enter saves,
+                     Shift+Enter is a new line, Esc drops the edit. -->
                 <DataTemplate x:DataType="vm:QueuedPrompt">
-                  <Grid ColumnDefinitions="Auto,*,Auto" MinHeight="26">
-                    <TextBlock Text="Queued" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                      <TextBlock Text="{Binding AttachmentsText}" IsVisible="{Binding HasAttachments}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                  <Grid Classes="queued" ColumnDefinitions="Auto,*,Auto" MinHeight="26" Background="Transparent">
+                    <TextBlock Text="Queued" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Top" Margin="0,5,10,0" />
+                    <Panel Grid.Column="1" VerticalAlignment="Center">
+                      <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent" IsVisible="{Binding !IsEditing}"
+                                  DoubleTapped="OnQueuedDoubleTapped" ToolTip.Tip="Double-click to edit">
+                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding AttachmentsText}" IsVisible="{Binding HasAttachments}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <Border IsVisible="{Binding IsEditing}" Background="{StaticResource BgInputBrush}" BorderBrush="{StaticResource BorderInputBrush}"
+                              BorderThickness="1" CornerRadius="6" Padding="7,3" Margin="-3,2,6,2">
+                        <TextBox Classes="queuededit"
+                                 Theme="{StaticResource BareTextBox}"
+                                 Text="{Binding EditText}"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 MaxHeight="140"
+                                 LostFocus="OnQueuedEditLostFocus"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto" />
+                      </Border>
+                    </Panel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Top">
+                      <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnEditQueuedClick" IsVisible="{Binding !IsEditing}" ToolTip.Tip="Edit (↑ in an empty composer)">
+                        <c:Icon Size="12" Data="{StaticResource IconPencil}" />
+                      </Button>
+                      <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnSaveQueuedClick" IsVisible="{Binding IsEditing}" ToolTip.Tip="Save (Enter)">
+                        <c:Icon Size="12" Data="{StaticResource IconCheck}" />
+                      </Button>
+                      <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnRemoveQueuedClick" ToolTip.Tip="Remove from the queue">
+                        <c:Icon Size="12" Data="{StaticResource IconClose}" />
+                      </Button>
                     </StackPanel>
-                    <Button Grid.Column="2" Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnRemoveQueuedClick" ToolTip.Tip="Remove from the queue">
-                      <c:Icon Size="12" Data="{StaticResource IconClose}" />
-                    </Button>
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
@@ -849,9 +977,13 @@
           </Transitions>
         </Border.Transitions>
         <Grid RowDefinitions="Auto,Auto">
-        <!-- Attached images (thumbnails) and files (chips), each with a remove button. The button overlaps the
+        <!-- Attached images (thumbnails, named underneath, click to view) and files (chips), each with a remove
+             button, in a darker tray above a dashed rule: plainly not part of the text. The button overlaps the
              corner from inside the item's own bounds, so nothing clips it. -->
-        <ItemsControl Name="AttachmentList" ItemsSource="{Binding Attachments}" Margin="10,4,12,0" IsVisible="{Binding HasAttachments}">
+        <Border c:Fold.IsOpen="{Binding HasAttachments}" IsVisible="False">
+        <Border Background="#0D000000" CornerRadius="9,9,0,0">
+        <StackPanel>
+        <ItemsControl Name="AttachmentList" ItemsSource="{Binding Attachments}" Margin="10,2,12,8">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <WrapPanel ItemSpacing="4" LineSpacing="2" />
@@ -860,13 +992,22 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="inf:Attachment">
               <Panel Cursor="Arrow" VerticalAlignment="Top" ToolTip.Tip="{Binding ToolTip}">
-                <Border Margin="2,8,8,0"
-                        Height="96" MinWidth="64" MaxWidth="192"
-                        CornerRadius="8" ClipToBounds="True"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                        IsVisible="{Binding IsImage}">
-                  <Image Source="{Binding Preview}" Stretch="UniformToFill" />
-                </Border>
+                <StackPanel Margin="2,8,8,0" Spacing="4" IsVisible="{Binding IsImage}">
+                  <Border Classes="thumb"
+                          Width="{Binding PreviewWidth}" Height="96"
+                          CornerRadius="8" ClipToBounds="True"
+                          BorderThickness="1"
+                          Cursor="Hand"
+                          Tapped="OnAttachmentImageTapped">
+                    <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                  </Border>
+                  <TextBlock Text="{Binding Name}"
+                             Width="{Binding PreviewWidth}"
+                             Classes="muted"
+                             FontSize="{DynamicResource UiFontSizeTiny}"
+                             TextTrimming="CharacterEllipsis"
+                             TextAlignment="Center" />
+                </StackPanel>
                 <Border Margin="2,8,8,0"
                         Height="52" MaxWidth="240"
                         Padding="10,0,14,0"
@@ -898,6 +1039,10 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <c:DashedRule Stroke="{StaticResource BorderInputBrush}" Margin="10,0" />
+        </StackPanel>
+        </Border>
+        </Border>
         <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto">
           <!-- The buttons stay level with the first line while the text grows. -->
           <Button Name="PlusButton"
@@ -1218,51 +1363,52 @@
                 VerticalAlignment="Center" />
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-            <StackPanel Width="360" Margin="8,4,8,6" Spacing="10">
+            <StackPanel Width="320" Margin="8,4,8,6" Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding Usage.Title}" Classes="muted" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Usage.Title}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" Foreground="{StaticResource TextPrimaryBrush}">
                   <StackPanel Orientation="Horizontal" Spacing="4">
-                    <TextBlock Text="See all" FontWeight="Medium" />
-                    <c:Icon Size="12" Data="{StaticResource IconArrowRight}" />
+                    <TextBlock Text="See all" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" />
+                    <c:Icon Size="11" Data="{StaticResource IconArrowRight}" />
                   </StackPanel>
                 </Button>
               </Grid>
-              <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}">
+              <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
-                    <StackPanel Spacing="12" />
+                    <StackPanel Spacing="11" />
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:UsageRow">
-                    <StackPanel Spacing="6">
-                      <Grid ColumnDefinitions="*,Auto,Auto">
-                        <TextBlock Text="{Binding Label}" FontWeight="Medium" />
-                        <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted" />
-                        <TextBlock Grid.Column="2" Text="{Binding PercentText}" Classes="muted" MinWidth="38" TextAlignment="Right" />
-                      </Grid>
-                      <c:FillSlider Height="5" Thickness="5"
-                                    Maximum="1"
-                                    Value="{Binding Fraction}"
-                                    IsHitTestVisible="False"
-                                    TrackBrush="#3A3A38"
-                                    FillBrush="{StaticResource RingBrush}"
-                                    Classes.high="{Binding IsHigh}" />
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
               </ItemsControl>
               <TextBlock Text="Plan usage needs a claude.ai sign-in in Claude Code."
                          Classes="muted"
                          TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
                          IsVisible="{Binding Usage.IsUnavailable}" />
+              <TextBlock Text="{Binding Usage.StaleText}"
+                         Classes="muted"
+                         FontSize="{DynamicResource UiFontSizeTiny}"
+                         Margin="0,8,0,0"
+                         IsVisible="{Binding Usage.IsStale}" />
               <Border Classes="rule" Margin="-8,0" />
-              <TextBlock Text="{Binding ContextToolTip}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+              <TextBlock Text="{Binding ContextToolTip}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
             </StackPanel>
           </Flyout>
         </Button.Flyout>
       </Button>
     </Grid>
+
+    <!-- An image, big: from a composer thumbnail or a sent prompt. A click or Esc closes it; ← → step through. -->
+    <Panel Name="ImagePreview" Grid.RowSpan="4" Background="#D90A0A0A" PointerPressed="OnImagePreviewPressed">
+      <StackPanel Classes="frame" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" Margin="48">
+        <Border CornerRadius="8" ClipToBounds="True" BoxShadow="0 8 32 0 #80000000" HorizontalAlignment="Center">
+          <Image Name="PreviewImage" Stretch="Uniform" StretchDirection="DownOnly" />
+        </Border>
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+          <TextBlock Name="PreviewName" Foreground="{StaticResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeSmall}" />
+          <TextBlock Name="PreviewMeta" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+        </StackPanel>
+      </StackPanel>
+    </Panel>
   </Grid>
 </UserControl>

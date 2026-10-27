@@ -23,6 +23,8 @@ public partial class SessionView : UserControl
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnViewKeyDown, RoutingStrategies.Bubble);
+        AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        QueueList.AddHandler(KeyDownEvent, OnQueuedEditKeyDown, RoutingStrategies.Tunnel);
         Scroller.ScrollChanged += OnScrollChanged;
 
         // Chips keep their hover fill while their menu is open, as in the original.
@@ -275,6 +277,12 @@ public partial class SessionView : UserControl
                 e.Handled = HandleEscape(vm);
                 break;
 
+            // ↑ in an empty composer edits the last queued prompt.
+            case Key.Up when e.KeyModifiers == KeyModifiers.None && vm.ComposerText.Length == 0 && !vm.HasAttachments && vm.Queued.Count > 0:
+                BeginQueuedEdit(vm.Queued[^1]);
+                e.Handled = true;
+                break;
+
             // Ctrl+Shift+1…4: the model (Ctrl+1…9 alone opens a session from the sidebar).
             case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift):
                 var index = e.Key - Key.D1;
@@ -415,6 +423,16 @@ public partial class SessionView : UserControl
         HideMenus();
     }
 
+    /// <summary>A project card: work in its folder, and carry on typing.</summary>
+    private void OnProjectClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: ProjectViewModel project })
+        {
+            Vm?.SetFolder(project.Path);
+            FocusComposerSoon();
+        }
+    }
+
     private void OnNoFolderClick(object? sender, RoutedEventArgs e)
     {
         Vm?.SetFolder(null);
@@ -537,11 +555,182 @@ public partial class SessionView : UserControl
         }
     }
 
+    // ------------------------------------------------------------------ image preview
+
+    private List<(Avalonia.Media.Imaging.Bitmap Image, string Name)> _previews = [];
+    private int _previewIndex;
+
+    private bool IsPreviewOpen => ImagePreview.Classes.Contains("open");
+
+    private void OnAttachmentImageTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: Infrastructure.Attachment { Preview: { } shown } } && Vm is { } vm)
+        {
+            var images = vm.Attachments.Where(a => a.Preview is not null).Select(a => (a.Preview!, a.Name)).ToList();
+            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.Item1, shown)));
+            e.Handled = true;
+        }
+    }
+
+    private void OnSentImageTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: Avalonia.Media.Imaging.Bitmap shown } control
+            && control.FindAncestorOfType<ItemsControl>()?.ItemsSource is IEnumerable<Avalonia.Media.Imaging.Bitmap> all)
+        {
+            var images = all.Select((b, i) => (b, $"Image {i + 1}")).ToList();
+            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.b, shown)));
+            e.Handled = true;
+        }
+    }
+
+    private void OpenPreview(List<(Avalonia.Media.Imaging.Bitmap, string)> images, int index)
+    {
+        if (images.Count == 0)
+        {
+            return;
+        }
+
+        _previews = images;
+        ShowPreview(Math.Max(0, index));
+        ImagePreview.Classes.Add("open");
+        ImagePreview.Focusable = true;
+        ImagePreview.Focus();
+    }
+
+    private void ShowPreview(int index)
+    {
+        _previewIndex = (index + _previews.Count) % _previews.Count;
+        var (image, name) = _previews[_previewIndex];
+        PreviewImage.Source = image;
+
+        // At most the session's size, less the margins and the caption.
+        PreviewImage.MaxWidth = Math.Max(100, Bounds.Width - 96);
+        PreviewImage.MaxHeight = Math.Max(100, Bounds.Height - 130);
+        PreviewName.Text = name;
+        var size = image.PixelSize;
+        PreviewMeta.Text = $"{size.Width} × {size.Height}" + (_previews.Count > 1 ? $" · {_previewIndex + 1} of {_previews.Count}" : "");
+    }
+
+    private void ClosePreview()
+    {
+        ImagePreview.Classes.Remove("open");
+        ImagePreview.Focusable = false;
+        FocusComposerSoon();
+    }
+
+    private void OnImagePreviewPressed(object? sender, PointerPressedEventArgs e)
+    {
+        ClosePreview();
+        e.Handled = true;
+    }
+
+    /// <summary>While the preview is open, Esc (or Space, Enter) closes it and ← → step through the images.</summary>
+    private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!IsPreviewOpen)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Escape or Key.Space or Key.Enter:
+                ClosePreview();
+                break;
+            case Key.Left:
+                ShowPreview(_previewIndex - 1);
+                break;
+            case Key.Right:
+                ShowPreview(_previewIndex + 1);
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
     private void OnRemoveQueuedClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: QueuedPrompt prompt })
         {
             Vm?.RemoveQueuedCommand.Execute(prompt);
+        }
+    }
+
+    private void OnEditQueuedClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: QueuedPrompt prompt })
+        {
+            BeginQueuedEdit(prompt);
+        }
+    }
+
+    private void OnQueuedDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Control { DataContext: QueuedPrompt prompt })
+        {
+            BeginQueuedEdit(prompt);
+            e.Handled = true;
+        }
+    }
+
+    private void OnSaveQueuedClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: QueuedPrompt prompt })
+        {
+            Vm?.EndQueuedEdit(prompt, save: true);
+            FocusComposerSoon();
+        }
+    }
+
+    /// <summary>Opens a queued prompt's text box, focused with the caret at the end.</summary>
+    private void BeginQueuedEdit(QueuedPrompt prompt)
+    {
+        Vm?.EditQueued(prompt);
+        Dispatcher.UIThread.Post(() =>
+        {
+            var box = QueueList.GetVisualDescendants().OfType<TextBox>()
+                .FirstOrDefault(t => t.Classes.Contains("queuededit") && ReferenceEquals(t.DataContext, prompt));
+            if (box is not null)
+            {
+                box.Focus();
+                box.CaretIndex = box.Text?.Length ?? 0;
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>In a queued prompt's text box: Enter saves, Shift+Enter is a new line, Esc drops the edit.</summary>
+    private void OnQueuedEditKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Source is not TextBox { DataContext: QueuedPrompt prompt } || Vm is not { } vm)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter && (e.KeyModifiers & KeyModifiers.Shift) == 0)
+        {
+            vm.EndQueuedEdit(prompt, save: true);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            vm.EndQueuedEdit(prompt, save: false);
+        }
+        else
+        {
+            return;
+        }
+
+        e.Handled = true;
+        FocusComposerSoon();
+    }
+
+    /// <summary>Clicking elsewhere keeps what was typed.</summary>
+    private void OnQueuedEditLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox { DataContext: QueuedPrompt { IsEditing: true } prompt })
+        {
+            Vm?.EndQueuedEdit(prompt, save: true);
         }
     }
 

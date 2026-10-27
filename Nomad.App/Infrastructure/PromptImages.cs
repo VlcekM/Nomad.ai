@@ -45,7 +45,14 @@ public sealed class Attachment
     public string Kind => IsFolder ? "Folder"
         : System.IO.Path.GetExtension(Name).TrimStart('.').ToUpperInvariant() is { Length: > 0 } ext ? ext : "File";
 
-    public string ToolTip => Path ?? Name;
+    public string ToolTip => Path ?? (Preview is null ? Name : $"{Name} · {SizeText} · click to view");
+
+    /// <summary>"1920 × 1080" for an image.</summary>
+    public string SizeText => Preview is { PixelSize: var size } ? $"{size.Width} × {size.Height}" : "";
+
+    /// <summary>The thumbnail's width at its 96 px height: the image's own shape, 64–192 px.</summary>
+    public double PreviewWidth =>
+        Preview is { PixelSize: { Width: > 0, Height: > 0 } size } ? Math.Clamp(96.0 * size.Width / size.Height, 64, 192) : 96;
 }
 
 /// <summary>Turns files and clipboard data into attachments: images the API accepts, other files by path.</summary>

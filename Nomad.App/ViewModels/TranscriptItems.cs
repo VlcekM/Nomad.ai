@@ -54,10 +54,19 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
     public void Tick() => TimeText = Format.Ago(SentUtc);
 }
 
-/// <summary>A prompt waiting for the running turn to end.</summary>
-public sealed class QueuedPrompt(string text, IReadOnlyList<Attachment> attachments)
+/// <summary>A prompt waiting for the running turn to end; its text can be edited in place until it goes out.</summary>
+public sealed partial class QueuedPrompt(string text, IReadOnlyList<Attachment> attachments) : ObservableObject
 {
-    public string Text { get; } = text;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Label), nameof(HasAttachments))]
+    public partial string Text { get; set; } = text;
+
+    /// <summary>Its row shows a text box with <see cref="EditText"/> instead of the label.</summary>
+    [ObservableProperty]
+    public partial bool IsEditing { get; set; }
+
+    [ObservableProperty]
+    public partial string EditText { get; set; } = "";
 
     public IReadOnlyList<Attachment> Attachments { get; } = attachments;
 
