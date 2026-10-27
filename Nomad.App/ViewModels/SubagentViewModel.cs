@@ -13,6 +13,7 @@ public sealed partial class SubagentViewModel : ObservableObject
 {
     private readonly Dictionary<(string MessageId, int Index), AssistantTextItem> _texts = [];
     private readonly Dictionary<string, ToolCallItem> _calls = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string MessageId, int Index), string> _thoughts = [];
     private readonly string? _cwd;
 
     public SubagentViewModel(string toolUseId, string? cwd)
@@ -54,9 +55,19 @@ public sealed partial class SubagentViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(ChipText));
         OnPropertyChanged(nameof(HasChip));
+        OnPropertyChanged(nameof(LiveText));
     }
 
-    partial void OnModelNameChanged(string value) => OnPropertyChanged(nameof(HasChip));
+    partial void OnModelNameChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasChip));
+        OnPropertyChanged(nameof(LiveText));
+    }
+
+    /// <summary>The chat's row for it while it runs: "Opus 5.5: Reading MainViewModel.cs…", its latest thought.</summary>
+    public string LiveText => $"{(HasChip ? ChipText : "Subagent")}: {LastStatus}";
+
+    partial void OnLastStatusChanged(string value) => OnPropertyChanged(nameof(LiveText));
 
     /// <summary>Its replies name the model they came from.</summary>
     public void SetModel(string? model)
@@ -154,6 +165,29 @@ public sealed partial class SubagentViewModel : ObservableObject
             LastStatus = line;
         }
     }
+
+    /// <summary>It thinks: the newest line of the thought is what it is at.</summary>
+    public void AppendThinking(string messageId, int index, string delta)
+    {
+        var text = _thoughts.TryGetValue((messageId, index), out var so) ? so + delta : delta;
+        _thoughts[(messageId, index)] = text;
+        if (LastLine(text) is { Length: > 0 } line)
+        {
+            LastStatus = line;
+        }
+    }
+
+    public void CompleteThinking(string messageId, int index, string? text)
+    {
+        _thoughts.Remove((messageId, index));
+        if (text is not null && LastLine(text) is { Length: > 0 } line)
+        {
+            LastStatus = line;
+        }
+    }
+
+    private static string LastLine(string text) =>
+        text.Split('\n').Select(l => l.Trim().Trim('*').Trim()).LastOrDefault(l => l.Length > 0) ?? "";
 
     public void AddCall(string toolUseId, string name, JsonElement input)
     {

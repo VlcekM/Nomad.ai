@@ -620,6 +620,15 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool HasOpenSubagent => OpenSubagent is not null;
 
+    /// <summary>A subagent is at work (a background one maybe after the turn): the sidebar row's subagent mark.</summary>
+    public bool HasRunningSubagents => Subagents.Any(a => a.IsRunning);
+
+    private void OnSubagentsRunningChanged()
+    {
+        OnPropertyChanged(nameof(HasRunningSubagents));
+        _main.OnSubagentsChanged(this);
+    }
+
     private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input)
     {
         if (!_subagentById.TryGetValue(toolUseId, out var agent))
@@ -628,6 +637,15 @@ public sealed partial class SessionViewModel : ObservableObject
             _subagentById[toolUseId] = agent;
             Subagents.Insert(0, agent);
             OnPropertyChanged(nameof(HasSubagents));
+            agent.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SubagentViewModel.IsRunning))
+                {
+                    OnSubagentsRunningChanged();
+                }
+            };
+            OnSubagentsRunningChanged();
+            ContentChanged?.Invoke(); // Its row appears below the transcript.
         }
 
         agent.SetInput(input);
@@ -665,6 +683,12 @@ public sealed partial class SessionViewModel : ObservableObject
                 return true;
             case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Text } c when _subagentById.TryGetValue(parent, out var agent):
                 agent.CompleteText(c.MessageId, c.Index, c.Text);
+                return true;
+            case ThinkingDeltaEvent { ParentToolUseId: { } parent } t when _subagentById.TryGetValue(parent, out var agent):
+                agent.AppendThinking(t.MessageId, t.Index, t.Text);
+                return true;
+            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Thinking } c when _subagentById.TryGetValue(parent, out var agent):
+                agent.CompleteThinking(c.MessageId, c.Index, c.Text);
                 return true;
             case ToolCallEvent { ParentToolUseId: { } parent } call when _subagentById.TryGetValue(parent, out var agent):
                 agent.AddCall(call.ToolUseId, call.Name, call.Input);

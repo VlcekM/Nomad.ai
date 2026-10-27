@@ -14,6 +14,9 @@ public enum SessionMark
     /// <summary>A turn runs: the pixel spinner.</summary>
     Working,
 
+    /// <summary>Subagents are at work: three dots circling.</summary>
+    Subagents,
+
     /// <summary>Claude asks something (a permission or a question): a yellow dot.</summary>
     Waiting,
 
@@ -22,8 +25,8 @@ public enum SessionMark
 }
 
 /// <summary>
-/// A sidebar row's state on its right: the working spinner, or a dot. A change crossfades (200 ms, cubic
-/// ease-out, retargeting mid-flight); the timer runs only while fading or while the spinner shows.
+/// A sidebar row's state on its right: the working spinner, circling dots for subagents, or a dot. A change
+/// crossfades (200 ms, cubic ease-out, retargeting mid-flight); the timer runs only while fading or animating.
 /// </summary>
 public sealed class StatusMark : Control
 {
@@ -41,6 +44,7 @@ public sealed class StatusMark : Control
 
     private static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan SpinPeriod = TimeSpan.FromMilliseconds(1100);
+    private static readonly TimeSpan OrbitPeriod = TimeSpan.FromMilliseconds(1600);
     private const double DotSize = 6;
 
     private readonly DateTime _start = DateTime.UtcNow;
@@ -152,7 +156,7 @@ public sealed class StatusMark : Control
 
     private void Update()
     {
-        var moving = IsVisible && VisualRoot is not null && (Mark == SessionMark.Working || Progress() < 1);
+        var moving = IsVisible && VisualRoot is not null && (Mark is SessionMark.Working or SessionMark.Subagents || Progress() < 1);
         if (moving)
         {
             _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) =>
@@ -198,12 +202,36 @@ public sealed class StatusMark : Control
             case SessionMark.Working when WorkingBrush is ISolidColorBrush brush:
                 PixelSpinner.Draw(context, Bounds.Size, brush.Color, (DateTime.UtcNow - _start) / SpinPeriod % 1, opacity);
                 break;
+            case SessionMark.Subagents when WorkingBrush is ISolidColorBrush brush:
+                DrawOrbit(context, brush.Color, (DateTime.UtcNow - _start) / OrbitPeriod % 1, opacity);
+                break;
             case SessionMark.Waiting when WaitingBrush is ISolidColorBrush brush:
                 DrawDot(context, brush.Color, opacity);
                 break;
             case SessionMark.Unread when UnreadBrush is ISolidColorBrush brush:
                 DrawDot(context, brush.Color, opacity);
                 break;
+        }
+    }
+
+    /// <summary>Three dots circling the centre, each brightening in turn as it passes the top.</summary>
+    private void DrawOrbit(DrawingContext context, Color color, double phase, double opacity)
+    {
+        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
+        const double radius = 3.6;
+        const double dot = 1.6;
+        for (var k = 0; k < 3; k++)
+        {
+            var turn = phase + k / 3.0;
+            var angle = 2 * Math.PI * turn - Math.PI / 2;
+            var glow = 0.5 + 0.5 * Math.Cos(2 * Math.PI * turn);
+            var alpha = (0.35 + 0.65 * glow) * opacity;
+            context.DrawEllipse(
+                new ImmutableSolidColorBrush(color, alpha),
+                null,
+                new Point(center.X + radius * Math.Cos(angle), center.Y + radius * Math.Sin(angle)),
+                dot,
+                dot);
         }
     }
 
