@@ -106,10 +106,16 @@ public sealed class NomadSettings
     // Window and session state
     public bool SidebarCollapsed { get; set; }
 
+    /// <summary>The right-hand panel (project, context, usage, MCP servers) is shown.</summary>
+    public bool SidePanelOpen { get; set; }
+
     /// <summary>The sidebar's width, dragged at its right edge (240–560).</summary>
     public double SidebarWidth { get; set; } = 375;
     public List<string> RecentFolders { get; set; } = [];
     public string? LastFolder { get; set; }
+
+    /// <summary>What was typed on the new-session page and not sent, put back at the next start.</summary>
+    public string? NewSessionDraft { get; set; }
     public double WindowWidth { get; set; } = 1400;
     public double WindowHeight { get; set; } = 900;
     public bool WindowMaximized { get; set; }

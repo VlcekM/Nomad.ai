@@ -88,11 +88,20 @@ public sealed class SystemLine : CliLine
     [JsonPropertyName("fast_mode_state")] public string? FastModeState { get; set; }
     [JsonPropertyName("effort")] public string? Effort { get; set; }
 
+    /// <summary>For subtype <c>init</c>: the MCP servers and how their connection went.</summary>
+    [JsonPropertyName("mcp_servers")] public List<WireMcpServer>? McpServers { get; set; }
+
     /// <summary>For subtype <c>status</c>: requesting | compacting | null.</summary>
     [JsonPropertyName("status")] public string? Status { get; set; }
 
     /// <summary>For subtype <c>bridge_state</c>: the Remote Control bridge's state.</summary>
     [JsonPropertyName("state")] public string? State { get; set; }
+}
+
+public sealed class WireMcpServer
+{
+    [JsonPropertyName("name")] public string? Name { get; set; }
+    [JsonPropertyName("status")] public string? Status { get; set; }
 }
 
 public sealed class StreamEventLine : CliLine

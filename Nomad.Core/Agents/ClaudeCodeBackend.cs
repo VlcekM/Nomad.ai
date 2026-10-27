@@ -456,7 +456,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     system.Cwd,
                     system.PermissionMode,
                     system.Tools ?? [],
-                    system.ClaudeCodeVersion));
+                    system.ClaudeCodeVersion,
+                    system.McpServers?.Where(s => !string.IsNullOrEmpty(s.Name)).Select(s => new McpServerInfo(s.Name!, s.Status ?? "")).ToList()));
                 break;
             case "status":
                 if (!string.IsNullOrEmpty(system.PermissionMode))

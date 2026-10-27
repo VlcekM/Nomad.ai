@@ -23,7 +23,8 @@ public sealed record SessionStartedEvent(
     string? WorkingDirectory,
     string? PermissionMode,
     IReadOnlyList<string> Tools,
-    string? AgentVersion) : AgentEvent;
+    string? AgentVersion,
+    IReadOnlyList<McpServerInfo>? McpServers = null) : AgentEvent;
 
 /// <summary>Account and model catalogue, when the backend reports them.</summary>
 public sealed record AccountInfoEvent(string? SubscriptionType, string? Email, IReadOnlyList<ModelInfo> Models, IReadOnlyList<SlashCommand>? Commands = null) : AgentEvent;

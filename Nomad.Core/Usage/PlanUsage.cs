@@ -9,8 +9,57 @@ namespace Nomad.Core.Usage;
 /// <summary>One plan limit: the session (5-hour) window, the weekly one, or a weekly one for one model.</summary>
 public sealed record PlanLimit(string Kind, string Label, int Percent, string Severity, DateTimeOffset? ResetsAt);
 
-/// <summary>The plan's usage limits, as the claude.ai usage page shows them.</summary>
-public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits)
+/// <summary>
+/// A weekly limit against an even pace: <see cref="Fraction"/> of the week has gone by (where using it up evenly,
+/// around the clock, would be by now). From the rate so far, once enough of the week has gone by to tell: when it
+/// <see cref="RunsOut"/> (before the reset), or else about how much is used by the reset (<see cref="ByReset"/>, %).
+/// </summary>
+public sealed record PlanPace(double Fraction, bool CanForecast, DateTimeOffset? RunsOut, double ByReset)
+{
+    public static readonly TimeSpan Week = TimeSpan.FromDays(7);
+
+    /// <summary>Under this much of the week, the rate so far says too little to forecast from.</summary>
+    public static readonly TimeSpan MinForecastBasis = TimeSpan.FromHours(6);
+
+    /// <summary>Null for a limit that is not weekly, has no reset time, or a reset outside the coming week.</summary>
+    public static PlanPace? For(PlanLimit limit, DateTimeOffset now)
+    {
+        if (!limit.Kind.StartsWith("weekly", StringComparison.Ordinal) || limit.ResetsAt is not { } resets)
+        {
+            return null;
+        }
+
+        // The week runs up to the reset; an even pace is a straight line from 0 at its start to 100 % at its end.
+        var start = resets - Week;
+        var elapsed = now - start;
+        if (elapsed <= TimeSpan.Zero || elapsed >= Week)
+        {
+            return null;
+        }
+
+        var fraction = elapsed / Week;
+        if (elapsed < MinForecastBasis || limit.Percent <= 0)
+        {
+            return new PlanPace(fraction, elapsed >= MinForecastBasis, null, 0);
+        }
+
+        if (limit.Percent >= 100)
+        {
+            return new PlanPace(fraction, true, now, 100);
+        }
+
+        var runsOut = start + (elapsed * (100.0 / limit.Percent));
+        return runsOut < resets
+            ? new PlanPace(fraction, true, runsOut, 100)
+            : new PlanPace(fraction, true, null, Math.Min(100, limit.Percent * (Week / elapsed)));
+    }
+}
+
+/// <summary>
+/// The plan's usage limits, as the claude.ai usage page shows them. <see cref="StaleSince"/> is set when the
+/// endpoint could not be reached and these are the last ones read (then from that time).
+/// </summary>
+public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits, DateTimeOffset? StaleSince = null)
 {
     public PlanLimit? Session => Limits.FirstOrDefault(l => l.Kind == "session");
 }
@@ -20,12 +69,26 @@ public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits
 /// endpoint with the CLI's stored claude.ai sign-in (<c>~/.claude/.credentials.json</c>). The token is
 /// never refreshed here (the CLI does that) and never written anywhere. Best effort: any failure,
 /// a missing or expired sign-in (API-key users), or a changed response gives null.
+/// <para>
+/// The last answer is kept in <c>%APPDATA%\Nomad\usage-cache.json</c> (percentages and reset times only). Every
+/// Nomad window shares it, so a fresh one is used instead of asking again (the endpoint rate-limits hard), and an
+/// older one stands in, marked stale, when the endpoint refuses.
+/// </para>
 /// </summary>
 public static partial class PlanUsageClient
 {
     private const string Endpoint = "https://api.anthropic.com/api/oauth/usage";
 
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
+
+    /// <summary>A cached answer this young is used as it is.</summary>
+    private static readonly TimeSpan CacheFresh = TimeSpan.FromSeconds(50);
+
+    /// <summary>A cached answer this young stands in when the endpoint refuses.</summary>
+    private static readonly TimeSpan CacheUsable = TimeSpan.FromHours(6);
+
+    public static string CachePath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Nomad", "usage-cache.json");
 
     public static string CredentialsPath =>
         Path.Combine(
@@ -51,21 +114,71 @@ public static partial class PlanUsageClient
                 return null;
             }
 
+            var planName = PlanName(oauth.SubscriptionType, oauth.RateLimitTier);
+            var cached = ReadCache();
+            if (cached is { } fresh && DateTimeOffset.UtcNow - fresh.At < CacheFresh)
+            {
+                return Parse(fresh.Json, planName);
+            }
+
             using var request = new HttpRequestMessage(HttpMethod.Get, Endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Add("anthropic-beta", "oauth-2025-04-20");
-            using var response = await Http.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            string? json = null;
+            try
             {
-                return null;
+                using var response = await Http.SendAsync(request, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    json = await response.Content.ReadAsStringAsync(cancellationToken);
+                }
+            }
+            catch (HttpRequestException)
+            {
+                // Offline: the cache may still do.
             }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            return Parse(json, PlanName(oauth.SubscriptionType, oauth.RateLimitTier));
+            if (json is not null && Parse(json, planName) is { } usage)
+            {
+                WriteCache(json);
+                return usage;
+            }
+
+            return cached is { } old && DateTimeOffset.UtcNow - old.At < CacheUsable
+                ? Parse(old.Json, planName) is { } stale ? stale with { StaleSince = old.At } : null
+                : null;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return null;
+        }
+    }
+
+    private static (string Json, DateTimeOffset At)? ReadCache()
+    {
+        try
+        {
+            var file = new FileInfo(CachePath);
+            return file.Exists ? (File.ReadAllText(file.FullName), new DateTimeOffset(file.LastWriteTimeUtc, TimeSpan.Zero)) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static void WriteCache(string json)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CachePath)!);
+            var temp = CachePath + "." + Environment.ProcessId + ".tmp";
+            File.WriteAllText(temp, json);
+            File.Move(temp, CachePath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Another window wrote it at the same moment, or no access: not needed.
         }
     }
 
