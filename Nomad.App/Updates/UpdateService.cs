@@ -84,11 +84,11 @@ public sealed partial class UpdateService : ObservableObject
         ? null
         : (IsPortable ? "Portable build" : "Development build") + ": it updates itself only when installed with Setup.";
 
-    /// <summary>Raised before Nomad restarts into an update, so the window can save and stop things; awaited for up to 10 s.</summary>
-    public Func<Task>? BeforeRestart { get; set; }
+    /// <summary>Closes the window, as the user would: how Nomad exits to restart into an update.</summary>
+    public Action? RequestExit { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowRestartChip), nameof(ShowPromptChip), nameof(ChipText), nameof(ChipTip), nameof(ActionText))]
+    [NotifyPropertyChangedFor(nameof(ShowChip), nameof(ShowRestartChip), nameof(ShowPromptChip), nameof(ChipText), nameof(ChipTip), nameof(ActionText))]
     [NotifyPropertyChangedFor(nameof(ActionIsPrimary), nameof(CanAct), nameof(PromptActionText), nameof(IsFailed), nameof(IsAttention))]
     public partial UpdatePhase Phase { get; set; }
 
@@ -126,6 +126,9 @@ public sealed partial class UpdateService : ObservableObject
     public partial bool RestartQueued { get; set; }
 
     // ------------------------------------------------------------------ the footer chip and its prompt
+
+    /// <summary>The footer chip is out (it folds in and out).</summary>
+    public bool ShowChip => ShowRestartChip || ShowPromptChip;
 
     /// <summary>Downloaded: the chip restarts into the update when clicked.</summary>
     public bool ShowRestartChip => Phase == UpdatePhase.Ready;
@@ -233,14 +236,14 @@ public sealed partial class UpdateService : ObservableObject
                 if (!_main.HasRunningTurns)
                 {
                     _idleWait?.Stop();
-                    _ = RestartAsync();
+                    Restart();
                 }
             });
             _idleWait.Start();
             return;
         }
 
-        _ = RestartAsync();
+        Restart();
     }
 
     [RelayCommand]
@@ -370,10 +373,15 @@ public sealed partial class UpdateService : ObservableObject
             return;
         }
 
-        _ = RestartAsync();
+        Restart();
     }
 
-    private async Task RestartAsync()
+    /// <summary>
+    /// Velopack's ApplyUpdatesAndRestart, but silent and with a normal exit: Update.exe waits for Nomad to exit (up to
+    /// 60 s), applies the package without a window or dialog, and starts the new version with the same arguments. Nomad
+    /// then closes its window as the user would, so settings are saved and the phone servers stop cleanly.
+    /// </summary>
+    private void Restart()
     {
         if (_manager is null || _update is null || _restarting)
         {
@@ -385,20 +393,7 @@ public sealed partial class UpdateService : ObservableObject
         Status = $"Restarting into Nomad.ai {AvailableVersion}…";
         try
         {
-            if (BeforeRestart is { } prepare)
-            {
-                await prepare().WaitAsync(TimeSpan.FromSeconds(10));
-            }
-        }
-        catch (Exception)
-        {
-            // Saving state is best effort; the update matters more.
-        }
-
-        try
-        {
-            // Exits Nomad; Update.exe applies the package and starts the new version with the same arguments.
-            _manager.ApplyUpdatesAndRestart(_update.TargetFullRelease, Environment.GetCommandLineArgs().Skip(1).ToArray());
+            _manager.WaitExitThenApplyUpdates(_update.TargetFullRelease, silent: true, restart: true, Environment.GetCommandLineArgs().Skip(1).ToArray());
         }
         catch (Exception ex)
         {
@@ -407,7 +402,10 @@ public sealed partial class UpdateService : ObservableObject
             OnPropertyChanged(nameof(CanAct));
             Phase = UpdatePhase.Failed;
             Status = "Could not apply the update: " + OneLine(ex);
+            return;
         }
+
+        RequestExit?.Invoke();
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -151,7 +152,20 @@ public partial class MainWindow : Window
 
     private void OnMenuItemClick(object? sender, RoutedEventArgs e) => AppMenuButton.Flyout?.Hide();
 
-    private void OnUpdateLaterClick(object? sender, RoutedEventArgs e) => UpdateChipButton.Flyout?.Hide();
+    /// <summary>The update chip: a downloaded update restarts at once, a found one opens the prompt with its notes.</summary>
+    private void OnUpdateChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.Updates.ShowRestartChip)
+        {
+            _vm.Updates.RestartNowCommand.Execute(null);
+        }
+        else
+        {
+            FlyoutBase.ShowAttachedFlyout(UpdateChip);
+        }
+    }
+
+    private void OnUpdateLaterClick(object? sender, RoutedEventArgs e) => FlyoutBase.GetAttachedFlyout(UpdateChip)?.Hide();
 
     // ------------------------------------------------------------------ lifetime
 
@@ -174,14 +188,6 @@ public partial class MainWindow : Window
 
         // A downloaded update is applied by Velopack's updater once Nomad has exited.
         _vm.Updates.OnExit();
-    }
-
-    /// <summary>Restarting into an update ends the process at once: save and stop what closing the window would.</summary>
-    private async Task PrepareRestartAsync()
-    {
-        SavePlacement();
-        _vm.SaveSettings();
-        await _vm.ShutdownAsync();
     }
 
     private void SavePlacement()
@@ -244,7 +250,7 @@ public partial class MainWindow : Window
 
         await _vm.RefreshSessionsAsync();
 
-        _vm.Updates.BeforeRestart = PrepareRestartAsync;
+        _vm.Updates.RequestExit = Close;
         _vm.Updates.Start();
 
         if (dev.SessionId is { } sessionId)
@@ -335,7 +341,11 @@ public partial class MainWindow : Window
             }
         }
 
-        if (dev.Menu is { } menu)
+        if (dev.Menu == "update")
+        {
+            FlyoutBase.ShowAttachedFlyout(UpdateChip);
+        }
+        else if (dev.Menu is { } menu)
         {
             this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault()?.OpenMenu(menu);
         }
