@@ -3,6 +3,20 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.7.0
+
+- Sidebar rows show the session's GitHub pull request and issue in their state's colours (open, draft, merged,
+  closed; open, done, not planned), from its branch, the links it mentions or its title; a click opens them. Read
+  with the `gh` CLI and your own sign-in.
+- Title bar: click the title to rename the session in place; a started session's branch and worktree sit right of it.
+  On a new session they stay under the composer, and glide between the two places.
+- Rename boxes (title bar and sidebar) are plain text with a caret, no frame.
+- The side panel can be resized from its left edge; both resize edges show a thin blue line on hover and while
+  dragging. The right-edge strip says "Side panel" (sideways), hidden while it is open.
+- The side panel stays closed on the New page and slides in once the session starts.
+- Files Claude sends (SendUserFile) show in the transcript: images large, other files as chips that open on a click.
+- Question card: rounded option highlights with some room around them, and a white Submit button.
+
 ## v1.6.0
 
 - Light theme: Settings › Appearance › Theme (Dark, Light or System); it switches at once.
