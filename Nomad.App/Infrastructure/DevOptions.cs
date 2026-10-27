@@ -28,6 +28,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
 /// --dev-pick &lt;n&gt;              pick the first n Idle rows (as Ctrl+clicks would) after start; with --dev-menu row, it opens on them
 /// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
+/// --dev-sandbox composer        only the composer, in a window of its own (Enter renders what was typed)
 /// --dev-search "&lt;query&gt;"     open the session search (Ctrl+T) with this query after start
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
 /// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
@@ -80,6 +81,9 @@ public sealed class DevOptions
     public List<string> PasteImages { get; } = [];
     public string? Compose { get; private set; }
 
+    /// <summary><c>--dev-sandbox composer</c>: a window with only this element, instead of the app.</summary>
+    public string? Sandbox { get; private set; }
+
     /// <summary><c>--dev-search "query"</c>: the session search is open with this query.</summary>
     public string? Search { get; private set; }
     public string? UpdateSource { get; private set; }
@@ -95,7 +99,7 @@ public sealed class DevOptions
     /// <summary>The CLI writes its debug log here (<c>--debug-file</c>).</summary>
     public string? CliDebugPath { get; private set; }
 
-    public bool IsActive => Cwd is not null || Prompt is not null || ScreenshotPath is not null || SessionId is not null;
+    public bool IsActive => Cwd is not null || Prompt is not null || ScreenshotPath is not null || SessionId is not null || Sandbox is not null;
 
     public static DevOptions Parse(string[] args)
     {
@@ -173,6 +177,7 @@ public sealed class DevOptions
                 case "--dev-drag-ctrl": o.DragCtrl = true; break;
                 case "--dev-pick": o.Pick = int.TryParse(Next(), out var pick) ? pick : 0; break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
+                case "--dev-sandbox": o.Sandbox = Next(); break;
                 case "--dev-search": o.Search = Next(); break;
                 case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;
                 case "--dev-stop-after":
