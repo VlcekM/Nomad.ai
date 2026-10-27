@@ -9,6 +9,57 @@
 
   <UserControl.Styles>
     <!-- +21 / −1 pills -->
+    <!-- Status row labels: a size below the interface text, medium weight. -->
+    <Style Selector="TextBlock.status">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- A narrow window keeps only the current model's chip (the picker still has them all). -->
+    <Style Selector="Grid.narrow Button.modelchip:not(.selected)">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- Buttons on the composer bar keep the arrow, not the bar's I-beam. -->
+    <Style Selector="Border.composer Button">
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+
+    <!-- Prompt actions: hidden until the prompt is hovered, then a quick fade. -->
+    <Style Selector="Grid.usermsg StackPanel.msgactions">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Grid.usermsg:pointerover StackPanel.msgactions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="c|Icon.tick">
+      <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="c|Icon.tick.seen">
+      <Setter Property="Stroke" Value="{StaticResource TextChromeBrush}" />
+    </Style>
+
+    <!-- The working row: folded and transparent when idle. -->
+    <Style Selector="Border.working">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="MaxHeight" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="MaxHeight" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.working.on">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="MaxHeight" Value="40" />
+    </Style>
+
     <!-- A plan limit that is close to (or past) running out. -->
     <Style Selector="c|FillSlider.high">
       <Setter Property="FillBrush" Value="{StaticResource DangerBrush}" />
@@ -21,7 +72,7 @@
     </Style>
     <Style Selector="Border.pill > TextBlock">
       <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
-      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Border.pill.add">
@@ -78,12 +129,12 @@
 
     <!-- Section headers inside menus -->
     <Style Selector="TextBlock.menuheader">
-      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
       <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
       <Setter Property="Margin" Value="8,3,8,3" />
     </Style>
     <Style Selector="TextBlock.hint">
-      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
       <Setter Property="FontWeight" Value="Normal" />
       <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -94,7 +145,8 @@
   <UserControl.DataTemplates>
 
     <DataTemplate DataType="{x:Type vm:UserMessageItem}" x:DataType="vm:UserMessageItem">
-      <Grid ColumnDefinitions="*,3*" Margin="0,22,0,6">
+      <!-- Bubble, then a row that fades in on hover: seen mark, time, Copy, Rewind, Fork. -->
+      <Grid Classes="usermsg" ColumnDefinitions="*,3*" RowDefinitions="Auto,Auto" Margin="0,22,0,0" Background="Transparent">
         <Border Grid.Column="1"
                 HorizontalAlignment="Right"
                 Background="{StaticResource BgRaisedBrush}"
@@ -106,6 +158,27 @@
                                LineHeight="{DynamicResource BodyLineHeight}"
                                Foreground="{StaticResource TextPrimaryBrush}" />
         </Border>
+        <StackPanel Grid.Row="1" Grid.Column="1"
+                    Classes="msgactions"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="2"
+                    Margin="0,4,0,0">
+          <Panel Width="16" Height="14" VerticalAlignment="Center" ToolTip.Tip="{Binding SeenToolTip}">
+            <c:Icon Size="12" Data="{StaticResource IconCheck}" HorizontalAlignment="Left" Classes.seen="{Binding IsSeen}" Classes="tick" />
+            <c:Icon Size="12" Data="{StaticResource IconCheck}" HorizontalAlignment="Left" Margin="4,0,0,0" IsVisible="{Binding IsSeen}" Classes="tick seen" />
+          </Panel>
+          <TextBlock Text="{Binding TimeText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="2,0,6,0" />
+          <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnCopyMessageClick" ToolTip.Tip="Copy">
+            <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+          </Button>
+          <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnRewindClick" IsEnabled="{Binding CanBranch}" ToolTip.Tip="Rewind to here (edit and resend this message)">
+            <c:Icon Size="13" Data="{StaticResource IconRewind}" />
+          </Button>
+          <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnForkClick" IsEnabled="{Binding CanBranch}" ToolTip.Tip="Fork a new session after this turn">
+            <c:Icon Size="13" Data="{StaticResource IconFork}" />
+          </Button>
+        </StackPanel>
       </Grid>
     </DataTemplate>
 
@@ -114,11 +187,12 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ThinkingItem}" x:DataType="vm:ThinkingItem">
-      <StackPanel Spacing="6">
+      <!-- While it streams, the working row below the transcript says "Thinking"; this line appears once it is done. -->
+      <StackPanel Spacing="6" IsVisible="{Binding !IsStreaming}">
         <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
-          <StackPanel Orientation="Horizontal" Spacing="2">
-            <TextBlock Text="{Binding Label}" FontSize="14" VerticalAlignment="Center" />
-            <c:AnimatedDots IsVisible="{Binding IsStreaming}" FontSize="14" Width="14" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:PixelSpinner IsVisible="{Binding IsStreaming}" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
             <c:Icon Classes="chev"
                   Classes.open="{Binding IsExpanded}"
                   Data="{StaticResource IconChevronRight}"
@@ -132,7 +206,7 @@
                 Margin="1,0,0,4">
           <SelectableTextBlock Text="{Binding DisplayText}"
                                TextWrapping="Wrap"
-                               FontSize="14"
+                               FontSize="{DynamicResource UiFontSize}"
                                LineHeight="20"
                                Foreground="{StaticResource TextSecondaryBrush}" />
         </Border>
@@ -150,7 +224,7 @@
                     TrackBrush="#26FFFFFF"
                     SpinBrush="{StaticResource AccentBrush}"
                     VerticalAlignment="Center" />
-            <TextBlock Text="{Binding Summary}" FontSize="14" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Summary}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
             <Border Classes="pill add" IsVisible="{Binding HasAdded}">
               <TextBlock Text="{Binding AddedText}" />
             </Border>
@@ -178,13 +252,13 @@
                           Stroke="{StaticResource TextMutedBrush}" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding Name}"
-                               FontSize="13"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
                                FontWeight="Medium"
                                Margin="8,0,10,0"
                                VerticalAlignment="Center" />
                     <TextBlock Grid.Column="2"
                                Text="{Binding Summary}"
-                               FontSize="13"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
                                Classes.mono="{Binding SummaryIsCode}"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                TextTrimming="CharacterEllipsis"
@@ -247,13 +321,13 @@
                   <DataTemplate x:DataType="vm:QuestionEntry">
                     <StackPanel Spacing="4">
                       <TextBlock Text="{Binding Question}"
-                                 FontSize="14"
+                                 FontSize="{DynamicResource UiFontSize}"
                                  FontWeight="SemiBold"
                                  LineHeight="20"
                                  TextWrapping="Wrap"
                                  Margin="0,0,0,2"
                                  Foreground="{StaticResource TextPrimaryBrush}" />
-                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="13" />
+                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
                       <ItemsControl ItemsSource="{Binding Options}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:QuestionOption">
@@ -262,11 +336,11 @@
                                     Command="{Binding PickCommand}">
                               <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="1">
-                                  <TextBlock Text="{Binding Label}" FontSize="14" TextWrapping="Wrap" />
+                                  <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSize}" TextWrapping="Wrap" />
                                   <TextBlock Text="{Binding Description}"
                                              IsVisible="{Binding HasDescription}"
                                              Classes="muted"
-                                             FontSize="13"
+                                             FontSize="{DynamicResource UiFontSizeSmall}"
                                              TextWrapping="Wrap" />
                                 </StackPanel>
                                 <c:Icon Grid.Column="1"
@@ -291,7 +365,7 @@
                                  Text="{Binding OtherText}"
                                  Watermark="Other answer…"
                                  VerticalAlignment="Center"
-                                 FontSize="14"
+                                 FontSize="{DynamicResource UiFontSize}"
                                  KeyDown="OnQuestionOtherKeyDown" />
                       </Border>
                     </StackPanel>
@@ -309,7 +383,7 @@
             </StackPanel>
           </Border>
         </Grid>
-        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" TextWrapping="Wrap" />
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" />
       </Panel>
     </DataTemplate>
 
@@ -323,7 +397,7 @@
                 CornerRadius="10"
                 Padding="14">
           <StackPanel Spacing="10">
-            <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="14" />
+            <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="{DynamicResource UiFontSize}" />
             <Border IsVisible="{Binding DetailIsCode}"
                     Background="{StaticResource BgCodeBrush}"
                     BorderBrush="{StaticResource BorderBrush}"
@@ -335,12 +409,12 @@
             <SelectableTextBlock Text="{Binding Detail}"
                                  IsVisible="{Binding !DetailIsCode}"
                                  TextWrapping="Wrap"
-                                 FontSize="14"
+                                 FontSize="{DynamicResource UiFontSize}"
                                  Foreground="{StaticResource TextChromeBrush}" />
             <TextBlock Text="{Binding Description}"
                        IsVisible="{Binding HasDescription}"
                        Classes="muted"
-                       FontSize="13"
+                       FontSize="{DynamicResource UiFontSizeSmall}"
                        TextWrapping="Wrap" />
             <Border IsVisible="{Binding HasDiff}" CornerRadius="6" ClipToBounds="True">
               <ItemsControl ItemsSource="{Binding DiffLines}">
@@ -366,7 +440,7 @@
             </StackPanel>
           </StackPanel>
         </Border>
-        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="13" />
+        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
       </Panel>
     </DataTemplate>
 
@@ -376,12 +450,12 @@
               BorderThickness="2,0,0,0"
               CornerRadius="4"
               Padding="12,8">
-        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}" />
+        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSize}" Foreground="{StaticResource TextPrimaryBrush}" />
       </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:NoticeItem}" x:DataType="vm:NoticeItem">
-      <TextBlock Text="{Binding Text}" Classes="muted" FontSize="14" TextWrapping="Wrap" />
+      <TextBlock Text="{Binding Text}" Classes="muted" FontSize="{DynamicResource UiFontSize}" TextWrapping="Wrap" />
     </DataTemplate>
   </UserControl.DataTemplates>
 
@@ -393,17 +467,34 @@
       <ScrollViewer Name="Scroller"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
-        <ItemsControl Name="Transcript"
-                      ItemsSource="{Binding Items}"
-                      MaxWidth="{DynamicResource ColumnMaxWidth}"
-                      Margin="32,14,32,20"
-                      Padding="14,0,10,0">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Spacing="14" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-        </ItemsControl>
+        <StackPanel MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,14,32,20">
+          <ItemsControl Name="Transcript"
+                        ItemsSource="{Binding Items}"
+                        Padding="14,0,10,0">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="14" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+          </ItemsControl>
+
+          <!-- Working row: what Claude is doing and for how long, while a turn runs. It fades and
+               slides in when the turn starts and folds away when it ends. -->
+          <Border Classes="working"
+                  Classes.on="{Binding IsTurnRunning}"
+                  Padding="14,0,10,0"
+                  ClipToBounds="True">
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,14,0,0" Height="22">
+              <c:PixelSpinner Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding WorkingText}"
+                         Classes="chrome"
+                         TextTrimming="CharacterEllipsis"
+                         MaxWidth="600"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{Binding WorkingElapsed}" Classes="muted" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
       </ScrollViewer>
 
       <!-- New session: recent folders card -->
@@ -472,60 +563,17 @@
       </Button>
     </Panel>
 
-    <!-- Agent status line -->
-    <Border Grid.Row="1"
-            IsVisible="{Binding HasRun}"
-            MaxWidth="{DynamicResource ColumnMaxWidth}"
-            Margin="32,0,32,6"
-            Height="40"
-            CornerRadius="8"
-            Background="{StaticResource BgRaisedBrush}">
-      <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="16,0,8,0">
-        <TextBlock Text="AGENT"
-                   Foreground="{StaticResource AccentBrush}"
-                   FontWeight="Medium"
-                   FontSize="14"
-                   LetterSpacing="0.3"
-                   VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1"
-                   Classes="state"
-                   Classes.running="{Binding IsStateRunning}"
-                   Classes.done="{Binding IsStateDone}"
-                   Classes.error="{Binding IsStateError}"
-                   Text="{Binding StateText}"
-                   Margin="7,0,0,0"
-                   FontSize="14"
-                   VerticalAlignment="Center" />
-        <c:AnimatedDots Grid.Column="2"
-                        IsVisible="{Binding IsStateRunning}"
-                        Foreground="{StaticResource AccentBrush}"
-                        FontSize="14"
-                        Width="14"
-                        VerticalAlignment="Center" />
-        <TextBlock Grid.Column="3"
-                   Text="{Binding AgentMetaLine}"
-                   Classes="muted"
-                   FontSize="13.5"
-                   Margin="6,0,8,0"
-                   TextTrimming="CharacterEllipsis"
-                   VerticalAlignment="Center" />
-        <Button Grid.Column="4"
-                Theme="{StaticResource SquareButton}"
-                Command="{Binding StopCommand}"
-                IsVisible="{Binding IsTurnRunning}"
-                ToolTip.Tip="Interrupt (Esc)">
-          <c:Icon IsFilled="True" Size="12" Data="{StaticResource IconStopFilled}" />
-        </Button>
-      </Grid>
-    </Border>
-
     <!-- Composer -->
     <Panel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0">
+      <!-- The whole bar acts as the text box: I-beam over it, a click anywhere focuses it. -->
       <Border Background="{StaticResource BgInputBrush}"
               BorderBrush="{StaticResource BorderInputBrush}"
               BorderThickness="1"
               CornerRadius="10"
-              MinHeight="44">
+              MinHeight="44"
+              Classes="composer"
+              Cursor="IBeam"
+              PointerPressed="OnComposerBarPressed">
         <Grid ColumnDefinitions="Auto,*,Auto">
           <Button Name="PlusButton"
                   Theme="{StaticResource IconButton}"
@@ -560,7 +608,7 @@
                    Watermark="{Binding ComposerPlaceholder}"
                    AcceptsReturn="True"
                    TextWrapping="Wrap"
-                   FontSize="15"
+                   FontSize="{DynamicResource UiFontSizeLarge}"
                    MaxHeight="190"
                    Margin="6,11,8,11"
                    VerticalContentAlignment="Top"
@@ -587,6 +635,7 @@
 
     <!-- Status row -->
     <Grid Grid.Row="3"
+          Name="StatusRow"
           Height="44"
           MaxWidth="{DynamicResource ColumnMaxWidth}"
           Margin="32,0"
@@ -599,7 +648,7 @@
               ToolTip.Tip="{Binding FolderToolTip}">
         <StackPanel Orientation="Horizontal" Spacing="6">
           <c:Icon Size="13" Data="{StaticResource IconFolder}" />
-          <TextBlock Text="{Binding FolderName}" VerticalAlignment="Center" />
+          <TextBlock Classes="status" Text="{Binding FolderName}" VerticalAlignment="Center" />
         </StackPanel>
         <FlyoutBase.AttachedFlyout>
           <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
@@ -609,7 +658,7 @@
                        Text="{Binding FolderFilter}"
                        Height="26"
                        Margin="8,2,8,4"
-                       FontSize="14" />
+                       FontSize="{DynamicResource UiFontSize}" />
               <Border Height="1" Background="{StaticResource BorderBrush}" Margin="-5,0,-5,4" />
               <Button Theme="{StaticResource MenuItemButton}" Click="OnNoFolderClick" ToolTip.Tip="Claude works in a new scratch folder">
                 <Grid ColumnDefinitions="*,Auto">
@@ -645,7 +694,7 @@
               Theme="{StaticResource ChipButton}"
               Classes.bypass="{Binding IsBypass}"
               Margin="4,0,0,0">
-        <TextBlock Text="{Binding ModeName}" VerticalAlignment="Center" />
+        <TextBlock Classes="status" Text="{Binding ModeName}" VerticalAlignment="Center" />
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
             <StackPanel Width="310">
@@ -657,7 +706,7 @@
                       <Grid ColumnDefinitions="*,Auto,Auto">
                         <StackPanel>
                           <TextBlock Text="{Binding Label}" Classes.danger="{Binding IsDangerSelected}" />
-                          <TextBlock Text="{Binding Description}" Classes="muted" FontSize="12.5" FontWeight="Normal" Margin="0,1,0,0" />
+                          <TextBlock Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Normal" Margin="0,1,0,0" />
                         </StackPanel>
                         <c:Icon Grid.Column="1"
                               Size="13"
@@ -692,10 +741,11 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:MenuOption">
               <Button Theme="{StaticResource ChipButton}"
+                      Classes="modelchip"
                       Classes.selected="{Binding IsSelected}"
                       Click="OnModelChipClick"
                       ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+{0}'}">
-                <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+                <TextBlock Classes="status" Text="{Binding Label}" VerticalAlignment="Center" />
               </Button>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
@@ -704,13 +754,17 @@
         <!-- Effort: a small slider, Low to Max. -->
         <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,4,0" ToolTip.Tip="Effort (Low to Max)">
           <c:FillSlider Name="EffortSlider"
-                        Width="84" Height="20"
+                        Width="168" Height="24"
+                        Thickness="16"
+                        TickBrush="#66FFFFFF"
                         Maximum="4"
                         Value="{Binding EffortPosition}"
                         TrackBrush="#3A3A38"
                         FillBrush="{StaticResource RingBrush}"
+                        KnobBrush="White"
                         VerticalAlignment="Center" />
-          <TextBlock Text="{Binding EffortLabel}" Classes="muted" MinWidth="56" VerticalAlignment="Center" />
+          <!-- Fixed width (fits "Extra high"), so the row doesn't shift while dragging. -->
+          <TextBlock Text="{Binding EffortLabel}" Classes="status muted" Width="72" VerticalAlignment="Center" />
         </StackPanel>
 
         <Button Name="ModelChip" Theme="{StaticResource ChipButton}" ToolTip.Tip="All models and fast mode">
@@ -806,7 +860,7 @@
                          TextWrapping="Wrap"
                          IsVisible="{Binding Usage.IsUnavailable}" />
               <Border Classes="rule" Margin="-8,0" />
-              <TextBlock Text="{Binding ContextToolTip}" Classes="muted" FontSize="13" />
+              <TextBlock Text="{Binding ContextToolTip}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
             </StackPanel>
           </Flyout>
         </Button.Flyout>

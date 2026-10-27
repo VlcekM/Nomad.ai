@@ -91,7 +91,7 @@ public sealed class DevOptions
                     }
 
                     break;
-                case "--dev-settings": o.SettingsPath = Next(); break;
+                case "--dev-settings": o.SettingsPath = Path.GetFullPath(Next()); break;
                 case "--dev-lean": o.Lean = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;

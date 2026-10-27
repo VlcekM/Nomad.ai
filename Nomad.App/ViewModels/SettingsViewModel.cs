@@ -33,6 +33,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         InterfaceFont = s.InterfaceFont;
         CodeFont = s.CodeFont;
         TextSize = s.TextSize;
+        InterfaceTextSize = s.InterfaceTextSize;
         TranscriptWidth = s.TranscriptWidth;
         CliPath = s.CliPath;
         DisplayName = s.DisplayName ?? "";
@@ -82,6 +83,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string TextSize { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsUiTextSmall), nameof(IsUiTextMedium), nameof(IsUiTextLarge))]
+    public partial string InterfaceTextSize { get; set; }
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWidthNarrow), nameof(IsWidthMedium), nameof(IsWidthWide))]
     public partial string TranscriptWidth { get; set; }
 
@@ -94,6 +99,12 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool IsTextLarge { get => TextSize == "Large"; set => SetIf(value, () => TextSize = "Large"); }
 
+    public bool IsUiTextSmall { get => InterfaceTextSize == "Small"; set => SetIf(value, () => InterfaceTextSize = "Small"); }
+
+    public bool IsUiTextMedium { get => InterfaceTextSize is not ("Small" or "Large"); set => SetIf(value, () => InterfaceTextSize = "Medium"); }
+
+    public bool IsUiTextLarge { get => InterfaceTextSize == "Large"; set => SetIf(value, () => InterfaceTextSize = "Large"); }
+
     public bool IsWidthNarrow { get => TranscriptWidth == "Narrow"; set => SetIf(value, () => TranscriptWidth = "Narrow"); }
 
     public bool IsWidthMedium { get => TranscriptWidth == "Medium"; set => SetIf(value, () => TranscriptWidth = "Medium"); }
@@ -105,6 +116,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnCodeFontChanged(string value) => Apply(s => s.CodeFont = string.IsNullOrWhiteSpace(value) ? "Cascadia Mono" : value, appearance: true);
 
     partial void OnTextSizeChanged(string value) => Apply(s => s.TextSize = value, appearance: true);
+
+    partial void OnInterfaceTextSizeChanged(string value) => Apply(s => s.InterfaceTextSize = value, appearance: true);
 
     partial void OnTranscriptWidthChanged(string value) => Apply(s => s.TranscriptWidth = value, appearance: true);
 

@@ -6,7 +6,16 @@ namespace Nomad.Core.Sessions;
 /// <summary>One displayable piece of a stored conversation.</summary>
 public abstract record HistoryItem;
 
-public sealed record HistoryUserMessage(string Text) : HistoryItem;
+public sealed record HistoryUserMessage(string Text) : HistoryItem
+{
+    /// <summary>The transcript record's uuid (rewind and fork point at it).</summary>
+    public string? Uuid { get; init; }
+
+    /// <summary>The record before it: where a rewind to before this message resumes.</summary>
+    public string? ParentUuid { get; init; }
+
+    public DateTime? TimestampUtc { get; init; }
+}
 
 public sealed record HistoryAssistantText(string MessageId, string Text) : HistoryItem;
 
@@ -160,7 +169,12 @@ public sealed class SessionHistory
 
         if (texts.Count > 0)
         {
-            items.Add(new HistoryUserMessage(string.Join("\n\n", texts)));
+            items.Add(new HistoryUserMessage(string.Join("\n\n", texts))
+            {
+                Uuid = record.Uuid,
+                ParentUuid = record.ParentUuid ?? record.LogicalParentUuid,
+                TimestampUtc = DateTime.TryParse(record.Timestamp, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var at) ? at : null,
+            });
         }
     }
 

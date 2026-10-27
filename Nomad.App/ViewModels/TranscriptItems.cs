@@ -10,9 +10,33 @@ namespace Nomad.App.ViewModels;
 /// <summary>Base of everything shown in the transcript column.</summary>
 public abstract class TranscriptItem : ObservableObject;
 
-public sealed class UserMessageItem(string text) : TranscriptItem
+/// <summary>A prompt bubble, with its seen mark, time and Copy / Rewind / Fork on hover.</summary>
+public sealed partial class UserMessageItem(string text, string? uuid, DateTime sentUtc, bool seen) : TranscriptItem
 {
     public string Text { get; } = text;
+
+    /// <summary>The transcript record's uuid (null for very old transcripts).</summary>
+    public string? Uuid { get; } = uuid;
+
+    /// <summary>The record before it, when known from history; live messages look it up on demand.</summary>
+    public string? ParentUuid { get; init; }
+
+    public DateTime SentUtc { get; } = sentUtc;
+
+    /// <summary>Claude Code picked the message up (✓✓); until then it is only sent (✓).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SeenToolTip))]
+    public partial bool IsSeen { get; set; } = seen;
+
+    public string SeenToolTip => IsSeen ? "Seen by Claude Code" : "Sent";
+
+    /// <summary>"just now", "5 minutes ago"; refreshed by the session's clock.</summary>
+    [ObservableProperty]
+    public partial string TimeText { get; set; } = Format.Ago(sentUtc);
+
+    public bool CanBranch => Uuid is not null;
+
+    public void Tick() => TimeText = Format.Ago(SentUtc);
 }
 
 /// <summary>Assistant prose, rendered as markdown; grows while streaming.</summary>

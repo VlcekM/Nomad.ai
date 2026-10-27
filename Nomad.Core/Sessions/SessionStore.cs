@@ -168,6 +168,25 @@ public sealed class SessionStore
         return SessionHistory.FromRecords(records, truncated, Path.GetFileNameWithoutExtension(file));
     }
 
+    /// <summary>
+    /// The record before <paramref name="uuid"/> in a transcript (its <c>parentUuid</c>): where a
+    /// rewind to just before that message resumes. Null when the record is the first, or not found.
+    /// </summary>
+    public static string? ParentOf(string file, string uuid)
+    {
+        using var stream = OpenShared(file);
+        var needle = $"\"uuid\":\"{uuid}\"";
+        foreach (var line in ReadLines(stream, 0, stream.Length, skipFirstPartial: false))
+        {
+            if (line.Contains(needle, StringComparison.Ordinal) && TranscriptRecord.Parse(line) is { } record && record.Uuid == uuid)
+            {
+                return record.ParentUuid ?? record.LogicalParentUuid;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>Finds the transcript file of a session id (any project folder).</summary>
     public string? FindTranscript(string sessionId)
     {

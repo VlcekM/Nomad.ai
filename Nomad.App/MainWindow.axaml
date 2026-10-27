@@ -96,13 +96,13 @@
                       <Button Theme="{StaticResource MenuItemButton}" Command="{Binding NewSessionCommand}" Click="OnMenuItemClick">
                         <Grid ColumnDefinitions="*,Auto">
                           <TextBlock Text="New session" />
-                          <TextBlock Grid.Column="1" Text="Ctrl+N" Classes="muted" FontWeight="Normal" FontSize="13" />
+                          <TextBlock Grid.Column="1" Text="Ctrl+N" Classes="muted" FontWeight="Normal" FontSize="{DynamicResource UiFontSizeSmall}" />
                         </Grid>
                       </Button>
                       <Button Theme="{StaticResource MenuItemButton}" Command="{Binding OpenSettingsCommand}" Click="OnMenuItemClick">
                         <Grid ColumnDefinitions="*,Auto">
                           <TextBlock Text="Settings" />
-                          <TextBlock Grid.Column="1" Text="Ctrl+," Classes="muted" FontWeight="Normal" FontSize="13" />
+                          <TextBlock Grid.Column="1" Text="Ctrl+," Classes="muted" FontWeight="Normal" FontSize="{DynamicResource UiFontSizeSmall}" />
                         </Grid>
                       </Button>
                       <Border Classes="rule" />
@@ -139,7 +139,7 @@
                        Theme="{StaticResource BareTextBox}"
                        Watermark="Search"
                        Text="{Binding SearchText}"
-                       FontSize="14"
+                       FontSize="{DynamicResource UiFontSize}"
                        Margin="0,0,8,0" />
             </Grid>
           </Border>
@@ -203,23 +203,31 @@
             </ScrollViewer>
             <TextBlock Text="No sessions yet"
                        Classes="muted"
-                       FontSize="13"
+                       FontSize="{DynamicResource UiFontSizeSmall}"
                        Margin="18,6,0,0"
                        IsVisible="{Binding HasNoSessions}" />
           </Panel>
 
           <!-- Account footer -->
           <Border Grid.Row="7"
-                  Height="44"
+                  Height="54"
                   BorderBrush="{StaticResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
-            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="11,0,9,0">
+            <!-- The whole footer is the settings button: a rounded row 6 px inside the corner. -->
+            <Button Theme="{StaticResource RowButton}"
+                    Command="{Binding OpenSettingsCommand}"
+                    Height="NaN"
+                    Margin="6"
+                    Padding="10,0,10,0"
+                    CornerRadius="6"
+                    ToolTip.Tip="Settings (Ctrl+,)">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
               <Border Width="22" Height="22"
                       CornerRadius="11"
                       Background="#282828"
                       VerticalAlignment="Center">
                 <TextBlock Text="{Binding UserInitials}"
-                           FontSize="9.5"
+                           FontSize="{DynamicResource UiFontSizeTiny}"
                            FontWeight="SemiBold"
                            Foreground="{StaticResource TextChromeBrush}"
                            HorizontalAlignment="Center"
@@ -234,19 +242,15 @@
               <TextBlock Grid.Column="2"
                          IsVisible="{Binding HasPlan}"
                          Margin="5,1,0,0"
-                         FontSize="12.5"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
                          Classes="muted"
                          VerticalAlignment="Center">
                 <Run Text="·" />
                 <Run Text="{Binding PlanLabel}" />
               </TextBlock>
-              <Button Grid.Column="4"
-                      Theme="{StaticResource IconButton}"
-                      Command="{Binding OpenSettingsCommand}"
-                      ToolTip.Tip="Settings (Ctrl+,)">
-                <c:Icon Data="{StaticResource IconGear}" />
-              </Button>
+              <c:Icon Grid.Column="4" Data="{StaticResource IconGear}" Margin="0,0,1,0" />
             </Grid>
+            </Button>
           </Border>
         </Grid>
       </Border>

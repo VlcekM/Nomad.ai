@@ -10,6 +10,9 @@ public sealed class OutgoingUserMessage
 {
     [JsonPropertyName("type")] public string Type { get; set; } = "user";
     [JsonPropertyName("session_id")] public string SessionId { get; set; } = "";
+
+    /// <summary>The message's transcript uuid; the CLI keeps it, so rewind and fork can point at it.</summary>
+    [JsonPropertyName("uuid")] public string? Uuid { get; set; }
     [JsonPropertyName("message")] public OutgoingMessageBody Message { get; set; } = new();
 
     [JsonPropertyName("parent_tool_use_id")]

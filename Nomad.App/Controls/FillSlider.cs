@@ -30,6 +30,17 @@ public sealed class FillSlider : Control
     public static readonly StyledProperty<double> ThicknessProperty =
         AvaloniaProperty.Register<FillSlider, double>(nameof(Thickness), 6);
 
+    public static readonly StyledProperty<IBrush?> KnobBrushProperty =
+        AvaloniaProperty.Register<FillSlider, IBrush?>(nameof(KnobBrush));
+
+    /// <summary>Tick marks at each whole level, which also become magnetic (none when null).</summary>
+    public static readonly StyledProperty<IBrush?> TickBrushProperty =
+        AvaloniaProperty.Register<FillSlider, IBrush?>(nameof(TickBrush));
+
+    /// <summary>How close (px) the pointer must be to a level for the value to stick to it.</summary>
+    public static readonly StyledProperty<double> MagnetDistanceProperty =
+        AvaloniaProperty.Register<FillSlider, double>(nameof(MagnetDistance), 7);
+
     private static readonly TimeSpan GlideTime = TimeSpan.FromMilliseconds(140);
 
     private bool _dragging;
@@ -40,7 +51,7 @@ public sealed class FillSlider : Control
 
     static FillSlider()
     {
-        AffectsRender<FillSlider>(TrackBrushProperty, FillBrushProperty, ThicknessProperty);
+        AffectsRender<FillSlider>(TrackBrushProperty, FillBrushProperty, KnobBrushProperty, TickBrushProperty, ThicknessProperty);
         FocusableProperty.OverrideDefaultValue<FillSlider>(false);
         CursorProperty.OverrideDefaultValue<FillSlider>(new Cursor(StandardCursorType.Hand));
     }
@@ -73,6 +84,25 @@ public sealed class FillSlider : Control
     {
         get => GetValue(FillBrushProperty);
         set => SetValue(FillBrushProperty, value);
+    }
+
+    public IBrush? TickBrush
+    {
+        get => GetValue(TickBrushProperty);
+        set => SetValue(TickBrushProperty, value);
+    }
+
+    public double MagnetDistance
+    {
+        get => GetValue(MagnetDistanceProperty);
+        set => SetValue(MagnetDistanceProperty, value);
+    }
+
+    /// <summary>A circle at the current position (none when null).</summary>
+    public IBrush? KnobBrush
+    {
+        get => GetValue(KnobBrushProperty);
+        set => SetValue(KnobBrushProperty, value);
     }
 
     /// <summary>Raised when a press or drag ends.</summary>
@@ -156,32 +186,83 @@ public sealed class FillSlider : Control
         }
     }
 
+    /// <summary>The pill: <see cref="Thickness"/> tall, centred in a taller hit area.</summary>
+    private Rect Track
+    {
+        get
+        {
+            var height = Math.Min(Bounds.Height, Thickness);
+            return new Rect(0, (Bounds.Height - height) / 2, Bounds.Width, height);
+        }
+    }
+
+    /// <summary>
+    /// Where a value sits: the knob's centre, which runs from one radius in from the left end to one
+    /// radius in from the right, so the knob never leaves the pill.
+    /// </summary>
+    private double XOf(double value)
+    {
+        var r = Track.Height / 2;
+        var fraction = Maximum > 0 ? Math.Clamp(value / Maximum, 0, 1) : 0;
+        return r + fraction * Math.Max(0, Track.Width - 2 * r);
+    }
+
     private void SetFromPointer(PointerEventArgs e)
     {
-        var width = Bounds.Width;
-        if (width > 0)
+        var r = Track.Height / 2;
+        var span = Track.Width - 2 * r;
+        if (span <= 0)
         {
-            Value = Math.Clamp(e.GetPosition(this).X / width, 0, 1) * Maximum;
+            return;
         }
+
+        var x = e.GetPosition(this).X;
+        var value = Math.Clamp((x - r) / span, 0, 1) * Maximum;
+
+        // Magnetic stops: near a whole level, the value sticks to it.
+        if (TickBrush is not null)
+        {
+            var level = Math.Round(value);
+            if (Math.Abs(XOf(level) - x) <= MagnetDistance)
+            {
+                value = level;
+            }
+        }
+
+        Value = value;
     }
 
     public override void Render(DrawingContext context)
     {
-        // A thin pill centred in a taller hit area.
-        var height = Math.Min(Bounds.Height, Thickness);
-        var bounds = new Rect(0, (Bounds.Height - height) / 2, Bounds.Width, height);
-        var radius = height / 2;
+        var bounds = Track;
+        var radius = bounds.Height / 2;
         if (TrackBrush is { } track)
         {
             context.DrawRectangle(track, null, bounds, radius, radius);
         }
 
-        // At least a dot at the left end, so the lowest level still shows as filled.
-        var fraction = Maximum > 0 ? Math.Clamp(_shown / Maximum, 0, 1) : 0;
-        var fill = Math.Max(bounds.Height, bounds.Width * fraction);
+        // The fill always covers the knob, so the lowest level still shows as filled.
+        var x = XOf(_shown);
         if (FillBrush is { } brush)
         {
-            context.DrawRectangle(brush, null, bounds.WithWidth(fill), radius, radius);
+            context.DrawRectangle(brush, null, bounds.WithWidth(x + radius), radius, radius);
+        }
+
+        // Small columns at each whole level: where the value snaps to.
+        if (TickBrush is { } tick && Maximum >= 1)
+        {
+            for (var level = 0; level <= (int)Maximum; level++)
+            {
+                var tx = Math.Round(XOf(level)) - 1;
+                context.FillRectangle(tick, new Rect(tx, bounds.Center.Y - 1.5, 2, 3));
+            }
+        }
+
+        // The knob: a circle at the current position.
+        if (KnobBrush is { } knob)
+        {
+            var knobRadius = radius - 1.5;
+            context.DrawEllipse(knob, null, new Point(x, bounds.Center.Y), knobRadius, knobRadius);
         }
     }
 }

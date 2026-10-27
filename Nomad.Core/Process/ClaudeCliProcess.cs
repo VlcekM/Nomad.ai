@@ -126,6 +126,16 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
         {
             args.Add("--resume");
             args.Add(o.ResumeSessionId);
+            if (!string.IsNullOrWhiteSpace(o.ResumeSessionAt))
+            {
+                args.Add("--resume-session-at");
+                args.Add(o.ResumeSessionAt);
+            }
+
+            if (o.ForkSession)
+            {
+                args.Add("--fork-session");
+            }
         }
 
         args.AddRange(o.ExtraArguments);

@@ -55,6 +55,21 @@ public static class Format
         return local.ToString("d MMM yyyy HH:mm", CultureInfo.InvariantCulture);
     }
 
+    /// <summary>"just now", "5 minutes ago", "3 hours ago", then the date.</summary>
+    public static string Ago(DateTime utc)
+    {
+        var age = DateTime.UtcNow - utc;
+        return age.TotalMinutes switch
+        {
+            < 1 => "just now",
+            < 2 => "a minute ago",
+            < 60 => $"{(int)age.TotalMinutes} minutes ago",
+            < 120 => "an hour ago",
+            < 24 * 60 => $"{(int)age.TotalHours} hours ago",
+            _ => Relative(utc),
+        };
+    }
+
     /// <summary>"Resets in 1 hr 25 min" within a day, else "Resets Fri 09:00" (local time).</summary>
     public static string ResetsAt(DateTimeOffset? at)
     {

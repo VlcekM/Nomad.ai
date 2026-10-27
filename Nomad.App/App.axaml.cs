@@ -43,6 +43,17 @@ public partial class App : Application
 
         Set("UiFont", Fonts.Ui(settings.InterfaceFont));
         Set("MonoFont", Fonts.Code(settings.CodeFont));
+        var uiSize = settings.InterfaceTextSize switch
+        {
+            "Small" => 12.0,
+            "Large" => 14.0,
+            _ => 13.0,
+        };
+        Set("UiFontSize", uiSize);
+        Set("UiFontSizeSmall", uiSize - 1);
+        Set("UiFontSizeTiny", uiSize - 2);
+        Set("UiFontSizeLarge", uiSize + 1);
+        Set("UiFontSizeTitle", uiSize + 3);
         Set("ColumnMaxWidth", ColumnWidth(settings.TranscriptWidth));
 
         var style = MarkdownStyle.From(settings.TextSize, settings.InterfaceFont, settings.CodeFont);

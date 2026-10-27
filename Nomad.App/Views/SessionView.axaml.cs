@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Nomad.App.ViewModels;
 using Nomad.Core.Agents;
 
@@ -28,6 +29,13 @@ public partial class SessionView : UserControl
         TrackOpen(ModeChip, ModeChip.Flyout);
         TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
         TrackOpen(UsageChip, UsageChip.Flyout);
+
+        // A click anywhere on the page puts the caret in the composer, unless it went to a control
+        // of its own or selected some text.
+        AddHandler(PointerReleasedEvent, OnPageClicked, RoutingStrategies.Bubble, handledEventsToo: true);
+
+        // Below this width the full row (folder, mode, four model chips, effort, ring) would not fit.
+        SizeChanged += (_, e) => StatusRow.Classes.Set("narrow", e.NewSize.Width < 940);
         if (UsageChip.Flyout is { } usage)
         {
             usage.Opened += (_, _) => _ = Vm?.Usage.RefreshAsync();
@@ -358,6 +366,65 @@ public partial class SessionView : UserControl
             {
                 Vm?.SelectModelCommand.Execute(option.Id);
             }
+        }
+    }
+
+    private void OnPageClicked(object? sender, PointerReleasedEventArgs e)
+    {
+        if (e.InitialPressMouseButton != MouseButton.Left || Composer.IsFocused)
+        {
+            return;
+        }
+
+        for (var visual = e.Source as Visual; visual is not null && !ReferenceEquals(visual, this); visual = visual.GetVisualParent())
+        {
+            switch (visual)
+            {
+                case Button or TextBox or ToggleButton or ComboBox or Slider or Controls.FillSlider or ScrollBar:
+                    return;
+                case SelectableTextBlock { SelectedText.Length: > 0 }:
+                    return;
+            }
+        }
+
+        Composer.Focus();
+    }
+
+    /// <summary>A click on the composer bar around the text (not on its buttons) puts the caret in it.</summary>
+    private void OnComposerBarPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.Handled)
+        {
+            Composer.Focus();
+            Composer.CaretIndex = Composer.Text?.Length ?? 0;
+        }
+    }
+
+    // ------------------------------------------------------------------ prompt actions
+
+    private async void OnCopyMessageClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: UserMessageItem message } && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(message.Text);
+        }
+    }
+
+    private void OnRewindClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: UserMessageItem message } && Vm is { } vm)
+        {
+            _ = vm.RewindAsync(message);
+            Composer.Focus();
+        }
+    }
+
+    private void OnForkClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: UserMessageItem message } && Vm is { } vm
+            && TopLevel.GetTopLevel(this)?.DataContext is MainViewModel main)
+        {
+            main.Fork(vm, message);
         }
     }
 

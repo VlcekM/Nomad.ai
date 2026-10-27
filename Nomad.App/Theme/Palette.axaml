@@ -94,7 +94,11 @@
   <!-- Typography -->
   <FontFamily x:Key="UiFont">fonts:Inter#Inter, Segoe UI</FontFamily>
   <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
-  <x:Double x:Key="UiFontSize">14</x:Double>
+  <x:Double x:Key="UiFontSize">13</x:Double>
+  <x:Double x:Key="UiFontSizeSmall">12</x:Double>
+  <x:Double x:Key="UiFontSizeTiny">11</x:Double>
+  <x:Double x:Key="UiFontSizeLarge">14</x:Double>
+  <x:Double x:Key="UiFontSizeTitle">16</x:Double>
   <!-- Replaced at startup and when settings change (App.ApplyAppearance). -->
   <x:Double x:Key="BodyFontSize">15</x:Double>
   <x:Double x:Key="BodyLineHeight">21</x:Double>

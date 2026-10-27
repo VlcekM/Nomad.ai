@@ -1,5 +1,16 @@
 # Notes for coding agents
 
+## Motion
+
+Animate every UI change nicely and smoothly, but unobtrusively: things that appear, disappear,
+grow or move ease in rather than pop, and never call attention to themselves.
+
+- 120–250 ms, `CubicEaseOut` (or the same curve by hand); fades and small slides, no bounces.
+- Never make input wait on an animation; a new value interrupts and retargets the running one.
+- Timers that drive animation run only while something is moving or visible, and stop when idle.
+- New streamed text fades in; rows that come and go fold their height and fade.
+- Check animations mid-flight with `--dev-key` (see below), not only their end states.
+
 ## Seeing the app
 
 Never start the app visibly to check a change: the user works on this PC. Take a screenshot instead.

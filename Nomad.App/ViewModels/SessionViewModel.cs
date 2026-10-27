@@ -32,6 +32,12 @@ public sealed partial class SessionViewModel : ObservableObject
     private IAgentBackend? _backend;
     private ToolGroupItem? _openGroup;
     private bool _restartRequired;
+
+    // Rewind / fork: where the next process resumes (null: the whole transcript), and from which
+    // session a fork starts. Kept until a prompt went out in a process started with them.
+    private string? _resumeAt;
+    private string? _forkFrom;
+    private UserMessageItem? _unseen;
     private bool _suppressModeSync;
     private int _turnToolCount;
 
@@ -264,6 +270,47 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsIdle => !IsTurnRunning;
 
+    // The working row at the bottom of the transcript: what Claude is doing, and for how long.
+    private DispatcherTimer? _workingTimer;
+    private DateTime _turnStartUtc;
+
+    /// <summary>"Thinking", the running tool group's summary ("Running a command"), or "Working".</summary>
+    [ObservableProperty]
+    public partial string WorkingText { get; set; } = "Working";
+
+    /// <summary>"8s", "13m 11s".</summary>
+    [ObservableProperty]
+    public partial string WorkingElapsed { get; set; } = "";
+
+    partial void OnIsTurnRunningChanged(bool value)
+    {
+        if (value)
+        {
+            _turnStartUtc = DateTime.UtcNow;
+            _workingTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdateWorking());
+            _workingTimer.Start();
+            UpdateWorking();
+        }
+        else
+        {
+            _workingTimer?.Stop();
+        }
+    }
+
+    private void UpdateWorking()
+    {
+        var elapsed = DateTime.UtcNow - _turnStartUtc;
+        WorkingElapsed = elapsed.TotalMinutes >= 1 ? $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds}s" : $"{elapsed.Seconds}s";
+        WorkingText = Items.LastOrDefault() switch
+        {
+            ThinkingItem { IsStreaming: true } => "Thinking",
+            ToolGroupItem { IsRunning: true, Summary.Length: > 0 } group => group.Summary,
+            AssistantTextItem { IsStreaming: true } => "Writing",
+            PermissionItem { IsAnswered: false } => "Waiting for you",
+            _ => "Working",
+        };
+    }
+
     /// <summary>The agent status line is shown once a turn ran in this app session.</summary>
     [ObservableProperty]
     public partial bool HasRun { get; set; }
@@ -359,7 +406,9 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         CloseGroup();
-        Items.Add(new UserMessageItem(text));
+        var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false);
+        _unseen = message;
+        Items.Add(message);
         IsTurnRunning = true;
         State = AgentState.Running;
         HasRun = true;
@@ -369,7 +418,11 @@ public sealed partial class SessionViewModel : ObservableObject
         try
         {
             await EnsureBackendAsync();
-            await _backend!.SendPromptAsync(text);
+            await _backend!.SendPromptAsync(text, message.Uuid);
+
+            // The process now holds the rewind / fork point and the transcript will record it.
+            _resumeAt = null;
+            _forkFrom = null;
             if (first)
             {
                 _ = GenerateTitleAsync(_backend, text);
@@ -542,7 +595,7 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 case HistoryUserMessage u:
                     CloseGroup();
-                    Items.Add(new UserMessageItem(u.Text));
+                    Items.Add(new UserMessageItem(u.Text, u.Uuid, u.TimestampUtc ?? summary.LastActivityUtc, seen: true) { ParentUuid = u.ParentUuid });
                     break;
                 case HistoryAssistantText a:
                     CloseGroup();
@@ -599,7 +652,9 @@ public sealed partial class SessionViewModel : ObservableObject
             Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
             ThinkingDisplay = "summarized",
             FastMode = FastMode,
-            ResumeSessionId = SessionId,
+            ResumeSessionId = SessionId ?? _forkFrom,
+            ResumeSessionAt = _resumeAt,
+            ForkSession = SessionId is null && _forkFrom is not null,
             CliPath = _main.Settings.CliPath,
             ExtraArguments = _main.Dev.ExtraCliArguments,
         });
@@ -615,6 +670,71 @@ public sealed partial class SessionViewModel : ObservableObject
             var b = _backend;
             _backend = null;
             await b.DisposeAsync();
+        }
+    }
+
+    // ------------------------------------------------------------------ rewind and fork
+
+    /// <summary>
+    /// Rewind to just before <paramref name="message"/>: the transcript from it on goes, its text goes
+    /// back into the composer, and the next prompt continues the session from the record before it
+    /// (<c>--resume-session-at</c>). Files Claude changed are left as they are.
+    /// </summary>
+    public async Task RewindAsync(UserMessageItem message)
+    {
+        var index = Items.IndexOf(message);
+        if (IsTurnRunning || index < 0 || message.Uuid is null)
+        {
+            return;
+        }
+
+        var parent = message.ParentUuid ?? ParentInTranscript(message.Uuid);
+        await ShutdownAsync();
+        _main.OnAliveChanged(this);
+
+        if (parent is null)
+        {
+            // The first message: nothing before it to keep, so the next prompt starts a new session.
+            SessionId = null;
+            _resumeAt = null;
+        }
+        else
+        {
+            _resumeAt = parent;
+        }
+
+        while (Items.Count > index)
+        {
+            Items.RemoveAt(Items.Count - 1);
+        }
+
+        _openGroup = null;
+        _unseen = null;
+        ComposerText = message.Text;
+        ContentChanged?.Invoke();
+    }
+
+    /// <summary>Starts this (new) session as a fork of <paramref name="sessionId"/>, cut after <paramref name="resumeAt"/>.</summary>
+    public void PrepareFork(string sessionId, string? resumeAt, IEnumerable<TranscriptItem> items)
+    {
+        _forkFrom = sessionId;
+        _resumeAt = resumeAt;
+        foreach (var item in items)
+        {
+            Items.Add(item);
+        }
+    }
+
+    /// <summary>The record before <paramref name="uuid"/> in this session's transcript.</summary>
+    public string? ParentInTranscript(string uuid) =>
+        SessionId is { } id && _main.Store.FindTranscript(id) is { } file ? SessionStore.ParentOf(file, uuid) : null;
+
+    /// <summary>Refreshes the "5 minutes ago" of every prompt.</summary>
+    public void TickClock()
+    {
+        foreach (var message in Items.OfType<UserMessageItem>())
+        {
+            message.Tick();
         }
     }
 
@@ -652,6 +772,13 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         LastActivityUtc = DateTime.UtcNow;
+
+        // Anything back from Claude Code after a prompt means it picked the prompt up.
+        if (_unseen is { } sent)
+        {
+            sent.IsSeen = true;
+            _unseen = null;
+        }
 
         switch (e)
         {

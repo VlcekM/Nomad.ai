@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Markdig;
 using Markdig.Extensions.Tables;
@@ -417,7 +418,7 @@ public static class MarkdownRenderer
         var label = new TextBlock
         {
             Text = string.IsNullOrWhiteSpace(language) ? "" : language.Trim(),
-            FontSize = 11,
+            [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("UiFontSizeTiny"),
             Foreground = TextMuted,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
@@ -428,7 +429,7 @@ public static class MarkdownRenderer
 
         var copy = new Button
         {
-            Content = new TextBlock { Text = "Copy", FontSize = 12 },
+            Content = new TextBlock { Text = "Copy", [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("UiFontSizeSmall") },
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 4, 6, 0),

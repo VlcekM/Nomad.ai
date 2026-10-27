@@ -47,8 +47,11 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   ended and its session moves to Idle; right-click a session to make it idle or alive by hand.
 - **Transcript.** Streaming markdown (headings, lists, tables, code blocks, inline code, links),
   collapsible tool groups ("Ran 2 commands", "Edited a file", with +/− counts), a "Thought process"
-  line with the summarized thinking, an error card, and the agent status line (state, model, last
-  turn time, tokens, tools) with a stop button.
+  line with the summarized thinking, an error card, and, while a turn runs, a working row (animated
+  pixel mark, what Claude is doing, elapsed time). New text fades in as it streams. Hovering a prompt
+  shows its seen mark (✓ sent, ✓✓ picked up), its age, and Copy, Rewind (cut the conversation back
+  to before it and put it in the composer; files are not restored) and Fork (a new session with the
+  conversation through that turn).
 - **Permissions.** Tool requests appear as a card with Allow, Allow for session and Deny (Enter
   allows, Esc denies), shown with the command or a small diff. Answered cards shrink to one line.
   When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
@@ -59,8 +62,8 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   a ring showing how much of the context window the session uses. Clicking the current model, or
   the chevron, opens the full picker with fast mode. Clicking the ring shows the plan usage limits
   (session, weekly, weekly per model, with reset times), refreshed after each turn.
-- **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, transcript text size and
-  width, display name; CLI path and the default model, mode and effort for
+- **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, interface and transcript
+  text size, transcript width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and
   Anthropic Mono are offered too: they are unpacked from the app's WOFF2 files into
   `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai.

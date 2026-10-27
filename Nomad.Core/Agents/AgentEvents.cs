@@ -146,6 +146,13 @@ public sealed record AgentStartOptions
     public string? ThinkingDisplay { get; init; }
     public bool FastMode { get; init; }
     public string? ResumeSessionId { get; init; }
+
+    /// <summary>Resume only up to and including this transcript record (rewind, fork from a message).</summary>
+    public string? ResumeSessionAt { get; init; }
+
+    /// <summary>Resume into a new session id, leaving the original as it is (fork).</summary>
+    public bool ForkSession { get; init; }
+
     public string? CliPath { get; init; }
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
 }

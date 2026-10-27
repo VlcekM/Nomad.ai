@@ -25,18 +25,18 @@
 
   <UserControl.Styles>
     <Style Selector="TextBlock.pagetitle">
-      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTitle}" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
     <Style Selector="TextBlock.rowlabel">
-      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
       <Setter Property="FontWeight" Value="Medium" />
       <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="TextBlock.rowhint">
-      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
       <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,3,0,0" />
@@ -58,7 +58,7 @@
       <Setter Property="MinWidth" Value="200" />
       <Setter Property="HorizontalContentAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Center" />
-      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
       <Setter Property="MaxDropDownHeight" Value="420" />
     </Style>
     <Style Selector="Border.field">
@@ -86,7 +86,7 @@
       <!-- Navigation -->
       <Border Background="{StaticResource BgMainBrush}" BorderBrush="#2C2C2C" BorderThickness="0,0,1,0">
         <StackPanel Margin="12,0" Spacing="1">
-          <TextBlock Text="Settings" Classes="section" FontSize="13" Margin="8,30,0,10" />
+          <TextBlock Text="Settings" Classes="section" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,30,0,10" />
           <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsGeneralPage}" Command="{Binding ShowGeneralCommand}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <c:Icon Data="{StaticResource IconGear}" />
@@ -130,6 +130,18 @@
               <Border Classes="rowline" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <TextBlock Text="Interface text size" Classes="rowlabel" VerticalAlignment="Center" />
+                <Border Grid.Column="1" Classes="segments">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="UiTextSize" IsChecked="{Binding IsUiTextSmall}" Content="Small" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="UiTextSize" IsChecked="{Binding IsUiTextMedium}" Content="Medium" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="UiTextSize" IsChecked="{Binding IsUiTextLarge}" Content="Large" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="Transcript text size" Classes="rowlabel" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Classes="segments">
                   <StackPanel Orientation="Horizontal">
@@ -162,7 +174,7 @@
                   <TextBlock Text="Shown at the bottom of the sidebar. Empty uses your Windows user name." Classes="rowhint" />
                 </StackPanel>
                 <Border Grid.Column="1" Classes="field" Width="260">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding DisplayName}" Watermark="Your name" FontSize="14.5" />
+                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding DisplayName}" Watermark="Your name" FontSize="{DynamicResource UiFontSize}" />
                 </Border>
               </Grid>
             </StackPanel>
@@ -175,10 +187,10 @@
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="CLI path" Classes="rowlabel" />
                   <TextBlock Text="The claude executable Nomad.ai starts. &quot;claude&quot; looks it up on PATH." Classes="rowhint" />
-                  <TextBlock Text="{Binding CliStatus}" Classes="rowhint" Classes.ok="{Binding CliFound}" FontSize="13" />
+                  <TextBlock Text="{Binding CliStatus}" Classes="rowhint" Classes.ok="{Binding CliFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
                 </StackPanel>
                 <Border Grid.Column="1" Classes="field" Width="360">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CliPath}" Watermark="claude" FontSize="14" FontFamily="{DynamicResource MonoFont}" />
+                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CliPath}" Watermark="claude" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
                 </Border>
               </Grid>
               <Border Classes="rowline" />
@@ -227,7 +239,7 @@
                 </ComboBox>
               </Grid>
 
-              <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="13">
+              <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="{DynamicResource UiFontSizeSmall}">
                 <Run Text="Settings are saved to" />
                 <Run Text="{Binding SettingsPath}" FontFamily="{DynamicResource MonoFont}" />
               </TextBlock>

@@ -69,9 +69,9 @@ public static class CliProtocol
         return null;
     }
 
-    public static string UserMessage(string text)
+    public static string UserMessage(string text, string? uuid = null)
     {
-        var message = new OutgoingUserMessage();
+        var message = new OutgoingUserMessage { Uuid = uuid };
         message.Message.Content.Add(new OutgoingTextBlock { Text = text });
         return JsonSerializer.Serialize(message, ProtocolJsonContext.Default.OutgoingUserMessage);
     }

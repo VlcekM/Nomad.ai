@@ -62,11 +62,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             Effort = options.Effort,
             ThinkingDisplay = options.ThinkingDisplay,
             ResumeSessionId = options.ResumeSessionId,
+            ResumeSessionAt = options.ResumeSessionAt,
+            ForkSession = options.ForkSession,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
             ExtraArguments = options.ExtraArguments,
         };
 
-        SessionId = options.ResumeSessionId;
+        SessionId = options.ForkSession ? null : options.ResumeSessionId;
         var cli = new ClaudeCliProcess(cliOptions);
         cli.StdoutLine += HandleLine;
         cli.Exited += OnExited;
@@ -78,7 +80,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return Task.CompletedTask;
     }
 
-    public async Task SendPromptAsync(string text, CancellationToken cancellationToken = default)
+    public async Task SendPromptAsync(string text, string? uuid = null, CancellationToken cancellationToken = default)
     {
         var cli = RequireRunning();
         _turnRunning = true;
@@ -87,7 +89,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         Raise(new TurnStartedEvent(text));
         try
         {
-            await WriteAsync(cli, CliProtocol.UserMessage(text), cancellationToken).ConfigureAwait(false);
+            await WriteAsync(cli, CliProtocol.UserMessage(text, uuid), cancellationToken).ConfigureAwait(false);
         }
         catch
         {

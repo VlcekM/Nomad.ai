@@ -30,9 +30,9 @@ public sealed class MarkdownStyle
     {
         var (body, code) = textSize switch
         {
-            "Small" => (14.0, 12.0),
-            "Large" => (16.0, 14.0),
-            _ => (15.0, 13.0),
+            "Small" => (13.0, 11.5),
+            "Large" => (15.0, 13.0),
+            _ => (14.0, 12.0),
         };
 
         return new MarkdownStyle

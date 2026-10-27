@@ -46,7 +46,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _idleTimer.Tick += (_, _) => SleepIdleSessions();
+        _idleTimer.Tick += (_, _) =>
+        {
+            SleepIdleSessions();
+            Current.TickClock();
+        };
         _idleTimer.Start();
 
         _usageTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
@@ -240,6 +244,44 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         await session.WakeAsync();
+    }
+
+    /// <summary>
+    /// Fork after <paramref name="message"/>'s turn: a new session with the conversation up to there,
+    /// opened at once. It is written (with a new id, <c>--fork-session</c>) when its first prompt goes
+    /// out; the original stays as it is.
+    /// </summary>
+    public void Fork(SessionViewModel source, UserMessageItem message)
+    {
+        var index = source.Items.IndexOf(message);
+        if (source.SessionId is not { } sessionId || index < 0 || source.IsTurnRunning)
+        {
+            return;
+        }
+
+        // Keep through the end of this turn: up to the record before the next prompt, or everything.
+        var next = source.Items.Skip(index + 1).OfType<UserMessageItem>().FirstOrDefault();
+        string? resumeAt = null;
+        if (next is not null)
+        {
+            resumeAt = next.ParentUuid ?? (next.Uuid is { } uuid ? source.ParentInTranscript(uuid) : null);
+            if (resumeAt is null)
+            {
+                return;
+            }
+        }
+
+        var end = next is null ? source.Items.Count : source.Items.IndexOf(next);
+        var fork = new SessionViewModel(this, source.Folder)
+        {
+            Title = $"{source.Title} (fork)",
+            IsNew = false,
+            Model = source.Model,
+            PermissionMode = source.PermissionMode,
+            Effort = source.Effort,
+        };
+        fork.PrepareFork(sessionId, resumeAt, source.Items.Take(end));
+        Current = fork;
     }
 
     private void SleepIdleSessions()

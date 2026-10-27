@@ -15,7 +15,7 @@
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
     <Setter Property="Focusable" Value="False" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -110,7 +110,7 @@
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontWeight" Value="Normal" />
   </ControlTheme>
 
   <!-- Text-only line (tool groups, thinking): muted, brighter on hover, no fill. -->
@@ -266,6 +266,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
     <Setter Property="CaretBrush" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Cursor" Value="IBeam" />
     <Setter Property="SelectionBrush" Value="#553A6EA5" />
     <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}" />
     <Setter Property="Padding" Value="0" />
@@ -368,7 +369,7 @@
     <Setter Property="Padding" Value="11,0" />
     <Setter Property="Height" Value="27" />
     <Setter Property="CornerRadius" Value="6" />
-    <Setter Property="FontSize" Value="14.5" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
     <Setter Property="Cursor" Value="Hand" />
     <Setter Property="Template">
       <ControlTemplate>
@@ -399,7 +400,7 @@
   <ControlTheme x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Height" Value="32" />
     <Setter Property="Padding" Value="8,0" />
-    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="Foreground" Value="#DCDCD8" />
     <Style Selector="^.selected">

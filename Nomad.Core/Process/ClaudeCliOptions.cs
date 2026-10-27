@@ -27,6 +27,12 @@ public sealed record ClaudeCliOptions
     /// <summary>Existing session id to continue in this new process (<c>--resume</c>).</summary>
     public string? ResumeSessionId { get; init; }
 
+    /// <summary>With a resume: keep the transcript only up to and including this record (<c>--resume-session-at</c>).</summary>
+    public string? ResumeSessionAt { get; init; }
+
+    /// <summary>With a resume: continue under a new session id (<c>--fork-session</c>).</summary>
+    public bool ForkSession { get; init; }
+
     /// <summary>Emit <c>stream_event</c> lines with raw API deltas.</summary>
     public bool IncludePartialMessages { get; init; } = true;
 

@@ -10,8 +10,11 @@ public sealed class NomadSettings
     public string InterfaceFont { get; set; } = "Inter";
     public string CodeFont { get; set; } = "Cascadia Mono";
 
-    /// <summary>Small | Medium | Large (transcript body 14 / 15 / 16 px).</summary>
+    /// <summary>Small | Medium | Large (transcript body 13 / 14 / 15 px).</summary>
     public string TextSize { get; set; } = "Medium";
+
+    /// <summary>Small | Medium | Large (sidebar, menus, status row: 12 / 13 / 14 px).</summary>
+    public string InterfaceTextSize { get; set; } = "Medium";
 
     /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
