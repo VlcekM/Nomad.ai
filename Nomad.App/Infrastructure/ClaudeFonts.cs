@@ -61,10 +61,10 @@ public static partial class ClaudeFonts
     }
 
     /// <summary>
-    /// Upright Anthropic Sans and Mono from the Claude app's stylesheets: the Microsoft Store (MSIX) install first,
-    /// then the newest Squirrel install in <c>%LOCALAPPDATA%\AnthropicClaude</c>.
+    /// The Claude app's web bundles (<c>ion-dist</c>): the Microsoft Store (MSIX) install first, then the Squirrel
+    /// installs in <c>%LOCALAPPDATA%\AnthropicClaude</c>, newest first.
     /// </summary>
-    private static Dictionary<string, string>? FindAssets()
+    public static List<string> IonDists()
     {
         var dists = new List<string>();
         if (StorePackagePath() is { } package)
@@ -81,7 +81,13 @@ public static partial class ClaudeFonts
                 .Select(d => d.Dir));
         }
 
-        foreach (var dist in dists.Where(Directory.Exists))
+        return dists.Where(Directory.Exists).ToList();
+    }
+
+    /// <summary>Upright Anthropic Sans and Mono from the stylesheets of the first Claude app install that has them.</summary>
+    private static Dictionary<string, string>? FindAssets()
+    {
+        foreach (var dist in IonDists())
         {
             var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var css in Directory.EnumerateFiles(dist, "*.css", SearchOption.AllDirectories))

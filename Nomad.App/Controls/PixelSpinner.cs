@@ -69,15 +69,18 @@ public sealed class PixelSpinner : Control
 
     public override void Render(DrawingContext context)
     {
-        if (Foreground is not ISolidColorBrush brush)
+        if (Foreground is ISolidColorBrush brush)
         {
-            return;
+            Draw(context, Bounds.Size, brush.Color, (DateTime.UtcNow - _start) / Period % 1, 1);
         }
+    }
 
-        var cell = Math.Min(Bounds.Width, Bounds.Height) / 3;
+    /// <summary>The 3×3 pixels at <paramref name="phase"/> (0–1) of the wave, faded by <paramref name="opacity"/>.</summary>
+    public static void Draw(DrawingContext context, Size size, Color color, double phase, double opacity)
+    {
+        var cell = Math.Min(size.Width, size.Height) / 3;
         var pixel = Math.Round(cell * 0.62);
         var inset = (cell - pixel) / 2;
-        var phase = (DateTime.UtcNow - _start) / Period % 1;
 
         for (var row = 0; row < 3; row++)
         {
@@ -86,10 +89,9 @@ public sealed class PixelSpinner : Control
                 // The wave enters at the bottom-left corner and leaves at the top-right.
                 var offset = (col + (2 - row)) / 6.0;
                 var wave = 0.5 + 0.5 * Math.Cos(2 * Math.PI * (phase - offset));
-                var alpha = 0.18 + 0.82 * Math.Pow(wave, 2.2);
-                var color = Color.FromArgb((byte)(alpha * brush.Color.A), brush.Color.R, brush.Color.G, brush.Color.B);
+                var alpha = (0.18 + 0.82 * Math.Pow(wave, 2.2)) * opacity;
                 context.FillRectangle(
-                    new ImmutableSolidColorBrush(color),
+                    new ImmutableSolidColorBrush(Color.FromArgb((byte)(alpha * color.A), color.R, color.G, color.B)),
                     new Rect(Math.Round(col * cell + inset), Math.Round(row * cell + inset), pixel, pixel));
             }
         }

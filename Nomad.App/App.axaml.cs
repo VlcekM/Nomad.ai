@@ -22,6 +22,7 @@ public partial class App : Application
         {
             var settings = Program.Settings;
             Infrastructure.ClaudeFonts.Register();
+            Infrastructure.WorkingMarkSheets.LoadInBackground();
             ApplyAppearance(settings);
 
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);

@@ -46,6 +46,85 @@ public static class ToolText
     };
 
     /// <summary>"Running a command…" while a call is in flight.</summary>
+    // ------------------------------------------------------------------ working mark
+
+    private static readonly HashSet<string> WriteWords = ["write", "edit", "create", "update", "delete", "remove", "append", "insert", "replace", "patch", "send", "post", "add", "save", "upload", "comment"];
+    private static readonly HashSet<string> CodeWords = ["bash", "exec", "execute", "run", "shell", "python", "repl", "script", "eval", "javascript"];
+    private static readonly HashSet<string> ReadWords = ["read", "view", "get", "list", "fetch", "search", "find", "query", "retrieve", "lookup", "load", "open", "ls"];
+    private static readonly HashSet<string> ProseExtensions = new(StringComparer.OrdinalIgnoreCase) { ".md", ".mdx", ".txt", ".rst", ".docx", ".pdf" };
+
+    /// <summary>
+    /// The working mark's activity for a running tool, as the desktop app picks it: "read", "search", "code",
+    /// "write" ("compose" while writing prose), else "default". A command whose description starts with a writing
+    /// or reading verb ("Updating the README") counts as that.
+    /// </summary>
+    public static string MarkActivity(string name, JsonElement input)
+    {
+        switch (name)
+        {
+            case "Read" or "NotebookRead" or "Grep" or "Glob" or "LS":
+                return "read";
+            case "WebSearch" or "WebFetch":
+                return "search";
+            case "Bash" or "PowerShell" or "BashOutput" or "KillShell" or "KillBash":
+                return VerbOf(String(input, "description")) ?? "code";
+            case "Edit" or "MultiEdit" or "Write" or "NotebookEdit":
+                return String(input, "file_path") is { } path && ProseExtensions.Contains(Path.GetExtension(path)) ? "compose" : "write";
+            case "TodoWrite" or "ExitPlanMode":
+                return "write";
+        }
+
+        // MCP and other tools: by the words of their name ("mcp__github__create_issue" writes).
+        foreach (var word in name.ToLowerInvariant().Split(['_', '-', ':', ' '], StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (WriteWords.Contains(word))
+            {
+                return "write";
+            }
+
+            if (CodeWords.Contains(word))
+            {
+                return "code";
+            }
+
+            if (ReadWords.Contains(word))
+            {
+                return "read";
+            }
+        }
+
+        return "default";
+    }
+
+    // "Updating" → updating, updat, update (and "Running" → run): the forms the verb sets hold.
+    private static string? VerbOf(string? description)
+    {
+        var first = description?.TrimStart().Split(' ', 2)[0].Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(first) || !first.All(char.IsLetter))
+        {
+            return null;
+        }
+
+        var forms = new List<string> { first };
+        if (first.EndsWith("ing", StringComparison.Ordinal) && first.Length > 5)
+        {
+            var stem = first[..^3];
+            forms.Add(stem);
+            forms.Add(stem + "e");
+            if (stem.Length > 2 && stem[^1] == stem[^2] && !"aeiou".Contains(stem[^1]))
+            {
+                forms.Add(stem[..^1]);
+            }
+        }
+
+        return forms.Any(WriteWords.Contains) ? "write" : forms.Any(ReadWords.Contains) ? "read" : null;
+    }
+
+    private static string? String(JsonElement input, string property) =>
+        input.ValueKind == JsonValueKind.Object && input.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
+
     public static string RunningLabel(string name) => name switch
     {
         "Bash" or "PowerShell" => "Running a command…",
