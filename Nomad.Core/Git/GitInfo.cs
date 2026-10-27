@@ -101,8 +101,76 @@ public static class GitInfo
             .Select(f => new GitCommit(f[0], f[1], f[2], DateTimeOffset.FromUnixTimeSeconds(long.Parse(f[3], CultureInfo.InvariantCulture))))
             .ToList();
 
+    /// <summary>Where worktrees go inside a repository, as the CLI's <c>--worktree</c> puts them.</summary>
+    private static readonly string WorktreesPart = Path.Combine(".claude", "worktrees");
+
+    /// <summary>
+    /// Makes a new worktree of <paramref name="folder"/>'s repository at its HEAD, in <c>.claude\worktrees\&lt;name&gt;</c>
+    /// on a new branch <c>worktree-&lt;name&gt;</c> (as the CLI's <c>--worktree</c> does), and returns the folder to work in:
+    /// the same subfolder of the new worktree when <paramref name="folder"/> is below the repository's root.
+    /// </summary>
+    public static async Task<string> AddWorktreeAsync(string folder, string? from = null)
+    {
+        var (rootOk, rootText, _) = await RunFullAsync(folder, Timeout, "rev-parse", "--show-toplevel");
+        if (!rootOk || string.IsNullOrWhiteSpace(rootText))
+        {
+            throw new InvalidOperationException("Can't start in a worktree: the folder is not a git repository.");
+        }
+
+        var root = Path.GetFullPath(rootText.Trim());
+        var name = DateTime.Now.ToString("yyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var path = Path.Combine(root, WorktreesPart, name);
+        var (ok, _, error) = await RunFullAsync(root, TimeSpan.FromSeconds(60), "worktree", "add", "-b", "worktree-" + name, path, string.IsNullOrEmpty(from) ? "HEAD" : from);
+        if (!ok)
+        {
+            throw new InvalidOperationException("Can't make a worktree: " + (string.IsNullOrWhiteSpace(error) ? "git failed." : error.Trim()));
+        }
+
+        var relative = Path.GetRelativePath(root, Path.GetFullPath(folder));
+        return relative is "." || relative.StartsWith("..", StringComparison.Ordinal) ? path : Path.Combine(path, relative);
+    }
+
+    /// <summary>The local branches, the most recently committed to first; empty when it is no repository.</summary>
+    public static async Task<IReadOnlyList<string>> BranchesAsync(string folder)
+    {
+        var text = await RunAsync(folder, "for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads");
+        return (text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    /// <summary>Checks out another branch in the folder (<c>git switch</c>); null when done, or git's reason it could not.</summary>
+    public static async Task<string?> SwitchBranchAsync(string folder, string branch)
+    {
+        var (ok, _, error) = await RunFullAsync(folder, TimeSpan.FromSeconds(30), "switch", branch);
+        if (ok)
+        {
+            lock (Cache)
+            {
+                Cache.Clear();
+            }
+
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(error) ? "git switch failed." : error.Trim();
+    }
+
+    /// <summary>The repository a worktree folder (<c>…\.claude\worktrees\&lt;name&gt;</c>, or below it) belongs to; null for any other folder.</summary>
+    public static string? WorktreeOwner(string folder)
+    {
+        var marker = Path.DirectorySeparatorChar + WorktreesPart + Path.DirectorySeparatorChar;
+        var at = folder.Replace('/', Path.DirectorySeparatorChar).IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        return at > 0 ? folder[..at] : null;
+    }
+
     /// <summary>Runs <c>git -C folder …</c>; its output, or null when it fails or takes too long.</summary>
     private static async Task<string?> RunAsync(string folder, params string[] args)
+    {
+        var (ok, output, _) = await RunFullAsync(folder, Timeout, args);
+        return ok ? output : null;
+    }
+
+    /// <summary>Runs <c>git -C folder …</c>: whether it succeeded in time, and its output and error text.</summary>
+    private static async Task<(bool Ok, string Output, string Error)> RunFullAsync(string folder, TimeSpan timeout, params string[] args)
     {
         var start = new ProcessStartInfo("git")
         {
@@ -111,6 +179,7 @@ public static class GitInfo
             UseShellExecute = false,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
         foreach (var arg in new[] { "--no-optional-locks", "-c", "core.quotepath=off", "-C", folder }.Concat(args))
         {
@@ -122,12 +191,12 @@ public static class GitInfo
             using var process = System.Diagnostics.Process.Start(start);
             if (process is null)
             {
-                return null;
+                return (false, "", "");
             }
 
-            using var cts = new CancellationTokenSource(Timeout);
+            using var cts = new CancellationTokenSource(timeout);
             var output = process.StandardOutput.ReadToEndAsync(cts.Token);
-            _ = process.StandardError.ReadToEndAsync(cts.Token);
+            var error = process.StandardError.ReadToEndAsync(cts.Token);
             try
             {
                 await process.WaitForExitAsync(cts.Token);
@@ -135,14 +204,14 @@ public static class GitInfo
             catch (OperationCanceledException)
             {
                 process.Kill(entireProcessTree: true);
-                return null;
+                return (false, "", "git took too long.");
             }
 
-            return process.ExitCode == 0 ? await output : null;
+            return (process.ExitCode == 0, await output, await error);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or OperationCanceledException)
         {
-            return null;
+            return (false, "", ex.Message);
         }
     }
 }

@@ -11,34 +11,28 @@
   <!-- Flat combo boxes: text + chevron, like the original's font pickers. -->
   <UserControl.Resources>
     <SolidColorBrush x:Key="ComboBoxBackground" Color="Transparent" />
-    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#0BFFFFFF" />
-    <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#16FFFFFF" />
     <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="Transparent" />
     <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="Transparent" />
     <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="Transparent" />
     <SolidColorBrush x:Key="ComboBoxBorderBrushPressed" Color="Transparent" />
     <SolidColorBrush x:Key="ComboBoxBorderBrushFocused" Color="Transparent" />
-    <SolidColorBrush x:Key="ComboBoxForeground" Color="#EEEDE8" />
-    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#20201E" />
-    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#363636" />
-    <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#A8A6A0" />
   </UserControl.Resources>
 
   <UserControl.Styles>
     <Style Selector="TextBlock.pagetitle">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTitle}" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       <Setter Property="Margin" Value="0,0,0,10" />
     </Style>
     <Style Selector="TextBlock.rowlabel">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
       <Setter Property="FontWeight" Value="Medium" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="TextBlock.rowhint">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
-      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
       <Setter Property="Margin" Value="0,3,0,0" />
     </Style>
@@ -47,10 +41,10 @@
     </Style>
     <Style Selector="Border.rowline">
       <Setter Property="Height" Value="1" />
-      <Setter Property="Background" Value="#262624" />
+      <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
     </Style>
     <Style Selector="Border.segments">
-      <Setter Property="Background" Value="#262624" />
+      <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
       <Setter Property="CornerRadius" Value="7" />
       <Setter Property="Padding" Value="2" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -64,32 +58,32 @@
     </Style>
     <!-- Updates page: the status line's colours, release markers and the chevron of a release. -->
     <Style Selector="TextBlock.rowhint.attention">
-      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="TextBlock.rowhint.failed">
-      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
     </Style>
     <Style Selector="Border.tag">
-      <Setter Property="Background" Value="#262624" />
+      <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
       <Setter Property="CornerRadius" Value="4" />
       <Setter Property="Padding" Value="6,1,6,2" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Border.tag > TextBlock">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
-      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
     <Style Selector="Border.tag.installed">
-      <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
     </Style>
     <Style Selector="Border.tag.installed > TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="Border.tag.newer">
       <Setter Property="Background" Value="#262A78D6" />
     </Style>
     <Style Selector="Border.tag.newer > TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource LinkBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource LinkBrush}" />
     </Style>
     <Style Selector="c|Icon.chev">
       <Setter Property="RenderTransform" Value="rotate(0deg)" />
@@ -98,8 +92,8 @@
       <Setter Property="RenderTransform" Value="rotate(90deg)" />
     </Style>
     <Style Selector="Border.field">
-      <Setter Property="Background" Value="#202020" />
-      <Setter Property="BorderBrush" Value="#383838" />
+      <Setter Property="Background" Value="{DynamicResource BgFieldBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderFieldBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Height" Value="31" />
@@ -108,8 +102,8 @@
     </Style>
   </UserControl.Styles>
 
-  <Border Background="#1A1A18"
-          BorderBrush="#262624"
+  <Border Background="{DynamicResource BgSettingsBrush}"
+          BorderBrush="{DynamicResource BorderSettingsBrush}"
           BorderThickness="1"
           CornerRadius="12"
           MaxWidth="1278"
@@ -120,7 +114,7 @@
     <Grid ColumnDefinitions="211,*">
 
       <!-- Navigation -->
-      <Border Background="{StaticResource BgMainBrush}" BorderBrush="#2C2C2C" BorderThickness="0,0,1,0">
+      <Border Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="0,0,1,0">
         <StackPanel Margin="12,0" Spacing="1">
           <TextBlock Text="Settings" Classes="section" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,30,0,10" />
           <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsGeneralPage}" Command="{Binding ShowGeneralCommand}">
@@ -152,6 +146,21 @@
             <!-- General -->
             <StackPanel IsVisible="{Binding IsGeneralPage}">
               <TextBlock Text="Appearance" Classes="pagetitle" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Theme" Classes="rowlabel" />
+                  <TextBlock Text="System follows the Windows app mode." Classes="rowhint" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="segments">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="Theme" IsChecked="{Binding IsThemeDark}" Content="Dark" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="Theme" IsChecked="{Binding IsThemeLight}" Content="Light" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="Theme" IsChecked="{Binding IsThemeSystem}" Content="System" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+              <Border Classes="rowline" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -253,6 +262,33 @@
                         VerticalAlignment="Center"
                         Command="{Binding ToggleCloseToTrayCommand}">
                   <Border Classes="switch" Classes.on="{Binding CloseToTray}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Notifications" Classes="rowlabel" />
+                  <TextBlock Text="A Windows notification when a session finishes or needs an answer while Nomad.ai is in the background. Click it to come back."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleNotifyWhenDoneCommand}">
+                  <Border Classes="switch" Classes.on="{Binding NotifyWhenDone}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Flash the taskbar" Classes="rowlabel" />
+                  <TextBlock Text="The taskbar button flashes then too, until you bring the window up." Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFlashTaskbarCommand}">
+                  <Border Classes="switch" Classes.on="{Binding FlashTaskbar}">
                     <Ellipse />
                   </Border>
                 </Button>
@@ -388,7 +424,7 @@
                   <TextBlock Text="In these folders Nomad keeps Claude Code's Remote Control server running, so the Claude app and claude.ai/code can start new sessions here. They appear under Alive with a phone icon."
                              Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
                 </StackPanel>
-                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddPhoneFolderClick" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}">
+                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddPhoneFolderClick" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <c:Icon Size="13" Data="{StaticResource IconPlus}" />
                     <TextBlock Text="Add folder…" FontWeight="Medium" />
@@ -401,17 +437,17 @@
                   <DataTemplate x:DataType="vm:PhoneFolderRow">
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6">
                       <Ellipse Width="7" Height="7" Margin="2,0,10,0" VerticalAlignment="Center"
-                               Fill="{StaticResource TextMutedBrush}"
+                               Fill="{DynamicResource TextMutedBrush}"
                                IsVisible="{Binding !IsReady}" />
                       <Ellipse Width="7" Height="7" Margin="2,0,10,0" VerticalAlignment="Center"
-                               Fill="{StaticResource SuccessBrush}"
+                               Fill="{DynamicResource SuccessBrush}"
                                IsVisible="{Binding IsReady}" />
                       <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Folder}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" />
                         <TextBlock Text="{Binding Status}" Classes="rowhint" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" />
                       </StackPanel>
                       <Button Grid.Column="2" Theme="{StaticResource LineButton}" Margin="10,0,0,0" VerticalAlignment="Center"
-                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
                               IsVisible="{Binding NeedsSetup}"
                               Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SetUpPhoneFolderCommand}"
                               CommandParameter="{Binding}"
@@ -419,7 +455,7 @@
                         <TextBlock Text="Set up" FontWeight="Medium" />
                       </Button>
                       <Button Grid.Column="3" Theme="{StaticResource LineButton}" Margin="10,0,0,0" VerticalAlignment="Center"
-                              Foreground="{StaticResource TextPrimaryBrush}"
+                              Foreground="{DynamicResource TextPrimaryBrush}"
                               IsVisible="{Binding CanRetry}"
                               Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RetryPhoneFolderCommand}"
                               CommandParameter="{Binding}">
@@ -529,7 +565,7 @@
                               Padding="0,11">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                           <c:Icon Classes="chev" Classes.open="{Binding IsExpanded}" Size="13" Data="{StaticResource IconChevronRight}" Margin="-3,0,0,0" />
-                          <TextBlock Text="{Binding Tag}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                          <TextBlock Text="{Binding Tag}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                           <TextBlock Text="{Binding DateText}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
                           <Border Classes="tag installed" IsVisible="{Binding IsInstalled}">
                             <TextBlock Text="installed" />
@@ -557,7 +593,7 @@
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Margin="0,14,16,0"
-                Foreground="{StaticResource TextPrimaryBrush}"
+                Foreground="{DynamicResource TextPrimaryBrush}"
                 Click="OnCloseClick"
                 ToolTip.Tip="Close (Esc)">
           <c:Icon Data="{StaticResource IconClose}" StrokeThickness="1.6" />

@@ -16,6 +16,9 @@ public sealed class NomadSettings
     /// <summary>Small | Medium | Large (sidebar, menus, status row: 12 / 13 / 14 px).</summary>
     public string InterfaceTextSize { get; set; } = "Medium";
 
+    /// <summary>Dark | Light | System (follows the Windows app mode).</summary>
+    public string Theme { get; set; } = "Dark";
+
     /// <summary>Narrow | Medium | Wide (760 / 1000 / 1280 px column; Wide matches the original).</summary>
     public string TranscriptWidth { get; set; } = "Wide";
 
@@ -30,6 +33,12 @@ public sealed class NomadSettings
 
     /// <summary>Closing the window hides it to the notification area instead; the tray icon's menu (or the app menu) exits.</summary>
     public bool CloseToTray { get; set; }
+
+    /// <summary>A Windows notification when a session finishes or needs an answer while Nomad.ai is in the background.</summary>
+    public bool NotifyWhenDone { get; set; } = true;
+
+    /// <summary>The taskbar button flashes then, until the window is brought up.</summary>
+    public bool FlashTaskbar { get; set; } = true;
 
     // Claude Code's slash commands, as the last CLI listed them: offered when "/" is typed before a process runs.
     public List<Protocol.SlashCommand> SlashCommands { get; set; } = [];
@@ -112,6 +121,12 @@ public sealed class NomadSettings
     /// <summary>The sidebar's width, dragged at its right edge (240–560).</summary>
     public double SidebarWidth { get; set; } = 375;
     public List<string> RecentFolders { get; set; } = [];
+
+    /// <summary>Folders pinned on the new-session page: always shown there, first, in pin order.</summary>
+    public List<string> PinnedFolders { get; set; } = [];
+
+    /// <summary>New sessions in a git repository start in a new worktree of it.</summary>
+    public bool NewSessionWorktree { get; set; }
     public string? LastFolder { get; set; }
 
     /// <summary>What was typed on the new-session page and not sent, put back at the next start.</summary>

@@ -188,9 +188,16 @@ public static class AutoScroll
     /// <summary>The anchor: a small disc with an arrow up and down, faded in over 150 ms.</summary>
     private sealed class Marker(Point anchor, Stopwatch clock) : Control
     {
-        private static readonly IBrush Fill = new SolidColorBrush(Color.Parse("#E6262626"));
-        private static readonly IPen Edge = new Pen(new SolidColorBrush(Color.Parse("#5A5A5A")), 1);
-        private static readonly IBrush Arrow = new SolidColorBrush(Color.Parse("#E8E8E8"));
+        private static IBrush Fill => ThemeBrush("JumpFillBrush", "#E6262626");
+
+        private static IPen Edge => new Pen(ThemeBrush("JumpEdgeBrush", "#5A5A5A"), 1);
+
+        private static IBrush Arrow => ThemeBrush("JumpArrowBrush", "#E8E8E8");
+
+        private static IBrush ThemeBrush(string key, string fallback) =>
+            Application.Current is { } app && app.TryGetResource(key, app.ActualThemeVariant, out var value) && value is IBrush brush
+                ? brush
+                : new SolidColorBrush(Color.Parse(fallback));
 
         public override void Render(DrawingContext context)
         {

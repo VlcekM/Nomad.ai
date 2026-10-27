@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Primitives;
 using Avalonia.Markup.Xaml;
 using Nomad.App.Markdown;
 using Nomad.App.ViewModels;
@@ -14,6 +15,27 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+
+        // Tooltips sit just above their control (not at the pointer, where they would cover the next chip over).
+        // Set as each one opens, unless the control chose a placement itself.
+        ToolTip.ToolTipOpeningEvent.AddClassHandler<Control>((control, _) =>
+        {
+            if (!control.IsSet(ToolTip.PlacementProperty))
+            {
+                ToolTip.SetPlacement(control, PlacementMode.Top);
+                ToolTip.SetVerticalOffset(control, -6);
+            }
+        });
+
+        // A tooltip goes as soon as the pointer leaves its control, even onto the tooltip itself (which can cover the
+        // next chip over): Avalonia would otherwise keep it open while the pointer is on it.
+        Avalonia.Input.InputElement.PointerExitedEvent.AddClassHandler<Control>((control, _) =>
+        {
+            if (ToolTip.GetIsOpen(control))
+            {
+                ToolTip.SetIsOpen(control, false);
+            }
+        });
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -23,6 +45,10 @@ public partial class App : Application
             var settings = Program.Settings;
             Infrastructure.ClaudeFonts.Register();
             Infrastructure.WorkingMarkSheets.LoadInBackground();
+
+            // Notifications' app id; the click-through protocol only for a real start (never a scratch dev build).
+            var realStart = !Program.Dev.IsActive;
+            _ = Task.Run(() => Infrastructure.WindowsToast.Register(protocol: realStart));
             ApplyAppearance(settings);
 
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
@@ -72,8 +98,21 @@ public partial class App : Application
         Set("BodyLineHeight", style.LineHeight);
         Set("CodeFontSize", style.CodeSize);
 
+        // Theme: the palette's resources follow at once; rendered markdown (brushes picked in code) is rebuilt.
+        var theme = settings.Theme switch
+        {
+            "Light" => Avalonia.Styling.ThemeVariant.Light,
+            "System" => Avalonia.Styling.ThemeVariant.Default,
+            _ => Avalonia.Styling.ThemeVariant.Dark,
+        };
+        var themeChanged = app.RequestedThemeVariant != theme;
+        if (themeChanged)
+        {
+            app.RequestedThemeVariant = theme;
+        }
+
         var old = MarkdownStyle.Current;
-        if (old.BodySize != style.BodySize || old.CodeSize != style.CodeSize ||
+        if (themeChanged || old.BodySize != style.BodySize || old.CodeSize != style.CodeSize ||
             old.BodyFont.Name != style.BodyFont.Name || old.CodeFont.Name != style.CodeFont.Name)
         {
             MarkdownStyle.Current = style;

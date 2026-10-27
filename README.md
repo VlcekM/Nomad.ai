@@ -236,7 +236,7 @@ read should be a free 304 from the ETag cache).
 | `--dev-after <seconds>` | …this many seconds after start (default 5) |
 | `--dev-wait-turn` | …or as soon as the first turn has finished |
 | `--dev-size <W>x<H>` | Initial window size (window placement is then not saved) |
-| `--dev-menu model\|mode\|folder\|plus\|usage\|remote\|update\|list\|row` | Open a menu (the update chip's prompt, the sidebar's list options, the first Idle row's context menu) before the screenshot |
+| `--dev-menu model\|mode\|folder\|branch\|plus\|usage\|remote\|update\|list\|row` | Open a menu (the update chip's prompt, the sidebar's list options, the first Idle row's context menu) before the screenshot |
 | `--dev-settings-open [claude\|updates]` | Open the settings dialog (or that page) before the screenshot |
 | `--dev-side-panel` | Open the side panel (not saved) |
 | `--dev-queue "<text>"` | Put a prompt in the queue above the composer (repeatable) |

@@ -54,6 +54,27 @@ public sealed partial class UsageViewModel : ObservableObject
 
     public bool IsStale => StaleText.Length > 0;
 
+    /// <summary>How much of the weekly limit is used (the ring in the status row).</summary>
+    [ObservableProperty]
+    public partial double WeeklyFraction { get; set; }
+
+    /// <summary>"Weekly · all models: 68%" (the ring's tooltip).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWeekly))]
+    public partial string WeeklyText { get; set; } = "";
+
+    public bool HasWeekly => WeeklyText.Length > 0;
+
+    /// <summary>"Resets Fri 9:00 AM".</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWeeklyResets))]
+    public partial string WeeklyResetsText { get; set; } = "";
+
+    public bool HasWeeklyResets => WeeklyResetsText.Length > 0;
+
+    [ObservableProperty]
+    public partial bool IsWeeklyHigh { get; set; }
+
     /// <summary>Fetched at least once and got nothing (API-key sign-in, offline, expired sign-in).</summary>
     [ObservableProperty]
     public partial bool IsUnavailable { get; set; }
@@ -83,6 +104,13 @@ public sealed partial class UsageViewModel : ObservableObject
             {
                 Rows.Add(Row(limit, DateTimeOffset.Now));
             }
+
+            // The status-row ring: the weekly all-models limit (the session one when there is no weekly).
+            var weekly = usage.Limits.FirstOrDefault(l => l.Kind == "weekly_all") ?? usage.Session;
+            WeeklyFraction = weekly is null ? 0 : Math.Clamp(weekly.Percent / 100.0, 0, 1);
+            WeeklyText = weekly is null ? "" : $"{weekly.Label}: {weekly.Percent}%";
+            WeeklyResetsText = weekly?.ResetsAt is { } at ? Format.ResetsAt(at) : "";
+            IsWeeklyHigh = weekly is { Severity: not "normal" };
 
             HasUsage = Rows.Count > 0;
             IsUnavailable = !HasUsage;

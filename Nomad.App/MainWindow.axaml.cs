@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -35,6 +36,40 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+
+        // A session done or waiting while the window is in the background: a notification and/or a flashing taskbar button.
+        vm.TurnCompleted += session =>
+        {
+            if (session.Queued.Count == 0)
+            {
+                var reply = session.Items.OfType<AssistantTextItem>().LastOrDefault()?.Text;
+                CallForAttention(session.Title, string.IsNullOrWhiteSpace(reply) ? "Finished" : Nomad.Core.Sessions.SessionTitles.Shorten(reply, 140));
+            }
+        };
+        vm.PermissionRequested += session => CallForAttention(
+            session.Title,
+            session.PendingPermission is QuestionItem ? "Claude has a question for you" : session.PendingPermission?.Title ?? "Needs your answer");
+
+        // The mouse's back and forward buttons go back and forward between sessions, as the title bar's arrows do.
+        AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            var button = e.GetCurrentPoint(this).Properties.PointerUpdateKind;
+            var command = button switch
+            {
+                PointerUpdateKind.XButton1Pressed => vm.GoBackCommand,
+                PointerUpdateKind.XButton2Pressed => vm.GoForwardCommand,
+                _ => null,
+            };
+            if (command is not null)
+            {
+                if (command.CanExecute(null))
+                {
+                    command.Execute(null);
+                }
+
+                e.Handled = true;
+            }
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
 
         // Ctrl+B on the way down, so it works while the composer (a TextBox) has focus.
         AddHandler(KeyDownEvent, (_, e) =>
@@ -413,6 +448,40 @@ public partial class MainWindow : Window
     /// <summary>Nomad.ai was launched again: this window shows, restored and in front.</summary>
     public void BringToFront() => ShowFromTray();
 
+    /// <summary>Only while Nomad.ai is not the window in front (minimized, in the tray or behind another app).</summary>
+    private void CallForAttention(string? title, string text)
+    {
+        if (IsActive && IsVisible && WindowState != WindowState.Minimized)
+        {
+            return;
+        }
+
+        if (_vm.Settings.NotifyWhenDone)
+        {
+            Infrastructure.WindowsToast.Show(string.IsNullOrWhiteSpace(title) ? "Nomad.ai" : title, text);
+        }
+
+        if (_vm.Settings.FlashTaskbar && IsVisible && TryGetPlatformHandle()?.Handle is { } hwnd)
+        {
+            // Flashes until the window comes to the front.
+            var info = new FlashInfo { Size = (uint)Marshal.SizeOf<FlashInfo>(), Window = hwnd, Flags = 0x2 | 0xC, Count = uint.MaxValue };
+            FlashWindowEx(ref info);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FlashInfo
+    {
+        public uint Size;
+        public IntPtr Window;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool FlashWindowEx(ref FlashInfo info);
+
     private void ShowFromTray()
     {
         Show();
@@ -643,6 +712,7 @@ public partial class MainWindow : Window
                 {
                     case "textSize": page.TextSize = value; break;
                     case "width": page.TranscriptWidth = value; break;
+                    case "theme": page.Theme = value; break;
                 }
             }
 

@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <Style Selector="Window">
-    <Setter Property="Background" Value="{StaticResource BgMainBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgMainBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource UiFont}" />
     <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
   </Style>
@@ -18,31 +18,31 @@
 
   <!-- Text roles -->
   <Style Selector="TextBlock.muted">
-    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
   </Style>
   <!-- A plan limit that, at the rate so far, runs out before it resets. -->
   <Style Selector="TextBlock.muted.warn">
-    <Setter Property="Foreground" Value="{StaticResource WaitingBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource WaitingBrush}" />
   </Style>
   <!-- A plan limit that is close to (or past) running out. -->
   <Style Selector="c|FillSlider.high">
-    <Setter Property="FillBrush" Value="{StaticResource DangerBrush}" />
+    <Setter Property="FillBrush" Value="{DynamicResource DangerBrush}" />
   </Style>
   <Style Selector="TextBlock.chrome">
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
   </Style>
   <Style Selector="TextBlock.secondary">
-    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
   </Style>
   <Style Selector="TextBlock.section">
     <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
-    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
   </Style>
   <Style Selector="TextBlock.label">
     <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="LetterSpacing" Value="0.6" />
-    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
   </Style>
   <Style Selector="TextBlock.mono, SelectableTextBlock.mono">
     <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
@@ -51,6 +51,12 @@
 
   <Style Selector="SelectableTextBlock">
     <Setter Property="SelectionBrush" Value="#553A6EA5" />
+  </Style>
+
+  <!-- The working line's shimmer: muted text with a bright (dark: light, light: dark) band passing over it. -->
+  <Style Selector="c|Shimmer">
+    <Setter Property="BaseColor" Value="{DynamicResource ShimmerBaseColor}" />
+    <Setter Property="HighlightColor" Value="{DynamicResource ShimmerHighlightColor}" />
   </Style>
 
   <!-- Scrollbars appear while the pointer is over the scroll area (or while scrolling). -->
@@ -68,8 +74,8 @@
 
   <!-- Popup menus -->
   <Style Selector="FlyoutPresenter.menu">
-    <Setter Property="Background" Value="{StaticResource BgMenuBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="9" />
     <Setter Property="Padding" Value="5" />
@@ -88,11 +94,11 @@
     <Setter Property="Width" Value="24" />
     <Setter Property="Height" Value="14" />
     <Setter Property="CornerRadius" Value="7" />
-    <Setter Property="Background" Value="#4A4A48" />
+    <Setter Property="Background" Value="{DynamicResource SwitchOffBrush}" />
     <Setter Property="Padding" Value="2" />
   </Style>
   <Style Selector="Border.switch.on">
-    <Setter Property="Background" Value="{StaticResource RingBrush}" />
+    <Setter Property="Background" Value="{DynamicResource RingBrush}" />
   </Style>
   <Style Selector="Border.switch > Ellipse">
     <Setter Property="Width" Value="10" />
@@ -106,17 +112,17 @@
 
   <Style Selector="Border.rule">
     <Setter Property="Height" Value="1" />
-    <Setter Property="Background" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}" />
     <Setter Property="Margin" Value="6,4" />
   </Style>
 
   <!-- Tooltips -->
   <Style Selector="ToolTip">
-    <Setter Property="Background" Value="{StaticResource BgMenuBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="6" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
     <Setter Property="Padding" Value="8,5" />
   </Style>

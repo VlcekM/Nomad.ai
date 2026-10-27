@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
+using Nomad.Core.Git;
 using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
@@ -86,6 +87,9 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ComposerPlaceholder))]
     [NotifyPropertyChangedFor(nameof(TitleOrPlaceholder))]
     [NotifyPropertyChangedFor(nameof(HasTitle))]
+    [NotifyPropertyChangedFor(nameof(ShowWorktreeToggle))]
+    [NotifyPropertyChangedFor(nameof(GitChipText))]
+    [NotifyPropertyChangedFor(nameof(GitChipToolTip))]
     public partial bool IsNew { get; set; } = true;
 
     [ObservableProperty]
@@ -94,7 +98,149 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FolderToolTip))]
     public partial string? Folder { get; set; }
 
-    public string FolderName => Format.FolderName(Folder);
+    public string FolderName => MainViewModel.ProjectName(Folder);
+
+    /// <summary>The folder is in a git repository: the git chip shows, and a new session can start in a worktree.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowWorktreeToggle))]
+    public partial bool IsGitFolder { get; set; }
+
+    public bool ShowWorktreeToggle => IsNew && IsGitFolder;
+
+    /// <summary>The folder's checked-out branch.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GitChipText))]
+    public partial string GitBranch { get; set; } = "";
+
+    /// <summary>A new session's worktree starts from this branch (null: the one checked out).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GitChipText))]
+    public partial string? WorktreeFrom { get; set; }
+
+    /// <summary>
+    /// The git chip: a new session shows the branch it starts on (with Worktree on, the one the worktree starts from);
+    /// a running one its worktree, if any, and branch.
+    /// </summary>
+    public string GitChipText =>
+        IsNew ? (UseWorktree ? WorktreeFrom ?? GitBranch : GitBranch)
+        : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"worktree · {GitBranch}"
+        : GitBranch;
+
+    public string GitChipToolTip =>
+        IsNew ? (UseWorktree ? "The branch the new worktree starts from" : "Switch branch")
+        : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"Worktree {Folder}, branch {GitBranch}"
+        : $"Branch {GitBranch}";
+
+    /// <summary>The branch menu: the local branches, newest first, filtered by <see cref="BranchFilter"/>.</summary>
+    public ObservableCollection<MenuOption> MenuBranches { get; } = [];
+
+    private IReadOnlyList<string> _branches = [];
+
+    [ObservableProperty]
+    public partial string BranchFilter { get; set; } = "";
+
+    /// <summary>Why the last branch switch failed (shown in the branch menu).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasBranchError))]
+    public partial string BranchError { get; set; } = "";
+
+    public bool HasBranchError => BranchError.Length > 0;
+
+    partial void OnBranchFilterChanged(string value) => FillBranches();
+
+    /// <summary>Reads the branches for the branch menu.</summary>
+    public async Task LoadBranchesAsync()
+    {
+        BranchError = "";
+        BranchFilter = "";
+        _branches = Folder is { } folder ? await GitInfo.BranchesAsync(folder) : [];
+        FillBranches();
+    }
+
+    private void FillBranches()
+    {
+        var selected = UseWorktree ? WorktreeFrom ?? GitBranch : GitBranch;
+        var query = BranchFilter.Trim();
+        MenuBranches.Clear();
+        foreach (var b in _branches.Where(b => query.Length == 0 || b.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(30))
+        {
+            MenuBranches.Add(new MenuOption(b, b) { IsSelected = b == selected });
+        }
+    }
+
+    /// <summary>
+    /// A branch picked in the menu: with Worktree on, the new worktree starts from it (the folder stays as it is);
+    /// otherwise the folder switches to it. True when done; false leaves git's reason in <see cref="BranchError"/>.
+    /// </summary>
+    public async Task<bool> PickBranchAsync(string branch)
+    {
+        if (!IsNew || Folder is not { } folder)
+        {
+            return false;
+        }
+
+        if (UseWorktree)
+        {
+            WorktreeFrom = branch == GitBranch ? null : branch;
+            OnPropertyChanged(nameof(GitChipToolTip));
+            return true;
+        }
+
+        if (branch == GitBranch)
+        {
+            return true;
+        }
+
+        if (await GitInfo.SwitchBranchAsync(folder, branch) is { } error)
+        {
+            BranchError = error;
+            return false;
+        }
+
+        await RefreshGitAsync();
+        _ = _main.ProjectFor(folder).LoadAsync(refresh: true);
+        return true;
+    }
+
+    /// <summary>Reads the folder's branch again (on a folder change, and after each turn: Claude may switch it).</summary>
+    public async Task RefreshGitAsync()
+    {
+        var folder = Folder;
+        var status = folder is null ? null : await GitInfo.GetAsync(folder, 1, refresh: true);
+        if (folder != Folder)
+        {
+            return;
+        }
+
+        IsGitFolder = status is not null;
+        GitBranch = status?.Branch ?? "";
+        OnPropertyChanged(nameof(GitChipToolTip));
+    }
+
+    /// <summary>Start the new session in a new worktree of the folder's repository (kept for the next ones too).</summary>
+    public bool UseWorktree
+    {
+        get => _main.Settings.NewSessionWorktree;
+        set
+        {
+            if (_main.Settings.NewSessionWorktree != value)
+            {
+                _main.Settings.NewSessionWorktree = value;
+                _main.SaveSettings();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(GitChipText));
+                OnPropertyChanged(nameof(GitChipToolTip));
+                OnPropertyChanged(nameof(BranchMenuHeader));
+                OnPropertyChanged(nameof(WorktreeToolTip));
+            }
+        }
+    }
+
+    public string WorktreeToolTip => UseWorktree
+        ? "Worktree on: starts in a new git worktree (.claude\\worktrees) on its own branch"
+        : "Worktree off: starts in the folder itself";
+
+    public string BranchMenuHeader => UseWorktree ? "Worktree starts from" : "Switch branch";
 
     public bool HasFolder => !string.IsNullOrEmpty(Folder);
 
@@ -249,6 +395,13 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsNoFolder));
         SyncFolderSelection();
+        if (IsNew)
+        {
+            WorktreeFrom = null;
+        }
+
+        _ = RefreshGitAsync();
+
         if (_main.IsSidePanelOpen)
         {
             RefreshPanel();
@@ -312,10 +465,35 @@ public sealed partial class SessionViewModel : ObservableObject
     private bool IsFolder(string path) =>
         Folder is not null && string.Equals(path.TrimEnd('\\', '/'), Folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>The project cards: the six latest folders (shared with the app, so their git state is kept), refreshed.</summary>
+    /// <summary>Pins a project card to the top of the new-session page, or unpins it.</summary>
+    public void TogglePin(ProjectViewModel project)
+    {
+        var pinned = _main.Settings.PinnedFolders;
+        var key = project.Path.TrimEnd('\\', '/');
+        if (pinned.RemoveAll(f => string.Equals(f.TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase)) == 0)
+        {
+            pinned.Add(project.Path);
+        }
+
+        _main.SaveSettings();
+        RefreshProjects(_main.RecentFolders);
+    }
+
+    /// <summary>
+    /// The project cards (shared with the app, so their git state is kept), refreshed: the pinned folders first,
+    /// then the latest ones up to six cards in all.
+    /// </summary>
     private void RefreshProjects(IReadOnlyList<string> folders)
     {
-        var wanted = folders.Take(6).Select(_main.ProjectFor).ToList();
+        var pinned = _main.Settings.PinnedFolders.Where(Directory.Exists).ToList();
+        bool IsPinned(string f) => pinned.Any(p => string.Equals(p.TrimEnd('\\', '/'), f.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
+        var recent = folders.Where(f => !IsPinned(f)).Take(Math.Max(0, 6 - pinned.Count));
+        var wanted = pinned.Concat(recent).Select(_main.ProjectFor).ToList();
+        foreach (var p in wanted)
+        {
+            p.IsPinned = IsPinned(p.Path);
+        }
+
         if (!wanted.SequenceEqual(Projects))
         {
             Projects.Clear();
@@ -388,6 +566,9 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         switch (e)
         {
+            case AssistantMessageStartedEvent { ParentToolUseId: { } parent } m when _subagentById.TryGetValue(parent, out var agent):
+                agent.SetModel(m.Model);
+                return true;
             case TextDeltaEvent { ParentToolUseId: { } parent } t when _subagentById.TryGetValue(parent, out var agent):
                 agent.AppendText(t.MessageId, t.Index, t.Text);
                 return true;
@@ -944,9 +1125,11 @@ public sealed partial class SessionViewModel : ObservableObject
         var images = attachments.Where(a => a.IsImage).ToList();
         var files = attachments.Where(a => a.IsFile).ToList();
         var first = IsNew;
+        var firstTitle = SessionTitles.Shorten(text.Length > 0 ? text : files.Count > 0 ? files[0].Name : "Image");
         if (first)
         {
-            Title = SessionTitles.Shorten(text.Length > 0 ? text : files.Count > 0 ? files[0].Name : "Image");
+            Title = text.Length > 0 ? UntitledTitle : firstTitle;
+            _worktreePending = UseWorktree && IsGitFolder && Folder is not null;
             IsNew = false;
         }
 
@@ -967,15 +1150,22 @@ public sealed partial class SessionViewModel : ObservableObject
 
         try
         {
+            // Worktree on: the session works in a new worktree of the repository (tried again with the next prompt if git failed).
+            if (_worktreePending && Folder is { } repo)
+            {
+                Folder = await GitInfo.AddWorktreeAsync(repo, WorktreeFrom);
+                _worktreePending = false;
+            }
+
             await EnsureBackendAsync();
             await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image!).ToList());
 
             // The process now holds the rewind / fork point and the transcript will record it.
             _resumeAt = null;
             _forkFrom = null;
-            if (first)
+            if (first && Title == UntitledTitle)
             {
-                _ = GenerateTitleAsync(_backend, text);
+                _ = GenerateTitleAsync(_backend, text, firstTitle);
             }
 
             // A new session gets its bridge once the prompt gave it a name.
@@ -983,6 +1173,11 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         catch (Exception ex)
         {
+            if (Title == UntitledTitle)
+            {
+                Title = firstTitle; // No CLI to name it.
+            }
+
             IsTurnRunning = false;
             State = AgentState.Error;
             Items.Add(new ErrorItem(ex.Message));
@@ -991,23 +1186,36 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    /// <summary>Like the original app: a short generated title replaces the first prompt (and is stored with the session).</summary>
-    private async Task GenerateTitleAsync(IAgentBackend backend, string prompt)
+    /// <summary>
+    /// As the desktop app does: once, from the first prompt (trimmed, at most 2000 characters), the CLI generates a short
+    /// title (stored with the session as its ai-title). "Untitled session" shows meanwhile; the shortened prompt if it
+    /// fails. A rename in the meantime wins, and with CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC set nothing is asked.
+    /// </summary>
+    private async Task GenerateTitleAsync(IAgentBackend backend, string prompt, string fallback)
     {
+        string? title = null;
         try
         {
-            var title = await backend.GenerateTitleAsync(prompt, persist: true);
-            if (!string.IsNullOrWhiteSpace(title))
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC")))
             {
-                Title = title;
-                _main.OnSessionTitleChanged(this);
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                title = SessionTitles.Clean(await backend.GenerateTitleAsync(SessionTitles.Description(prompt), persist: true, timeout.Token));
             }
         }
         catch (Exception)
         {
-            // The first-prompt title stays.
+            // The shortened prompt stands in.
+        }
+
+        if (Title == UntitledTitle && RenamedTitle is null)
+        {
+            Title = title ?? fallback;
+            _main.OnSessionTitleChanged(this);
         }
     }
+
+    /// <summary>A new session's title until its generated one arrives.</summary>
+    public const string UntitledTitle = "Untitled session";
 
     [RelayCommand]
     public async Task StopAsync()
@@ -1098,6 +1306,21 @@ public sealed partial class SessionViewModel : ObservableObject
         await ApplyEffortAsync(_main.EffortFor(id));
     }
 
+    /// <summary>A mode was picked on this session (so the default no longer applies to it).</summary>
+    private bool _modePicked;
+
+    /// <summary>
+    /// The new-session page is kept between visits: until a mode is picked on it, it follows the default mode, also
+    /// when that changes in the settings meanwhile.
+    /// </summary>
+    public void ApplyDefaultMode()
+    {
+        if (IsNew && !_modePicked)
+        {
+            PermissionMode = _main.Settings.DefaultPermissionMode;
+        }
+    }
+
     [RelayCommand]
     public async Task SelectModeAsync(string id)
     {
@@ -1107,6 +1330,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         PermissionMode = id;
+        _modePicked = true;
         if (_backend is { IsProcessRunning: true } backend)
         {
             _suppressModeSync = true;
@@ -1265,6 +1489,9 @@ public sealed partial class SessionViewModel : ObservableObject
         RemoteControlUrl = null;
         RemoteControlState = "";
     }
+
+    /// <summary>The first prompt went out with Worktree on and the worktree is still to be made.</summary>
+    private bool _worktreePending;
 
     public void SetFolder(string? folder)
     {
@@ -2109,7 +2336,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         AgentMeta = string.Join(" · ", parts);
-        var context = result.InputTokens + result.CacheReadTokens + result.CacheCreationTokens + result.OutputTokens;
+        var context = result.ContextTokens;
         if (context > 0)
         {
             ContextTokens = context;
@@ -2119,7 +2346,8 @@ public sealed partial class SessionViewModel : ObservableObject
         ContentChanged?.Invoke();
         _main.OnTurnCompleted(this);
 
-        // Claude may have edited or committed: the panel's git state is stale.
+        // Claude may have edited, committed or switched branches: the git chip and the panel's git state are stale.
+        _ = RefreshGitAsync();
         if (_main.IsSidePanelOpen && ReferenceEquals(_main.Current, this))
         {
             RefreshPanel(refresh: true);

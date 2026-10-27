@@ -64,6 +64,14 @@ public static class Catalog
             }
         }
 
+        // Other ids ("claude-haiku-4-5-20251001") and the aliases an Agent call names ("sonnet"): "Haiku 4.5", "Sonnet".
+        var named = System.Text.RegularExpressions.Regex.Match(id, @"^(?:claude-)?([a-z]+)(?:-(\d+)-(\d+))?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (named.Success)
+        {
+            var family = Format.Capitalize(named.Groups[1].Value.ToLowerInvariant());
+            return named.Groups[2].Success ? $"{family} {named.Groups[2].Value}.{named.Groups[3].Value}" : family;
+        }
+
         return id;
     }
 

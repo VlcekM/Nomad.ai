@@ -48,11 +48,14 @@ public sealed partial class SettingsViewModel : ObservableObject
         TextSize = s.TextSize;
         InterfaceTextSize = s.InterfaceTextSize;
         TranscriptWidth = s.TranscriptWidth;
+        Theme = s.Theme;
         CliPath = s.CliPath;
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
         CloseToTray = s.CloseToTray;
+        NotifyWhenDone = s.NotifyWhenDone;
+        FlashTaskbar = s.FlashTaskbar;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
@@ -127,6 +130,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string DisplayName { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsThemeDark), nameof(IsThemeLight), nameof(IsThemeSystem))]
+    public partial string Theme { get; set; }
+
+    public bool IsThemeDark { get => Theme is not ("Light" or "System"); set => SetIf(value, () => Theme = "Dark"); }
+
+    public bool IsThemeLight { get => Theme == "Light"; set => SetIf(value, () => Theme = "Light"); }
+
+    public bool IsThemeSystem { get => Theme == "System"; set => SetIf(value, () => Theme = "System"); }
+
+    partial void OnThemeChanged(string value) => Apply(s => s.Theme = value, appearance: true);
+
     public bool IsTextSmall { get => TextSize == "Small"; set => SetIf(value, () => TextSize = "Small"); }
 
     public bool IsTextMedium { get => TextSize is not ("Small" or "Large"); set => SetIf(value, () => TextSize = "Medium"); }
@@ -192,7 +207,14 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnDefaultModelChanged(ModelOption value) => Apply(s => s.DefaultModel = value.Id, appearance: false);
 
-    partial void OnDefaultModeChanged(ModeOption value) => Apply(s => s.DefaultPermissionMode = value.Id, appearance: false);
+    partial void OnDefaultModeChanged(ModeOption value)
+    {
+        Apply(s => s.DefaultPermissionMode = value.Id, appearance: false);
+        if (_loaded)
+        {
+            _main.OnDefaultModeChanged();
+        }
+    }
 
     partial void OnDefaultEffortChanged(EffortOption value) => Apply(
         s =>
@@ -246,6 +268,22 @@ public sealed partial class SettingsViewModel : ObservableObject
             _main.OnCloseToTrayChanged();
         }
     }
+
+    [ObservableProperty]
+    public partial bool NotifyWhenDone { get; set; }
+
+    [RelayCommand]
+    private void ToggleNotifyWhenDone() => NotifyWhenDone = !NotifyWhenDone;
+
+    partial void OnNotifyWhenDoneChanged(bool value) => Apply(s => s.NotifyWhenDone = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool FlashTaskbar { get; set; }
+
+    [RelayCommand]
+    private void ToggleFlashTaskbar() => FlashTaskbar = !FlashTaskbar;
+
+    partial void OnFlashTaskbarChanged(bool value) => Apply(s => s.FlashTaskbar = value, appearance: false);
 
     /// <summary>Folders the phone can start sessions in, each with its server's state.</summary>
     public ObservableCollection<PhoneFolderRow> PhoneFolders { get; } = [];

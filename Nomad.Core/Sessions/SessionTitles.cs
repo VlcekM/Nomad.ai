@@ -77,4 +77,28 @@ public static class SessionTitles
         sb.Length = maxLength;
         return sb.ToString().TrimEnd() + "…";
     }
+
+    /// <summary>What a title is generated from, as the desktop app sends it: the first prompt trimmed, at most 2000 characters (no half surrogate pair at the end).</summary>
+    public static string Description(string prompt)
+    {
+        var text = prompt.Trim();
+        if (text.Length > 2000)
+        {
+            text = text[..2000];
+        }
+
+        return text.Length > 0 && char.IsHighSurrogate(text[^1]) ? text[..^1] : text;
+    }
+
+    /// <summary>A generated title cleaned as the desktop app does: NFKC, whitespace collapsed; null when empty or over 200 characters.</summary>
+    public static string? Clean(string? title)
+    {
+        if (title is null)
+        {
+            return null;
+        }
+
+        var text = string.Join(' ', title.Normalize(NormalizationForm.FormKC).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        return text.Length is 0 or > 200 ? null : text;
+    }
 }

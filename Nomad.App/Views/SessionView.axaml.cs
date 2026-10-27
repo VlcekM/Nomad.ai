@@ -37,8 +37,13 @@ public partial class SessionView : UserControl
         // of its own or selected some text.
         AddHandler(PointerReleasedEvent, OnPageClicked, RoutingStrategies.Bubble, handledEventsToo: true);
 
-        // Below this width the full row (folder, mode, four model chips, effort, ring) would not fit.
-        SizeChanged += (_, e) => StatusRow.Classes.Set("narrow", e.NewSize.Width < 940);
+        // Below these widths the full row (folder, git, mode, four model chips, effort, ring) would not fit: first the
+        // other model chips go, then the branch name and the effort's name.
+        SizeChanged += (_, e) =>
+        {
+            StatusRow.Classes.Set("narrow", e.NewSize.Width < 1100);
+            StatusRow.Classes.Set("tight", e.NewSize.Width < 880);
+        };
         if (UsageChip.Flyout is { } usage)
         {
             usage.Opened += (_, _) => _ = Vm?.Usage.RefreshAsync();
@@ -374,6 +379,9 @@ public partial class SessionView : UserControl
             case "remote":
                 RemoteChip.Flyout?.ShowAt(RemoteChip);
                 break;
+            case "branch":
+                OnBranchChipClick(BranchChip, new RoutedEventArgs());
+                break;
         }
     }
 
@@ -431,6 +439,107 @@ public partial class SessionView : UserControl
         {
             Vm?.SetFolder(project.Path);
             FocusComposerSoon();
+        }
+    }
+
+    private void OnWorktreeClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm)
+        {
+            vm.UseWorktree = !vm.UseWorktree;
+        }
+    }
+
+    /// <summary>The git chip opens the branch menu on a new session; a running one keeps its branch (the tooltip says which).</summary>
+    private async void OnBranchChipClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is { IsNew: true } vm)
+        {
+            await vm.LoadBranchesAsync();
+            FlyoutBase.ShowAttachedFlyout(BranchChip);
+        }
+    }
+
+    private async void OnBranchOptionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option } && Vm is { } vm && await vm.PickBranchAsync(option.Id))
+        {
+            FlyoutBase.GetAttachedFlyout(BranchChip)?.Hide();
+            FocusComposerSoon();
+        }
+    }
+
+    /// <summary>Pins or unpins a card; the cards glide to their new places (220 ms, cubic ease-out), new ones fade in.</summary>
+    private void OnPinClick(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is not Control { DataContext: ProjectViewModel project } || Vm is not { } vm)
+        {
+            return;
+        }
+
+        var before = new Dictionary<object, Point>();
+        foreach (var c in ProjectCards.GetRealizedContainers())
+        {
+            if (c.DataContext is { } item && c.TranslatePoint(default, ProjectCards) is { } p)
+            {
+                before[item] = p;
+            }
+        }
+
+        vm.TogglePin(project);
+        ProjectCards.UpdateLayout();
+        foreach (var c in ProjectCards.GetRealizedContainers())
+        {
+            if (c.DataContext is { } item && before.TryGetValue(item, out var from) && c.TranslatePoint(default, ProjectCards) is { } to)
+            {
+                if (from != to)
+                {
+                    Glide(c, from - to);
+                }
+            }
+            else
+            {
+                Controls.Entrance.Play(c);
+            }
+        }
+
+        static void Glide(Control control, Vector offset)
+        {
+            if (TopLevel.GetTopLevel(control) is not { } top)
+            {
+                return;
+            }
+
+            var transform = new Avalonia.Media.TranslateTransform(offset.X, offset.Y);
+            control.RenderTransform = transform;
+            control.ZIndex = 1;
+            TimeSpan? start = null;
+
+            void Step(TimeSpan time)
+            {
+                if (control.RenderTransform != transform)
+                {
+                    return;
+                }
+
+                start ??= time;
+                var t = Math.Clamp((time - start.Value).TotalMilliseconds / 220, 0, 1);
+                var rest = Math.Pow(1 - t, 3);
+                transform.X = offset.X * rest;
+                transform.Y = offset.Y * rest;
+                if (t < 1)
+                {
+                    top.RequestAnimationFrame(Step);
+                }
+                else
+                {
+                    control.RenderTransform = null;
+                    control.ZIndex = 0;
+                }
+            }
+
+            top.RequestAnimationFrame(Step);
         }
     }
 
@@ -612,6 +721,40 @@ public partial class SessionView : UserControl
         PreviewMeta.Text = $"{size.Width} × {size.Height}" + (_previews.Count > 1 ? $" · {_previewIndex + 1} of {_previews.Count}" : "");
     }
 
+    /// <summary>A thumbnail's right-click menu (a sent image, or one attached to the composer).</summary>
+    private void OnCopyImageClick(object? sender, RoutedEventArgs e)
+    {
+        var image = (sender as Control)?.DataContext switch
+        {
+            Avalonia.Media.Imaging.Bitmap bitmap => bitmap,
+            Infrastructure.Attachment { Preview: { } preview } => preview,
+            _ => null,
+        };
+        if (image is not null)
+        {
+            CopyImage(image);
+        }
+    }
+
+    private void OnCopyPreviewClick(object? sender, RoutedEventArgs e)
+    {
+        CopyPreview();
+        e.Handled = true;
+    }
+
+    private void CopyPreview()
+    {
+        if (_previews.Count > 0 && CopyImage(_previews[_previewIndex].Image))
+        {
+            // "Copied" for a moment, then back.
+            PreviewCopyText.Text = "Copied";
+            DispatcherTimer.RunOnce(() => PreviewCopyText.Text = "Copy image", TimeSpan.FromSeconds(1.5));
+        }
+    }
+
+    private bool CopyImage(Avalonia.Media.Imaging.Bitmap image) =>
+        TopLevel.GetTopLevel(this)?.TryGetPlatformHandle()?.Handle is { } owner && Infrastructure.PromptImages.CopyImage(image, owner);
+
     private void ClosePreview()
     {
         ImagePreview.Classes.Remove("open");
@@ -650,6 +793,9 @@ public partial class SessionView : UserControl
                 break;
             case Key.Right:
                 ShowPreview(_previewIndex + 1);
+                break;
+            case Key.C when e.KeyModifiers == KeyModifiers.Control:
+                CopyPreview();
                 break;
             default:
                 return;

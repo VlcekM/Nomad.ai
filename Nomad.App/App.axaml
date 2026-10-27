@@ -14,7 +14,7 @@
   </Application.Resources>
 
   <Application.Styles>
-    <!-- Fluent, dark only, with its palette recoloured from the Nomad tokens. -->
+    <!-- Fluent, with its dark and light palettes recoloured from the Nomad tokens (Theme/Palette.axaml). -->
     <FluentTheme>
       <FluentTheme.Palettes>
         <ColorPaletteResources x:Key="Dark"
@@ -46,6 +46,35 @@
                                ListLow="#0BFFFFFF"
                                ListMedium="#2B2B29"
                                ErrorText="#E0605A" />
+        <ColorPaletteResources x:Key="Light"
+                               Accent="#D97757"
+                               RegionColor="#FAF9F5"
+                               AltHigh="#FAF9F5"
+                               AltLow="#FAF9F5"
+                               AltMedium="#FAF9F5"
+                               AltMediumHigh="#FAF9F5"
+                               AltMediumLow="#FAF9F5"
+                               BaseHigh="#1F1E1D"
+                               BaseLow="#DEDCD3"
+                               BaseMedium="#7A7973"
+                               BaseMediumHigh="#3D3C38"
+                               BaseMediumLow="#A8A69F"
+                               ChromeAltLow="#1F1E1D"
+                               ChromeBlackHigh="#000000"
+                               ChromeBlackLow="#3D3C38"
+                               ChromeBlackMedium="#1F1E1D"
+                               ChromeBlackMediumLow="#3D3C38"
+                               ChromeDisabledHigh="#DEDCD3"
+                               ChromeDisabledLow="#A8A69F"
+                               ChromeGray="#7A7973"
+                               ChromeHigh="#C9C7BE"
+                               ChromeLow="#F3F2EC"
+                               ChromeMedium="#F0EEE6"
+                               ChromeMediumLow="#F5F4EF"
+                               ChromeWhite="#FFFFFF"
+                               ListLow="#0A000000"
+                               ListMedium="#E6E4DB"
+                               ErrorText="#C9433D" />
       </FluentTheme.Palettes>
     </FluentTheme>
     <StyleInclude Source="avares://Nomad.ai/Theme/Styles.axaml" />

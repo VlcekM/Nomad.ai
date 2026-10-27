@@ -11,7 +11,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="Padding" Value="6,4" />
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
@@ -34,10 +34,10 @@
       </ControlTemplate>
     </Setter>
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
     <Style Selector="^:pressed">
-      <Setter Property="Background" Value="#16FFFFFF" />
+      <Setter Property="Background" Value="{DynamicResource BgPressedBrush}" />
     </Style>
     <Style Selector="^:disabled">
       <Setter Property="Opacity" Value="0.45" />
@@ -61,9 +61,9 @@
     <Setter Property="CornerRadius" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^.close:pointerover">
-      <Setter Property="Background" Value="{StaticResource CaptionCloseHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CaptionCloseHoverBrush}" />
       <Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="^.close:pressed">
@@ -77,10 +77,10 @@
     <Setter Property="Padding" Value="10,0" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^.selected">
-      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSelectedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
   </ControlTheme>
@@ -90,17 +90,17 @@
     <Setter Property="Height" Value="24" />
     <Setter Property="Padding" Value="7,0" />
     <Setter Property="CornerRadius" Value="5" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
     </Style>
     <Style Selector="^.open">
-      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
     </Style>
     <!-- The current model among the model chips. -->
     <Style Selector="^.selected">
-      <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </ControlTheme>
 
@@ -110,7 +110,7 @@
     <Setter Property="Padding" Value="8,2" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="FontWeight" Value="Normal" />
   </ControlTheme>
 
@@ -118,12 +118,12 @@
   <ControlTheme x:Key="LineButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Padding" Value="0,2" />
     <Setter Property="CornerRadius" Value="0" />
-    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="Cursor" Value="Hand" />
     <Style Selector="^:pointerover">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     </Style>
     <Style Selector="^:pressed">
       <Setter Property="Background" Value="Transparent" />
@@ -136,12 +136,12 @@
     <Setter Property="Height" Value="24" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="5" />
-    <Setter Property="Background" Value="#373737" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgButtonBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="#424242" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgButtonHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </ControlTheme>
 
@@ -151,14 +151,14 @@
     <Setter Property="Height" Value="32" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="16" />
-    <Setter Property="Background" Value="{StaticResource BgRaisedBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSelectedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </ControlTheme>
 
@@ -168,21 +168,21 @@
     <Setter Property="Height" Value="28" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="8" />
-    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentEmphasisBrush}" />
     </Style>
     <Style Selector="^:pressed">
-      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentEmphasisBrush}" />
     </Style>
     <Style Selector="^.stop">
-      <Setter Property="Background" Value="#373737" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgButtonBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="^.stop:pointerover">
-      <Setter Property="Background" Value="#444442" />
+      <Setter Property="Background" Value="{DynamicResource BgButtonHoverBrush}" />
     </Style>
   </ControlTheme>
 
@@ -193,9 +193,9 @@
     <Setter Property="CornerRadius" Value="6" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </ControlTheme>
 
@@ -205,71 +205,71 @@
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="^.selected">
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
   </ControlTheme>
 
   <!-- Primary: accent fill, dark label. -->
   <ControlTheme x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
-    <Setter Property="Foreground" Value="{StaticResource TextOnAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Padding" Value="12,0" />
     <Setter Property="Height" Value="30" />
     <Setter Property="CornerRadius" Value="7" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentEmphasisBrush}" />
     </Style>
     <Style Selector="^:pressed">
-      <Setter Property="Background" Value="{StaticResource AccentEmphasisBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentEmphasisBrush}" />
     </Style>
   </ControlTheme>
 
   <!-- Secondary: raised fill with a border. -->
   <ControlTheme x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Background" Value="{StaticResource BgRaisedBrush}" />
-    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Padding" Value="12,0" />
     <Setter Property="Height" Value="30" />
     <Setter Property="CornerRadius" Value="7" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover">
-      <Setter Property="Background" Value="{StaticResource BgSelectedBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSelectedBrush}" />
     </Style>
   </ControlTheme>
 
   <!-- Ghost: label only; Deny turns Danger on hover. -->
   <ControlTheme x:Key="GhostButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     <Setter Property="FontWeight" Value="Medium" />
     <Setter Property="Padding" Value="12,0" />
     <Setter Property="Height" Value="30" />
     <Setter Property="CornerRadius" Value="7" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Style Selector="^.danger:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
-      <Setter Property="Background" Value="{StaticResource DangerSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+      <Setter Property="Background" Value="{DynamicResource DangerSubtleBrush}" />
     </Style>
   </ControlTheme>
 
   <!-- Text box without chrome (composer, search boxes); the host draws the frame. -->
   <ControlTheme x:Key="BareTextBox" TargetType="TextBox">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-    <Setter Property="CaretBrush" Value="White" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource TextCaretBrush}" />
     <Setter Property="Cursor" Value="IBeam" />
     <Setter Property="SelectionBrush" Value="#553A6EA5" />
-    <Setter Property="SelectionForegroundBrush" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -285,7 +285,7 @@
             <Panel>
               <TextBlock Name="PART_Watermark"
                          Text="{TemplateBinding Watermark}"
-                         Foreground="{StaticResource TextMutedBrush}"
+                         Foreground="{DynamicResource TextMutedBrush}"
                          TextWrapping="{TemplateBinding TextWrapping}"
                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                          IsHitTestVisible="False"
@@ -318,11 +318,11 @@
   <ControlTheme x:Key="ThinThumb" TargetType="Thumb">
     <Setter Property="Template">
       <ControlTemplate>
-        <Border Name="ThumbVisual" Background="{StaticResource ScrollThumbBrush}" CornerRadius="3" />
+        <Border Name="ThumbVisual" Background="{DynamicResource ScrollThumbBrush}" CornerRadius="3" />
       </ControlTemplate>
     </Setter>
     <Style Selector="^:pointerover /template/ Border#ThumbVisual">
-      <Setter Property="Background" Value="{StaticResource ScrollThumbHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ScrollThumbHoverBrush}" />
     </Style>
   </ControlTheme>
 
@@ -366,7 +366,7 @@
   <!-- Segmented control segment (settings): checked = lighter fill with a 1 px border. -->
   <ControlTheme x:Key="SegmentButton" TargetType="RadioButton">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="11,0" />
@@ -389,12 +389,12 @@
       </ControlTemplate>
     </Setter>
     <Style Selector="^:pointerover">
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="^:checked">
-      <Setter Property="Background" Value="#3C3C3A" />
-      <Setter Property="BorderBrush" Value="#4C4C4C" />
-      <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSegmentCheckedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
       <Setter Property="FontWeight" Value="Medium" />
     </Style>
   </ControlTheme>
@@ -405,9 +405,9 @@
     <Setter Property="Padding" Value="8,0" />
     <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="#DCDCD8" />
+    <Setter Property="Foreground" Value="{DynamicResource TextNavBrush}" />
     <Style Selector="^.selected">
-      <Setter Property="Background" Value="#383838" />
+      <Setter Property="Background" Value="{DynamicResource BgNavSelectedBrush}" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

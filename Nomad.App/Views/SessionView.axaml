@@ -19,6 +19,10 @@
     <Style Selector="Grid.narrow Button.modelchip:not(.selected)">
       <Setter Property="IsVisible" Value="False" />
     </Style>
+    <!-- Narrower still (the side panel open on a small window): the branch chip and the effort slider lose their words. -->
+    <Style Selector="Grid.tight TextBlock.branchtext, Grid.tight TextBlock.effortlabel">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
 
     <!-- Buttons on the composer bar keep the arrow, not the bar's I-beam. -->
     <Style Selector="Border.composer Button">
@@ -38,10 +42,10 @@
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="c|Icon.tick">
-      <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Stroke" Value="{DynamicResource TextMutedBrush}" />
     </Style>
     <Style Selector="c|Icon.tick.seen">
-      <Setter Property="Stroke" Value="{StaticResource TextChromeBrush}" />
+      <Setter Property="Stroke" Value="{DynamicResource TextChromeBrush}" />
     </Style>
 
     <!-- The working row: folded and transparent when idle. -->
@@ -72,39 +76,39 @@
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Border.pill.add">
-      <Setter Property="Background" Value="{StaticResource DiffAddBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource DiffAddBgBrush}" />
     </Style>
     <Style Selector="Border.pill.add > TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource DiffAddBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DiffAddBrush}" />
     </Style>
     <Style Selector="Border.pill.del">
-      <Setter Property="Background" Value="{StaticResource DiffDelBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource DiffDelBgBrush}" />
     </Style>
     <Style Selector="Border.pill.del > TextBlock">
-      <Setter Property="Foreground" Value="{StaticResource DiffDelBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DiffDelBrush}" />
     </Style>
 
     <!-- Agent state word -->
     <Style Selector="TextBlock.state">
-      <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
     <Style Selector="TextBlock.state.running">
-      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="TextBlock.state.done">
-      <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
     </Style>
     <Style Selector="TextBlock.state.error">
-      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
     </Style>
 
     <!-- Mini diff lines in the permission card -->
     <Style Selector="Border.diffline">
-      <Setter Property="Background" Value="{StaticResource DiffDelBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource DiffDelBgBrush}" />
       <Setter Property="Padding" Value="8,1" />
     </Style>
     <Style Selector="Border.diffline.added">
-      <Setter Property="Background" Value="{StaticResource DiffAddBgBrush}" />
+      <Setter Property="Background" Value="{DynamicResource DiffAddBgBrush}" />
     </Style>
 
     <!-- Chevrons turn down when their line is expanded -->
@@ -117,18 +121,31 @@
 
     <!-- Bypass permissions is a warning colour -->
     <Style Selector="Button.bypass">
-      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
     </Style>
     <Style Selector="TextBlock.danger">
-      <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
     </Style>
 
     <!-- Remote Control chip: dim while off; a dot, green once claude.ai is connected. -->
+    <!-- Worktree: muted while off, the accent while on. -->
+    <Style Selector="Button.worktree">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.worktree.on">
+      <Setter Property="Foreground" Value="{DynamicResource RingBrush}" />
+    </Style>
     <Style Selector="Button.remote:not(.on)">
-      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
     </Style>
     <Style Selector="Button.remote Ellipse.remotedot">
-      <Setter Property="Fill" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
@@ -140,12 +157,12 @@
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="Button.remote.on.connected Ellipse.remotedot">
-      <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
     </Style>
 
     <!-- The "/" menu's keyboard choice. -->
     <Style Selector="Button.selected">
-      <Setter Property="Background" Value="{StaticResource BgHoverBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
 
     <!-- "Show activity" off: thinking and tool lines are left out (their containers carry the class). -->
@@ -155,13 +172,13 @@
 
     <!-- New-session project cards: a lighter edge on hover, the check colour when it is the session's folder. -->
     <Style Selector="Button.project">
-      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderCardBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="12,10,12,10" />
-      <Setter Property="Width" Value="280" />
-      <Setter Property="Height" Value="142" />
+      <Setter Property="Padding" Value="14,12,14,11" />
+      <Setter Property="Width" Value="322" />
+      <Setter Property="Height" Value="163" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Stretch" />
       <Setter Property="Cursor" Value="Hand" />
@@ -173,11 +190,30 @@
       </Setter>
     </Style>
     <Style Selector="Button.project:pointerover /template/ ContentPresenter">
-      <Setter Property="BorderBrush" Value="{StaticResource BorderInputBrush}" />
-      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
     </Style>
     <Style Selector="Button.project.selected /template/ ContentPresenter">
-      <Setter Property="BorderBrush" Value="{StaticResource CheckBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CheckBrush}" />
+    </Style>
+    <!-- The pin: shown on hover, and always on a pinned card. -->
+    <Style Selector="Button.pin">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="6,-4,-4,-4" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.project:pointerover Button.pin, Button.pin.pinned">
+      <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="StackPanel.gitpart">
       <Setter Property="Opacity" Value="0" />
@@ -193,7 +229,7 @@
 
     <!-- Attachment thumbnails: a lighter edge on hover says they open. -->
     <Style Selector="Border.thumb">
-      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="Transitions">
         <Transitions>
           <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
@@ -201,7 +237,7 @@
       </Setter>
     </Style>
     <Style Selector="Panel:pointerover > Border.thumb">
-      <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
     </Style>
 
     <!-- The image preview: fades in over the session while the picture grows into place. -->
@@ -232,19 +268,19 @@
 
     <!-- Images being dragged over the session: the composer lights up. -->
     <Style Selector="Border#ComposerBar.dragover">
-      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
 
     <!-- Section headers inside menus -->
     <Style Selector="TextBlock.menuheader">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
-      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="Margin" Value="8,3,8,3" />
     </Style>
     <Style Selector="TextBlock.hint">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
       <Setter Property="FontWeight" Value="Normal" />
-      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
   </UserControl.Styles>
@@ -257,7 +293,7 @@
       <Grid Classes="usermsg" ColumnDefinitions="*,3*" RowDefinitions="Auto,Auto" Margin="0,22,0,0" Background="Transparent">
         <Border Grid.Column="1"
                 HorizontalAlignment="Right"
-                Background="{StaticResource BgRaisedBrush}"
+                Background="{DynamicResource BgRaisedBrush}"
                 CornerRadius="10"
                 Padding="12,6,12,7">
           <StackPanel Spacing="6">
@@ -270,6 +306,11 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="Bitmap">
                   <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160" Cursor="Hand" Tapped="OnSentImageTapped">
+                    <Border.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                      </ContextMenu>
+                    </Border.ContextMenu>
                     <Image Source="{Binding}" Stretch="Uniform" />
                   </Border>
                 </DataTemplate>
@@ -284,16 +325,16 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="inf:Attachment">
                   <Border Height="40" MaxWidth="240" Padding="9,0,12,0" CornerRadius="7"
-                          Background="{StaticResource BgInputBrush}"
-                          BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                          Background="{DynamicResource BgInputBrush}"
+                          BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                           ToolTip.Tip="{Binding ToolTip}">
                     <Grid ColumnDefinitions="Auto,*">
                       <Panel VerticalAlignment="Center" Margin="0,0,8,0">
-                      <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
-                      <c:Icon Size="15" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
+                      <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
+                      <c:Icon Size="15" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
                     </Panel>
                       <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextPrimaryBrush}" />
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
                         <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
                       </StackPanel>
                     </Grid>
@@ -306,7 +347,7 @@
                                  TextWrapping="Wrap"
                                  FontSize="{DynamicResource BodyFontSize}"
                                  LineHeight="{DynamicResource BodyLineHeight}"
-                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                                 Foreground="{DynamicResource TextPrimaryBrush}" />
           </StackPanel>
         </Border>
         <StackPanel Grid.Row="1" Grid.Column="1"
@@ -343,7 +384,7 @@
       <StackPanel Spacing="6" IsVisible="{Binding !IsStreaming}">
         <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <c:PixelSpinner IsVisible="{Binding IsStreaming}" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+            <c:PixelSpinner IsVisible="{Binding IsStreaming}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
             <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
             <c:Icon Classes="chev"
                   Classes.open="{Binding IsExpanded}"
@@ -353,7 +394,7 @@
         </Button>
         <Border c:Fold.IsOpen="{Binding IsExpanded}"
                 IsVisible="False"
-                BorderBrush="{StaticResource BorderBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="2,0,0,0"
                 Padding="12,0,0,0"
                 Margin="1,0,0,4">
@@ -361,7 +402,7 @@
                                TextWrapping="Wrap"
                                FontSize="{DynamicResource UiFontSize}"
                                LineHeight="20"
-                               Foreground="{StaticResource TextSecondaryBrush}" />
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
         </Border>
       </StackPanel>
     </DataTemplate>
@@ -374,8 +415,8 @@
                     StrokeWidth="1.5"
                     IsSpinning="{Binding IsRunning}"
                     IsVisible="{Binding IsRunning}"
-                    TrackBrush="#26FFFFFF"
-                    SpinBrush="{StaticResource AccentBrush}"
+                    TrackBrush="{DynamicResource RingTrackBrush}"
+                    SpinBrush="{DynamicResource AccentBrush}"
                     VerticalAlignment="Center" />
             <TextBlock Text="{Binding Summary}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
             <Border Classes="pill add" IsVisible="{Binding HasAdded}">
@@ -399,9 +440,9 @@
                         HorizontalContentAlignment="Stretch"
                         Padding="6,0"
                         Height="28"
-                        Foreground="{StaticResource TextChromeBrush}">
+                        Foreground="{DynamicResource TextChromeBrush}">
                   <Grid ColumnDefinitions="Auto,Auto,*">
-                    <c:Icon Data="{StaticResource IconThought}" Stroke="{StaticResource TextMutedBrush}" />
+                    <c:Icon Data="{StaticResource IconThought}" Stroke="{DynamicResource TextMutedBrush}" />
                     <TextBlock Grid.Column="1"
                                Text="Thought"
                                FontSize="{DynamicResource UiFontSizeSmall}"
@@ -411,14 +452,14 @@
                     <TextBlock Grid.Column="2"
                                Text="{Binding FirstLine}"
                                FontSize="{DynamicResource UiFontSizeSmall}"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" />
                   </Grid>
                 </Button>
                 <Border c:Fold.IsOpen="{Binding IsExpanded}"
                         IsVisible="False"
-                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="2,0,0,0"
                         Padding="12,0,0,0"
                         Margin="13,2,0,6">
@@ -426,7 +467,7 @@
                                        TextWrapping="Wrap"
                                        FontSize="{DynamicResource UiFontSize}"
                                        LineHeight="20"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
                 </Border>
               </StackPanel>
             </DataTemplate>
@@ -438,11 +479,11 @@
                         HorizontalContentAlignment="Stretch"
                         Padding="6,0"
                         Height="28"
-                        Foreground="{StaticResource TextChromeBrush}">
+                        Foreground="{DynamicResource TextChromeBrush}">
                   <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                     <c:Icon
                           Data="{Binding IconKey, Converter={x:Static inf:IconConverter.Instance}}"
-                          Stroke="{StaticResource TextMutedBrush}" />
+                          Stroke="{DynamicResource TextMutedBrush}" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding Name}"
                                FontSize="{DynamicResource UiFontSizeSmall}"
@@ -453,7 +494,7 @@
                                Text="{Binding Summary}"
                                FontSize="{DynamicResource UiFontSizeSmall}"
                                Classes.mono="{Binding SummaryIsCode}"
-                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" />
                     <Panel Grid.Column="3" Width="16" Height="16" Margin="8,0,2,0">
@@ -461,25 +502,25 @@
                               StrokeWidth="1.5"
                               IsSpinning="{Binding IsRunning}"
                               IsVisible="{Binding IsRunning}"
-                              TrackBrush="#26FFFFFF"
-                              SpinBrush="{StaticResource AccentBrush}" />
-                      <c:Icon Data="{StaticResource IconCheck}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
-                      <c:Icon Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                              TrackBrush="{DynamicResource RingTrackBrush}"
+                              SpinBrush="{DynamicResource AccentBrush}" />
+                      <c:Icon Data="{StaticResource IconCheck}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                      <c:Icon Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
                     </Panel>
                   </Grid>
                 </Button>
                 <Border c:Fold.IsOpen="{Binding IsExpanded}"
                         IsVisible="False"
                         Margin="30,2,0,6"
-                        Background="{StaticResource BgCodeBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
+                        Background="{DynamicResource BgCodeBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8">
                   <ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="12,10" Spacing="8">
-                      <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{StaticResource TextChromeBrush}" />
-                      <Border Height="1" Background="{StaticResource BorderBrush}" IsVisible="{Binding HasResult}" />
-                      <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{StaticResource TextSecondaryBrush}" />
+                      <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{DynamicResource TextChromeBrush}" />
+                      <Border Height="1" Background="{DynamicResource BorderBrush}" IsVisible="{Binding HasResult}" />
+                      <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{DynamicResource TextSecondaryBrush}" />
                     </StackPanel>
                   </ScrollViewer>
                 </Border>
@@ -499,8 +540,8 @@
             <ColumnDefinition Width="*" MaxWidth="480" />
           </Grid.ColumnDefinitions>
           <Border Margin="0,8"
-                  Background="{StaticResource BgMainBrush}"
-                  BorderBrush="{StaticResource BorderCardBrush}"
+                  Background="{DynamicResource BgMainBrush}"
+                  BorderBrush="{DynamicResource BorderCardBrush}"
                   BorderThickness="1"
                   CornerRadius="10"
                   Padding="12,10,12,12">
@@ -520,7 +561,7 @@
                                  LineHeight="20"
                                  TextWrapping="Wrap"
                                  Margin="0,0,0,2"
-                                 Foreground="{StaticResource TextPrimaryBrush}" />
+                                 Foreground="{DynamicResource TextPrimaryBrush}" />
                       <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
                       <ItemsControl ItemsSource="{Binding Options}">
                         <ItemsControl.ItemTemplate>
@@ -548,8 +589,8 @@
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
-                      <Border Background="{StaticResource BgInputBrush}"
-                              BorderBrush="{StaticResource BorderBrush}"
+                      <Border Background="{DynamicResource BgInputBrush}"
+                              BorderBrush="{DynamicResource BorderBrush}"
                               BorderThickness="1"
                               CornerRadius="7"
                               Height="32"
@@ -585,26 +626,26 @@
       <Panel>
         <Border IsVisible="{Binding IsPending}"
                 Margin="0,8"
-                Background="{StaticResource BgRaisedBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+                Background="{DynamicResource BgRaisedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="10"
                 Padding="14">
           <StackPanel Spacing="10">
             <TextBlock Text="{Binding Title}" FontWeight="Medium" FontSize="{DynamicResource UiFontSize}" />
             <Border IsVisible="{Binding DetailIsCode}"
-                    Background="{StaticResource BgCodeBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{DynamicResource BgCodeBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6"
                     Padding="10,7">
-              <SelectableTextBlock Text="{Binding Detail}" Classes="mono" TextWrapping="Wrap" Foreground="{StaticResource TextPrimaryBrush}" />
+              <SelectableTextBlock Text="{Binding Detail}" Classes="mono" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimaryBrush}" />
             </Border>
             <SelectableTextBlock Text="{Binding Detail}"
                                  IsVisible="{Binding !DetailIsCode}"
                                  TextWrapping="Wrap"
                                  FontSize="{DynamicResource UiFontSize}"
-                                 Foreground="{StaticResource TextChromeBrush}" />
+                                 Foreground="{DynamicResource TextChromeBrush}" />
             <TextBlock Text="{Binding Description}"
                        IsVisible="{Binding HasDescription}"
                        Classes="muted"
@@ -615,7 +656,7 @@
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:DiffLine">
                     <Border Classes="diffline" Classes.added="{Binding IsAdded}">
-                      <TextBlock Text="{Binding Text}" Classes="mono" Foreground="{StaticResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Text}" Classes="mono" Foreground="{DynamicResource TextPrimaryBrush}" TextTrimming="CharacterEllipsis" />
                     </Border>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
@@ -639,12 +680,12 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ErrorItem}" x:DataType="vm:ErrorItem">
-      <Border Background="{StaticResource DangerSubtleBrush}"
-              BorderBrush="{StaticResource DangerBrush}"
+      <Border Background="{DynamicResource DangerSubtleBrush}"
+              BorderBrush="{DynamicResource DangerBrush}"
               BorderThickness="2,0,0,0"
               CornerRadius="4"
               Padding="12,8">
-        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSize}" Foreground="{StaticResource TextPrimaryBrush}" />
+        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" />
       </Border>
     </DataTemplate>
 
@@ -682,7 +723,7 @@
                   Padding="14,0,10,0"
                   ClipToBounds="True">
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,14,0,0" Height="22">
-              <c:ClayMark Activity="{Binding WorkingActivity}" Foreground="{StaticResource AccentBrush}" Margin="-3,0,-3,0" VerticalAlignment="Center" />
+              <c:ClayMark Activity="{Binding WorkingActivity}" Foreground="{DynamicResource AccentBrush}" Margin="-3,0,-3,0" VerticalAlignment="Center" />
               <!-- A highlight sweeps over the words; a new phase ("Thinking" → "Running a command") slides up in. -->
               <TransitioningContentControl Content="{Binding WorkingText}" ClipToBounds="True" Height="22" VerticalAlignment="Center">
                 <TransitioningContentControl.PageTransition>
@@ -717,8 +758,8 @@
               Margin="0,0,10,0">
         <Border.Background>
           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-            <GradientStop Color="{StaticResource BgMainColor}" Offset="0" />
-            <GradientStop Color="#00141414" Offset="1" />
+            <GradientStop Color="{DynamicResource BgMainColor}" Offset="0" />
+            <GradientStop Color="{DynamicResource BgMainClearColor}" Offset="1" />
           </LinearGradientBrush>
         </Border.Background>
         <Border.Transitions>
@@ -735,7 +776,7 @@
             <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
             <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
               <StackPanel Orientation="Horizontal" Spacing="5">
-                <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
+                <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
                 <TextBlock Text="No folder" FontSize="{DynamicResource UiFontSizeSmall}" />
               </StackPanel>
             </Button>
@@ -746,7 +787,7 @@
               </StackPanel>
             </Button>
           </Grid>
-          <ItemsControl ItemsSource="{Binding Projects}">
+          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel ItemSpacing="10" LineSpacing="10" />
@@ -759,16 +800,24 @@
                         Classes.selected="{Binding IsSelected}"
                         Click="OnProjectClick"
                         ToolTip.Tip="{Binding Path}">
+                  <Button.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="{Binding PinToolTip}" Click="OnPinClick" />                    </ContextMenu>
+                  </Button.ContextMenu>
                   <DockPanel>
-                    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto">
-                      <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
-                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Medium" Foreground="{StaticResource TextPrimaryBrush}"
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                      <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"
                                  TextTrimming="CharacterEllipsis" Margin="8,0" VerticalAlignment="Center" />
-                      <Border Grid.Column="2" IsVisible="{Binding HasBranch}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                      <Border Grid.Column="2" IsVisible="{Binding HasBranch}" Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Branch}" FontFamily="{DynamicResource MonoFont}"
-                                   FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
+                                   FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
                       </Border>
-                      <c:Icon Grid.Column="3" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                      <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
+                              Click="OnPinClick" ToolTip.Tip="{Binding PinToolTip}">
+                        <c:Icon Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                      </Button>
+                      <c:Icon Grid.Column="4" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="8,0,0,0" VerticalAlignment="Center" />
                     </Grid>
                     <TextBlock DockPanel.Dock="Top" Text="{Binding Path}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
                                TextTrimming="CharacterEllipsis" Margin="22,1,0,0" />
@@ -788,8 +837,8 @@
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:CommitRow">
                             <Grid ColumnDefinitions="Auto,*,Auto">
-                              <Ellipse Width="4" Height="4" Fill="{StaticResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
-                              <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                              <Ellipse Width="4" Height="4" Fill="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
+                              <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
                               <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
                             </Grid>
                           </DataTemplate>
@@ -808,8 +857,8 @@
       <c:Ring Width="22" Height="22"
               IsSpinning="{Binding IsLoadingHistory}"
               IsVisible="{Binding IsLoadingHistory}"
-              TrackBrush="#1FFFFFFF"
-              SpinBrush="{StaticResource TextMutedBrush}"
+              TrackBrush="{DynamicResource RingTrackBrush}"
+              SpinBrush="{DynamicResource TextMutedBrush}"
               HorizontalAlignment="Center"
               VerticalAlignment="Center" />
 
@@ -832,7 +881,7 @@
             MinHeight="44"
             CornerRadius="10"
             BorderThickness="1"
-            BorderBrush="{StaticResource BorderInputBrush}"
+            BorderBrush="{DynamicResource BorderInputBrush}"
             Padding="14,0"
             IsVisible="{Binding IsPhoneSession}">
       <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
@@ -845,7 +894,7 @@
         <Button Grid.Column="2"
                 Theme="{StaticResource LineButton}"
                 Command="{Binding TakeOverCommand}"
-                Foreground="{StaticResource TextPrimaryBrush}"
+                Foreground="{DynamicResource TextPrimaryBrush}"
                 Margin="12,0,0,0"
                 ToolTip.Tip="Stop it in the Claude app's process and continue in Nomad (still reachable from the app)">
           <TextBlock Text="Continue here" FontWeight="Medium" />
@@ -857,15 +906,15 @@
     <StackPanel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0" IsVisible="{Binding ShowComposer}">
       <!-- Switching the model of a conversation that has history: asked first, since the cache does not carry over. -->
       <Border c:Fold.IsOpen="{Binding HasPendingModel}" IsVisible="False">
-        <Border Background="{StaticResource BgRaisedBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+        <Border Background="{DynamicResource BgRaisedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="10"
                 Padding="14,10,10,10"
                 Margin="0,0,0,8">
           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
             <StackPanel Spacing="3" Margin="0,0,12,0" VerticalAlignment="Center">
-              <TextBlock Text="{Binding PendingModelTitle}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+              <TextBlock Text="{Binding PendingModelTitle}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
               <TextBlock Text="{Binding PendingModelText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
@@ -879,8 +928,8 @@
 
       <!-- Queued prompts: written while Claude worked, sent when it is done (or now, stopping it). -->
       <Border c:Fold.IsOpen="{Binding HasQueued}" IsVisible="False">
-        <Border Background="{StaticResource BgRaisedBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+        <Border Background="{DynamicResource BgRaisedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="10"
                 Padding="12,8,8,8"
@@ -896,10 +945,10 @@
                     <Panel Grid.Column="1" VerticalAlignment="Center">
                       <StackPanel Orientation="Horizontal" Spacing="8" Background="Transparent" IsVisible="{Binding !IsEditing}"
                                   DoubleTapped="OnQueuedDoubleTapped" ToolTip.Tip="Double-click to edit">
-                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" MaxLines="1" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding AttachmentsText}" IsVisible="{Binding HasAttachments}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
                       </StackPanel>
-                      <Border IsVisible="{Binding IsEditing}" Background="{StaticResource BgInputBrush}" BorderBrush="{StaticResource BorderInputBrush}"
+                      <Border IsVisible="{Binding IsEditing}" Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderInputBrush}"
                               BorderThickness="1" CornerRadius="6" Padding="7,3" Margin="-3,2,6,2">
                         <TextBox Classes="queuededit"
                                  Theme="{StaticResource BareTextBox}"
@@ -950,8 +999,8 @@
              IsLightDismissEnabled="False"
              Focusable="False">
         <Border Name="CommandMenu"
-                Background="{StaticResource BgMenuBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
+                Background="{DynamicResource BgMenuBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="9"
                 Padding="5"
@@ -965,7 +1014,7 @@
                           Focusable="False"
                           Click="OnCommandOptionClick">
                     <Grid ColumnDefinitions="Auto,Auto,*">
-                      <TextBlock Text="{Binding Display}" FontFamily="{DynamicResource MonoFont}" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Display}" FontFamily="{DynamicResource MonoFont}" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                       <TextBlock Grid.Column="1" Text="{Binding ArgumentHint}" IsVisible="{Binding HasArgumentHint}" Classes="muted"
                                  FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,0,0,0" MaxWidth="220"
                                  TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -983,8 +1032,8 @@
       <!-- The whole bar acts as the text box: I-beam over it, a click anywhere focuses it. Images can be
            pasted into it or dropped anywhere on the session. -->
       <Border Name="ComposerBar"
-              Background="{StaticResource BgInputBrush}"
-              BorderBrush="{StaticResource BorderInputBrush}"
+              Background="{DynamicResource BgInputBrush}"
+              BorderBrush="{DynamicResource BorderInputBrush}"
               BorderThickness="1"
               CornerRadius="10"
               MinHeight="44"
@@ -1015,6 +1064,11 @@
                 <StackPanel Margin="2,8,8,0" Spacing="4" IsVisible="{Binding IsImage}">
                   <!-- The picture clipped to the rounded shape, its edge drawn over it: no image pixels in the corners. -->
                   <Panel Width="{Binding PreviewWidth}" Height="96" Cursor="Hand" Tapped="OnAttachmentImageTapped" Background="Transparent">
+                    <Panel.ContextMenu>
+                      <ContextMenu>
+                        <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                      </ContextMenu>
+                    </Panel.ContextMenu>
                     <Border CornerRadius="8" ClipToBounds="True">
                       <Image Source="{Binding Preview}" Stretch="UniformToFill" />
                     </Border>
@@ -1031,16 +1085,16 @@
                         Height="52" MaxWidth="240"
                         Padding="10,0,14,0"
                         CornerRadius="8"
-                        Background="{StaticResource BgRaisedBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        Background="{DynamicResource BgRaisedBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                         IsVisible="{Binding IsFile}">
                   <Grid ColumnDefinitions="Auto,*">
                     <Panel VerticalAlignment="Center" Margin="0,0,10,0">
-                      <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
-                      <c:Icon Size="18" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
+                      <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding !IsFolder}" />
+                      <c:Icon Size="18" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsFolder}" />
                     </Panel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextPrimaryBrush}" />
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" />
                       <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
                     </StackPanel>
                   </Grid>
@@ -1058,7 +1112,7 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <c:DashedRule Stroke="{StaticResource BorderInputBrush}" Margin="10,0" />
+        <c:DashedRule Stroke="{DynamicResource BorderInputBrush}" Margin="10,0" />
         </StackPanel>
         </Border>
         </Border>
@@ -1123,7 +1177,7 @@
           <!-- While Claude works, Send queues the prompt and Stop sits beside it. -->
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,7,8,0" VerticalAlignment="Top">
             <!-- A suggested prompt is showing as ghost text: how to take it. -->
-            <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
+            <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
               <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
             </Border>
             <Button Theme="{StaticResource SendButton}"
@@ -1153,6 +1207,7 @@
           Margin="32,0"
           ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
+      <StackPanel Orientation="Horizontal">
       <Button Name="FolderChip"
               Theme="{StaticResource ChipButton}"
               Margin="9,0,0,0"
@@ -1171,11 +1226,11 @@
                        Height="26"
                        Margin="8,2,8,4"
                        FontSize="{DynamicResource UiFontSize}" />
-              <Border Height="1" Background="{StaticResource BorderBrush}" Margin="-5,0,-5,4" />
+              <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="-5,0,-5,4" />
               <Button Theme="{StaticResource MenuItemButton}" Click="OnNoFolderClick" ToolTip.Tip="Claude works in a new scratch folder">
                 <Grid ColumnDefinitions="*,Auto">
                   <TextBlock Text="No folder" />
-                  <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
+                  <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
                 </Grid>
               </Button>
               <Border Classes="rule" />
@@ -1186,7 +1241,7 @@
                     <Button Theme="{StaticResource MenuItemButton}" Click="OnFolderOptionClick" ToolTip.Tip="{Binding ToolTip}">
                       <Grid ColumnDefinitions="*,Auto">
                         <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
-                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                        <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
                       </Grid>
                     </Button>
                   </DataTemplate>
@@ -1200,6 +1255,62 @@
           </Flyout>
         </FlyoutBase.AttachedFlyout>
       </Button>
+
+      <!--
+        Git, for a folder in a repository. New session: the branch (click to switch it, or with Worktree on to pick the
+        one the worktree starts from) and the Worktree switch. Running session: its worktree, if any, and branch.
+      -->
+      <StackPanel Orientation="Horizontal" IsVisible="{Binding IsGitFolder}" Margin="4,0,0,0">
+        <Button Name="BranchChip"
+                Theme="{StaticResource ChipButton}"
+                Click="OnBranchChipClick"
+                ToolTip.Tip="{Binding GitChipToolTip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Size="13" Data="{StaticResource IconGitBranch}" />
+            <TextBlock Classes="status branchtext" Text="{Binding GitChipText}" MaxWidth="180" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          </StackPanel>
+          <FlyoutBase.AttachedFlyout>
+            <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+              <StackPanel Width="260">
+                <TextBox Theme="{StaticResource BareTextBox}"
+                         Watermark="Search branches…"
+                         Text="{Binding BranchFilter}"
+                         Height="26"
+                         Margin="8,2,8,4"
+                         FontSize="{DynamicResource UiFontSize}" />
+                <Border Height="1" Background="{DynamicResource BorderBrush}" Margin="-5,0,-5,4" />
+                <TextBlock Text="{Binding BranchMenuHeader}" Classes="menuheader" />
+                <ScrollViewer MaxHeight="320" HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding MenuBranches}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:MenuOption">
+                        <Button Theme="{StaticResource MenuItemButton}" Click="OnBranchOptionClick">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Label}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" />
+                            <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+                <TextBlock Text="{Binding BranchError}" IsVisible="{Binding HasBranchError}" Classes="muted" Foreground="{DynamicResource DangerBrush}"
+                           TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,4,8,4" />
+              </StackPanel>
+            </Flyout>
+          </FlyoutBase.AttachedFlyout>
+        </Button>
+        <Button Theme="{StaticResource ChipButton}"
+                Classes="worktree"
+                Classes.on="{Binding UseWorktree}"
+                IsVisible="{Binding ShowWorktreeToggle}"
+                Click="OnWorktreeClick"
+                Margin="2,0,0,0"
+                ToolTip.Tip="{Binding WorktreeToolTip}">
+          <c:Icon Size="13" Data="{StaticResource IconWorktree}" />
+        </Button>
+      </StackPanel>
+      </StackPanel>
 
       <Button Name="ModeChip"
               Grid.Column="1"
@@ -1223,7 +1334,7 @@
                         <c:Icon Grid.Column="1"
                               Size="13"
                               Data="{StaticResource IconCheck}"
-                              Stroke="{StaticResource CheckBrush}"
+                              Stroke="{DynamicResource CheckBrush}"
                               IsVisible="{Binding IsSelected}"
                               VerticalAlignment="Top"
                               Margin="8,1,0,0" />
@@ -1318,15 +1429,15 @@
           <c:FillSlider Name="EffortSlider"
                         Width="168" Height="24"
                         Thickness="16"
-                        TickBrush="#66FFFFFF"
+                        TickBrush="{DynamicResource SliderTickBrush}"
                         Maximum="4"
                         Value="{Binding EffortPosition}"
-                        TrackBrush="#3A3A38"
-                        FillBrush="{StaticResource RingBrush}"
+                        TrackBrush="{DynamicResource BarTrackBrush}"
+                        FillBrush="{DynamicResource RingBrush}"
                         KnobBrush="White"
                         VerticalAlignment="Center" />
           <!-- Fixed width (fits "Extra high"), so the row doesn't shift while dragging. -->
-          <TextBlock Text="{Binding EffortLabel}" Classes="status muted" Width="72" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding EffortLabel}" Classes="status muted effortlabel" Width="72" VerticalAlignment="Center" />
         </StackPanel>
 
         <Button Name="ModelChip" Theme="{StaticResource ChipButton}" ToolTip.Tip="All models and fast mode">
@@ -1341,7 +1452,7 @@
                       <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
                         <Grid ColumnDefinitions="*,Auto">
                           <TextBlock Text="{Binding Label}" />
-                          <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                          <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
                           <TextBlock Grid.Column="1" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
                         </Grid>
                       </Button>
@@ -1368,24 +1479,31 @@
       <Button Name="UsageChip"
               Grid.Column="5"
               Theme="{StaticResource ChipButton}"
-              Width="26" Padding="0"
+              Width="30" Padding="0"
               Margin="2,0,8,0"
-              HorizontalContentAlignment="Center"
-              ToolTip.Tip="{Binding ContextToolTip}">
-        <c:Ring Width="14" Height="14"
-                StrokeWidth="1.8"
+              HorizontalContentAlignment="Center">
+        <!-- The weekly plan limit: how much is used, and when it resets. -->
+        <ToolTip.Tip>
+          <StackPanel Spacing="2">
+            <TextBlock Text="{Binding Usage.WeeklyText}" IsVisible="{Binding Usage.HasWeekly}" Foreground="{DynamicResource TextPrimaryBrush}" FontWeight="Medium" />
+            <TextBlock Text="{Binding Usage.WeeklyResetsText}" IsVisible="{Binding Usage.HasWeeklyResets}" Classes="muted" />
+            <TextBlock Text="Plan usage limits" IsVisible="{Binding !Usage.HasWeekly}" />
+          </StackPanel>
+        </ToolTip.Tip>
+        <c:Ring Width="17" Height="17"
+                StrokeWidth="2"
                 IsSpinning="{Binding IsTurnRunning}"
-                Fraction="{Binding ContextFraction}"
-                TrackBrush="#33FFFFFF"
-                ArcBrush="{StaticResource RingBrush}"
-                SpinBrush="{StaticResource RingBrush}"
+                Fraction="{Binding Usage.WeeklyFraction}"
+                TrackBrush="{DynamicResource RingTrackBrush}"
+                ArcBrush="{DynamicResource RingBrush}"
+                SpinBrush="{DynamicResource RingBrush}"
                 VerticalAlignment="Center" />
         <Button.Flyout>
           <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
             <StackPanel Width="320" Margin="8,4,8,6" Spacing="10">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="{Binding Usage.Title}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
-                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" Foreground="{StaticResource TextPrimaryBrush}">
+                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" Foreground="{DynamicResource TextPrimaryBrush}">
                   <StackPanel Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="See all" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" />
                     <c:Icon Size="11" Data="{StaticResource IconArrowRight}" />
@@ -1421,7 +1539,7 @@
     <Border Grid.RowSpan="4"
             Classes="subagent"
             Classes.open="{Binding HasOpenSubagent}"
-            Background="{StaticResource BgMainBrush}">
+            Background="{DynamicResource BgMainBrush}">
       <Border.Styles>
         <Style Selector="Border.subagent">
           <Setter Property="Opacity" Value="0" />
@@ -1444,9 +1562,9 @@
           </Button>
           <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center" Spacing="1">
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <TextBlock Text="{Binding Description}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeLarge}" />
-              <Border IsVisible="{Binding HasAgentType}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                <TextBlock Text="{Binding AgentType}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" />
+              <TextBlock Text="{Binding Description}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeLarge}" />
+              <Border IsVisible="{Binding HasAgentType}" Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding AgentType}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
               </Border>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -1458,14 +1576,14 @@
             </StackPanel>
           </StackPanel>
           <c:Ring Grid.Column="2" Width="14" Height="14" StrokeWidth="1.8" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
-                  TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" VerticalAlignment="Center" />
+                  TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
         </Grid>
         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" c:SelectionAssist.IsEnabled="True">
           <StackPanel MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="46,6,42,24" Spacing="14">
             <!-- What it was asked. -->
-            <Border Background="{StaticResource BgRaisedBrush}" CornerRadius="10" Padding="12,8" HorizontalAlignment="Right" MaxWidth="900">
+            <Border Background="{DynamicResource BgRaisedBrush}" CornerRadius="10" Padding="12,8" HorizontalAlignment="Right" MaxWidth="900">
               <SelectableTextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="{DynamicResource BodyFontSize}"
-                                   LineHeight="{DynamicResource BodyLineHeight}" Foreground="{StaticResource TextPrimaryBrush}" />
+                                   LineHeight="{DynamicResource BodyLineHeight}" Foreground="{DynamicResource TextPrimaryBrush}" />
             </Border>
             <ItemsControl ItemsSource="{Binding Entries}">
               <ItemsControl.ItemsPanel>
@@ -1477,27 +1595,27 @@
                 <DataTemplate x:DataType="vm:ToolCallItem">
                   <StackPanel>
                     <Button Theme="{StaticResource FlatButton}" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Stretch" Padding="6,0" Height="28" Foreground="{StaticResource TextChromeBrush}">
+                            HorizontalContentAlignment="Stretch" Padding="6,0" Height="28" Foreground="{DynamicResource TextChromeBrush}">
                       <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                        <c:Icon Data="{Binding IconKey, Converter={x:Static inf:IconConverter.Instance}}" Stroke="{StaticResource TextMutedBrush}" />
+                        <c:Icon Data="{Binding IconKey, Converter={x:Static inf:IconConverter.Instance}}" Stroke="{DynamicResource TextMutedBrush}" />
                         <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Medium" Margin="8,0,10,0" VerticalAlignment="Center" />
                         <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="{DynamicResource UiFontSizeSmall}" Classes.mono="{Binding SummaryIsCode}"
-                                   Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                   Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                         <Panel Grid.Column="3" Width="16" Height="16" Margin="8,0,2,0">
                           <c:Ring Width="12" Height="12" StrokeWidth="1.5" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
-                                  TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" />
-                          <c:Icon Data="{StaticResource IconCheck}" Stroke="{StaticResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
-                          <c:Icon Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                                  TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                          <c:Icon Data="{StaticResource IconCheck}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                          <c:Icon Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
                         </Panel>
                       </Grid>
                     </Button>
-                    <Border c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="30,2,0,6" Background="{StaticResource BgCodeBrush}"
-                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                    <Border c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="30,2,0,6" Background="{DynamicResource BgCodeBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
                       <ScrollViewer MaxHeight="300" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                         <StackPanel Margin="12,10" Spacing="8">
-                          <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{StaticResource TextChromeBrush}" />
-                          <Border Height="1" Background="{StaticResource BorderBrush}" IsVisible="{Binding HasResult}" />
-                          <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{StaticResource TextSecondaryBrush}" />
+                          <SelectableTextBlock Text="{Binding InputText}" Classes="mono" Foreground="{DynamicResource TextChromeBrush}" />
+                          <Border Height="1" Background="{DynamicResource BorderBrush}" IsVisible="{Binding HasResult}" />
+                          <SelectableTextBlock Text="{Binding ResultText}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{DynamicResource TextSecondaryBrush}" />
                         </StackPanel>
                       </ScrollViewer>
                     </Border>
@@ -1508,7 +1626,7 @@
             <!-- Its answer, as the main agent got it. -->
             <StackPanel IsVisible="{Binding HasResult}" Spacing="6">
               <TextBlock Text="Returned" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
-              <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
+              <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0" Padding="12,0,0,0">
                 <md:MarkdownView Markdown="{Binding ResultText}" />
               </Border>
             </StackPanel>
@@ -1524,8 +1642,14 @@
           <Image Name="PreviewImage" Stretch="Uniform" StretchDirection="DownOnly" />
         </Border>
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-          <TextBlock Name="PreviewName" Foreground="{StaticResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeSmall}" />
+          <TextBlock Name="PreviewName" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="{DynamicResource UiFontSizeSmall}" />
           <TextBlock Name="PreviewMeta" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+          <Button Theme="{StaticResource LineButton}" Click="OnCopyPreviewClick" Margin="8,0,0,0" ToolTip.Tip="Copy the image (Ctrl+C)">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <c:Icon Size="12" Data="{StaticResource IconCopy}" />
+              <TextBlock Name="PreviewCopyText" Text="Copy image" FontSize="{DynamicResource UiFontSizeSmall}" />
+            </StackPanel>
+          </Button>
         </StackPanel>
       </StackPanel>
     </Panel>

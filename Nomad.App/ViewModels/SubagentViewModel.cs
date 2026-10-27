@@ -38,6 +38,35 @@ public sealed partial class SubagentViewModel : ObservableObject
 
     public bool HasAgentType => AgentType.Length > 0;
 
+    /// <summary>"Sonnet 5.5": the model it runs on (from its first reply; the Agent call's model until then).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasModelName), nameof(ChipText))]
+    public partial string ModelName { get; set; } = "";
+
+    public bool HasModelName => ModelName.Length > 0;
+
+    /// <summary>The row's chip: the model, or the agent type until the model is known.</summary>
+    public string ChipText => HasModelName ? ModelName : AgentType;
+
+    public bool HasChip => ChipText.Length > 0;
+
+    partial void OnAgentTypeChanged(string value)
+    {
+        OnPropertyChanged(nameof(ChipText));
+        OnPropertyChanged(nameof(HasChip));
+    }
+
+    partial void OnModelNameChanged(string value) => OnPropertyChanged(nameof(HasChip));
+
+    /// <summary>Its replies name the model they came from.</summary>
+    public void SetModel(string? model)
+    {
+        if (!string.IsNullOrEmpty(model))
+        {
+            ModelName = Catalog.ModelName(model);
+        }
+    }
+
     /// <summary>The prompt it was given.</summary>
     [ObservableProperty]
     public partial string Prompt { get; set; } = "";
@@ -77,6 +106,10 @@ public sealed partial class SubagentViewModel : ObservableObject
     {
         Description = ToolText.Str(input, "description") is { Length: > 0 } d ? d : "Subagent";
         AgentType = ToolText.Str(input, "subagent_type") ?? "";
+        if (ToolText.Str(input, "model") is { Length: > 0 } model && ModelName.Length == 0)
+        {
+            ModelName = Catalog.ModelName(model);
+        }
         Prompt = ToolText.Str(input, "prompt") ?? "";
         IsBackground = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("run_in_background", out var bg) && bg.ValueKind == JsonValueKind.True;
     }

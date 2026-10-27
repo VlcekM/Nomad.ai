@@ -28,6 +28,13 @@ public sealed partial class ProjectViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
+    /// <summary>Pinned on the new-session page.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinToolTip))]
+    public partial bool IsPinned { get; set; }
+
+    public string PinToolTip => IsPinned ? "Unpin" : "Pin to the top";
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBranch))]
     public partial string Branch { get; set; } = "";

@@ -264,7 +264,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     public async Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default)
     {
         var payload = new OutgoingControlPayload { Subtype = "generate_session_title", Description = description, Persist = persist };
-        var response = await SendControlAsync(payload, cancellationToken, TimeSpan.FromSeconds(45)).ConfigureAwait(false);
+        var response = await SendControlAsync(payload, cancellationToken, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         return response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object } &&
             response.Response.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String &&
             !string.IsNullOrWhiteSpace(title.GetString())
@@ -473,6 +473,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         }
     }
 
+    /// <summary>Tokens the latest main-conversation API call read (input incl. cache): the context in use.</summary>
+    private long _contextTokens;
+
     private void HandleStreamEvent(StreamEventLine line)
     {
         var e = line.Event;
@@ -487,6 +490,17 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             case "message_start":
                 _messageId = e.Message?.Id ?? $"local-{++_syntheticMessageCounter}";
                 _openBlockIndex = -1;
+
+                // The context window in use: what the latest call of the main conversation (not a subagent's) read.
+                if (parent is null && e.Message?.Usage is { } started)
+                {
+                    var read = (started.InputTokens ?? 0) + (started.CacheReadInputTokens ?? 0) + (started.CacheCreationInputTokens ?? 0);
+                    if (read > 0)
+                    {
+                        _contextTokens = read;
+                    }
+                }
+
                 Raise(new AssistantMessageStartedEvent(_messageId, e.Message?.Model, parent));
                 break;
             case "content_block_start" when _messageId is not null && e.Index is { } index:
@@ -640,6 +654,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             OutputTokens = usage?.OutputTokens ?? 0,
             CacheReadTokens = usage?.CacheReadInputTokens ?? 0,
             CacheCreationTokens = usage?.CacheCreationInputTokens ?? 0,
+            ContextTokens = _contextTokens,
         }));
 
         _interruptRequested = false;

@@ -13,7 +13,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
-/// --dev-menu model|mode|folder|plus|usage|remote|update|list|row   open a menu (the update prompt, the sidebar list options, the first Idle row's context menu) before the screenshot
+/// --dev-menu model|mode|folder|branch|plus|usage|remote|update|list|row   open a menu (the update prompt, the sidebar list options, the first Idle row's context menu) before the screenshot
 /// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
@@ -21,7 +21,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-expand                  expand every tool group (to screenshot rows)
 /// --dev-answer allow|session|deny|pick   answer every permission request automatically
 ///                               (questions get their first options; pick only selects them)
-/// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width)
+/// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width, theme)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start

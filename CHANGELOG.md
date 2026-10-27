@@ -3,6 +3,24 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.6.0
+
+- Light theme: Settings › Appearance › Theme (Dark, Light or System); it switches at once.
+- Project cards: pin a project to the top (the pin on hover, or right-click); the cards are larger.
+- Git chip next to the folder: the branch (on a new session, click to switch it) and a Worktree switch: a new
+  session then starts in a new git worktree (`.claude\worktrees`) on its own branch, from the branch picked.
+- Chat titles are generated as the Claude app does it: "Untitled session" until the title arrives, and a rename in
+  the meantime wins.
+- Notifications and a flashing taskbar button when a session finishes or needs an answer while Nomad.ai is in the
+  background; each can be turned off (Settings › Window).
+- Copy image: right-click a pasted or sent image, or the button (Ctrl+C) in the large view.
+- The status-row ring shows the weekly plan limit, its tooltip when it resets; it is a little larger.
+- Context counts the context in use, not every call of the turn added up.
+- Subagents show their model and running time, with what they are doing beneath.
+- The mouse's back and forward buttons go back and forward between sessions.
+- Tooltips sit above their control and close as soon as the pointer leaves it.
+- New sessions start in the default permission mode again.
+
 ## v1.5.0
 
 - Side panel: the session's subagents with their duration and what they did last; a click opens a subagent's own

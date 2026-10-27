@@ -159,6 +159,85 @@ public static class PromptImages
     [DllImport("kernel32.dll")]
     private static extern nuint GlobalSize(IntPtr memory);
 
+    [DllImport("user32.dll")]
+    private static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetClipboardData(uint format, IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalAlloc(uint flags, nuint bytes);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalFree(IntPtr memory);
+
+    /// <summary>
+    /// Puts an image on the clipboard as PNG (keeps transparency; browsers, chat apps, Office) and as a plain bitmap
+    /// (Paint and older apps). <paramref name="owner"/> must be a window: the clipboard takes no data without an owner.
+    /// </summary>
+    public static unsafe bool CopyImage(Bitmap bitmap, IntPtr owner)
+    {
+        using var png = new MemoryStream();
+        bitmap.Save(png);
+
+        // A bottom-up 32-bit DIB: BITMAPINFOHEADER, then the rows from the last up.
+        var (width, height) = (bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        fixed (byte* p = pixels)
+        {
+            bitmap.CopyPixels(new Avalonia.PixelRect(0, 0, width, height), (IntPtr)p, pixels.Length, stride);
+        }
+
+        var dib = new byte[40 + pixels.Length];
+        BitConverter.TryWriteBytes(dib.AsSpan(0), 40);
+        BitConverter.TryWriteBytes(dib.AsSpan(4), width);
+        BitConverter.TryWriteBytes(dib.AsSpan(8), height);
+        BitConverter.TryWriteBytes(dib.AsSpan(12), (short)1);
+        BitConverter.TryWriteBytes(dib.AsSpan(14), (short)32);
+        BitConverter.TryWriteBytes(dib.AsSpan(20), pixels.Length);
+        for (var row = 0; row < height; row++)
+        {
+            pixels.AsSpan(row * stride, stride).CopyTo(dib.AsSpan(40 + ((height - 1 - row) * stride)));
+        }
+
+        if (!OpenClipboard(owner))
+        {
+            return false;
+        }
+
+        try
+        {
+            EmptyClipboard();
+            return Put(RegisterClipboardFormat("PNG"), png.ToArray()) | Put(CfDib, dib);
+        }
+        finally
+        {
+            CloseClipboard();
+        }
+
+        static bool Put(uint format, byte[] data)
+        {
+            const uint moveable = 0x0002;
+            var memory = GlobalAlloc(moveable, (nuint)data.Length);
+            if (memory == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            var target = GlobalLock(memory);
+            Marshal.Copy(data, 0, target, data.Length);
+            GlobalUnlock(memory);
+            if (SetClipboardData(format, memory) != IntPtr.Zero)
+            {
+                return true; // The clipboard owns it now.
+            }
+
+            GlobalFree(memory);
+            return false;
+        }
+    }
+
     [DllImport("shell32.dll", EntryPoint = "DragQueryFileW")]
     private static extern unsafe uint DragQueryFile(IntPtr drop, uint index, char* file, uint length);
 

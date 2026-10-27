@@ -115,6 +115,12 @@ public sealed record TurnResult
     public long CacheReadTokens { get; init; }
     public long CacheCreationTokens { get; init; }
 
+    /// <summary>
+    /// The context in use at the end of the turn: what its last main-conversation API call read. The fields above add
+    /// up every call of the turn, so they count the conversation again for each tool round.
+    /// </summary>
+    public long ContextTokens { get; init; }
+
     /// <summary>Tokens processed this turn (input incl. cache + output).</summary>
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheCreationTokens;
 }

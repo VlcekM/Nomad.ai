@@ -9,14 +9,14 @@
        Each card's header folds it away; which ones are folded is remembered. -->
   <UserControl.Styles>
     <Style Selector="Border.card">
-      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
-      <Setter Property="BorderBrush" Value="{StaticResource BorderCardBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="12,6,12,10" />
     </Style>
     <Style Selector="Button.cardheader">
-      <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
       <Setter Property="Margin" Value="0,0,0,2" />
     </Style>
     <Style Selector="Button.cardheader TextBlock">
@@ -37,27 +37,27 @@
     <Style Selector="Ellipse.dot">
       <Setter Property="Width" Value="6" />
       <Setter Property="Height" Value="6" />
-      <Setter Property="Fill" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}" />
       <Setter Property="Opacity" Value="0.6" />
     </Style>
     <Style Selector="Ellipse.dot.ok">
-      <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource SuccessBrush}" />
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="Ellipse.dot.failed">
-      <Setter Property="Fill" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="Ellipse.dot.waiting">
-      <Setter Property="Fill" Value="{StaticResource WaitingBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource WaitingBrush}" />
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="TextBlock.changes">
-      <Setter Property="Foreground" Value="{StaticResource WaitingBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource WaitingBrush}" />
     </Style>
   </UserControl.Styles>
 
-  <Border Background="{StaticResource BgMainBrush}">
+  <Border Background="{DynamicResource BgMainBrush}">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
       <StackPanel Margin="4,4,12,12" Spacing="8">
 
@@ -73,10 +73,10 @@
             <Panel>
               <StackPanel Spacing="8" IsVisible="{Binding HasProject}" Margin="0,4,0,0">
                 <Grid ColumnDefinitions="Auto,*,Auto">
-                  <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
                   <TextBlock Grid.Column="1" Text="{Binding Project.Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" Margin="8,0,8,0" VerticalAlignment="Center" />
-                  <Border Grid.Column="2" IsVisible="{Binding Project.HasBranch}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="Branch">
-                    <TextBlock Text="{Binding Project.Branch}" FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" MaxWidth="120" TextTrimming="CharacterEllipsis" />
+                  <Border Grid.Column="2" IsVisible="{Binding Project.HasBranch}" Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="Branch">
+                    <TextBlock Text="{Binding Project.Branch}" FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" MaxWidth="120" TextTrimming="CharacterEllipsis" />
                   </Border>
                 </Grid>
                 <TextBlock Text="{Binding Project.Path}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Project.Path}" Margin="0,-4,0,0" />
@@ -105,7 +105,7 @@
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:CommitRow">
                       <Grid ColumnDefinitions="*,Auto" Background="Transparent" ToolTip.Tip="{Binding ToolTip}">
-                        <TextBlock Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
                         <TextBlock Grid.Column="1" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
                       </Grid>
                     </DataTemplate>
@@ -141,26 +141,27 @@
                           Padding="6,5"
                           Click="OnSubagentClick"
                           ToolTip.Tip="Open its conversation">
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                    <!-- Its task; then the model it runs on, opposite how long it has run; then what it is doing. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
                       <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
                         <c:Ring Width="12" Height="12" StrokeWidth="1.5"
                                 IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
-                                TrackBrush="#26FFFFFF" SpinBrush="{StaticResource AccentBrush}" />
-                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource SuccessBrush}" IsVisible="{Binding IsDone}" />
-                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{StaticResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                                TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
                       </Panel>
-                      <c:EdgeFade Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Description}" Foreground="{StaticResource TextPrimaryBrush}" />
+                      <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextPrimaryBrush}" />
                       </c:EdgeFade>
-                      <TextBlock Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                                 VerticalAlignment="Center" Margin="8,0,0,0" />
-                      <StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" Margin="0,2,0,0">
-                        <Border IsVisible="{Binding HasAgentType}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="5,0" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding AgentType}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" />
-                        </Border>
-                        <TextBlock Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="210" VerticalAlignment="Center" />
-                      </StackPanel>
+                      <Border Grid.Row="1" Grid.Column="1" IsVisible="{Binding HasChip}" HorizontalAlignment="Left"
+                              Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center"
+                              ToolTip.Tip="{Binding AgentType}">
+                        <TextBlock Text="{Binding ChipText}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
+                      </Border>
+                      <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                 VerticalAlignment="Center" Margin="8,3,0,0" />
+                      <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                 TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
                     </Grid>
                   </Button>
                 </DataTemplate>
@@ -187,8 +188,8 @@
                             Maximum="1"
                             Value="{Binding ContextFraction}"
                             IsHitTestVisible="False"
-                            TrackBrush="#3A3A38"
-                            FillBrush="{StaticResource RingBrush}" />
+                            TrackBrush="{DynamicResource BarTrackBrush}"
+                            FillBrush="{DynamicResource RingBrush}" />
               <TextBlock Text="{Binding AgentMeta}"
                          IsVisible="{Binding HasRun}"
                          Classes="muted"

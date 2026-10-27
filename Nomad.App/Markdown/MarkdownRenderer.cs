@@ -33,7 +33,7 @@ public static class MarkdownRenderer
         .Build();
 
     private static IBrush Brush(string key, Color fallback) =>
-        Application.Current?.TryGetResource(key, null, out var value) == true && value is IBrush b ? b : new SolidColorBrush(fallback);
+        Application.Current is { } app && app.TryGetResource(key, app.ActualThemeVariant, out var value) && value is IBrush b ? b : new SolidColorBrush(fallback);
 
     private static IBrush TextPrimary => Brush("TextPrimaryBrush", Color.Parse("#EEEDE8"));
     private static IBrush TextSecondary => Brush("TextSecondaryBrush", Color.Parse("#A8A6A0"));

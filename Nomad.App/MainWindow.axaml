@@ -14,7 +14,7 @@
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
         ExtendClientAreaTitleBarHeightHint="36"
-        Background="{StaticResource BgMainBrush}">
+        Background="{DynamicResource BgMainBrush}">
 
   <Window.KeyBindings>
     <KeyBinding Gesture="Ctrl+N" Command="{Binding NewSessionCommand}" />
@@ -32,8 +32,8 @@
               Name="Sidebar"
               Classes.closed="{Binding !IsSidebarOpen}"
               ClipToBounds="True"
-              Background="{StaticResource BgSidebarBrush}"
-              BorderBrush="{StaticResource BorderDividerBrush}"
+              Background="{DynamicResource BgSidebarBrush}"
+              BorderBrush="{DynamicResource BorderDividerBrush}"
               BorderThickness="0,0,1,0">
         <Border.Styles>
           <Style Selector="Border#Sidebar">
@@ -104,7 +104,7 @@
               <Setter Property="Background" Value="Transparent" />
             </Style>
             <Style Selector="Button.groupheader:pointerover TextBlock">
-              <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
             </Style>
 
             <Style Selector="Panel#IdleList">
@@ -140,11 +140,11 @@
             <Style Selector="TextBlock.sectiontitle">
               <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
               <Setter Property="FontWeight" Value="SemiBold" />
-              <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
               <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
             <Style Selector="Border.sectioncount">
-              <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+              <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
               <Setter Property="CornerRadius" Value="8" />
               <Setter Property="Padding" Value="6,0" />
               <Setter Property="Height" Value="16" />
@@ -154,7 +154,7 @@
             </Style>
             <Style Selector="Border.sectioncount > TextBlock">
               <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
-              <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
               <Setter Property="HorizontalAlignment" Value="Center" />
               <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
@@ -205,8 +205,8 @@
                   <!-- Rename (double-click, F2 or the context menu): Enter saves, Esc keeps the old name. -->
                   <Border Grid.Column="1"
                           IsVisible="{Binding IsRenaming}"
-                          Background="{StaticResource BgInputBrush}"
-                          BorderBrush="{StaticResource BorderInputBrush}"
+                          Background="{DynamicResource BgInputBrush}"
+                          BorderBrush="{DynamicResource BorderInputBrush}"
                           BorderThickness="1"
                           CornerRadius="5"
                           Padding="5,1"
@@ -223,7 +223,7 @@
                           Classes="sleep"
                           Size="13"
                           Data="{StaticResource IconSleep}"
-                          Stroke="{StaticResource TextMutedBrush}"
+                          Stroke="{DynamicResource TextMutedBrush}"
                           IsVisible="{Binding IsAsleep}"
                           Margin="8,0,0,0"
                           VerticalAlignment="Center"
@@ -233,9 +233,9 @@
                                 Margin="10,0,1,0"
                                 VerticalAlignment="Center"
                                 Mark="{Binding Mark}"
-                                WorkingBrush="{StaticResource AccentBrush}"
-                                WaitingBrush="{StaticResource WaitingBrush}"
-                                UnreadBrush="{StaticResource UnreadBrush}" />
+                                WorkingBrush="{DynamicResource AccentBrush}"
+                                WaitingBrush="{DynamicResource WaitingBrush}"
+                                UnreadBrush="{DynamicResource UnreadBrush}" />
                   <!-- Ctrl held: the row's Ctrl+number, over its mark. -->
                   <Border Grid.Column="2"
                           Classes="shortcut"
@@ -245,12 +245,12 @@
                           MinWidth="18" Height="18"
                           Padding="4,0"
                           CornerRadius="4"
-                          Background="{StaticResource BgChipBrush}"
-                          BorderBrush="{StaticResource BorderBrush}"
+                          Background="{DynamicResource BgChipBrush}"
+                          BorderBrush="{DynamicResource BorderBrush}"
                           BorderThickness="1">
                     <TextBlock Text="{Binding ShortcutNumber}"
                                FontSize="{DynamicResource UiFontSizeTiny}"
-                               Foreground="{StaticResource TextChromeBrush}"
+                               Foreground="{DynamicResource TextChromeBrush}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
                   </Border>
@@ -269,7 +269,7 @@
                 <Grid ColumnDefinitions="Auto,Auto,*">
                   <TextBlock Text="{Binding Title}"
                              FontSize="{DynamicResource UiFontSizeSmall}"
-                             Foreground="{StaticResource TextMutedBrush}"
+                             Foreground="{DynamicResource TextMutedBrush}"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center" />
                   <c:Icon Grid.Column="1"
@@ -277,14 +277,14 @@
                           Size="11"
                           Margin="5,0,0,0"
                           Data="{StaticResource IconChevronDown}"
-                          Stroke="{StaticResource TextMutedBrush}"
+                          Stroke="{DynamicResource TextMutedBrush}"
                           VerticalAlignment="Center" />
                   <TextBlock Grid.Column="2"
                              Classes="groupcount"
                              Text="{Binding Count}"
                              HorizontalAlignment="Right"
                              FontSize="{DynamicResource UiFontSizeSmall}"
-                             Foreground="{StaticResource TextMutedBrush}"
+                             Foreground="{DynamicResource TextMutedBrush}"
                              VerticalAlignment="Center" />
                 </Grid>
               </Button>
@@ -294,7 +294,7 @@
           <!-- Title bar part over the sidebar: drags the window. -->
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center">
-              <Button Theme="{StaticResource IconButton}" ToolTip.Tip="Menu" Name="AppMenuButton" Foreground="{StaticResource TextPrimaryBrush}">
+              <Button Theme="{StaticResource IconButton}" ToolTip.Tip="Menu" Name="AppMenuButton" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconMenu}" />
                 <Button.Flyout>
                   <Flyout Placement="BottomEdgeAlignedLeft" FlyoutPresenterClasses="menu">
@@ -319,13 +319,13 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
-              <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Hide sidebar (Ctrl+B)" Foreground="{StaticResource TextPrimaryBrush}">
+              <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Hide sidebar (Ctrl+B)" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconSidebar}" />
               </Button>
-              <Button Theme="{StaticResource IconButton}" Command="{Binding GoBackCommand}" ToolTip.Tip="Back" Foreground="{StaticResource TextPrimaryBrush}">
+              <Button Theme="{StaticResource IconButton}" Command="{Binding GoBackCommand}" ToolTip.Tip="Back" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconArrowLeft}" />
               </Button>
-              <Button Theme="{StaticResource IconButton}" Command="{Binding GoForwardCommand}" ToolTip.Tip="Forward" Foreground="{StaticResource TextPrimaryBrush}">
+              <Button Theme="{StaticResource IconButton}" Command="{Binding GoForwardCommand}" ToolTip.Tip="Forward" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconArrowRight}" />
               </Button>
             </StackPanel>
@@ -336,11 +336,11 @@
                   Margin="10,8,14,0"
                   Height="25"
                   CornerRadius="6"
-                  Background="{StaticResource BgSearchBrush}"
-                  BorderBrush="{StaticResource BorderBrush}"
+                  Background="{DynamicResource BgSearchBrush}"
+                  BorderBrush="{DynamicResource BorderBrush}"
                   BorderThickness="1">
             <Grid ColumnDefinitions="Auto,*">
-              <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{StaticResource TextMutedBrush}" Margin="8,0,10,0" />
+              <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="8,0,10,0" />
               <TextBox Grid.Column="1"
                        Theme="{StaticResource BareTextBox}"
                        Watermark="Search"
@@ -383,7 +383,7 @@
               <Border Classes="sectioncount">
                 <TextBlock Text="{Binding AliveCount}" />
               </Border>
-              <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+              <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
           <Panel Grid.Row="4" IsVisible="{Binding HasAlive}">
@@ -410,7 +410,7 @@
                 <Border Classes="sectioncount">
                   <TextBlock Text="{Binding IdleCount}" />
                 </Border>
-                <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
             <!-- List options: grouping and archived sessions. -->
@@ -426,14 +426,14 @@
                     <TextBlock Text="Group by"
                                Margin="8,3,8,3"
                                FontSize="{DynamicResource UiFontSizeSmall}"
-                               Foreground="{StaticResource TextMutedBrush}" />
+                               Foreground="{DynamicResource TextMutedBrush}" />
                     <ItemsControl ItemsSource="{Binding GroupingOptions}">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:MenuOption">
                           <Button Theme="{StaticResource MenuItemButton}" Click="OnGroupingClick">
                             <Grid ColumnDefinitions="*,Auto">
                               <TextBlock Text="{Binding Label}" />
-                              <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{StaticResource CheckBrush}" IsVisible="{Binding IsSelected}" />
+                              <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
                             </Grid>
                           </Button>
                         </DataTemplate>
@@ -482,7 +482,7 @@
           <!-- Account footer -->
           <Border Grid.Row="7"
                   Height="54"
-                  BorderBrush="{StaticResource BorderDividerBrush}"
+                  BorderBrush="{DynamicResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto">
             <!-- The whole footer is the settings button: a rounded row 6 px inside the corner. -->
@@ -496,12 +496,12 @@
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
               <Border Width="22" Height="22"
                       CornerRadius="11"
-                      Background="#282828"
+                      Background="{DynamicResource BgChipBrush}"
                       VerticalAlignment="Center">
                 <TextBlock Text="{Binding UserInitials}"
                            FontSize="{DynamicResource UiFontSizeTiny}"
                            FontWeight="SemiBold"
-                           Foreground="{StaticResource TextChromeBrush}"
+                           Foreground="{DynamicResource TextChromeBrush}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
               </Border>
@@ -509,7 +509,7 @@
                          Text="{Binding UserName}"
                          Margin="6,0,0,0"
                          FontWeight="Medium"
-                         Foreground="{StaticResource TextChromeBrush}"
+                         Foreground="{DynamicResource TextChromeBrush}"
                          VerticalAlignment="Center" />
               <TextBlock Grid.Column="2"
                          IsVisible="{Binding HasPlan}"
@@ -530,7 +530,7 @@
                     Name="UpdateChip"
                     Theme="{StaticResource ChipButton}"
                     Classes.on="{Binding Updates.ShowChip}"
-                    Foreground="{StaticResource AccentBrush}"
+                    Foreground="{DynamicResource AccentBrush}"
                     VerticalAlignment="Center"
                     ClipToBounds="True"
                     Click="OnUpdateChipClick"
@@ -564,13 +564,13 @@
               <FlyoutBase.AttachedFlyout>
                 <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
                   <StackPanel Width="400" Margin="10,8,10,6" Spacing="10">
-                    <TextBlock Text="{Binding Updates.PromptTitle}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Updates.PromptTitle}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                     <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding Updates.HasAvailableNotes}">
                       <md:MarkdownView Markdown="{Binding Updates.AvailableNotes}" Margin="0,0,8,0" />
                     </ScrollViewer>
                     <TextBlock Text="{Binding Updates.Status}"
                                IsVisible="{Binding Updates.IsFailed}"
-                               Foreground="{StaticResource DangerBrush}"
+                               Foreground="{DynamicResource DangerBrush}"
                                FontSize="{DynamicResource UiFontSizeSmall}"
                                TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="6">
@@ -627,7 +627,7 @@
                       VerticalAlignment="Center">
             <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
                        FontWeight="Medium"
-                       Foreground="{StaticResource TextPrimaryBrush}"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
                        TextTrimming="CharacterEllipsis"
                        IsVisible="{Binding Current.HasTitle}"
                        VerticalAlignment="Center" />
@@ -689,7 +689,7 @@
                 <Setter Property="Opacity" Value="1" />
               </Style>
             </Border.Styles>
-            <Border Width="4" Height="44" CornerRadius="2" Background="{StaticResource BorderInputBrush}"
+            <Border Width="4" Height="44" CornerRadius="2" Background="{DynamicResource BorderInputBrush}"
                     HorizontalAlignment="Center" VerticalAlignment="Center" />
           </Border>
 
@@ -722,7 +722,7 @@
 
     <!-- ============================================================ settings -->
     <Panel IsVisible="{Binding IsSettingsOpen}">
-      <Border Background="{StaticResource BgOverlayBrush}" PointerPressed="OnOverlayPointerPressed" />
+      <Border Background="{DynamicResource BgOverlayBrush}" PointerPressed="OnOverlayPointerPressed" />
       <views:SettingsView Name="SettingsHost" DataContext="{Binding SettingsPage}" />
     </Panel>
   </Panel>

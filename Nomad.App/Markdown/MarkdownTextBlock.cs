@@ -58,5 +58,5 @@ public sealed class MarkdownTextBlock : SelectableTextBlock
     }
 
     private static IBrush Brush(string key, string fallback) =>
-        Application.Current?.TryFindResource(key, out var value) == true && value is IBrush brush ? brush : new SolidColorBrush(Color.Parse(fallback));
+        Application.Current is { } app && app.TryGetResource(key, app.ActualThemeVariant, out var value) && value is IBrush brush ? brush : new SolidColorBrush(Color.Parse(fallback));
 }

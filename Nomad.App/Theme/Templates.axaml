@@ -21,8 +21,8 @@
                       PaceValue="{Binding PaceFraction}"
                       PaceBrush="#5C2A78D6"
                       IsHitTestVisible="False"
-                      TrackBrush="#3A3A38"
-                      FillBrush="{StaticResource RingBrush}"
+                      TrackBrush="{DynamicResource BarTrackBrush}"
+                      FillBrush="{DynamicResource RingBrush}"
                       Classes.high="{Binding IsHigh}" />
       </Panel>
       <TextBlock Text="{Binding ForecastText}"

@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.App.Updates;
 using Nomad.Core.Agents;
+using Nomad.Core.Git;
 using Nomad.Core.Remote;
 using Nomad.Core.Sessions;
 using Nomad.Core.Settings;
@@ -553,11 +554,15 @@ public sealed partial class MainViewModel : ObservableObject
         return project;
     }
 
+    /// <summary>What a folder is called: its name, or for a worktree its repository's name.</summary>
+    public static string ProjectName(string? folder) =>
+        Format.FolderName(folder is null ? null : GitInfo.WorktreeOwner(folder) ?? folder);
+
     /// <summary>The latest activity of any listed session in this folder.</summary>
     public DateTime? LastActivityIn(string folder)
     {
         var key = folder.TrimEnd('\\', '/');
-        var times = _all.Where(s => s.WorkingDirectory is { } w && string.Equals(w.TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase))
+        var times = _all.Where(s => s.WorkingDirectory is { } w && string.Equals((GitInfo.WorktreeOwner(w) ?? w).TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase))
             .Select(s => s.LastActivityUtc).ToList();
         return times.Count > 0 ? times.Max() : null;
     }
@@ -581,8 +586,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var list = new List<string>();
-            foreach (var f in Settings.RecentFolders.Concat(_all.Select(s => s.WorkingDirectory).OfType<string>()))
+            foreach (var folder in Settings.RecentFolders.Concat(_all.Select(s => s.WorkingDirectory).OfType<string>()))
             {
+                var f = GitInfo.WorktreeOwner(folder) ?? folder; // A worktree's sessions count for its repository.
                 if (seen.Add(f.TrimEnd('\\', '/')) && !IsScratch(f) && Directory.Exists(f))
                 {
                     list.Add(f);
@@ -608,6 +614,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
+        newValue?.ApplyDefaultMode();
         if (oldValue is not null)
         {
             oldValue.PropertyChanged -= OnCurrentPropertyChanged;
@@ -675,6 +682,15 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         Current = _draft is { IsNew: true } draft ? draft : new SessionViewModel(this, Settings.LastFolder);
+    }
+
+    /// <summary>The default mode changed in the settings: the new-session page follows, unless a mode was picked there.</summary>
+    public void OnDefaultModeChanged()
+    {
+        foreach (var session in LiveSessions.Append(_draft).OfType<SessionViewModel>().Distinct())
+        {
+            session.ApplyDefaultMode();
+        }
     }
 
     /// <summary>The new-session page, shown or kept aside: its text is saved for the next start.</summary>
@@ -1028,7 +1044,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Func<SessionListItemViewModel, string> key = Settings.SessionGrouping switch
             {
-                "Folder" => s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : Format.FolderName(s.WorkingDirectory),
+                "Folder" => s => s.WorkingDirectory is null || IsScratch(s.WorkingDirectory) ? "No folder" : ProjectName(s.WorkingDirectory),
                 "Recent" => s => RecentGroup(s.LastActivityUtc, DateTime.UtcNow),
                 _ => s => DateGroup(s.LastActivityUtc),
             };
@@ -1606,6 +1622,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void RememberFolder(string folder)
     {
+        folder = GitInfo.WorktreeOwner(folder) ?? folder;
         if (IsScratch(folder))
         {
             return;

@@ -1,97 +1,293 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!--
-    Nomad palette. Values measured off the reference screenshots of the pre-restyle Claude
-    desktop app (docs/reference, 1920x1080 at 100 %); where DESIGN.md's estimates differ, the
-    screenshots win. Accent values are the exact brand tokens.
+    Nomad palette, dark and light. Dark: measured off the reference screenshots of the pre-restyle Claude desktop
+    app (docs/reference, 1920x1080 at 100 %); where DESIGN.md's estimates differ, the screenshots win. Light: the
+    same roles on Claude's warm paper tones. Accent values are the exact brand tokens. Everything that depends on
+    the theme is looked up with DynamicResource, so a theme switch applies at once.
   -->
-
-  <!-- Surfaces -->
-  <Color x:Key="BgSidebarColor">#101010</Color>
-  <Color x:Key="BgMainColor">#141414</Color>
-  <Color x:Key="BgRaisedColor">#1F1F1F</Color>
-  <Color x:Key="BgSelectedColor">#2B2B29</Color>
-  <Color x:Key="BgHoverColor">#0BFFFFFF</Color>
-  <Color x:Key="BgInputColor">#20201E</Color>
-  <Color x:Key="BgSearchColor">#1C1C1C</Color>
-  <Color x:Key="BgCodeColor">#1A1A19</Color>
-  <Color x:Key="BgChipColor">#262626</Color>
-  <Color x:Key="BgMenuColor">#20201E</Color>
-  <Color x:Key="BgOverlayColor">#80000000</Color>
-
-  <!-- Lines -->
-  <Color x:Key="BorderColor">#363636</Color>
-  <Color x:Key="BorderInputColor">#4C4C4C</Color>
-  <Color x:Key="BorderCardColor">#2C2C2C</Color>
-  <Color x:Key="BorderDividerColor">#282828</Color>
-  <Color x:Key="BorderSubtleColor">#10FFFFFF</Color>
-
-  <!-- Text -->
-  <Color x:Key="TextPrimaryColor">#EEEDE8</Color>
-  <Color x:Key="TextChromeColor">#C4C3BB</Color>
-  <Color x:Key="TextSecondaryColor">#A8A6A0</Color>
-  <Color x:Key="TextMutedColor">#8A8883</Color>
-  <Color x:Key="TextOnAccentColor">#1A1A1A</Color>
-
-  <!-- Accents and states -->
-  <Color x:Key="AccentColor">#D97757</Color>
-  <Color x:Key="AccentEmphasisColor">#C6613F</Color>
-  <Color x:Key="AccentSubtleColor">#24D97757</Color>
-  <Color x:Key="SuccessColor">#3FA548</Color>
-  <Color x:Key="DiffAddColor">#52C664</Color>
-  <Color x:Key="DiffAddBgColor">#1B3B20</Color>
-  <Color x:Key="DiffDelColor">#E0485E</Color>
-  <Color x:Key="DiffDelBgColor">#431B20</Color>
-  <Color x:Key="DangerColor">#E0605A</Color>
-  <Color x:Key="DangerSubtleColor">#1FE0605A</Color>
-  <Color x:Key="LinkColor">#6FA2EA</Color>
-  <Color x:Key="UnreadColor">#327CD7</Color>
-  <Color x:Key="WaitingColor">#E3B341</Color>
-  <Color x:Key="CheckColor">#2A74CC</Color>
-  <Color x:Key="RingColor">#2A78D6</Color>
-  <Color x:Key="InlineCodeColor">#DE8170</Color>
-  <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
-
-  <SolidColorBrush x:Key="BgSidebarBrush" Color="{StaticResource BgSidebarColor}" />
-  <SolidColorBrush x:Key="BgMainBrush" Color="{StaticResource BgMainColor}" />
-  <SolidColorBrush x:Key="BgRaisedBrush" Color="{StaticResource BgRaisedColor}" />
-  <SolidColorBrush x:Key="BgSelectedBrush" Color="{StaticResource BgSelectedColor}" />
-  <SolidColorBrush x:Key="BgHoverBrush" Color="{StaticResource BgHoverColor}" />
-  <SolidColorBrush x:Key="BgInputBrush" Color="{StaticResource BgInputColor}" />
-  <SolidColorBrush x:Key="BgSearchBrush" Color="{StaticResource BgSearchColor}" />
-  <SolidColorBrush x:Key="BgCodeBrush" Color="{StaticResource BgCodeColor}" />
-  <SolidColorBrush x:Key="BgChipBrush" Color="{StaticResource BgChipColor}" />
-  <SolidColorBrush x:Key="BgMenuBrush" Color="{StaticResource BgMenuColor}" />
-  <SolidColorBrush x:Key="BgOverlayBrush" Color="{StaticResource BgOverlayColor}" />
-  <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
-  <SolidColorBrush x:Key="BorderInputBrush" Color="{StaticResource BorderInputColor}" />
-  <SolidColorBrush x:Key="BorderCardBrush" Color="{StaticResource BorderCardColor}" />
-  <SolidColorBrush x:Key="BorderDividerBrush" Color="{StaticResource BorderDividerColor}" />
-  <SolidColorBrush x:Key="BorderSubtleBrush" Color="{StaticResource BorderSubtleColor}" />
-  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
-  <SolidColorBrush x:Key="TextChromeBrush" Color="{StaticResource TextChromeColor}" />
-  <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
-  <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
-  <SolidColorBrush x:Key="TextOnAccentBrush" Color="{StaticResource TextOnAccentColor}" />
-  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
-  <SolidColorBrush x:Key="AccentEmphasisBrush" Color="{StaticResource AccentEmphasisColor}" />
-  <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentSubtleColor}" />
-  <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
-  <SolidColorBrush x:Key="DiffAddBrush" Color="{StaticResource DiffAddColor}" />
-  <SolidColorBrush x:Key="DiffAddBgBrush" Color="{StaticResource DiffAddBgColor}" />
-  <SolidColorBrush x:Key="DiffDelBrush" Color="{StaticResource DiffDelColor}" />
-  <SolidColorBrush x:Key="DiffDelBgBrush" Color="{StaticResource DiffDelBgColor}" />
-  <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
-  <SolidColorBrush x:Key="DangerSubtleBrush" Color="{StaticResource DangerSubtleColor}" />
-  <SolidColorBrush x:Key="LinkBrush" Color="{StaticResource LinkColor}" />
-  <SolidColorBrush x:Key="UnreadBrush" Color="{StaticResource UnreadColor}" />
-  <SolidColorBrush x:Key="WaitingBrush" Color="{StaticResource WaitingColor}" />
-  <SolidColorBrush x:Key="CheckBrush" Color="{StaticResource CheckColor}" />
-  <SolidColorBrush x:Key="RingBrush" Color="{StaticResource RingColor}" />
-  <SolidColorBrush x:Key="InlineCodeBrush" Color="{StaticResource InlineCodeColor}" />
-  <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="{StaticResource CaptionCloseHoverColor}" />
-  <SolidColorBrush x:Key="ScrollThumbBrush" Color="#1FFFFFFF" />
-  <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#33FFFFFF" />
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Dark">
+      <!-- Surfaces -->
+      <Color x:Key="BgSidebarColor">#101010</Color>
+      <Color x:Key="BgMainColor">#141414</Color>
+      <Color x:Key="BgRaisedColor">#1F1F1F</Color>
+      <Color x:Key="BgSelectedColor">#2B2B29</Color>
+      <Color x:Key="BgHoverColor">#0BFFFFFF</Color>
+      <Color x:Key="BgPressedColor">#16FFFFFF</Color>
+      <Color x:Key="BgInputColor">#20201E</Color>
+      <Color x:Key="BgSearchColor">#1C1C1C</Color>
+      <Color x:Key="BgCodeColor">#1A1A19</Color>
+      <Color x:Key="BgChipColor">#262626</Color>
+      <Color x:Key="BgMenuColor">#20201E</Color>
+      <Color x:Key="BgOverlayColor">#80000000</Color>
+      <Color x:Key="BgButtonColor">#373737</Color>
+      <Color x:Key="BgButtonHoverColor">#424242</Color>
+      <Color x:Key="BgSegmentsColor">#262624</Color>
+      <Color x:Key="BgSegmentCheckedColor">#3C3C3A</Color>
+      <Color x:Key="BgNavSelectedColor">#383838</Color>
+      <Color x:Key="BgFieldColor">#202020</Color>
+      <Color x:Key="BgSettingsColor">#1A1A18</Color>
+      <Color x:Key="BgMainClearColor">#00141414</Color>
+      <!-- Lines -->
+      <Color x:Key="BorderColor">#363636</Color>
+      <Color x:Key="BorderInputColor">#4C4C4C</Color>
+      <Color x:Key="BorderCardColor">#2C2C2C</Color>
+      <Color x:Key="BorderDividerColor">#282828</Color>
+      <Color x:Key="BorderSubtleColor">#10FFFFFF</Color>
+      <Color x:Key="BorderFieldColor">#383838</Color>
+      <Color x:Key="BorderSettingsColor">#262624</Color>
+      <Color x:Key="InlineCodeBorderColor">#393939</Color>
+      <!-- Text -->
+      <Color x:Key="TextPrimaryColor">#EEEDE8</Color>
+      <Color x:Key="TextChromeColor">#C4C3BB</Color>
+      <Color x:Key="TextSecondaryColor">#A8A6A0</Color>
+      <Color x:Key="TextMutedColor">#8A8883</Color>
+      <Color x:Key="TextOnAccentColor">#1A1A1A</Color>
+      <Color x:Key="TextNavColor">#DCDCD8</Color>
+      <Color x:Key="TextCaretColor">#FFFFFF</Color>
+      <!-- Accents and states -->
+      <Color x:Key="AccentColor">#D97757</Color>
+      <Color x:Key="AccentEmphasisColor">#C6613F</Color>
+      <Color x:Key="AccentSubtleColor">#24D97757</Color>
+      <Color x:Key="SuccessColor">#3FA548</Color>
+      <Color x:Key="DiffAddColor">#52C664</Color>
+      <Color x:Key="DiffAddBgColor">#1B3B20</Color>
+      <Color x:Key="DiffDelColor">#E0485E</Color>
+      <Color x:Key="DiffDelBgColor">#431B20</Color>
+      <Color x:Key="DangerColor">#E0605A</Color>
+      <Color x:Key="DangerSubtleColor">#1FE0605A</Color>
+      <Color x:Key="LinkColor">#6FA2EA</Color>
+      <Color x:Key="UnreadColor">#327CD7</Color>
+      <Color x:Key="WaitingColor">#E3B341</Color>
+      <Color x:Key="CheckColor">#2A74CC</Color>
+      <Color x:Key="RingColor">#2A78D6</Color>
+      <Color x:Key="InlineCodeColor">#DE8170</Color>
+      <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
+      <!-- Bars, rings, switches and the scroll anchor -->
+      <Color x:Key="BarTrackColor">#3A3A38</Color>
+      <Color x:Key="RingTrackColor">#26FFFFFF</Color>
+      <Color x:Key="SliderTickColor">#66FFFFFF</Color>
+      <Color x:Key="SwitchOffColor">#4A4A48</Color>
+      <Color x:Key="ScrollThumbColor">#1FFFFFFF</Color>
+      <Color x:Key="ScrollThumbHoverColor">#33FFFFFF</Color>
+      <Color x:Key="JumpFillColor">#E6262626</Color>
+      <Color x:Key="JumpEdgeColor">#5A5A5A</Color>
+      <Color x:Key="JumpArrowColor">#E8E8E8</Color>
+      <Color x:Key="ShimmerBaseColor">#9C9A92</Color>
+      <Color x:Key="ShimmerHighlightColor">#F5F4EF</Color>
+      <SolidColorBrush x:Key="BgSidebarBrush" Color="#101010" />
+      <SolidColorBrush x:Key="BgMainBrush" Color="#141414" />
+      <SolidColorBrush x:Key="BgRaisedBrush" Color="#1F1F1F" />
+      <SolidColorBrush x:Key="BgSelectedBrush" Color="#2B2B29" />
+      <SolidColorBrush x:Key="BgHoverBrush" Color="#0BFFFFFF" />
+      <SolidColorBrush x:Key="BgPressedBrush" Color="#16FFFFFF" />
+      <SolidColorBrush x:Key="BgInputBrush" Color="#20201E" />
+      <SolidColorBrush x:Key="BgSearchBrush" Color="#1C1C1C" />
+      <SolidColorBrush x:Key="BgCodeBrush" Color="#1A1A19" />
+      <SolidColorBrush x:Key="BgChipBrush" Color="#262626" />
+      <SolidColorBrush x:Key="BgMenuBrush" Color="#20201E" />
+      <SolidColorBrush x:Key="BgOverlayBrush" Color="#80000000" />
+      <SolidColorBrush x:Key="BgButtonBrush" Color="#373737" />
+      <SolidColorBrush x:Key="BgButtonHoverBrush" Color="#424242" />
+      <SolidColorBrush x:Key="BgSegmentsBrush" Color="#262624" />
+      <SolidColorBrush x:Key="BgSegmentCheckedBrush" Color="#3C3C3A" />
+      <SolidColorBrush x:Key="BgNavSelectedBrush" Color="#383838" />
+      <SolidColorBrush x:Key="BgFieldBrush" Color="#202020" />
+      <SolidColorBrush x:Key="BgSettingsBrush" Color="#1A1A18" />
+      <SolidColorBrush x:Key="BgMainClearBrush" Color="#00141414" />
+      <SolidColorBrush x:Key="BorderBrush" Color="#363636" />
+      <SolidColorBrush x:Key="BorderInputBrush" Color="#4C4C4C" />
+      <SolidColorBrush x:Key="BorderCardBrush" Color="#2C2C2C" />
+      <SolidColorBrush x:Key="BorderDividerBrush" Color="#282828" />
+      <SolidColorBrush x:Key="BorderSubtleBrush" Color="#10FFFFFF" />
+      <SolidColorBrush x:Key="BorderFieldBrush" Color="#383838" />
+      <SolidColorBrush x:Key="BorderSettingsBrush" Color="#262624" />
+      <SolidColorBrush x:Key="InlineCodeBorderBrush" Color="#393939" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#EEEDE8" />
+      <SolidColorBrush x:Key="TextChromeBrush" Color="#C4C3BB" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A8A6A0" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="#8A8883" />
+      <SolidColorBrush x:Key="TextOnAccentBrush" Color="#1A1A1A" />
+      <SolidColorBrush x:Key="TextNavBrush" Color="#DCDCD8" />
+      <SolidColorBrush x:Key="TextCaretBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#D97757" />
+      <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#C6613F" />
+      <SolidColorBrush x:Key="AccentSubtleBrush" Color="#24D97757" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="#3FA548" />
+      <SolidColorBrush x:Key="DiffAddBrush" Color="#52C664" />
+      <SolidColorBrush x:Key="DiffAddBgBrush" Color="#1B3B20" />
+      <SolidColorBrush x:Key="DiffDelBrush" Color="#E0485E" />
+      <SolidColorBrush x:Key="DiffDelBgBrush" Color="#431B20" />
+      <SolidColorBrush x:Key="DangerBrush" Color="#E0605A" />
+      <SolidColorBrush x:Key="DangerSubtleBrush" Color="#1FE0605A" />
+      <SolidColorBrush x:Key="LinkBrush" Color="#6FA2EA" />
+      <SolidColorBrush x:Key="UnreadBrush" Color="#327CD7" />
+      <SolidColorBrush x:Key="WaitingBrush" Color="#E3B341" />
+      <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
+      <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#DE8170" />
+      <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
+      <SolidColorBrush x:Key="BarTrackBrush" Color="#3A3A38" />
+      <SolidColorBrush x:Key="RingTrackBrush" Color="#26FFFFFF" />
+      <SolidColorBrush x:Key="SliderTickBrush" Color="#66FFFFFF" />
+      <SolidColorBrush x:Key="SwitchOffBrush" Color="#4A4A48" />
+      <SolidColorBrush x:Key="ScrollThumbBrush" Color="#1FFFFFFF" />
+      <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#33FFFFFF" />
+      <SolidColorBrush x:Key="JumpFillBrush" Color="#E6262626" />
+      <SolidColorBrush x:Key="JumpEdgeBrush" Color="#5A5A5A" />
+      <SolidColorBrush x:Key="JumpArrowBrush" Color="#E8E8E8" />
+      <SolidColorBrush x:Key="ShimmerBaseBrush" Color="#9C9A92" />
+      <SolidColorBrush x:Key="ShimmerHighlightBrush" Color="#F5F4EF" />
+      <!-- Settings combo boxes (Fluent keys) -->
+      <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#0BFFFFFF" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#16FFFFFF" />
+      <SolidColorBrush x:Key="ComboBoxForeground" Color="#EEEDE8" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#20201E" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#363636" />
+      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#A8A6A0" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Light">
+      <!-- Surfaces -->
+      <Color x:Key="BgSidebarColor">#F3F2EC</Color>
+      <Color x:Key="BgMainColor">#FAF9F5</Color>
+      <Color x:Key="BgRaisedColor">#F0EEE6</Color>
+      <Color x:Key="BgSelectedColor">#E6E4DB</Color>
+      <Color x:Key="BgHoverColor">#0A000000</Color>
+      <Color x:Key="BgPressedColor">#14000000</Color>
+      <Color x:Key="BgInputColor">#FFFFFF</Color>
+      <Color x:Key="BgSearchColor">#FFFFFF</Color>
+      <Color x:Key="BgCodeColor">#F2F0E9</Color>
+      <Color x:Key="BgChipColor">#EAE8E0</Color>
+      <Color x:Key="BgMenuColor">#FFFFFF</Color>
+      <Color x:Key="BgOverlayColor">#59000000</Color>
+      <Color x:Key="BgButtonColor">#E8E6DE</Color>
+      <Color x:Key="BgButtonHoverColor">#DDDBD2</Color>
+      <Color x:Key="BgSegmentsColor">#ECEAE2</Color>
+      <Color x:Key="BgSegmentCheckedColor">#FFFFFF</Color>
+      <Color x:Key="BgNavSelectedColor">#E6E4DB</Color>
+      <Color x:Key="BgFieldColor">#FFFFFF</Color>
+      <Color x:Key="BgSettingsColor">#F7F6F2</Color>
+      <Color x:Key="BgMainClearColor">#00FAF9F5</Color>
+      <!-- Lines -->
+      <Color x:Key="BorderColor">#DEDCD3</Color>
+      <Color x:Key="BorderInputColor">#C9C7BE</Color>
+      <Color x:Key="BorderCardColor">#E3E1D8</Color>
+      <Color x:Key="BorderDividerColor">#E6E4DB</Color>
+      <Color x:Key="BorderSubtleColor">#12000000</Color>
+      <Color x:Key="BorderFieldColor">#D6D4CB</Color>
+      <Color x:Key="BorderSettingsColor">#DEDCD3</Color>
+      <Color x:Key="InlineCodeBorderColor">#E0DED5</Color>
+      <!-- Text -->
+      <Color x:Key="TextPrimaryColor">#1F1E1D</Color>
+      <Color x:Key="TextChromeColor">#3D3C38</Color>
+      <Color x:Key="TextSecondaryColor">#5E5D59</Color>
+      <Color x:Key="TextMutedColor">#7A7973</Color>
+      <Color x:Key="TextOnAccentColor">#FFFFFF</Color>
+      <Color x:Key="TextNavColor">#2B2A27</Color>
+      <Color x:Key="TextCaretColor">#1F1E1D</Color>
+      <!-- Accents and states -->
+      <Color x:Key="AccentColor">#D97757</Color>
+      <Color x:Key="AccentEmphasisColor">#C6613F</Color>
+      <Color x:Key="AccentSubtleColor">#1FD97757</Color>
+      <Color x:Key="SuccessColor">#2E8B3A</Color>
+      <Color x:Key="DiffAddColor">#1A7F37</Color>
+      <Color x:Key="DiffAddBgColor">#DCF3E0</Color>
+      <Color x:Key="DiffDelColor">#C62F45</Color>
+      <Color x:Key="DiffDelBgColor">#FBE3E6</Color>
+      <Color x:Key="DangerColor">#C9433D</Color>
+      <Color x:Key="DangerSubtleColor">#1AC9433D</Color>
+      <Color x:Key="LinkColor">#2F6FC7</Color>
+      <Color x:Key="UnreadColor">#2A6FC9</Color>
+      <Color x:Key="WaitingColor">#B7871C</Color>
+      <Color x:Key="CheckColor">#2A74CC</Color>
+      <Color x:Key="RingColor">#2A78D6</Color>
+      <Color x:Key="InlineCodeColor">#C2513C</Color>
+      <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
+      <!-- Bars, rings, switches and the scroll anchor -->
+      <Color x:Key="BarTrackColor">#E3E1D8</Color>
+      <Color x:Key="RingTrackColor">#1F000000</Color>
+      <Color x:Key="SliderTickColor">#59000000</Color>
+      <Color x:Key="SwitchOffColor">#C9C7BE</Color>
+      <Color x:Key="ScrollThumbColor">#26000000</Color>
+      <Color x:Key="ScrollThumbHoverColor">#40000000</Color>
+      <Color x:Key="JumpFillColor">#F2FFFFFF</Color>
+      <Color x:Key="JumpEdgeColor">#CFCDC4</Color>
+      <Color x:Key="JumpArrowColor">#3D3C38</Color>
+      <Color x:Key="ShimmerBaseColor">#8A8883</Color>
+      <Color x:Key="ShimmerHighlightColor">#1F1E1D</Color>
+      <SolidColorBrush x:Key="BgSidebarBrush" Color="#F3F2EC" />
+      <SolidColorBrush x:Key="BgMainBrush" Color="#FAF9F5" />
+      <SolidColorBrush x:Key="BgRaisedBrush" Color="#F0EEE6" />
+      <SolidColorBrush x:Key="BgSelectedBrush" Color="#E6E4DB" />
+      <SolidColorBrush x:Key="BgHoverBrush" Color="#0A000000" />
+      <SolidColorBrush x:Key="BgPressedBrush" Color="#14000000" />
+      <SolidColorBrush x:Key="BgInputBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgSearchBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgCodeBrush" Color="#F2F0E9" />
+      <SolidColorBrush x:Key="BgChipBrush" Color="#EAE8E0" />
+      <SolidColorBrush x:Key="BgMenuBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgOverlayBrush" Color="#59000000" />
+      <SolidColorBrush x:Key="BgButtonBrush" Color="#E8E6DE" />
+      <SolidColorBrush x:Key="BgButtonHoverBrush" Color="#DDDBD2" />
+      <SolidColorBrush x:Key="BgSegmentsBrush" Color="#ECEAE2" />
+      <SolidColorBrush x:Key="BgSegmentCheckedBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgNavSelectedBrush" Color="#E6E4DB" />
+      <SolidColorBrush x:Key="BgFieldBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgSettingsBrush" Color="#F7F6F2" />
+      <SolidColorBrush x:Key="BgMainClearBrush" Color="#00FAF9F5" />
+      <SolidColorBrush x:Key="BorderBrush" Color="#DEDCD3" />
+      <SolidColorBrush x:Key="BorderInputBrush" Color="#C9C7BE" />
+      <SolidColorBrush x:Key="BorderCardBrush" Color="#E3E1D8" />
+      <SolidColorBrush x:Key="BorderDividerBrush" Color="#E6E4DB" />
+      <SolidColorBrush x:Key="BorderSubtleBrush" Color="#12000000" />
+      <SolidColorBrush x:Key="BorderFieldBrush" Color="#D6D4CB" />
+      <SolidColorBrush x:Key="BorderSettingsBrush" Color="#DEDCD3" />
+      <SolidColorBrush x:Key="InlineCodeBorderBrush" Color="#E0DED5" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="TextChromeBrush" Color="#3D3C38" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5E5D59" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="#7A7973" />
+      <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="TextNavBrush" Color="#2B2A27" />
+      <SolidColorBrush x:Key="TextCaretBrush" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#D97757" />
+      <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#C6613F" />
+      <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1FD97757" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="#2E8B3A" />
+      <SolidColorBrush x:Key="DiffAddBrush" Color="#1A7F37" />
+      <SolidColorBrush x:Key="DiffAddBgBrush" Color="#DCF3E0" />
+      <SolidColorBrush x:Key="DiffDelBrush" Color="#C62F45" />
+      <SolidColorBrush x:Key="DiffDelBgBrush" Color="#FBE3E6" />
+      <SolidColorBrush x:Key="DangerBrush" Color="#C9433D" />
+      <SolidColorBrush x:Key="DangerSubtleBrush" Color="#1AC9433D" />
+      <SolidColorBrush x:Key="LinkBrush" Color="#2F6FC7" />
+      <SolidColorBrush x:Key="UnreadBrush" Color="#2A6FC9" />
+      <SolidColorBrush x:Key="WaitingBrush" Color="#B7871C" />
+      <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
+      <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#C2513C" />
+      <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
+      <SolidColorBrush x:Key="BarTrackBrush" Color="#E3E1D8" />
+      <SolidColorBrush x:Key="RingTrackBrush" Color="#1F000000" />
+      <SolidColorBrush x:Key="SliderTickBrush" Color="#59000000" />
+      <SolidColorBrush x:Key="SwitchOffBrush" Color="#C9C7BE" />
+      <SolidColorBrush x:Key="ScrollThumbBrush" Color="#26000000" />
+      <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#40000000" />
+      <SolidColorBrush x:Key="JumpFillBrush" Color="#F2FFFFFF" />
+      <SolidColorBrush x:Key="JumpEdgeBrush" Color="#CFCDC4" />
+      <SolidColorBrush x:Key="JumpArrowBrush" Color="#3D3C38" />
+      <SolidColorBrush x:Key="ShimmerBaseBrush" Color="#8A8883" />
+      <SolidColorBrush x:Key="ShimmerHighlightBrush" Color="#1F1E1D" />
+      <!-- Settings combo boxes (Fluent keys) -->
+      <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#0A000000" />
+      <SolidColorBrush x:Key="ComboBoxBackgroundPressed" Color="#14000000" />
+      <SolidColorBrush x:Key="ComboBoxForeground" Color="#1F1E1D" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#DEDCD3" />
+      <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#5E5D59" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
 
   <!-- Typography -->
   <FontFamily x:Key="UiFont">fonts:Inter#Inter, Segoe UI</FontFamily>
