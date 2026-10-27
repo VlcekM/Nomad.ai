@@ -90,9 +90,13 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowWorktreeToggle))]
     [NotifyPropertyChangedFor(nameof(GitChipText))]
     [NotifyPropertyChangedFor(nameof(GitChipToolTip))]
+    [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
+    [NotifyPropertyChangedFor(nameof(IsWorktreeSession))]
     public partial bool IsNew { get; set; } = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorktreeSession))]
+    [NotifyPropertyChangedFor(nameof(WorktreeTitleToolTip))]
     [NotifyPropertyChangedFor(nameof(FolderName))]
     [NotifyPropertyChangedFor(nameof(HasFolder))]
     [NotifyPropertyChangedFor(nameof(FolderToolTip))]
@@ -103,9 +107,18 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The folder is in a git repository: the git chip shows, and a new session can start in a worktree.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowWorktreeToggle))]
+    [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
     public partial bool IsGitFolder { get; set; }
 
     public bool ShowWorktreeToggle => IsNew && IsGitFolder;
+
+    /// <summary>A started session shows its branch (and worktree, if any) in the title bar instead of the status row.</summary>
+    public bool ShowTitleGit => !IsNew && IsGitFolder;
+
+    /// <summary>The session runs in a worktree of its repository (<c>.claude\worktrees</c>).</summary>
+    public bool IsWorktreeSession => !IsNew && Folder is not null && GitInfo.WorktreeOwner(Folder) is not null;
+
+    public string WorktreeTitleToolTip => $"Worktree {Folder}";
 
     /// <summary>The folder's checked-out branch.</summary>
     [ObservableProperty]

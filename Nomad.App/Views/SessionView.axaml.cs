@@ -174,7 +174,7 @@ public partial class SessionView : UserControl
         ScrollDownButton.IsVisible = false;
     }
 
-    private void FocusComposerSoon() =>
+    public void FocusComposerSoon() =>
         Dispatcher.UIThread.Post(() => Composer.Focus(), DispatcherPriority.Loaded);
 
     // ------------------------------------------------------------------ keyboard

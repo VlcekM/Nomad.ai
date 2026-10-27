@@ -1258,9 +1258,9 @@
 
       <!--
         Git, for a folder in a repository. New session: the branch (click to switch it, or with Worktree on to pick the
-        one the worktree starts from) and the Worktree switch. Running session: its worktree, if any, and branch.
+        one the worktree starts from) and the Worktree switch. A started session shows its branch in the title bar.
       -->
-      <StackPanel Orientation="Horizontal" IsVisible="{Binding IsGitFolder}" Margin="4,0,0,0">
+      <StackPanel Orientation="Horizontal" IsVisible="{Binding ShowWorktreeToggle}" Margin="4,0,0,0">
         <Button Name="BranchChip"
                 Theme="{StaticResource ChipButton}"
                 Click="OnBranchChipClick"

@@ -629,6 +629,9 @@ public sealed partial class MainViewModel : ObservableObject
         SaveSettings();
     }
 
+    // Leaving a session while its title is being edited keeps the new name.
+    partial void OnCurrentChanging(SessionViewModel value) => EndTitleRename(save: true);
+
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
         newValue?.ApplyDefaultMode();
@@ -1530,6 +1533,47 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 // The sidebar keeps showing the name until the next scan.
             }
+        }
+    }
+
+    /// <summary>The title bar's title is being edited (a click on it), saved as a rename of the current session's row.</summary>
+    [ObservableProperty]
+    public partial bool IsTitleRenaming { get; set; }
+
+    [ObservableProperty]
+    public partial string TitleRenameText { get; set; } = "";
+
+    /// <summary>Starts editing the title bar's title; false when the current session has no row to rename yet.</summary>
+    public bool BeginTitleRename()
+    {
+        if (CurrentRow is not { } row)
+        {
+            return false;
+        }
+
+        if (row.IsRenaming)
+        {
+            EndRename(row, save: true);
+        }
+
+        TitleRenameText = Current.RenamedTitle ?? (Current.Title.Length > 0 ? Current.Title : row.Title);
+        IsTitleRenaming = true;
+        return true;
+    }
+
+    public void EndTitleRename(bool save)
+    {
+        if (!IsTitleRenaming)
+        {
+            return;
+        }
+
+        IsTitleRenaming = false;
+        if (save && CurrentRow is { } row)
+        {
+            row.RenameText = TitleRenameText;
+            row.IsRenaming = true;
+            EndRename(row, save: true);
         }
     }
 

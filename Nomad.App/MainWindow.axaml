@@ -227,22 +227,16 @@
                   <c:EdgeFade Grid.Column="1" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Title}" />
                   </c:EdgeFade>
-                  <!-- Rename (double-click, F2 or the context menu): Enter saves, Esc keeps the old name. -->
-                  <Border Grid.Column="1"
-                          IsVisible="{Binding IsRenaming}"
-                          Background="{DynamicResource BgInputBrush}"
-                          BorderBrush="{DynamicResource BorderInputBrush}"
-                          BorderThickness="1"
-                          CornerRadius="5"
-                          Padding="5,1"
-                          Margin="-6,0,0,0"
-                          VerticalAlignment="Center">
-                    <TextBox Classes="rename"
-                             Theme="{StaticResource BareTextBox}"
-                             Text="{Binding RenameText}"
-                             MaxLength="200"
-                             LostFocus="OnRenameLostFocus" />
-                  </Border>
+                  <!-- Rename (double-click, F2 or the context menu): the title turns editable in place, no frame;
+                       Enter saves, Esc keeps the old name. -->
+                  <TextBox Grid.Column="1"
+                           Classes="rename"
+                           Theme="{StaticResource BareTextBox}"
+                           IsVisible="{Binding IsRenaming}"
+                           VerticalAlignment="Center"
+                           Text="{Binding RenameText}"
+                           MaxLength="200"
+                           LostFocus="OnRenameLostFocus" />
                   <!-- Idle (no CLI process): a sleeping moon, unless a mark has something to say. -->
                   <c:Icon Grid.Column="2"
                           Classes="sleep"
@@ -646,21 +640,62 @@
             </Button>
           </StackPanel>
 
+          <!-- The title (a click renames the session in place) and, for a session in a git repository, its branch
+               and worktree. -->
           <StackPanel Grid.Column="1"
                       Orientation="Horizontal"
-                      Spacing="4"
-                      Margin="23,0,12,0"
+                      Spacing="2"
+                      Margin="17,0,12,0"
                       VerticalAlignment="Center">
-            <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
-                       FontWeight="Medium"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       TextTrimming="CharacterEllipsis"
-                       IsVisible="{Binding Current.HasTitle}"
-                       VerticalAlignment="Center" />
+            <Button Theme="{StaticResource FlatButton}"
+                    Padding="6,3"
+                    MaxWidth="560"
+                    IsVisible="{Binding Current.HasTitle}"
+                    Click="OnTitleClick"
+                    ToolTip.Tip="Rename (F2)"
+                    ToolTip.ShowDelay="700">
+              <Panel>
+                <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
+                           FontWeight="Medium"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding !IsTitleRenaming}"
+                           VerticalAlignment="Center" />
+                <TextBox Name="TitleRenameBox"
+                         Theme="{StaticResource BareTextBox}"
+                         FontWeight="Medium"
+                         MinWidth="120"
+                         MaxLength="200"
+                         IsVisible="{Binding IsTitleRenaming}"
+                         Text="{Binding TitleRenameText}"
+                         LostFocus="OnTitleRenameLostFocus" />
+              </Panel>
+            </Button>
             <TextBlock Text="New session"
                        Classes="muted"
+                       Margin="6,0,0,0"
                        IsVisible="{Binding !Current.HasTitle}"
                        VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6"
+                        Margin="6,0,0,0"
+                        Background="Transparent"
+                        IsVisible="{Binding Current.ShowTitleGit}"
+                        ToolTip.Tip="{Binding Current.GitChipToolTip}">
+              <c:Icon Size="13" Data="{StaticResource IconGitBranch}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Current.GitBranch}"
+                         Classes="muted"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         MaxWidth="220"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+            <Border Background="Transparent"
+                    Margin="8,0,0,0"
+                    IsVisible="{Binding Current.IsWorktreeSession}"
+                    ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
+              <c:Icon Size="13" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" VerticalAlignment="Center" />
+            </Border>
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal">

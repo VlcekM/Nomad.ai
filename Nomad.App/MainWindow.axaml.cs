@@ -87,6 +87,19 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // The title bar's rename box sits in the title's button the same way.
+            if (e.Source == TitleRenameBox && vm.IsTitleRenaming && e.Key is Key.Enter or Key.Escape or Key.Space)
+            {
+                if (e.Key != Key.Space)
+                {
+                    vm.EndTitleRename(save: e.Key == Key.Enter);
+                    this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault()?.FocusComposerSoon();
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
             {
                 BeginRename(row);
@@ -290,6 +303,23 @@ public partial class MainWindow : Window
             }
         }, DispatcherPriority.Loaded);
     }
+
+    /// <summary>A click on the title bar's title edits it in place (Enter saves, Esc keeps it, clicking away saves).</summary>
+    private void OnTitleClick(object? sender, RoutedEventArgs e)
+    {
+        if (_vm.IsTitleRenaming || !_vm.BeginTitleRename())
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            TitleRenameBox.Focus();
+            TitleRenameBox.SelectAll();
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void OnTitleRenameLostFocus(object? sender, RoutedEventArgs e) => _vm.EndTitleRename(save: true);
 
     /// <summary>Clicking elsewhere keeps the new name.</summary>
     private void OnRenameLostFocus(object? sender, RoutedEventArgs e)
