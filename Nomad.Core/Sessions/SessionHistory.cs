@@ -122,6 +122,12 @@ public sealed class SessionHistory
 
         switch (record.Type)
         {
+            // A background task's end, handed to Claude between turns.
+            case "attachment" when record.Attachment.ValueKind == System.Text.Json.JsonValueKind.Object
+                && record.Attachment.TryGetProperty("prompt", out var prompt) && prompt.ValueKind == System.Text.Json.JsonValueKind.String
+                && TaskNotification.TryParse(prompt.GetString(), out var summary):
+                items.Add(new HistoryNotice(summary));
+                return;
             case "system" when record.Subtype == "compact_boundary":
                 items.Add(new HistoryNotice("Conversation compacted"));
                 return;
@@ -154,6 +160,10 @@ public sealed class SessionHistory
                     if (trimmed.StartsWith("[Request interrupted", StringComparison.Ordinal))
                     {
                         items.Add(new HistoryNotice("Interrupted"));
+                    }
+                    else if (TaskNotification.TryParse(trimmed, out var summary))
+                    {
+                        items.Add(new HistoryNotice(summary));
                     }
                     else if (!trimmed.StartsWith('<'))
                     {

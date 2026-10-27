@@ -31,6 +31,7 @@ public sealed class TranscriptRecord
     [JsonPropertyName("aiTitle")] public string? AiTitle { get; set; }
     [JsonPropertyName("summary")] public string? Summary { get; set; }
     [JsonPropertyName("content")] public JsonElement Content { get; set; }
+    [JsonPropertyName("attachment")] public JsonElement Attachment { get; set; }
 
     public bool IsConversationRecord => Type is "user" or "assistant";
 
