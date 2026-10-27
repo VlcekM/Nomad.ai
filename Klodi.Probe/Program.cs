@@ -3,6 +3,7 @@ using System.Text;
 using Klodi.Core.Agents;
 using Klodi.Core.Process;
 using Klodi.Core.Sessions;
+using Klodi.Core.Updates;
 
 namespace Klodi.Probe;
 
@@ -11,6 +12,7 @@ namespace Klodi.Probe;
 /// <code>
 /// Klodi.Probe &lt;scenario&gt; --cwd &lt;folder&gt; [--model id] [--out &lt;transcript.jsonl&gt;] [--full]
 ///   scenarios: pong | write-allow | write-deny | interrupt | multiturn | controls | sessions | history &lt;file&gt;
+///              | releases [owner/repo]   (GitHub release list, fetched twice: the second should be a free 304)
 /// </code>
 /// Unless <c>--full</c> is given, the CLI runs with a reduced tool set and no MCP servers or skills,
 /// which keeps each test turn's prompt small.
@@ -26,7 +28,7 @@ internal static class Program
         Console.OutputEncoding = Encoding.UTF8;
         if (args.Length == 0)
         {
-            Console.WriteLine("usage: Klodi.Probe <pong|write-allow|write-deny|interrupt|multiturn|controls|sessions|history> --cwd <folder> [--model id] [--out file] [--full]");
+            Console.WriteLine("usage: Klodi.Probe <pong|write-allow|write-deny|interrupt|multiturn|controls|sessions|history|releases> --cwd <folder> [--model id] [--out file] [--full]");
             return 2;
         }
 
@@ -59,6 +61,7 @@ internal static class Program
                 "title" => await TitleAsync(cwd),
                 "sessions" => Sessions(),
                 "history" => History(file ?? throw new ArgumentException("history needs a transcript path")),
+                "releases" => await ReleasesAsync(cwd, file ?? "VlcekM/Klodi"),
                 _ => throw new ArgumentException($"unknown scenario {scenario}"),
             };
             Console.WriteLine(ok ? "PROBE OK" : "PROBE FAILED");
@@ -73,6 +76,30 @@ internal static class Program
         {
             ClaudeCliProcess.KillAllOwned();
         }
+    }
+
+    // The release list the Updates page shows: read from GitHub, then again with the cached ETag.
+    private static async Task<bool> ReleasesAsync(string cwd, string repository)
+    {
+        using var http = ReleaseFeed.CreateClient("probe");
+        var feed = new ReleaseFeed(http, repository, Path.Combine(cwd, "releases-cache.json"));
+        var ok = true;
+        for (var round = 1; round <= 2; round++)
+        {
+            var watch = Stopwatch.StartNew();
+            var list = await feed.FetchAsync();
+            var how = list.Problem ?? (list.FromCache ? "unchanged (304), cached list used" : "read from GitHub");
+            Console.WriteLine($"[fetch {round}] {repository}: {list.Releases.Count} releases in {watch.ElapsedMilliseconds} ms, {how}");
+            foreach (var r in list.Releases.Take(3))
+            {
+                var trimmed = ReleaseFeed.TrimNotes(r.Notes);
+                Console.WriteLine($"   {r.Tag,-14} {r.Published:yyyy-MM-dd} prerelease={r.Prerelease} notes {r.Notes.Length} chars, shown {trimmed.Length}");
+            }
+
+            ok &= list.Problem is null && (round == 1 || list.FromCache);
+        }
+
+        return ok;
     }
 
     // (a) one turn, plain text
