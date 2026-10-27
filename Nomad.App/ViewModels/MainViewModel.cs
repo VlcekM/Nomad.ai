@@ -976,6 +976,9 @@ public sealed partial class MainViewModel : ObservableObject
 
             vm.FilePath = s.FilePath;
             vm.WorkingDirectory = s.WorkingDirectory;
+            vm.GitBranch = s.GitBranch;
+            vm.PullRequestUrl = s.PullRequestUrl;
+            vm.IssueUrl = s.IssueUrl;
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
             // An open session knows its newest title (a generated one may not be on disk yet).
             vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
@@ -1007,6 +1010,53 @@ public sealed partial class MainViewModel : ObservableObject
         await AutoArchiveSessionsAsync(fold: false);
         OnPropertyChanged(nameof(RecentFolders));
         Current.RefreshFolders();
+        _ = LoadGitHubLinksAsync();
+    }
+
+    private const int GitHubLinkSessions = 60;
+
+    /// <summary>
+    /// The newest sessions on a branch get their GitHub pull request and issue (gh, cached per repository for a few
+    /// minutes): an icon each on their rows.
+    /// </summary>
+    private async Task LoadGitHubLinksAsync()
+    {
+        var rows = _all.Where(s => s.WorkingDirectory is not null && !string.IsNullOrEmpty(s.GitBranch) && s.GitBranch != "HEAD")
+            .Take(GitHubLinkSessions)
+            .ToList();
+        var lookups = rows.GroupBy(s => s.WorkingDirectory!, StringComparer.OrdinalIgnoreCase)
+            .Select(folder => (folder, Nomad.Core.Git.GitHubLinks.GetAsync(folder.Key)))
+            .ToList();
+        foreach (var (folder, lookup) in lookups)
+        {
+            if (await lookup is not { } links)
+            {
+                continue;
+            }
+
+            foreach (var row in folder)
+            {
+                // The pull request from its branch, else the last one it mentions (one it opened, or was asked about).
+                var pr = links.PullRequestFor(row.GitBranch);
+                if (pr is null && row.PullRequestUrl is { } prUrl && links.Trusts(prUrl))
+                {
+                    pr = links.PullRequests.FirstOrDefault(p => string.Equals(p.Url, prUrl, StringComparison.OrdinalIgnoreCase))
+                        ?? await Nomad.Core.Git.GitHubLinks.PullRequestAsync(prUrl, folder.Key);
+                }
+
+                // The issue its pull request closes, else the last one it mentions, else one in its branch or title.
+                var ownRepo = pr?.Url.Contains($"/{links.NameWithOwner}/", StringComparison.OrdinalIgnoreCase) == true;
+                var issue = ownRepo && pr is { Closes.Count: > 0 } ? links.IssueFor(null, null, pr) : null;
+                if (issue is null && row.IssueUrl is { } issueUrl && links.Trusts(issueUrl))
+                {
+                    issue = links.Issues.FirstOrDefault(i => string.Equals(i.Url, issueUrl, StringComparison.OrdinalIgnoreCase))
+                        ?? await Nomad.Core.Git.GitHubLinks.IssueAsync(issueUrl, folder.Key);
+                }
+
+                row.PullRequest = pr;
+                row.Issue = issue ?? links.IssueFor(row.GitBranch, row.Title, null);
+            }
+        }
     }
 
     private void ApplyFilter()

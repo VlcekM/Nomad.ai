@@ -110,7 +110,61 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     public SessionMark Mark => IsWaiting ? SessionMark.Waiting : IsRunning ? SessionMark.Working : IsUnread ? SessionMark.Unread : SessionMark.None;
 
-    public string ToolTipText => $"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
+    /// <summary>The branch its transcript last recorded (null: not a repository, or not known yet).</summary>
+    public string? GitBranch { get; set; }
+
+    /// <summary>The last GitHub pull request and issue URLs its transcript mentions.</summary>
+    public string? PullRequestUrl { get; set; }
+
+    public string? IssueUrl { get; set; }
+
+    /// <summary>The GitHub pull request from its branch, if any: an icon on the row (click opens it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPullRequest))]
+    [NotifyPropertyChangedFor(nameof(PullRequestToolTip))]
+    [NotifyPropertyChangedFor(nameof(IsPrOpen))]
+    [NotifyPropertyChangedFor(nameof(IsPrDraft))]
+    [NotifyPropertyChangedFor(nameof(IsPrMerged))]
+    [NotifyPropertyChangedFor(nameof(IsPrClosed))]
+    public partial Nomad.Core.Git.PullRequestLink? PullRequest { get; set; }
+
+    /// <summary>The GitHub issue it works on (closed by its pull request, or named in its branch or title).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasIssue))]
+    [NotifyPropertyChangedFor(nameof(IssueToolTip))]
+    [NotifyPropertyChangedFor(nameof(IsIssueOpen))]
+    [NotifyPropertyChangedFor(nameof(IsIssueDone))]
+    [NotifyPropertyChangedFor(nameof(IsIssueNotPlanned))]
+    public partial Nomad.Core.Git.IssueLink? Issue { get; set; }
+
+    public bool HasPullRequest => PullRequest is not null;
+
+    public bool HasIssue => Issue is not null;
+
+    // The state picks the icon and its colour (GitHub's: green open, grey draft, purple merged or done, red closed).
+    public bool IsPrOpen => PullRequest?.State == Nomad.Core.Git.PullRequestState.Open;
+
+    public bool IsPrDraft => PullRequest?.State == Nomad.Core.Git.PullRequestState.Draft;
+
+    public bool IsPrMerged => PullRequest?.State == Nomad.Core.Git.PullRequestState.Merged;
+
+    public bool IsPrClosed => PullRequest?.State == Nomad.Core.Git.PullRequestState.Closed;
+
+    public bool IsIssueOpen => Issue?.State == Nomad.Core.Git.IssueState.Open;
+
+    public bool IsIssueDone => Issue?.State == Nomad.Core.Git.IssueState.Completed;
+
+    public bool IsIssueNotPlanned => Issue?.State == Nomad.Core.Git.IssueState.NotPlanned;
+
+    public string PullRequestToolTip => PullRequest is { } pr
+        ? $"Pull request #{pr.Number} · {pr.State switch { Nomad.Core.Git.PullRequestState.Draft => "Draft", Nomad.Core.Git.PullRequestState.Merged => "Merged", Nomad.Core.Git.PullRequestState.Closed => "Closed", _ => "Open" }}\n{pr.Title}"
+        : "";
+
+    public string IssueToolTip => Issue is { } issue
+        ? $"Issue #{issue.Number} · {issue.State switch { Nomad.Core.Git.IssueState.Completed => "Closed", Nomad.Core.Git.IssueState.NotPlanned => "Closed as not planned", _ => "Open" }}\n{issue.Title}"
+        : "";
+
+    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
 /// <summary>A group heading in the sidebar's Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>

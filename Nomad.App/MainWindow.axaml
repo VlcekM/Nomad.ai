@@ -88,6 +88,26 @@
                 </Transitions>
               </Setter>
             </Style>
+            <!-- A row's GitHub icons fold in and fade as they become known. -->
+            <Style Selector="StackPanel.ghlinks > Border">
+              <Setter Property="MaxWidth" Value="0" />
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Margin" Value="0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="StackPanel.ghlinks > Border.shown">
+              <Setter Property="MaxWidth" Value="16" />
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="Margin" Value="4,0,0,0" />
+              <Setter Property="IsHitTestVisible" Value="True" />
+            </Style>
             <Style Selector="Button.sessionrow.leaving">
               <Setter Property="Height" Value="0" />
               <Setter Property="Opacity" Value="0" />
@@ -208,7 +228,7 @@
                               ToolTip.Tip="Moves the session's transcript to the Recycle Bin" />
                   </ContextMenu>
                 </Button.ContextMenu>
-                <Grid ColumnDefinitions="Auto,*,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto">
                   <!-- Started from the phone: it runs in the Claude app, Nomad shows it live. -->
                   <c:Icon Size="12"
                           Data="{StaticResource IconPhone}"
@@ -237,8 +257,29 @@
                            Text="{Binding RenameText}"
                            MaxLength="200"
                            LostFocus="OnRenameLostFocus" />
+                  <!-- GitHub: the branch's pull request and the issue the session works on, in their state's colour;
+                       a click opens them in the browser. -->
+                  <StackPanel Grid.Column="2" Classes="ghlinks" Orientation="Horizontal" Margin="4,0,0,0" VerticalAlignment="Center">
+                    <Border Background="Transparent" Classes.shown="{Binding HasIssue}" Cursor="Hand"
+                            PointerPressed="OnIssueIconPressed" ToolTip.Tip="{Binding IssueToolTip}">
+                      <Panel>
+                        <c:Icon Size="13" Data="{StaticResource IconIssue}" Stroke="{DynamicResource GhOpenBrush}" IsVisible="{Binding IsIssueOpen}" />
+                        <c:Icon Size="13" Data="{StaticResource IconIssueDone}" Stroke="{DynamicResource GhMergedBrush}" IsVisible="{Binding IsIssueDone}" />
+                        <c:Icon Size="13" Data="{StaticResource IconIssueNotPlanned}" Stroke="{DynamicResource GhNeutralBrush}" IsVisible="{Binding IsIssueNotPlanned}" />
+                      </Panel>
+                    </Border>
+                    <Border Background="Transparent" Classes.shown="{Binding HasPullRequest}" Cursor="Hand"
+                            PointerPressed="OnPullRequestIconPressed" ToolTip.Tip="{Binding PullRequestToolTip}">
+                      <Panel>
+                        <c:Icon Size="13" Data="{StaticResource IconPullRequest}" Stroke="{DynamicResource GhOpenBrush}" IsVisible="{Binding IsPrOpen}" />
+                        <c:Icon Size="13" Data="{StaticResource IconPullRequest}" Stroke="{DynamicResource GhNeutralBrush}" IsVisible="{Binding IsPrDraft}" />
+                        <c:Icon Size="13" Data="{StaticResource IconPullRequestMerged}" Stroke="{DynamicResource GhMergedBrush}" IsVisible="{Binding IsPrMerged}" />
+                        <c:Icon Size="13" Data="{StaticResource IconPullRequestClosed}" Stroke="{DynamicResource GhClosedBrush}" IsVisible="{Binding IsPrClosed}" />
+                      </Panel>
+                    </Border>
+                  </StackPanel>
                   <!-- Idle (no CLI process): a sleeping moon, unless a mark has something to say. -->
-                  <c:Icon Grid.Column="2"
+                  <c:Icon Grid.Column="3"
                           Classes="sleep"
                           Size="13"
                           Data="{StaticResource IconSleep}"
@@ -248,7 +289,7 @@
                           VerticalAlignment="Center"
                           ToolTip.Tip="Idle: no Claude Code process (it starts again with the next prompt)" />
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
-                  <c:StatusMark Grid.Column="2"
+                  <c:StatusMark Grid.Column="3"
                                 Margin="10,0,1,0"
                                 VerticalAlignment="Center"
                                 Mark="{Binding Mark}"
@@ -256,7 +297,7 @@
                                 WaitingBrush="{DynamicResource WaitingBrush}"
                                 UnreadBrush="{DynamicResource UnreadBrush}" />
                   <!-- Ctrl held: the row's Ctrl+number, over its mark. -->
-                  <Border Grid.Column="2"
+                  <Border Grid.Column="3"
                           Classes="shortcut"
                           Classes.on="{Binding ShowShortcut}"
                           HorizontalAlignment="Right"

@@ -272,6 +272,31 @@ public partial class MainWindow : Window
         }
     }
 
+    // A row's GitHub icons open their pull request or issue (and keep the press from opening the session).
+    private void OnPullRequestIconPressed(object? sender, PointerPressedEventArgs e) =>
+        OpenLink(e, (sender as Control)?.DataContext is SessionListItemViewModel { PullRequest.Url: { } url } ? url : null);
+
+    private void OnIssueIconPressed(object? sender, PointerPressedEventArgs e) =>
+        OpenLink(e, (sender as Control)?.DataContext is SessionListItemViewModel { Issue.Url: { } url } ? url : null);
+
+    private void OpenLink(PointerPressedEventArgs e, string? url)
+    {
+        if (url is null || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // No browser registered.
+        }
+    }
+
     private void OnRenameSessionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })

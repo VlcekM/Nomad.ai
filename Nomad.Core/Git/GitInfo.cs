@@ -170,9 +170,14 @@ public static class GitInfo
     }
 
     /// <summary>Runs <c>git -C folder …</c>: whether it succeeded in time, and its output and error text.</summary>
-    private static async Task<(bool Ok, string Output, string Error)> RunFullAsync(string folder, TimeSpan timeout, params string[] args)
+    private static Task<(bool Ok, string Output, string Error)> RunFullAsync(string folder, TimeSpan timeout, params string[] args) =>
+        RunToolAsync("git", ["--no-optional-locks", "-c", "core.quotepath=off", "-C", folder, .. args], null, timeout);
+
+    /// <summary>Runs a command-line tool (git, gh) without a window: whether it succeeded in time, its output and error.</summary>
+    internal static async Task<(bool Ok, string Output, string Error)> RunToolAsync(
+        string tool, IEnumerable<string> args, string? workingDirectory, TimeSpan timeout)
     {
-        var start = new ProcessStartInfo("git")
+        var start = new ProcessStartInfo(tool)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -181,7 +186,12 @@ public static class GitInfo
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
         };
-        foreach (var arg in new[] { "--no-optional-locks", "-c", "core.quotepath=off", "-C", folder }.Concat(args))
+        if (workingDirectory is not null)
+        {
+            start.WorkingDirectory = workingDirectory;
+        }
+
+        foreach (var arg in args)
         {
             start.ArgumentList.Add(arg);
         }
@@ -204,7 +214,7 @@ public static class GitInfo
             catch (OperationCanceledException)
             {
                 process.Kill(entireProcessTree: true);
-                return (false, "", "git took too long.");
+                return (false, "", $"{tool} took too long.");
             }
 
             return (process.ExitCode == 0, await output, await error);

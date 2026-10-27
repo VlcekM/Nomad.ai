@@ -10,7 +10,10 @@ public sealed record SessionSummary(
     string? WorkingDirectory,
     string Title,
     DateTime LastActivityUtc,
-    long SizeBytes);
+    long SizeBytes,
+    string? GitBranch = null,
+    string? PullRequestUrl = null,
+    string? IssueUrl = null);
 
 /// <summary>
 /// Lists and loads Claude Code sessions from <c>~/.claude/projects</c>. Summaries are read from the
@@ -142,7 +145,7 @@ public sealed class SessionStore
             return null;
         }
 
-        return new SessionSummary(sessionId, file, builder.Cwd, title, mtimeUtc, size);
+        return new SessionSummary(sessionId, file, builder.Cwd, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl);
     }
 
     /// <summary>
@@ -280,8 +283,61 @@ public sealed class SessionStore
             !string.IsNullOrWhiteSpace(_summary) ? SessionTitles.Shorten(_summary) :
             _firstPrompt is not null ? SessionTitles.Shorten(_firstPrompt) : null;
 
+        /// <summary>The branch of the newest record that names one (records carry the checkout they were made on).</summary>
+        public string? GitBranch { get; private set; }
+
+        /// <summary>The last GitHub pull request the session mentions (one it opened, or was asked about).</summary>
+        public string? PullRequestUrl { get; private set; }
+
+        /// <summary>The last GitHub issue the session mentions.</summary>
+        public string? IssueUrl { get; private set; }
+
+        private static readonly System.Text.RegularExpressions.Regex GitHubUrl = new(
+            @"https://github\.com/([\w.-]+)/([\w.-]+)/(pull|issues)/(\d+)",
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        private void NoteLinks(string line)
+        {
+            if (!line.Contains("github.com/", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            foreach (System.Text.RegularExpressions.Match m in GitHubUrl.Matches(line))
+            {
+                var url = $"https://github.com/{m.Groups[1].Value}/{m.Groups[2].Value}/{m.Groups[3].Value}/{m.Groups[4].Value}";
+                if (m.Groups[3].Value == "pull")
+                {
+                    PullRequestUrl = url;
+                }
+                else
+                {
+                    IssueUrl = url;
+                }
+            }
+        }
+
+        private void NoteBranch(string line)
+        {
+            NoteLinks(line);
+            const string key = "\"gitBranch\":\"";
+            var at = line.LastIndexOf(key, StringComparison.Ordinal);
+            if (at < 0)
+            {
+                return;
+            }
+
+            var start = at + key.Length;
+            var end = line.IndexOf('"', start);
+            if (end > start)
+            {
+                GitBranch = line[start..end];
+            }
+        }
+
         public void Add(string line)
         {
+            NoteBranch(line);
             if (!MightMatter(line))
             {
                 return;
@@ -318,6 +374,7 @@ public sealed class SessionStore
 
         public void AddTail(string line)
         {
+            NoteBranch(line);
             // Titles are re-appended as the session goes on; the last one wins.
             if (line.Contains("\"custom-title\"", StringComparison.Ordinal) || line.Contains("\"ai-title\"", StringComparison.Ordinal))
             {

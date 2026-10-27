@@ -91,7 +91,10 @@ the previous tag.
   (the default), by folder or not at all, and shows archived sessions; a click on a group heading folds
   it, and the Alive heading folds its list. Sessions untouched for 24 hours (Settings, at least 1) are
   archived on their own. On the right of a row, the working mark shows a running turn, a yellow dot a
-  question or permission waiting for you, and a blue dot a finished turn not seen yet. Sessions another Nomad window
+  question or permission waiting for you, and a blue dot a finished turn not seen yet. Before them, in GitHub's
+  colours, the session's pull request (from its branch, or the last one it mentions) and its issue (closed by
+  that pull request, the last one it mentions, or a number in its branch or title); a click opens either. They come
+  from the `gh` CLI with your own sign-in, cached for a few minutes. Sessions another Nomad window
   or a terminal runs are listed as Alive with a laptop icon.
 - **Transcript.** Streaming markdown (headings, lists, tables, code blocks, inline code, links),
   collapsible activity groups ("Ran 2 commands", "Edited a file", with +/− counts) that hold the tool

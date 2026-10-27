@@ -126,6 +126,11 @@
       <SolidColorBrush x:Key="WaitingBrush" Color="#E3B341" />
       <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <!-- GitHub states (sidebar pull request and issue icons) -->
+      <SolidColorBrush x:Key="GhOpenBrush" Color="#3FB950" />
+      <SolidColorBrush x:Key="GhMergedBrush" Color="#A371F7" />
+      <SolidColorBrush x:Key="GhClosedBrush" Color="#F85149" />
+      <SolidColorBrush x:Key="GhNeutralBrush" Color="#8B949E" />
       <SolidColorBrush x:Key="InlineCodeBrush" Color="#DE8170" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#3A3A38" />
@@ -266,6 +271,11 @@
       <SolidColorBrush x:Key="WaitingBrush" Color="#B7871C" />
       <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
+      <!-- GitHub states (sidebar pull request and issue icons) -->
+      <SolidColorBrush x:Key="GhOpenBrush" Color="#1A7F37" />
+      <SolidColorBrush x:Key="GhMergedBrush" Color="#8250DF" />
+      <SolidColorBrush x:Key="GhClosedBrush" Color="#CF222E" />
+      <SolidColorBrush x:Key="GhNeutralBrush" Color="#59636E" />
       <SolidColorBrush x:Key="InlineCodeBrush" Color="#C2513C" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#E3E1D8" />
