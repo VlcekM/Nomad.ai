@@ -46,6 +46,12 @@ public sealed class DevOptions
     public (int Width, int Height)? Size { get; private set; }
     public string? Menu { get; private set; }
     public bool SettingsOpen { get; private set; }
+
+    /// <summary><c>--dev-queue "text"</c>: prompts put in the queue above the composer, as if typed while Claude worked.</summary>
+    public List<string> Queue { get; } = [];
+
+    /// <summary><c>--dev-side-panel</c>: the right-hand panel is open (without saving that).</summary>
+    public bool SidePanel { get; private set; }
     public bool SettingsClaudePage { get; private set; }
     public bool SettingsUpdatesPage { get; private set; }
     public string? SettingsPath { get; private set; }
@@ -109,6 +115,8 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-menu": o.Menu = Next(); break;
+                case "--dev-side-panel": o.SidePanel = true; break;
+                case "--dev-queue": o.Queue.Add(Next().Replace("\\n", "\n")); break;
                 case "--dev-settings-open":
                     o.SettingsOpen = true;
                     if (i + 1 < args.Length && args[i + 1] is "claude" or "updates")

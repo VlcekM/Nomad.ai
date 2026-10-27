@@ -1,0 +1,225 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:c="using:Nomad.App.Controls"
+             x:Class="Nomad.App.Views.SidePanelView"
+             x:DataType="vm:SessionViewModel">
+
+  <!-- The right-hand panel (Ctrl+Shift+B): cards for the project, the context window, plan usage and MCP servers.
+       Each card's header folds it away; which ones are folded is remembered. -->
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource BorderCardBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="12,6,12,10" />
+    </Style>
+    <Style Selector="Button.cardheader">
+      <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+      <Setter Property="Margin" Value="0,0,0,2" />
+    </Style>
+    <Style Selector="Button.cardheader TextBlock">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="c|Icon.fold">
+      <Setter Property="RenderTransform" Value="rotate(0deg)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="c|Icon.fold.closed">
+      <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+    </Style>
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="6" />
+      <Setter Property="Height" Value="6" />
+      <Setter Property="Fill" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="Ellipse.dot.ok">
+      <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Ellipse.dot.failed">
+      <Setter Property="Fill" Value="{StaticResource DangerBrush}" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Ellipse.dot.waiting">
+      <Setter Property="Fill" Value="{StaticResource WaitingBrush}" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.changes">
+      <Setter Property="Foreground" Value="{StaticResource WaitingBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border Background="{StaticResource BgMainBrush}">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="4,4,12,12" Spacing="8">
+
+        <!-- ============================================================ project -->
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Project" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Project" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <Panel>
+              <StackPanel Spacing="8" IsVisible="{Binding HasProject}" Margin="0,4,0,0">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" Text="{Binding Project.Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" Margin="8,0,8,0" VerticalAlignment="Center" />
+                  <Border Grid.Column="2" IsVisible="{Binding Project.HasBranch}" Background="{StaticResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center" ToolTip.Tip="Branch">
+                    <TextBlock Text="{Binding Project.Branch}" FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{StaticResource TextChromeBrush}" MaxWidth="120" TextTrimming="CharacterEllipsis" />
+                  </Border>
+                </Grid>
+                <TextBlock Text="{Binding Project.Path}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Project.Path}" Margin="0,-4,0,0" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Project.StatusText}" Classes="muted" Classes.changes="{Binding Project.HasChanges}" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                  <TextBlock Text="Not a git repository" IsVisible="{Binding Project.IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                  <!-- Open the folder elsewhere. -->
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                    <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnExplorerClick" ToolTip.Tip="Open in File Explorer">
+                      <c:Icon Size="13" Data="{StaticResource IconFolderOpen}" />
+                    </Button>
+                    <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnTerminalClick" ToolTip.Tip="Open a terminal here">
+                      <c:Icon Size="13" Data="{StaticResource IconTerminal}" />
+                    </Button>
+                    <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnCopyPathClick" ToolTip.Tip="Copy the path">
+                      <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+                    </Button>
+                  </StackPanel>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Project.Commits}" IsVisible="{Binding Project.HasCommits}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Spacing="3" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CommitRow">
+                      <Grid ColumnDefinitions="*,Auto" Background="Transparent" ToolTip.Tip="{Binding ToolTip}">
+                        <TextBlock Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{StaticResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+              <TextBlock Text="No folder: Claude works in a new scratch folder."
+                         IsVisible="{Binding !HasProject}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         Margin="0,4,0,0" />
+            </Panel>
+          </StackPanel>
+        </Border>
+
+        <!-- ============================================================ context -->
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Context" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Context" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <StackPanel Spacing="6" Margin="0,4,0,0">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding ContextPercentText}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" />
+                <TextBlock Grid.Column="1" Text="{Binding ContextAmountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+              </Grid>
+              <c:FillSlider Height="5" Thickness="5"
+                            Maximum="1"
+                            Value="{Binding ContextFraction}"
+                            IsHitTestVisible="False"
+                            TrackBrush="#3A3A38"
+                            FillBrush="{StaticResource RingBrush}" />
+              <TextBlock Text="{Binding AgentMeta}"
+                         IsVisible="{Binding HasRun}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeTiny}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- ============================================================ plan usage -->
+        <Border Classes="card">
+          <StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+              <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Usage" Click="OnHeaderClick">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="Plan usage" />
+                  <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" ToolTip.Tip="Usage on claude.ai">
+                <c:Icon Size="12" Data="{StaticResource IconArrowRight}" />
+              </Button>
+            </Grid>
+            <StackPanel Margin="0,4,0,0">
+              <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="11" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <TextBlock Text="Plan usage needs a claude.ai sign-in in Claude Code."
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         IsVisible="{Binding Usage.IsUnavailable}" />
+              <TextBlock Text="{Binding Usage.StaleText}"
+                         Classes="muted"
+                         FontSize="{DynamicResource UiFontSizeTiny}"
+                         Margin="0,8,0,0"
+                         IsVisible="{Binding Usage.IsStale}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- ============================================================ MCP servers -->
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Mcp" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="MCP servers" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <Panel Margin="0,4,0,0">
+              <ItemsControl ItemsSource="{Binding Connectors}" IsVisible="{Binding HasConnectors}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:ConnectorRow">
+                    <Grid ColumnDefinitions="Auto,*" Height="24" Background="Transparent" ToolTip.Tip="{Binding StatusText}">
+                      <Ellipse Classes="dot"
+                               Classes.ok="{Binding IsConnected}"
+                               Classes.failed="{Binding IsFailed}"
+                               Classes.waiting="{Binding IsWaiting}"
+                               VerticalAlignment="Center"
+                               Margin="1,0,9,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="None configured for this folder."
+                         IsVisible="{Binding !HasConnectors}"
+                         Classes="muted"
+                         FontSize="{DynamicResource UiFontSizeSmall}" />
+            </Panel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Border>
+</UserControl>

@@ -609,6 +609,14 @@
           </StackPanel>
 
           <StackPanel Grid.Column="2" Orientation="Horizontal">
+            <Button Theme="{StaticResource IconButton}"
+                    Classes.on="{Binding IsSidePanelOpen}"
+                    Command="{Binding ToggleSidePanelCommand}"
+                    VerticalAlignment="Center"
+                    Margin="0,0,10,0"
+                    ToolTip.Tip="Side panel: project, context, usage, MCP servers (Ctrl+Shift+B)">
+              <c:Icon Data="{StaticResource IconPanelRight}" />
+            </Button>
             <Button Theme="{StaticResource CaptionButton}" Click="OnMinimizeClick" ToolTip.Tip="Minimize">
               <c:Icon Data="{StaticResource IconCaptionMin}" StrokeThickness="1" />
             </Button>
@@ -621,13 +629,38 @@
           </StackPanel>
         </Grid>
 
-        <ContentControl Grid.Row="1" Content="{Binding Current}">
-          <ContentControl.ContentTemplate>
-            <DataTemplate x:DataType="vm:SessionViewModel">
-              <views:SessionView />
-            </DataTemplate>
-          </ContentControl.ContentTemplate>
-        </ContentControl>
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+          <ContentControl Content="{Binding Current}">
+            <ContentControl.ContentTemplate>
+              <DataTemplate x:DataType="vm:SessionViewModel">
+                <views:SessionView />
+              </DataTemplate>
+            </ContentControl.ContentTemplate>
+          </ContentControl>
+
+          <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
+          <Border Grid.Column="1" Classes="sidepanel" Classes.open="{Binding IsSidePanelOpen}" ClipToBounds="True">
+            <Border.Styles>
+              <Style Selector="Border.sidepanel">
+                <Setter Property="Width" Value="0" />
+                <Setter Property="Opacity" Value="0" />
+                <Setter Property="IsHitTestVisible" Value="False" />
+              </Style>
+              <Style Selector="Border.sidepanel.open">
+                <Setter Property="Width" Value="296" />
+                <Setter Property="Opacity" Value="1" />
+                <Setter Property="IsHitTestVisible" Value="True" />
+              </Style>
+            </Border.Styles>
+            <Border.Transitions>
+              <Transitions>
+                <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+              </Transitions>
+            </Border.Transitions>
+            <views:SidePanelView DataContext="{Binding Current}" Width="296" HorizontalAlignment="Left" />
+          </Border>
+        </Grid>
       </Grid>
     </Grid>
 

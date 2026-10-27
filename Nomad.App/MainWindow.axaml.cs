@@ -44,6 +44,11 @@ public partial class MainWindow : Window
                 vm.ToggleSidebar();
                 e.Handled = true;
             }
+            else if (e.Key == Key.B && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+            {
+                vm.ToggleSidePanel();
+                e.Handled = true;
+            }
 
             // Ctrl+1…9 opens the sidebar's rows top to bottom; Ctrl held a moment shows their numbers.
             if (e.KeyModifiers == KeyModifiers.Control && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
@@ -334,6 +339,9 @@ public partial class MainWindow : Window
         };
     }
 
+    /// <summary>Nomad.ai was launched again: this window shows, restored and in front.</summary>
+    public void BringToFront() => ShowFromTray();
+
     private void ShowFromTray()
     {
         Show();
@@ -464,6 +472,11 @@ public partial class MainWindow : Window
         if (dev.Compose is { } compose)
         {
             DispatcherTimer.RunOnce(() => _vm.Current.ComposerText = compose, TimeSpan.FromSeconds(1.5));
+        }
+
+        foreach (var queued in dev.Queue)
+        {
+            _vm.Current.Queue(queued, []);
         }
 
         if (dev.PasteImages.Count > 0)

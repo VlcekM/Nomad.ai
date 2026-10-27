@@ -207,6 +207,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Recent folders for the new-session card (up to five).</summary>
     public ObservableCollection<MenuOption> CardFolders { get; } = [];
 
+    /// <summary>The new-session page's project cards: the latest folders with their git state.</summary>
+    public ObservableCollection<ProjectViewModel> Projects { get; } = [];
+
+    public bool HasProjects => Projects.Count > 0;
+
     /// <summary>Recent folders for the folder menu, filtered by <see cref="FolderFilter"/>.</summary>
     public ObservableCollection<MenuOption> MenuFolders { get; } = [];
 
@@ -238,6 +243,10 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsNoFolder));
         SyncFolderSelection();
+        if (_main.IsSidePanelOpen)
+        {
+            RefreshPanel();
+        }
     }
 
     partial void OnFolderFilterChanged(string value) => RefreshFolders();
@@ -263,6 +272,11 @@ public sealed partial class SessionViewModel : ObservableObject
         Fill(CardFolders, all.Take(5));
         var query = FolderFilter.Trim();
         Fill(MenuFolders, (query.Length == 0 ? all : all.Where(f => f.Contains(query, StringComparison.OrdinalIgnoreCase))).Take(10));
+        if (IsNew)
+        {
+            RefreshProjects(all);
+        }
+
         SyncFolderSelection();
         OnPropertyChanged(nameof(HasCardFolders));
 
@@ -280,8 +294,95 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         foreach (var o in CardFolders.Concat(MenuFolders))
         {
-            o.IsSelected = Folder is not null && string.Equals(o.Id.TrimEnd('\\', '/'), Folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+            o.IsSelected = IsFolder(o.Id);
         }
+
+        foreach (var p in Projects)
+        {
+            p.IsSelected = IsFolder(p.Path);
+        }
+    }
+
+    private bool IsFolder(string path) =>
+        Folder is not null && string.Equals(path.TrimEnd('\\', '/'), Folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The project cards: the six latest folders (shared with the app, so their git state is kept), refreshed.</summary>
+    private void RefreshProjects(IReadOnlyList<string> folders)
+    {
+        var wanted = folders.Take(6).Select(_main.ProjectFor).ToList();
+        if (!wanted.SequenceEqual(Projects))
+        {
+            Projects.Clear();
+            foreach (var p in wanted)
+            {
+                Projects.Add(p);
+            }
+
+            OnPropertyChanged(nameof(HasProjects));
+        }
+
+        foreach (var p in Projects)
+        {
+            p.LastSessionText = _main.LastActivityIn(p.Path) is { } last ? "Last session " + Format.Ago(last) : "";
+            _ = p.LoadAsync();
+        }
+    }
+
+    // ------------------------------------------------------------------ side panel
+
+    /// <summary>The folder's project section in the side panel (null without a folder).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasProject))]
+    public partial ProjectViewModel? Project { get; set; }
+
+    public bool HasProject => Project is not null;
+
+    /// <summary>The MCP servers: configured ones until the CLI starts, then as it reports them.</summary>
+    public ObservableCollection<ConnectorRow> Connectors { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasConnectors { get; set; }
+
+    private bool _connectorsFromCli;
+
+    public string ContextPercentText => ContextTokens > 0 ? $"{ContextFraction:P0} used" : "Empty";
+
+    public string ContextAmountText => $"{Format.Tokens(ContextTokens)} / {Format.Tokens(Catalog.ContextWindow(Model))}";
+
+    /// <summary>Reloads what the side panel shows: the project's git state and the configured MCP servers.</summary>
+    public void RefreshPanel(bool refresh = false)
+    {
+        Project = Folder is { } folder ? _main.ProjectFor(folder) : null;
+        if (Project is { } project)
+        {
+            _ = project.LoadAsync(refresh);
+        }
+
+        if (!_connectorsFromCli)
+        {
+            _ = LoadConfiguredConnectorsAsync();
+        }
+    }
+
+    private async Task LoadConfiguredConnectorsAsync()
+    {
+        var folder = Folder;
+        var servers = await McpServers.ConfiguredAsync(folder);
+        if (!_connectorsFromCli && folder == Folder)
+        {
+            SetConnectors(servers);
+        }
+    }
+
+    private void SetConnectors(IEnumerable<McpServerInfo> servers)
+    {
+        Connectors.Clear();
+        foreach (var s in servers)
+        {
+            Connectors.Add(new ConnectorRow(s));
+        }
+
+        HasConnectors = Connectors.Count > 0;
     }
 
     // ------------------------------------------------------------------ composer
@@ -381,17 +482,79 @@ public sealed partial class SessionViewModel : ObservableObject
     // "Send now" stopped the turn: the queue goes out when it has ended.
     private bool _sendQueuedOnStop;
 
+    // The turn ended while a queued prompt was being edited: the queue goes out when the edit is done.
+    private bool _sendAfterEdit;
+
+    public void Queue(string text, IReadOnlyList<Attachment> attachments)
+    {
+        Queued.Add(new QueuedPrompt(text, attachments));
+        OnPropertyChanged(nameof(HasQueued));
+    }
+
     [RelayCommand]
     private void RemoveQueued(QueuedPrompt prompt)
     {
         Queued.Remove(prompt);
         OnPropertyChanged(nameof(HasQueued));
+        SendIfEditsDone();
+    }
+
+    /// <summary>Opens a queued prompt for editing (any other one being edited is saved first).</summary>
+    public void EditQueued(QueuedPrompt prompt)
+    {
+        foreach (var other in Queued.Where(q => q.IsEditing && !ReferenceEquals(q, prompt)).ToList())
+        {
+            EndQueuedEdit(other, save: true);
+        }
+
+        prompt.EditText = prompt.Text;
+        prompt.IsEditing = true;
+    }
+
+    /// <summary>Saves or drops an edit. Saved empty (and with nothing attached), the prompt leaves the queue.</summary>
+    public void EndQueuedEdit(QueuedPrompt prompt, bool save)
+    {
+        if (!prompt.IsEditing)
+        {
+            return;
+        }
+
+        prompt.IsEditing = false;
+        if (save)
+        {
+            var text = prompt.EditText.Trim();
+            if (text.Length == 0 && prompt.Attachments.Count == 0)
+            {
+                Queued.Remove(prompt);
+                OnPropertyChanged(nameof(HasQueued));
+            }
+            else
+            {
+                prompt.Text = text;
+            }
+        }
+
+        SendIfEditsDone();
+    }
+
+    private void SendIfEditsDone()
+    {
+        if (_sendAfterEdit && !Queued.Any(q => q.IsEditing))
+        {
+            _sendAfterEdit = false;
+            _ = SendQueuedAsync();
+        }
     }
 
     /// <summary>Stops the running turn and sends the queue right away.</summary>
     [RelayCommand]
     private async Task SendQueuedNowAsync()
     {
+        foreach (var editing in Queued.Where(q => q.IsEditing).ToList())
+        {
+            EndQueuedEdit(editing, save: true);
+        }
+
         if (IsTurnRunning)
         {
             _sendQueuedOnStop = true;
@@ -409,6 +572,13 @@ public sealed partial class SessionViewModel : ObservableObject
         _sendQueuedOnStop = false;
         if (Queued.Count == 0 || IsTurnRunning || IsPhoneSession)
         {
+            return;
+        }
+
+        // Not half-way through an edit: it goes out once that is saved or dropped.
+        if (Queued.Any(q => q.IsEditing))
+        {
+            _sendAfterEdit = true;
             return;
         }
 
@@ -609,10 +779,13 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Share of the context window used after the last turn (0..1), for the ring.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ContextToolTip))]
+    [NotifyPropertyChangedFor(nameof(ContextPercentText))]
     public partial double ContextFraction { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ContextToolTip))]
+    [NotifyPropertyChangedFor(nameof(ContextPercentText))]
+    [NotifyPropertyChangedFor(nameof(ContextAmountText))]
     public partial long ContextTokens { get; set; }
 
     public string ContextToolTip => ContextTokens > 0
@@ -673,8 +846,7 @@ public sealed partial class SessionViewModel : ObservableObject
         // While Claude works, a prompt waits its turn (above the composer, with "Send now").
         if (IsTurnRunning)
         {
-            Queued.Add(new QueuedPrompt(text, images));
-            OnPropertyChanged(nameof(HasQueued));
+            Queue(text, images);
             return;
         }
 
@@ -1438,6 +1610,12 @@ public sealed partial class SessionViewModel : ObservableObject
                     PermissionMode = s.PermissionMode;
                 }
 
+                if (s.McpServers is { } servers)
+                {
+                    _connectorsFromCli = true;
+                    SetConnectors(servers.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase));
+                }
+
                 break;
 
             case AccountInfoEvent a:
@@ -1826,6 +2004,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
         ContentChanged?.Invoke();
         _main.OnTurnCompleted(this);
+
+        // Claude may have edited or committed: the panel's git state is stale.
+        if (_main.IsSidePanelOpen && ReferenceEquals(_main.Current, this))
+        {
+            RefreshPanel(refresh: true);
+        }
 
         // Queued prompts go out now; after a plain Stop they wait (for "Send now", or the next turn).
         if (Queued.Count > 0 && (!result.Interrupted || _sendQueuedOnStop))

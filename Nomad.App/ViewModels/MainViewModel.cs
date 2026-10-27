@@ -42,7 +42,13 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyDisplayName();
         UpdateGroupingOptions();
 
-        Current =new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
+        Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
+        if (!dev.IsActive && !string.IsNullOrEmpty(settings.NewSessionDraft))
+        {
+            Current.ComposerText = settings.NewSessionDraft;
+        }
+
+        IsSidePanelOpen = settings.SidePanelOpen || dev.SidePanel;
         if (dev.Model is not null)
         {
             Current.Model = dev.Model;
@@ -495,6 +501,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool IsNewSelected => Current.IsNew;
 
+    /// <summary>
+    /// The new-session page while another session is shown, so what was typed (and attached, and the folder and
+    /// model picked) there is still there on coming back to New.
+    /// </summary>
+    private SessionViewModel? _draft;
+
     [ObservableProperty]
     public partial string SearchText { get; set; } = "";
 
@@ -503,6 +515,51 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool IsSettingsOpen { get; set; }
+
+    /// <summary>The right-hand panel: project, context, plan usage and MCP servers (Ctrl+Shift+B).</summary>
+    [ObservableProperty]
+    public partial bool IsSidePanelOpen { get; set; }
+
+    partial void OnIsSidePanelOpenChanged(bool value)
+    {
+        if (value)
+        {
+            Current.RefreshPanel();
+            _ = Usage.RefreshAsync();
+        }
+
+        if (Settings.SidePanelOpen != value && !Dev.IsActive)
+        {
+            Settings.SidePanelOpen = value;
+            SaveSettings();
+        }
+    }
+
+    [RelayCommand]
+    public void ToggleSidePanel() => IsSidePanelOpen = !IsSidePanelOpen;
+
+    private readonly Dictionary<string, ProjectViewModel> _projects = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>One shared project per folder, so its git state loads once for the cards and the panel.</summary>
+    public ProjectViewModel ProjectFor(string folder)
+    {
+        var key = folder.TrimEnd('\\', '/');
+        if (!_projects.TryGetValue(key, out var project))
+        {
+            _projects[key] = project = new ProjectViewModel(folder);
+        }
+
+        return project;
+    }
+
+    /// <summary>The latest activity of any listed session in this folder.</summary>
+    public DateTime? LastActivityIn(string folder)
+    {
+        var key = folder.TrimEnd('\\', '/');
+        var times = _all.Where(s => s.WorkingDirectory is { } w && string.Equals(w.TrimEnd('\\', '/'), key, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.LastActivityUtc).ToList();
+        return times.Count > 0 ? times.Max() : null;
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPlan))]
@@ -560,11 +617,26 @@ public sealed partial class MainViewModel : ObservableObject
                 _back.Push(oldValue);
                 _forward.Clear();
             }
+
+            if (oldValue.IsNew && oldValue.Items.Count == 0)
+            {
+                _draft = oldValue;
+                SaveDraft();
+            }
+        }
+
+        if (ReferenceEquals(newValue, _draft))
+        {
+            _draft = null;
         }
 
         GoBackCommand.NotifyCanExecuteChanged();
         GoForwardCommand.NotifyCanExecuteChanged();
         newValue.RefreshFolders();
+        if (IsSidePanelOpen)
+        {
+            newValue.RefreshPanel();
+        }
 
         newValue.PropertyChanged += OnCurrentPropertyChanged;
         foreach (var item in _all)
@@ -582,6 +654,12 @@ public sealed partial class MainViewModel : ObservableObject
         if (e.PropertyName == nameof(SessionViewModel.IsNew))
         {
             OnPropertyChanged(nameof(IsNewSelected));
+
+            // The draft went out as a prompt: nothing to bring back after a restart.
+            if (!Current.IsNew)
+            {
+                SaveDraft();
+            }
         }
     }
 
@@ -595,7 +673,23 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        Current = new SessionViewModel(this, Settings.LastFolder);
+        Current = _draft is { IsNew: true } draft ? draft : new SessionViewModel(this, Settings.LastFolder);
+    }
+
+    /// <summary>The new-session page, shown or kept aside: its text is saved for the next start.</summary>
+    private SessionViewModel? DraftSession => Current.IsNew && Current.Items.Count == 0 ? Current : _draft;
+
+    /// <summary>Keeps the new-session page's text in the settings, so it survives a restart.</summary>
+    private void SaveDraft()
+    {
+        var text = DraftSession is { IsNew: true } draft ? draft.ComposerText : "";
+        if (Dev.IsActive || (Settings.NewSessionDraft ?? "") == text)
+        {
+            return;
+        }
+
+        Settings.NewSessionDraft = text.Length > 0 ? text : null;
+        SaveSettings();
     }
 
     [RelayCommand]
@@ -1210,7 +1304,7 @@ public sealed partial class MainViewModel : ObservableObject
                 _navigating = true;
                 try
                 {
-                    Current = new SessionViewModel(this, Settings.LastFolder);
+                    Current = _draft is { IsNew: true } draft ? draft : new SessionViewModel(this, Settings.LastFolder);
                 }
                 finally
                 {
@@ -1492,7 +1586,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// claude.ai or the phone is connected to through Remote Control. Only then does an update restart Nomad by itself.
     /// </summary>
     public bool CanRestartQuietly =>
-        !HasRunningTurns && !LiveSessions.Any(s => s.HasComposerText || (s.IsProcessRunning && s.HasRemoteControlUrl));
+        !HasRunningTurns && !LiveSessions.Any(s => s.HasComposerText || (s.IsProcessRunning && s.HasRemoteControlUrl))
+        && _draft is not { HasAttachments: true };
 
     public async Task ShutdownAsync()
     {
@@ -1500,6 +1595,7 @@ public sealed partial class MainViewModel : ObservableObject
         _usageTimer.Stop();
         _phoneTimer.Stop();
         _elsewhereTimer.Stop();
+        SaveDraft();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()).Concat(_servers.Values.Select(s => s.StopAsync())));
     }
