@@ -66,6 +66,18 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsLeaving { get; set; }
 
+    /// <summary>Ctrl+1…9 opens it: its place among the rows the sidebar shows (0: none).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowShortcut))]
+    public partial int ShortcutNumber { get; set; }
+
+    /// <summary>Ctrl is held: the row shows its number.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowShortcut))]
+    public partial bool ShortcutHint { get; set; }
+
+    public bool ShowShortcut => ShortcutHint && ShortcutNumber > 0;
+
     public string AliveToggleText => IsAlive ? "Make idle" : "Make alive";
 
     public string ArchiveToggleText => IsArchived ? "Unarchive" : "Archive";

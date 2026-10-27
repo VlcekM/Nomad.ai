@@ -122,6 +122,20 @@
               <Setter Property="IsHitTestVisible" Value="False" />
             </Style>
 
+            <!-- The Ctrl+number badge fades in over the row's mark while Ctrl is held. -->
+            <Style Selector="Border.shortcut">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Border.shortcut.on">
+              <Setter Property="Opacity" Value="1" />
+            </Style>
+
             <!-- Alive / Idle: a heading with a count badge. -->
             <Style Selector="TextBlock.sectiontitle">
               <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
@@ -193,6 +207,24 @@
                                 WorkingBrush="{StaticResource AccentBrush}"
                                 WaitingBrush="{StaticResource WaitingBrush}"
                                 UnreadBrush="{StaticResource UnreadBrush}" />
+                  <!-- Ctrl held: the row's Ctrl+number, over its mark. -->
+                  <Border Grid.Column="2"
+                          Classes="shortcut"
+                          Classes.on="{Binding ShowShortcut}"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"
+                          MinWidth="18" Height="18"
+                          Padding="4,0"
+                          CornerRadius="4"
+                          Background="{StaticResource BgChipBrush}"
+                          BorderBrush="{StaticResource BorderBrush}"
+                          BorderThickness="1">
+                    <TextBlock Text="{Binding ShortcutNumber}"
+                               FontSize="{DynamicResource UiFontSizeTiny}"
+                               Foreground="{StaticResource TextChromeBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                  </Border>
                 </Grid>
               </Button>
             </DataTemplate>

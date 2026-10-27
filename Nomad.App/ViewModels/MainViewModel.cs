@@ -890,6 +890,7 @@ public sealed partial class MainViewModel : ObservableObject
         AliveCount = Alive.Count;
         IdleCount = list.Count(s => !s.IsAlive && !s.IsArchived);
         HasNoSessions = _all.Count == 0;
+        NumberRows();
     }
 
     // Reused across filters, so a heading that stays keeps its row in the list.
@@ -1008,6 +1009,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (Settings.AliveCollapsed != value)
             {
                 Settings.AliveCollapsed = value;
+                NumberRows();
                 SaveSettings();
                 OnPropertyChanged();
             }
@@ -1026,6 +1028,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (Settings.IdleCollapsed != value)
             {
                 Settings.IdleCollapsed = value;
+                NumberRows();
                 SaveSettings();
                 OnPropertyChanged();
             }
@@ -1034,6 +1037,42 @@ public sealed partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleIdleSection() => IsIdleCollapsed = !IsIdleCollapsed;
+
+    // ------------------------------------------------------------------ Ctrl+1…9
+
+    /// <summary>Numbers the rows the sidebar shows, top to bottom (Alive, then Idle), 1 to 9.</summary>
+    private void NumberRows()
+    {
+        var shown = (IsAliveCollapsed ? [] : Alive.AsEnumerable())
+            .Concat(IsIdleCollapsed ? [] : Recents.OfType<SessionListItemViewModel>())
+            .Take(9)
+            .ToList();
+        foreach (var item in _all)
+        {
+            item.ShortcutNumber = shown.IndexOf(item) + 1;
+        }
+    }
+
+    /// <summary>Ctrl is held (or let go): rows show their Ctrl+number.</summary>
+    public void ShowShortcutHints(bool show)
+    {
+        foreach (var item in _all)
+        {
+            item.ShortcutHint = show;
+        }
+    }
+
+    /// <summary>Ctrl+<paramref name="number"/>: opens the row with that number. False when there is none.</summary>
+    public bool OpenByShortcut(int number)
+    {
+        if (_all.FirstOrDefault(s => s.ShortcutNumber == number) is not { } item)
+        {
+            return false;
+        }
+
+        _ = OpenSessionAsync(item);
+        return true;
+    }
 
     /// <summary>"Today", "Yesterday", "Previous 7 days", "Previous 30 days", then the month ("September 2026").</summary>
     public static string DateGroup(DateTime utc)
@@ -1066,6 +1105,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The auto-archive settings changed: archive what is due now.</summary>
     public void ApplyAutoArchive() => _ = AutoArchiveSessionsAsync(fold: true);
+
+    /// <summary>"Close to tray" was switched: the window shows or hides its tray icon.</summary>
+    public event Action? CloseToTrayChanged;
+
+    public void OnCloseToTrayChanged() => CloseToTrayChanged?.Invoke();
 
     /// <summary>
     /// Archives the sessions untouched for <see cref="AutoArchiveAfter"/>: not the open one, nor one that is alive,

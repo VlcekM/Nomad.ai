@@ -22,6 +22,14 @@ public partial class MainWindow : Window
     [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
+    private readonly DispatcherTimer _hintTimer;
+
+    private void HideShortcutHints()
+    {
+        _hintTimer.Stop();
+        _vm.ShowShortcutHints(false);
+    }
+
     public MainWindow(MainViewModel vm)
     {
         _vm = vm;
@@ -36,7 +44,36 @@ public partial class MainWindow : Window
                 vm.ToggleSidebar();
                 e.Handled = true;
             }
+
+            // Ctrl+1…9 opens the sidebar's rows top to bottom; Ctrl held a moment shows their numbers.
+            if (e.KeyModifiers == KeyModifiers.Control && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
+            {
+                var number = e.Key >= Key.NumPad1 ? e.Key - Key.NumPad1 + 1 : e.Key - Key.D1 + 1;
+                e.Handled = vm.OpenByShortcut(number);
+            }
+            else if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+            {
+                _hintTimer.Stop();
+                _hintTimer.Start();
+            }
+            else
+            {
+                HideShortcutHints(); // Ctrl+C and the like: no numbers.
+            }
         }, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, (_, e) =>
+        {
+            if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+            {
+                HideShortcutHints();
+            }
+        }, RoutingStrategies.Tunnel);
+        Deactivated += (_, _) => HideShortcutHints();
+        _hintTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(400), DispatcherPriority.Input, (_, _) =>
+        {
+            _hintTimer!.Stop();
+            vm.ShowShortcutHints(true);
+        });
 
         var settings = vm.Settings;
         if (vm.Dev.Size is { } size)
@@ -71,6 +108,7 @@ public partial class MainWindow : Window
 
         Opened += (_, _) => _ = StartAsync();
         Closing += OnClosing;
+        CreateTrayIcon();
         vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainViewModel.IsSettingsOpen) && vm.IsSettingsOpen)
@@ -113,7 +151,16 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 
-    private void OnExitClick(object? sender, RoutedEventArgs e) => Close();
+    private void OnExitClick(object? sender, RoutedEventArgs e) => Exit();
+
+    /// <summary>Quits for real (the app menu's Exit, the tray's, an update's restart), even with "close to tray" on.</summary>
+    public void Exit()
+    {
+        _exiting = true;
+        Close();
+    }
+
+    private bool _exiting;
 
     private void ToggleMaximize() =>
         WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
@@ -251,10 +298,67 @@ public partial class MainWindow : Window
 
     private void OnUpdateLaterClick(object? sender, RoutedEventArgs e) => FlyoutBase.GetAttachedFlyout(UpdateChip)?.Hide();
 
+
+    // ------------------------------------------------------------------ tray
+
+    private TrayIcon? _tray;
+
+    /// <summary>With "close to tray" on, an icon in the notification area: a click shows the window, its menu exits.</summary>
+    private void CreateTrayIcon()
+    {
+        if (_vm.Dev.ScreenshotPath is not null || Application.Current is not { } app)
+        {
+            return;
+        }
+
+        var open = new NativeMenuItem("Open Nomad.ai");
+        open.Click += (_, _) => ShowFromTray();
+        var exit = new NativeMenuItem("Exit");
+        exit.Click += (_, _) => Exit();
+        _tray = new TrayIcon
+        {
+            Icon = Icon,
+            ToolTipText = "Nomad.ai",
+            IsVisible = _vm.Settings.CloseToTray,
+            Menu = new NativeMenu { Items = { open, new NativeMenuItemSeparator(), exit } },
+        };
+        _tray.Clicked += (_, _) => ShowFromTray();
+        TrayIcon.SetIcons(app, [_tray]);
+        _vm.CloseToTrayChanged += () =>
+        {
+            _tray.IsVisible = _vm.Settings.CloseToTray;
+            if (!_vm.Settings.CloseToTray && !IsVisible)
+            {
+                ShowFromTray(); // Never leave a hidden window without its icon.
+            }
+        };
+    }
+
+    private void ShowFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = _vm.Settings.WindowMaximized ? WindowState.Maximized : WindowState.Normal;
+        }
+
+        Activate();
+    }
     // ------------------------------------------------------------------ lifetime
 
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
+        // "Close to tray": the window only hides (the tray icon brings it back); Exit quits.
+        if (_vm.Settings.CloseToTray && !_exiting && !_shutDown && _vm.Dev.ScreenshotPath is null
+            && e.CloseReason is WindowCloseReason.WindowClosing or WindowCloseReason.Undefined)
+        {
+            e.Cancel = true;
+            SavePlacement();
+            _vm.SaveSettings();
+            Hide();
+            return;
+        }
+
         SavePlacement();
         _vm.SaveSettings();
 
@@ -334,7 +438,7 @@ public partial class MainWindow : Window
 
         await _vm.RefreshSessionsAsync();
 
-        _vm.Updates.RequestExit = Close;
+        _vm.Updates.RequestExit = Exit;
         _vm.Updates.Start();
 
         if (dev.SessionId is { } sessionId)
