@@ -31,6 +31,8 @@ public partial class MainWindow : Window
         DataContext = vm;
         InitializeComponent();
         HookGitGlide();
+        SidebarGrid.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) FitAliveList(); };
+        AliveList.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) FitAliveList(); };
 
         // A session done or waiting while the window is in the background: a notification and/or a flashing taskbar button.
         vm.TurnCompleted += session =>
@@ -555,6 +557,19 @@ public partial class MainWindow : Window
     // they sit in the title bar. Crossing over, they slide and fade into the new place.
     private SessionViewModel? _gitWatched;
     private (Rect? Branch, Rect? Worktree) _gitBefore;
+
+    // The Alive list takes all the height its rows need; it scrolls only when that would push Idle's heading
+    // (and the account footer) out of the sidebar.
+    private void FitAliveList()
+    {
+        var fit = SidebarGrid.Bounds.Height - AliveList.Bounds.Y - AccountFooter.Bounds.Height
+            - IdleHeader.Bounds.Height - IdleHeader.Margin.Top - IdleHeader.Margin.Bottom;
+        fit = Math.Max(fit, 60);
+        if (Math.Abs(AliveScroll.MaxHeight - fit) > 0.5)
+        {
+            AliveScroll.MaxHeight = fit;
+        }
+    }
 
     private void HookGitGlide()
     {

@@ -8,6 +8,8 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - Sessions can be pinned by dragging: a "Drop to pin" zone opens under New while a session is dragged (a pinned one
   is unpinned there).
 - Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
+- The Alive list is no longer capped in height: it shows every row and scrolls only when it would push Idle out of the
+  sidebar.
 
 ## v1.11.0
 

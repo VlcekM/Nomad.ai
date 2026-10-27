@@ -87,7 +87,7 @@
             <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
           </Transitions>
         </Border.Transitions>
-        <Grid Width="{Binding SidebarContentWidth}" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
+        <Grid Name="SidebarGrid" Width="{Binding SidebarContentWidth}" HorizontalAlignment="Right" RowDefinitions="36,Auto,Auto,Auto,Auto,Auto,*,Auto">
           <Grid.Styles>
             <!-- Session rows fold their height and fade when they are archived or deleted. -->
             <Style Selector="Button.sessionrow">
@@ -640,8 +640,9 @@
               </Button.Flyout>
             </Button>
           </Grid>
-          <Panel Grid.Row="4" IsVisible="{Binding HasAlive}">
-            <ScrollViewer MaxHeight="320"
+          <!-- As tall as its rows; it scrolls only once they would push Idle's heading out of the sidebar (MainWindow.FitAliveList). -->
+          <Panel Grid.Row="4" Name="AliveList" IsVisible="{Binding HasAlive}">
+            <ScrollViewer Name="AliveScroll"
                           c:Fold.IsOpen="{Binding !IsAliveCollapsed}"
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
@@ -650,7 +651,7 @@
           </Panel>
 
           <!-- Idle header: the heading folds the list. -->
-          <Grid Grid.Row="5" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
+          <Grid Grid.Row="5" Name="IdleHeader" Classes="listheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
             <!-- The whole heading folds the list; the list options button sits on top of it. -->
             <Button Grid.ColumnSpan="3"
                     Theme="{StaticResource RowButton}"
@@ -739,6 +740,7 @@
 
           <!-- Account footer -->
           <Border Grid.Row="7"
+                  Name="AccountFooter"
                   Height="48"
                   BorderBrush="{DynamicResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
