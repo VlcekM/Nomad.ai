@@ -40,13 +40,13 @@ public sealed class MarkdownBullets : Control
         {
             if (change.GetOldValue<MarkdownPresenter?>() is { } old)
             {
-                old.LayoutCreated -= OnLayout;
+                old.LayoutChanged -= OnLayout;
                 old.LayoutUpdated -= OnLayout;
             }
 
             if (change.GetNewValue<MarkdownPresenter?>() is { } presenter)
             {
-                presenter.LayoutCreated += OnLayout;
+                presenter.LayoutChanged += OnLayout;
                 presenter.LayoutUpdated += OnLayout;
             }
 

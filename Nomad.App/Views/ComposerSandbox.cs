@@ -13,7 +13,7 @@ namespace Nomad.App.Views;
 
 /// <summary>
 /// <c>--dev-sandbox composer</c>: the composer's text box on its own, to try Markdown and list writing without a
-/// session. Enter "sends": the text is rendered above as the transcript would show it. Takes <c>--dev-compose</c>,
+/// session. Enter "sends": the text is rendered above as the transcript would show it. Takes <c>--dev-compose</c>, <c>--dev-key</c>,
 /// <c>--dev-size</c> and <c>--dev-screenshot</c>.
 /// </summary>
 public sealed class ComposerSandbox : Window
@@ -108,6 +108,17 @@ public sealed class ComposerSandbox : Window
     {
         _box.Focus();
         _box.CaretIndex = _box.Text?.Length ?? 0;
+        if (Program.Dev.Key is var (gesture, seconds))
+        {
+            var key = KeyGesture.Parse(gesture);
+            DispatcherTimer.RunOnce(() => _box.RaiseEvent(new KeyEventArgs
+            {
+                RoutedEvent = KeyDownEvent,
+                Key = key.Key,
+                KeyModifiers = key.KeyModifiers,
+            }), TimeSpan.FromSeconds(seconds));
+        }
+
         if (Program.Dev.ScreenshotPath is not { } path)
         {
             return;

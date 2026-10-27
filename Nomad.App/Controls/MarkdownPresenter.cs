@@ -77,8 +77,8 @@ public sealed class MarkdownPresenter : TextPresenter
     /// <summary>Where the bullets (<c>-</c>, <c>*</c>, <c>+</c> of list items) are in the text, as of the last layout.</summary>
     public IReadOnlyList<int> Bullets => _bullets;
 
-    /// <summary>A new text layout was made (the text, its width or a style changed).</summary>
-    public event EventHandler? LayoutCreated;
+    /// <summary>The text layout is to be made again (the text, the selection, its width or a style changed).</summary>
+    public event EventHandler? LayoutChanged;
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
@@ -98,7 +98,6 @@ public sealed class MarkdownPresenter : TextPresenter
         var text = Text;
         if (string.IsNullOrEmpty(text) || !string.IsNullOrEmpty(PreeditText) || PasswordChar != default)
         {
-            LayoutCreated?.Invoke(this, EventArgs.Empty);
             return plain;
         }
 
@@ -119,8 +118,22 @@ public sealed class MarkdownPresenter : TextPresenter
         var layout = new TextLayout(text, new Typeface(FontFamily, FontStyle, FontWeight, FontStretch), FontFeatures, FontSize,
             Foreground, TextAlignment, TextWrapping, null, null, FlowDirection, maxWidth, maxHeight, LineHeight, LetterSpacing, 0,
             overrides);
-        LayoutCreated?.Invoke(this, EventArgs.Empty);
         return layout;
+    }
+
+    // The layout itself is made lazily, often while rendering, when nothing may be invalidated: so the
+    // bullets hear of it when the old one is thrown away, or the width changes.
+    protected override void InvalidateTextLayout()
+    {
+        base.InvalidateTextLayout();
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var size = base.ArrangeOverride(finalSize);
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+        return size;
     }
 
     private GenericTextRunProperties Properties(MarkdownStyle style)
