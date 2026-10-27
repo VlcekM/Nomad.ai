@@ -63,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
         _idleTimer.Tick += (_, _) =>
         {
             SleepIdleSessions();
+            _ = LoadWorktreeMergesAsync(); // A merge made outside Nomad.ai (or in a turn that just ended) still idles its session.
             _ = AutoArchiveSessionsAsync(fold: true);
             Current.TickClock();
         };
@@ -1042,8 +1043,34 @@ public sealed partial class MainViewModel : ObservableObject
                 var branch = !string.IsNullOrEmpty(row.GitBranch) && row.GitBranch != "HEAD" ? row.GitBranch
                     : "worktree-" + WorktreeName(row.WorkingDirectory!);
                 row.IsWorktreeMerged = merged?.Invoke(branch) == true;
+                SleepMergedSession(row);
             }
         }
+    }
+
+    /// <summary>Sessions already seen with their worktree merged: each is put to sleep once, so waking it again sticks.</summary>
+    private readonly HashSet<string> _mergeSeen = new(StringComparer.Ordinal);
+
+    /// <summary>A session alive in a worktree whose branch has just been merged moves to Idle (once its turn is over).</summary>
+    private void SleepMergedSession(SessionListItemViewModel row)
+    {
+        if (!row.IsWorktreeMerged || _mergeSeen.Contains(row.SessionId))
+        {
+            return;
+        }
+
+        if (_open.TryGetValue(row.SessionId, out var session) && session.IsProcessRunning)
+        {
+            // Remote Control sessions stay up for the phone; a running turn is waited out (the next check tries again).
+            if (session.IsTurnRunning || session.HasRemoteControlUrl)
+            {
+                return;
+            }
+
+            _ = session.SleepAsync();
+        }
+
+        _mergeSeen.Add(row.SessionId);
     }
 
     /// <summary>The worktree's own folder name (<c>…\.claude\worktrees\&lt;name&gt;</c>), from any folder below it.</summary>
