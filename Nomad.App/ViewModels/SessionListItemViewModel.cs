@@ -42,6 +42,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(AliveToggleText))]
     public partial bool IsAlive { get; set; }
 
+    /// <summary>Started from the phone and still running there (through a Remote Control server).</summary>
+    [ObservableProperty]
+    public partial bool IsPhone { get; set; }
+
     public string AliveToggleText => IsAlive ? "Make idle" : "Make alive";
 
     public bool ShowUnread => IsUnread && !IsRunning;

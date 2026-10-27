@@ -23,6 +23,9 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
 
     public DateTime SentUtc { get; } = sentUtc;
 
+    /// <summary>Typed in Remote Control (claude.ai or the phone), not in Nomad.</summary>
+    public bool IsRemote { get; init; }
+
     /// <summary>Claude Code picked the message up (✓✓); until then it is only sent (✓).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SeenToolTip))]

@@ -48,6 +48,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Model = main.DefaultModel;
         PermissionMode = main.Settings.DefaultPermissionMode;
         Effort = main.Settings.DefaultEffort;
+        IsRemoteControl = main.Settings.RemoteControlByDefault;
 
         foreach (var m in Catalog.Models)
         {
@@ -117,6 +118,41 @@ public sealed partial class SessionViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool FastMode { get; set; }
+
+    /// <summary>Remote Control is wanted: the running process is reachable from claude.ai and the phone.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RemoteControlText))]
+    public partial bool IsRemoteControl { get; set; }
+
+    /// <summary>The session's claude.ai link while Remote Control is on and a process runs.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRemoteControlUrl))]
+    [NotifyPropertyChangedFor(nameof(RemoteControlText))]
+    public partial string? RemoteControlUrl { get; set; }
+
+    /// <summary>The bridge's state: connected | reconnecting | failed | … (empty without a bridge).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRemoteConnected))]
+    [NotifyPropertyChangedFor(nameof(RemoteControlText))]
+    public partial string RemoteControlState { get; set; } = "";
+
+    public bool HasRemoteControlUrl => !string.IsNullOrEmpty(RemoteControlUrl);
+
+    public bool IsRemoteConnected => HasRemoteControlUrl && RemoteControlState is "connected" or "ready" or "";
+
+    /// <summary>The Remote Control menu's status line.</summary>
+    public string RemoteControlText => !IsRemoteControl
+        ? "Off. This session is only in Nomad."
+        : HasRemoteControlUrl
+            ? RemoteControlState switch
+            {
+                "reconnecting" => "Reconnecting…",
+                "failed" or "disconnected" => "Not connected",
+                _ => "On. Continue it in the Claude app or on claude.ai.",
+            }
+            : IsNew
+                ? "Turns on when the session starts."
+                : "Turns on while Claude Code runs for this session.";
 
     public string ModelName => Catalog.ModelName(Model);
 
@@ -387,7 +423,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public async Task SendAsync()
     {
         var text = ComposerText.Trim();
-        if (text.Length == 0 || IsTurnRunning)
+        if (text.Length == 0 || IsTurnRunning || IsPhoneSession)
         {
             return;
         }
@@ -427,6 +463,9 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 _ = GenerateTitleAsync(_backend, text);
             }
+
+            // A new session gets its bridge once the prompt gave it a name.
+            _ = SyncRemoteControlAsync();
         }
         catch (Exception ex)
         {
@@ -532,6 +571,116 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Remote Control on or off. Turning it on for a stored session without a process starts one
+    /// (resuming the session), since only a running process can be reached from the phone.
+    /// </summary>
+    [RelayCommand]
+    public async Task ToggleRemoteControlAsync()
+    {
+        IsRemoteControl = !IsRemoteControl;
+        _remoteFailedBackend = null;
+        if (IsRemoteControl && !IsNew && SessionId is not null && _backend is not { IsProcessRunning: true })
+        {
+            await WakeAsync();
+            return;
+        }
+
+        await SyncRemoteControlAsync();
+    }
+
+    private IAgentBackend? _remoteOnBackend;
+    private IAgentBackend? _remoteFailedBackend;
+    private string? _bridgeSessionId;
+    private bool _remoteSyncing;
+
+    /// <summary>Brings the running process's bridge in line with <see cref="IsRemoteControl"/>.</summary>
+    private async Task SyncRemoteControlAsync()
+    {
+        if (_remoteSyncing || _backend is not { IsProcessRunning: true } backend || ReferenceEquals(backend, _remoteFailedBackend))
+        {
+            return;
+        }
+
+        var on = IsRemoteControl;
+        if (on == ReferenceEquals(_remoteOnBackend, backend))
+        {
+            return;
+        }
+
+        _remoteSyncing = true;
+        try
+        {
+            if (on)
+            {
+                var name = string.IsNullOrWhiteSpace(Title) ? "Nomad session" : Title;
+                var reattach = SessionId is { } id && _main.Settings.RemoteControlBridges.TryGetValue(id, out var bridge) ? bridge : null;
+                var info = await backend.SetRemoteControlAsync(true, name, reattach);
+                if (info?.SessionUrl is null && reattach is not null && ReferenceEquals(backend, _backend))
+                {
+                    // The old claude.ai session is gone: start a fresh one.
+                    info = await backend.SetRemoteControlAsync(true, name);
+                }
+
+                if (!ReferenceEquals(backend, _backend))
+                {
+                    return;
+                }
+
+                if (info?.SessionUrl is { } url)
+                {
+                    _remoteOnBackend = backend;
+                    RemoteControlUrl = url;
+                    _bridgeSessionId = info.BridgeSessionId;
+                    RememberBridge();
+                }
+                else
+                {
+                    _remoteFailedBackend = backend;
+                    RemoteControlState = "failed";
+                }
+            }
+            else
+            {
+                await backend.SetRemoteControlAsync(false, null);
+                _remoteOnBackend = null;
+                RemoteControlUrl = null;
+                RemoteControlState = "";
+                if (SessionId is { } id && _main.Settings.RemoteControlBridges.Remove(id))
+                {
+                    _main.SaveSettings();
+                }
+            }
+        }
+        finally
+        {
+            _remoteSyncing = false;
+        }
+
+        // The switch may have flipped again while the request ran.
+        if (IsRemoteControl != ReferenceEquals(_remoteOnBackend, _backend))
+        {
+            await SyncRemoteControlAsync();
+        }
+    }
+
+    private void RememberBridge()
+    {
+        if (SessionId is { } id && _bridgeSessionId is { } bridge && IsRemoteControl)
+        {
+            _main.Settings.RememberBridge(id, bridge);
+            _main.SaveSettings();
+        }
+    }
+
+    private void ForgetBridgeProcess()
+    {
+        _remoteOnBackend = null;
+        _remoteFailedBackend = null;
+        RemoteControlUrl = null;
+        RemoteControlState = "";
+    }
+
     public void SetFolder(string? folder)
     {
         if (!IsNew)
@@ -589,13 +738,25 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         Items.Clear();
-        foreach (var item in history.Items)
+        _historyCount = 0;
+        AppendHistory(history, summary.LastActivityUtc);
+    }
+
+    /// <summary>Adds the history items not shown yet (all of them on the first load).</summary>
+    private void AppendHistory(SessionHistory history, DateTime fallbackTimeUtc)
+    {
+        if (history.Items.Count <= _historyCount)
+        {
+            return;
+        }
+
+        foreach (var item in history.Items.Skip(_historyCount))
         {
             switch (item)
             {
                 case HistoryUserMessage u:
                     CloseGroup();
-                    Items.Add(new UserMessageItem(u.Text, u.Uuid, u.TimestampUtc ?? summary.LastActivityUtc, seen: true) { ParentUuid = u.ParentUuid });
+                    Items.Add(new UserMessageItem(u.Text, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true) { ParentUuid = u.ParentUuid });
                     break;
                 case HistoryAssistantText a:
                     CloseGroup();
@@ -619,9 +780,144 @@ public sealed partial class SessionViewModel : ObservableObject
             }
         }
 
-        FinishOpenCalls();
+        _historyCount = history.Items.Count;
+
+        // While the phone runs it, the last tool calls may still be working.
+        if (!IsPhoneSession)
+        {
+            FinishOpenCalls();
+        }
+
         CloseGroup();
         ContentChanged?.Invoke();
+    }
+
+    // ------------------------------------------------------------------ phone sessions
+
+    private int _historyCount;
+    private string? _phoneFile;
+    private long _phoneFileLength;
+    private DispatcherTimer? _phoneTimer;
+    private bool _phoneReading;
+
+    /// <summary>
+    /// Started from the phone and running there: Nomad shows the transcript as it grows, and the
+    /// composer waits until the phone's process ends (then the next prompt resumes it here).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowComposer))]
+    public partial bool IsPhoneSession { get; set; }
+
+    public bool ShowComposer => !IsPhoneSession;
+
+    /// <summary>
+    /// Ends the phone's process and continues here. Remote Control reattaches to the same claude.ai
+    /// session, so the app keeps showing it and can still send prompts (now to Nomad's process).
+    /// </summary>
+    [RelayCommand]
+    private async Task TakeOverAsync()
+    {
+        if (!IsPhoneSession || _phone is not { } phone)
+        {
+            return;
+        }
+
+        if (SessionId is { } id)
+        {
+            _main.Settings.RememberBridge(id, phone.RemoteId);
+            _main.SaveSettings();
+        }
+
+        IsRemoteControl = true;
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(phone.ProcessId);
+            process.Kill();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or TimeoutException)
+        {
+            // Already gone.
+        }
+
+        _main.OnPhoneSessionEnded(this);
+        SetPhoneSession(null, null);
+        await WakeAsync();
+    }
+
+    private Nomad.Core.Remote.PhoneSessionProcess? _phone;
+
+    public void SetPhoneSession(Nomad.Core.Remote.PhoneSessionProcess? phone, string? file)
+    {
+        _phone = phone;
+        var running = phone is not null;
+        if (running && file is not null)
+        {
+            _phoneFile = file;
+            IsPhoneSession = true;
+            _phoneTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => _ = ReadPhoneTranscriptAsync());
+            _phoneTimer.Start();
+        }
+        else if (IsPhoneSession)
+        {
+            IsPhoneSession = false;
+            _phoneTimer?.Stop();
+            _ = ReadPhoneTranscriptAsync(final: true);
+        }
+    }
+
+    private async Task ReadPhoneTranscriptAsync(bool final = false)
+    {
+        if (_phoneReading || _phoneFile is not { } file)
+        {
+            return;
+        }
+
+        long length;
+        try
+        {
+            length = new FileInfo(file).Length;
+        }
+        catch (IOException)
+        {
+            return;
+        }
+
+        if (length == _phoneFileLength && !final)
+        {
+            return;
+        }
+
+        _phoneReading = true;
+        try
+        {
+            var history = await Task.Run(() => SessionStore.LoadHistory(file));
+            _phoneFileLength = length;
+            if (IsNew && history.Items.OfType<HistoryUserMessage>().FirstOrDefault() is { } first)
+            {
+                IsNew = false;
+                if (string.IsNullOrEmpty(Title))
+                {
+                    Title = SessionTitles.Shorten(first.Text);
+                }
+            }
+
+            AppendHistory(history, DateTime.UtcNow);
+            if (final)
+            {
+                FinishOpenCalls();
+            }
+
+            LastActivityUtc = DateTime.UtcNow;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Being written: the next tick tries again.
+        }
+        finally
+        {
+            _phoneReading = false;
+        }
     }
 
     // ------------------------------------------------------------------ backend
@@ -659,8 +955,15 @@ public sealed partial class SessionViewModel : ObservableObject
             ExtraArguments = _main.Dev.ExtraCliArguments,
         });
         _backend = backend;
+        ForgetBridgeProcess();
         LastActivityUtc = DateTime.UtcNow;
         _main.OnAliveChanged(this);
+
+        // A stored session can be reached at once; a new one waits for its first prompt (and name).
+        if (SessionId is not null)
+        {
+            _ = SyncRemoteControlAsync();
+        }
     }
 
     public async Task ShutdownAsync()
@@ -669,6 +972,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             var b = _backend;
             _backend = null;
+            ForgetBridgeProcess();
             await b.DisposeAsync();
         }
     }
@@ -741,6 +1045,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Starts the CLI process (resuming the session) without sending a prompt.</summary>
     public async Task WakeAsync()
     {
+        if (IsPhoneSession)
+        {
+            return; // Its process belongs to the phone.
+        }
+
         try
         {
             await EnsureBackendAsync();
@@ -787,6 +1096,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 {
                     SessionId = s.SessionId;
                     _main.OnSessionIdentified(this);
+                    RememberBridge();
                 }
 
                 if (!string.IsNullOrEmpty(s.PermissionMode) && !_suppressModeSync)
@@ -804,6 +1114,27 @@ public sealed partial class SessionViewModel : ObservableObject
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
+                break;
+
+            case RemotePromptEvent remote:
+                if (IsNew)
+                {
+                    Title = SessionTitles.Shorten(remote.Text);
+                    IsNew = false;
+                }
+
+                CloseGroup();
+                Items.Add(new UserMessageItem(remote.Text, remote.Uuid, DateTime.UtcNow, seen: true) { IsRemote = true });
+                IsTurnRunning = true;
+                State = AgentState.Running;
+                HasRun = true;
+                _turnToolCount = 0;
+                ContentChanged?.Invoke();
+                _main.OnSessionActivity(this);
+                break;
+
+            case RemoteControlStateEvent bridge:
+                RemoteControlState = bridge.State;
                 break;
 
             case BlockStartedEvent b when b.ParentToolUseId is null:
@@ -885,6 +1216,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 }
 
                 _backend = null;
+                ForgetBridgeProcess();
                 _main.OnAliveChanged(this);
                 break;
         }

@@ -168,7 +168,34 @@ public partial class MainWindow : Window
         }
 
         _vm.SaveSettings();
+
+        // Remote Control servers need a moment to unregister their folders (Ctrl+C); killed, claude.ai
+        // keeps the folders "served" and the next start has to wait. So close once they stopped.
+        if (_vm.HasPhoneServers && !_shutDown)
+        {
+            e.Cancel = true;
+            Hide();
+            _ = ShutDownThenCloseAsync();
+            return;
+        }
+
         _ = _vm.ShutdownAsync();
+    }
+
+    private bool _shutDown;
+
+    private async Task ShutDownThenCloseAsync()
+    {
+        try
+        {
+            await _vm.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        catch (TimeoutException)
+        {
+        }
+
+        _shutDown = true;
+        Close();
     }
 
     private async Task StartAsync()

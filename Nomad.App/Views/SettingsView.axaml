@@ -239,6 +239,76 @@
                 </ComboBox>
               </Grid>
 
+              <TextBlock Text="Remote Control" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Remote Control for new sessions" Classes="rowlabel" />
+                  <TextBlock Text="Continue sessions from the Claude app or claude.ai while they run here. Each session can turn it off with the phone icon in the status row."
+                             Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Command="{Binding ToggleRemoteControlByDefaultCommand}" VerticalAlignment="Center" Padding="4">
+                  <Border Classes="switch" Classes.on="{Binding RemoteControlByDefault}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Start sessions from the phone" Classes="rowlabel" />
+                  <TextBlock Text="In these folders Nomad keeps Claude Code's Remote Control server running, so the Claude app and claude.ai/code can start new sessions here. They appear under Alive with a phone icon."
+                             Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddPhoneFolderClick" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <c:Icon Size="13" Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Add folder…" FontWeight="Medium" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+
+              <ItemsControl ItemsSource="{Binding PhoneFolders}" IsVisible="{Binding HasPhoneFolders}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PhoneFolderRow">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,6">
+                      <Ellipse Width="7" Height="7" Margin="2,0,10,0" VerticalAlignment="Center"
+                               Fill="{StaticResource TextMutedBrush}"
+                               IsVisible="{Binding !IsReady}" />
+                      <Ellipse Width="7" Height="7" Margin="2,0,10,0" VerticalAlignment="Center"
+                               Fill="{StaticResource SuccessBrush}"
+                               IsVisible="{Binding IsReady}" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Folder}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Status}" Classes="rowhint" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Theme="{StaticResource LineButton}" Margin="10,0,0,0" VerticalAlignment="Center"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              IsVisible="{Binding NeedsSetup}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SetUpPhoneFolderCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="Opens claude remote-control in a terminal to answer its one-time questions">
+                        <TextBlock Text="Set up" FontWeight="Medium" />
+                      </Button>
+                      <Button Grid.Column="3" Theme="{StaticResource LineButton}" Margin="10,0,0,0" VerticalAlignment="Center"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              IsVisible="{Binding CanRetry}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RetryPhoneFolderCommand}"
+                              CommandParameter="{Binding}">
+                        <TextBlock Text="Retry" FontWeight="Medium" />
+                      </Button>
+                      <Button Grid.Column="4" Theme="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemovePhoneFolderCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="Remove">
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
               <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="{DynamicResource UiFontSizeSmall}">
                 <Run Text="Settings are saved to" />
                 <Run Text="{Binding SettingsPath}" FontFamily="{DynamicResource MonoFont}" />

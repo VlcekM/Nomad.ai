@@ -13,10 +13,11 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
-/// --dev-menu model|mode|folder|plus|usage   open a menu before the screenshot
+/// --dev-menu model|mode|folder|plus|usage|remote   open a menu before the screenshot
 /// --dev-settings-open [claude]  open the settings dialog (or its Claude Code page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
+/// --dev-phone                   start the phone folders' Remote Control servers (scripted runs skip them)
 /// --dev-expand                  expand every tool group (to screenshot rows)
 /// --dev-answer allow|session|deny|pick   answer every permission request automatically
 ///                               (questions get their first options; pick only selects them)
@@ -40,6 +41,9 @@ public sealed class DevOptions
     public bool SettingsClaudePage { get; private set; }
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
+
+    /// <summary>Start the phone folders' Remote Control servers in a scripted run too (off by default).</summary>
+    public bool Phone { get; private set; }
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
     public List<(string Key, string Value)> Set { get; } = [];
@@ -93,6 +97,7 @@ public sealed class DevOptions
                     break;
                 case "--dev-settings": o.SettingsPath = Path.GetFullPath(Next()); break;
                 case "--dev-lean": o.Lean = true; break;
+                case "--dev-phone": o.Phone = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;
                 case "--dev-key":

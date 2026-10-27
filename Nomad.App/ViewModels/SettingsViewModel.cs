@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Process;
+using Nomad.Core.Remote;
 using Nomad.Core.Settings;
 
 namespace Nomad.App.ViewModels;
@@ -40,6 +42,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
+        RemoteControlByDefault = s.RemoteControlByDefault;
+        RefreshPhoneFolders();
+        main.PhoneServerChanged += OnPhoneServerChanged;
         UpdateCliStatus();
         _loaded = true;
     }
@@ -162,6 +167,87 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnDefaultEffortChanged(EffortOption value) => Apply(s => s.DefaultEffort = value.Id, appearance: false);
 
+    // ------------------------------------------------------------------ Claude Code › Remote Control
+
+    [ObservableProperty]
+    public partial bool RemoteControlByDefault { get; set; }
+
+    [RelayCommand]
+    private void ToggleRemoteControlByDefault() => RemoteControlByDefault = !RemoteControlByDefault;
+
+    partial void OnRemoteControlByDefaultChanged(bool value) => Apply(s => s.RemoteControlByDefault = value, appearance: false);
+
+    /// <summary>Folders the phone can start sessions in, each with its server's state.</summary>
+    public ObservableCollection<PhoneFolderRow> PhoneFolders { get; } = [];
+
+    public bool HasPhoneFolders => PhoneFolders.Count > 0;
+
+    public void AddPhoneFolder(string folder)
+    {
+        _main.AddPhoneFolder(folder);
+        RefreshPhoneFolders();
+    }
+
+    [RelayCommand]
+    private async Task RemovePhoneFolderAsync(PhoneFolderRow row)
+    {
+        await _main.RemovePhoneFolderAsync(row.Folder);
+        RefreshPhoneFolders();
+    }
+
+    [RelayCommand]
+    private void RetryPhoneFolder(PhoneFolderRow row) => _main.RetryPhoneServer(row.Folder);
+
+    /// <summary>
+    /// The CLI's one-time questions (turning Remote Control on, trusting the folder) need a terminal:
+    /// open one in the folder running <c>claude remote-control</c>; the user answers, then presses Ctrl+C.
+    /// </summary>
+    [RelayCommand]
+    private void SetUpPhoneFolder(PhoneFolderRow row)
+    {
+        var cli = CliLocator.Resolve(_main.Settings.CliPath) ?? "claude";
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+                Arguments = $"/k \"\"{cli}\" remote-control\"",
+                WorkingDirectory = row.Folder,
+                UseShellExecute = true,
+            });
+            row.Status = "Answer Claude Code in the terminal, press Ctrl+C there, then Retry.";
+            row.CanRetry = true;
+        }
+        catch (Exception ex)
+        {
+            row.Status = "Could not open a terminal: " + ex.Message;
+        }
+    }
+
+    private void RefreshPhoneFolders()
+    {
+        PhoneFolders.Clear();
+        foreach (var folder in _main.Settings.PhoneFolders)
+        {
+            var row = new PhoneFolderRow(folder);
+            row.Update(_main.PhoneServer(folder));
+            PhoneFolders.Add(row);
+        }
+
+        OnPropertyChanged(nameof(HasPhoneFolders));
+    }
+
+    private void OnPhoneServerChanged(string folder)
+    {
+        foreach (var row in PhoneFolders.Where(r => string.Equals(r.Folder.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)))
+        {
+            row.Update(_main.PhoneServer(folder));
+        }
+    }
+
+    /// <summary>Stops listening to the app (the dialog closed).</summary>
+    public void Detach() => _main.PhoneServerChanged -= OnPhoneServerChanged;
+
     private void UpdateCliStatus()
     {
         var resolved = CliLocator.Resolve(string.IsNullOrWhiteSpace(CliPath) ? "claude" : CliPath.Trim());
@@ -221,5 +307,39 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         return list;
+    }
+}
+
+/// <summary>A phone folder on the settings page: where the phone can start sessions, and how that is going.</summary>
+public sealed partial class PhoneFolderRow(string folder) : ObservableObject
+{
+    public string Folder { get; } = folder;
+
+    [ObservableProperty]
+    public partial string Status { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool IsReady { get; set; }
+
+    [ObservableProperty]
+    public partial bool NeedsSetup { get; set; }
+
+    [ObservableProperty]
+    public partial bool CanRetry { get; set; }
+
+    public void Update(RemoteControlServer? server)
+    {
+        var state = server?.State ?? RemoteControlServerState.Stopped;
+        IsReady = state == RemoteControlServerState.Running;
+        NeedsSetup = state == RemoteControlServerState.NeedsSetup;
+        CanRetry = state is RemoteControlServerState.NeedsSetup or RemoteControlServerState.Failed or RemoteControlServerState.Stopped;
+        Status = state switch
+        {
+            RemoteControlServerState.Running => "Ready. Start a session here from the Claude app or claude.ai/code.",
+            RemoteControlServerState.Starting => "Starting…",
+            RemoteControlServerState.NeedsSetup => (server?.Message ?? "Claude Code needs a one-time answer.") + " Set it up in a terminal once.",
+            RemoteControlServerState.Failed => server?.Message ?? "Not running.",
+            _ => "Not running.",
+        };
     }
 }

@@ -27,7 +27,7 @@ dotnet build Nomad.App -o <scratch>\build
 
 Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/DevOptions.cs`):
 
-- `--dev-menu model|mode|folder|plus|usage` opens a status-row menu first; `--dev-settings-open` the settings.
+- `--dev-menu model|mode|folder|plus|usage|remote` opens a status-row menu first; `--dev-settings-open` the settings.
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a

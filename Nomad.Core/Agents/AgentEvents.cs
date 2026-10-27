@@ -31,6 +31,15 @@ public sealed record AccountInfoEvent(string? SubscriptionType, string? Email, I
 /// <summary>We sent a prompt; a turn is now running.</summary>
 public sealed record TurnStartedEvent(string Prompt) : AgentEvent;
 
+/// <summary>A prompt typed elsewhere (Remote Control on claude.ai or the phone); a turn is now running.</summary>
+public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
+
+/// <summary>The Remote Control bridge's state: ready | connected | reconnecting | failed | disconnected.</summary>
+public sealed record RemoteControlStateEvent(string State) : AgentEvent;
+
+/// <summary>A session's Remote Control link (claude.ai/code/session_…) and its bridge session id, for reattaching.</summary>
+public sealed record RemoteControlInfo(string? SessionUrl, string? BridgeSessionId);
+
 public sealed record AssistantMessageStartedEvent(string MessageId, string? Model, string? ParentToolUseId) : AgentEvent;
 
 public sealed record BlockStartedEvent(

@@ -52,6 +52,18 @@ public sealed class OutgoingControlPayload
 
     /// <summary><c>generate_session_title</c>: also store the title in the transcript.</summary>
     [JsonPropertyName("persist")] public bool? Persist { get; set; }
+
+    /// <summary><c>remote_control</c>: turn the session's Remote Control bridge on or off.</summary>
+    [JsonPropertyName("enabled")] public bool? Enabled { get; set; }
+
+    /// <summary><c>remote_control</c>: the name shown on claude.ai and in the mobile app.</summary>
+    [JsonPropertyName("name")] public string? Name { get; set; }
+
+    /// <summary><c>remote_control</c>: keep the claude.ai session when the process ends, so it can be reattached.</summary>
+    [JsonPropertyName("keep_session_on_exit")] public bool? KeepSessionOnExit { get; set; }
+
+    /// <summary><c>remote_control</c>: the bridge session of an earlier process to continue (same link).</summary>
+    [JsonPropertyName("reattach_session_id")] public string? ReattachSessionId { get; set; }
 }
 
 /// <summary>Session-scoped settings overlay for <c>apply_flag_settings</c>.</summary>

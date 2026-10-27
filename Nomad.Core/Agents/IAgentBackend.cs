@@ -40,6 +40,13 @@ public interface IAgentBackend : IAsyncDisposable
     /// <summary>Asks the agent for a short session title; <paramref name="persist"/> stores it with the session.</summary>
     Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Turns Remote Control on or off, so the session can be driven from claude.ai or the Claude
+    /// mobile app. <paramref name="reattachSessionId"/> continues an earlier process's link. Null when
+    /// the process could not do it.
+    /// </summary>
+    Task<RemoteControlInfo?> SetRemoteControlAsync(bool enabled, string? name, string? reattachSessionId = null, CancellationToken cancellationToken = default);
+
     /// <summary>Ends the process gracefully (closes stdin), killing it after a grace period.</summary>
     Task StopAsync();
 }

@@ -256,6 +256,9 @@ public partial class SessionView : UserControl
             case "usage":
                 UsageChip.Flyout?.ShowAt(UsageChip);
                 break;
+            case "remote":
+                RemoteChip.Flyout?.ShowAt(RemoteChip);
+                break;
         }
     }
 
@@ -265,6 +268,7 @@ public partial class SessionView : UserControl
         ModeChip.Flyout?.Hide();
         PlusButton.Flyout?.Hide();
         UsageChip.Flyout?.Hide();
+        RemoteChip.Flyout?.Hide();
         FlyoutBase.GetAttachedFlyout(FolderChip)?.Hide();
     }
 
@@ -425,6 +429,33 @@ public partial class SessionView : UserControl
             && TopLevel.GetTopLevel(this)?.DataContext is MainViewModel main)
         {
             main.Fork(vm, message);
+        }
+    }
+
+    private async void OnCopyRemoteLinkClick(object? sender, RoutedEventArgs e)
+    {
+        HideMenus();
+        if (Vm?.RemoteControlUrl is { } url && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(url);
+        }
+    }
+
+    private void OnOpenRemoteLinkClick(object? sender, RoutedEventArgs e)
+    {
+        HideMenus();
+        if (Vm?.RemoteControlUrl is not { } url)
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+            // No browser registered: nothing to open.
         }
     }
 

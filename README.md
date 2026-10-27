@@ -56,6 +56,21 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
   allows, Esc denies), shown with the command or a small diff. Answered cards shrink to one line.
   When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
   card with Submit and Skip.
+- **Remote Control.** A running session can be continued from the Claude mobile app or
+  claude.ai/code (the phone icon in the status row; on by default, see Settings). Nomad turns it on
+  with the CLI's `remote_control` control request once a session has a name, keeps the claude.ai
+  session across restarts (`reattach_session_id`), and runs the CLI with `--replay-user-messages`
+  so prompts typed on the phone appear in the transcript (with a phone mark). Sessions with Remote
+  Control on are not ended by the idle timeout. Permission prompts appear in Nomad as usual.
+- **Starting sessions from the phone.** For each folder under Settings → Claude Code → Start sessions
+  from the phone, Nomad keeps `claude remote-control --spawn same-dir` running, so the Claude app
+  can start new sessions there. Those sessions belong to that server's child processes, so Nomad
+  finds them (in its job object), shows them under Alive with a phone icon and follows their
+  transcript live; the composer returns when they end, or at once with **Continue here**, which
+  ends the phone's process and resumes the session in Nomad, attached to the same claude.ai session.
+  The CLI asks two one-time questions (turning Remote Control on, trusting the folder) that need a
+  terminal: **Set up** opens one running `claude remote-control` in the folder. Only one server can
+  serve a folder, so a `claude remote-control` in a terminal there makes Nomad's retry until it ends.
 - **Status row.** Folder chip (recent folders, "Open folder…", or "No folder", which uses a fresh
   scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), a chip
   per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), a filled effort slider (Low to Max), and
@@ -129,10 +144,11 @@ Scenarios: `pong`, `write-allow`, `write-deny`, `interrupt`, `multiturn`, `contr
 | `--dev-after <seconds>` | …this many seconds after start (default 5) |
 | `--dev-wait-turn` | …or as soon as the first turn has finished |
 | `--dev-size <W>x<H>` | Initial window size (window placement is then not saved) |
-| `--dev-menu model\|mode\|folder\|plus` | Open a menu before the screenshot |
+| `--dev-menu model\|mode\|folder\|plus\|usage\|remote` | Open a menu before the screenshot |
 | `--dev-settings-open [claude]` | Open the settings dialog before the screenshot |
 | `--dev-settings <path>` | Use this settings file |
 | `--dev-lean` | Small CLI tool set, no MCP servers or skills |
+| `--dev-phone` | Start the phone folders' Remote Control servers (scripted runs skip them) |
 | `--dev-expand` | Expand tool groups and thinking before the screenshot |
 | `--dev-answer allow\|session\|deny\|pick` | Answer every permission request automatically (questions get their first options; `pick` only selects them) |
 | `--dev-set textSize=Large` | Change an appearance setting live (`textSize`, `width`) |

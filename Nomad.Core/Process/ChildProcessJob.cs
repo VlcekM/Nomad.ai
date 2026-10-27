@@ -35,6 +35,38 @@ internal static partial class ChildProcessJob
         }
     }
 
+    /// <summary>
+    /// PIDs of every process in the job: ours, and the ones they started (children inherit the job).
+    /// Empty when there is no job.
+    /// </summary>
+    public static unsafe IReadOnlyList<int> ProcessIds()
+    {
+        if (!OperatingSystem.IsWindows() || !Job.IsValueCreated || Job.Value == 0)
+        {
+            return [];
+        }
+
+        // JOBOBJECT_BASIC_PROCESS_ID_LIST: two DWORD counts, then ULONG_PTR ids.
+        const int capacity = 512;
+        var buffer = stackalloc nuint[capacity + 1];
+        var length = (uint)((capacity + 1) * sizeof(nuint));
+        if (!QueryInformationJobObject(Job.Value, BasicProcessIdListClass, buffer, length, 0))
+        {
+            return [];
+        }
+
+        var count = (int)((uint*)buffer)[1];
+        var ids = new int[Math.Min(count, capacity)];
+        for (var i = 0; i < ids.Length; i++)
+        {
+            ids[i] = (int)buffer[1 + i];
+        }
+
+        return ids;
+    }
+
+    private const int BasicProcessIdListClass = 3;
+
     private static unsafe nint CreateJob()
     {
         if (!OperatingSystem.IsWindows())
@@ -105,6 +137,10 @@ internal static partial class ChildProcessJob
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool AssignProcessToJobObject(nint job, nint process);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static unsafe partial bool QueryInformationJobObject(nint job, int infoClass, void* info, uint length, nint returnLength);
 
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

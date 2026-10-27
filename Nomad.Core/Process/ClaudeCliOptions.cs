@@ -36,6 +36,12 @@ public sealed record ClaudeCliOptions
     /// <summary>Emit <c>stream_event</c> lines with raw API deltas.</summary>
     public bool IncludePartialMessages { get; init; } = true;
 
+    /// <summary>
+    /// Echo every user message on stdout (<c>--replay-user-messages</c>), ours with the uuid we sent,
+    /// so prompts typed in Remote Control (claude.ai, the phone) show up too.
+    /// </summary>
+    public bool ReplayUserMessages { get; init; } = true;
+
     /// <summary>Route permission prompts to us as <c>can_use_tool</c> control requests.</summary>
     public bool PermissionPromptOverStdio { get; init; } = true;
 

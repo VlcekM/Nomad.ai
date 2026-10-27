@@ -29,6 +29,16 @@ public sealed class NomadSettings
     /// <summary>low | medium | high | xhigh | max; empty = leave it to the CLI. Medium as in the original app.</summary>
     public string DefaultEffort { get; set; } = "medium";
 
+    // Remote Control
+    /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
+    public bool RemoteControlByDefault { get; set; } = true;
+
+    /// <summary>Folders where Nomad keeps a <c>claude remote-control</c> server, so the phone can start sessions there.</summary>
+    public List<string> PhoneFolders { get; set; } = [];
+
+    /// <summary>Session id → Remote Control bridge session, so a resumed session keeps its link (newest last, max 50).</summary>
+    public Dictionary<string, string> RemoteControlBridges { get; set; } = [];
+
     // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
     public string? DisplayName { get; set; }
     public string? LastPlan { get; set; }
@@ -43,6 +53,17 @@ public sealed class NomadSettings
 
     public NomadSettings Clone() =>
         JsonSerializer.Deserialize(JsonSerializer.Serialize(this, SettingsJsonContext.Default.NomadSettings), SettingsJsonContext.Default.NomadSettings)!;
+
+    /// <summary>Remembers a session's Remote Control bridge, dropping the oldest beyond 50.</summary>
+    public void RememberBridge(string sessionId, string bridgeSessionId)
+    {
+        RemoteControlBridges.Remove(sessionId);
+        RemoteControlBridges[sessionId] = bridgeSessionId;
+        while (RemoteControlBridges.Count > 50)
+        {
+            RemoteControlBridges.Remove(RemoteControlBridges.Keys.First());
+        }
+    }
 
     /// <summary>Moves a folder to the front of the recent list (max 10).</summary>
     public void TouchRecentFolder(string folder)

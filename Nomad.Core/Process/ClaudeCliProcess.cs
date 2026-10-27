@@ -28,9 +28,18 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
     private bool _inputClosed;
 
     public ClaudeCliProcess(ClaudeCliOptions options)
+        : this(options, BuildArguments(options))
+    {
+    }
+
+    /// <summary>
+    /// A CLI process with its own arguments (e.g. <c>remote-control</c>); only the path and working
+    /// directory of <paramref name="options"/> are used.
+    /// </summary>
+    public ClaudeCliProcess(ClaudeCliOptions options, IReadOnlyList<string> arguments)
     {
         Options = options;
-        Arguments = BuildArguments(options);
+        Arguments = arguments;
     }
 
     public ClaudeCliOptions Options { get; }
@@ -85,6 +94,11 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
         if (o.IncludePartialMessages)
         {
             args.Add("--include-partial-messages");
+        }
+
+        if (o.ReplayUserMessages)
+        {
+            args.Add("--replay-user-messages");
         }
 
         if (o.PermissionPromptOverStdio)
@@ -280,6 +294,44 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Presses Ctrl+C in the process's console (it has its own: <c>CreateNoWindow</c>), the way a
+    /// terminal would; servers like <c>claude remote-control</c> then shut down cleanly. Nomad has no
+    /// console of its own, so it borrows the child's for the moment. False when that failed.
+    /// </summary>
+    public bool TrySendCtrlC()
+    {
+        if (!OperatingSystem.IsWindows() || ProcessId is not { } pid || !IsRunning)
+        {
+            return false;
+        }
+
+        lock (ConsoleLock)
+        {
+            if (!ConsoleControl.AttachConsole((uint)pid))
+            {
+                return false;
+            }
+
+            try
+            {
+                // Ignore the event ourselves while attached, then send it to everyone on that console.
+                ConsoleControl.SetConsoleCtrlHandler(0, true);
+                return ConsoleControl.GenerateConsoleCtrlEvent(0, 0);
+            }
+            finally
+            {
+                ConsoleControl.FreeConsole();
+
+                // The event is delivered asynchronously: keep ignoring it a moment longer.
+                Thread.Sleep(50);
+                ConsoleControl.SetConsoleCtrlHandler(0, false);
+            }
+        }
+    }
+
+    private static readonly Lock ConsoleLock = new();
 
     /// <summary>Kills this process and its children (never anything we did not start).</summary>
     public void Kill()

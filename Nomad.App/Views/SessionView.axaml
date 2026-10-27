@@ -127,6 +127,26 @@
       <Setter Property="Foreground" Value="{StaticResource DangerBrush}" />
     </Style>
 
+    <!-- Remote Control chip: dim while off; a dot, green once claude.ai is connected. -->
+    <Style Selector="Button.remote:not(.on)">
+      <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Button.remote Ellipse.remotedot">
+      <Setter Property="Fill" Value="{StaticResource TextMutedBrush}" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.remote.on Ellipse.remotedot">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.remote.on.connected Ellipse.remotedot">
+      <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+    </Style>
+
     <!-- Section headers inside menus -->
     <Style Selector="TextBlock.menuheader">
       <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
@@ -164,6 +184,7 @@
                     HorizontalAlignment="Right"
                     Spacing="2"
                     Margin="0,4,0,0">
+          <c:Icon Size="12" Data="{StaticResource IconPhone}" Classes="tick" IsVisible="{Binding IsRemote}" VerticalAlignment="Center" Margin="0,0,2,0" ToolTip.Tip="Sent from Remote Control" />
           <Panel Width="16" Height="14" VerticalAlignment="Center" ToolTip.Tip="{Binding SeenToolTip}">
             <c:Icon Size="12" Data="{StaticResource IconCheck}" HorizontalAlignment="Left" Classes.seen="{Binding IsSeen}" Classes="tick" />
             <c:Icon Size="12" Data="{StaticResource IconCheck}" HorizontalAlignment="Left" Margin="4,0,0,0" IsVisible="{Binding IsSeen}" Classes="tick seen" />
@@ -563,8 +584,36 @@
       </Button>
     </Panel>
 
+    <!-- Started from the phone: shown live here, continued in the Claude app until it ends. -->
+    <Border Grid.Row="2"
+            MaxWidth="{DynamicResource ColumnMaxWidth}"
+            Margin="32,0"
+            MinHeight="44"
+            CornerRadius="10"
+            BorderThickness="1"
+            BorderBrush="{StaticResource BorderInputBrush}"
+            Padding="14,0"
+            IsVisible="{Binding IsPhoneSession}">
+      <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+        <c:Icon Size="14" Data="{StaticResource IconPhone}" VerticalAlignment="Center" Margin="0,0,10,0" />
+        <TextBlock Grid.Column="1"
+                   Text="Running from the Claude app. It shows here live."
+                   Classes="muted"
+                   TextWrapping="Wrap"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="2"
+                Theme="{StaticResource LineButton}"
+                Command="{Binding TakeOverCommand}"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Margin="12,0,0,0"
+                ToolTip.Tip="Stop it in the Claude app's process and continue in Nomad (still reachable from the app)">
+          <TextBlock Text="Continue here" FontWeight="Medium" />
+        </Button>
+      </Grid>
+    </Border>
+
     <!-- Composer -->
-    <Panel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0">
+    <Panel Grid.Row="2" MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,0" IsVisible="{Binding ShowComposer}">
       <!-- The whole bar acts as the text box: I-beam over it, a click anywhere focuses it. -->
       <Border Background="{StaticResource BgInputBrush}"
               BorderBrush="{StaticResource BorderInputBrush}"
@@ -639,7 +688,7 @@
           Height="44"
           MaxWidth="{DynamicResource ColumnMaxWidth}"
           Margin="32,0"
-          ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+          ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto">
 
       <Button Name="FolderChip"
               Theme="{StaticResource ChipButton}"
@@ -730,8 +779,58 @@
         </Button.Flyout>
       </Button>
 
+      <!-- Remote Control: the phone icon, lit while the session is reachable from claude.ai / the app. -->
+      <Button Name="RemoteChip"
+              Grid.Column="2"
+              Theme="{StaticResource ChipButton}"
+              Classes="remote"
+              Classes.on="{Binding IsRemoteControl}"
+              Classes.connected="{Binding IsRemoteConnected}"
+              Margin="4,0,0,0"
+              ToolTip.Tip="Remote Control">
+        <Panel>
+          <c:Icon Size="13" Data="{StaticResource IconPhone}" />
+          <Ellipse Classes="remotedot" Width="5" Height="5" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,-2,0" />
+        </Panel>
+        <Button.Flyout>
+          <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+            <StackPanel Width="290">
+              <TextBlock Text="Remote Control" Classes="menuheader" />
+              <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleRemoteControlCommand}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="Continue from phone or web" />
+                  <Border Grid.Column="1" Classes="switch" Classes.on="{Binding IsRemoteControl}" VerticalAlignment="Center">
+                    <Ellipse />
+                  </Border>
+                </Grid>
+              </Button>
+              <TextBlock Text="{Binding RemoteControlText}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         Margin="8,2,8,4" />
+              <StackPanel IsVisible="{Binding HasRemoteControlUrl}">
+                <Border Classes="rule" />
+                <Button Theme="{StaticResource MenuItemButton}" Click="OnCopyRemoteLinkClick">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+                    <TextBlock Text="Copy link" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Theme="{StaticResource MenuItemButton}" Click="OnOpenRemoteLinkClick">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <c:Icon Size="13" Data="{StaticResource IconGlobe}" />
+                    <TextBlock Text="Open on claude.ai" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+
       <!-- One chip per model; clicking the current one opens the full picker. -->
-      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2">
+      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2">
         <ItemsControl ItemsSource="{Binding ModelOptions}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -804,7 +903,7 @@
 
       <!-- The ring shows the context window; clicking it opens the plan usage limits. -->
       <Button Name="UsageChip"
-              Grid.Column="4"
+              Grid.Column="5"
               Theme="{StaticResource ChipButton}"
               Width="26" Padding="0"
               Margin="2,0,8,0"

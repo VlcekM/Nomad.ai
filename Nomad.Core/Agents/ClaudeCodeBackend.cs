@@ -15,6 +15,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ControlResponseBody?>> _pendingControl = new();
     private readonly ConcurrentDictionary<string, PermissionRequest> _pendingPermissions = new();
+    private readonly ConcurrentDictionary<string, byte> _sentUuids = new(StringComparer.Ordinal);
     private ClaudeCliProcess? _cli;
     private int _requestCounter;
     private volatile bool _turnRunning;
@@ -83,6 +84,10 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     public async Task SendPromptAsync(string text, string? uuid = null, CancellationToken cancellationToken = default)
     {
         var cli = RequireRunning();
+
+        // The replayed copy comes back with this uuid, which tells it apart from Remote Control prompts.
+        uuid ??= Guid.NewGuid().ToString();
+        _sentUuids[uuid] = 0;
         _turnRunning = true;
         _interruptRequested = false;
         _assistantError = null;
@@ -264,6 +269,38 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             : null;
     }
 
+    public async Task<RemoteControlInfo?> SetRemoteControlAsync(bool enabled, string? name, string? reattachSessionId = null, CancellationToken cancellationToken = default)
+    {
+        if (_cli is not { IsRunning: true })
+        {
+            return null;
+        }
+
+        var payload = new OutgoingControlPayload
+        {
+            Subtype = "remote_control",
+            Enabled = enabled,
+            Name = enabled && !string.IsNullOrWhiteSpace(name) ? name : null,
+            KeepSessionOnExit = enabled ? true : null,
+            ReattachSessionId = enabled ? reattachSessionId : null,
+        };
+        var response = await SendControlAsync(payload, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        if (response?.Subtype != "success")
+        {
+            return null;
+        }
+
+        if (!enabled || response.Response.ValueKind != JsonValueKind.Object)
+        {
+            return new RemoteControlInfo(null, null);
+        }
+
+        return new RemoteControlInfo(String(response.Response, "session_url"), String(response.Response, "bridge_session_id"));
+
+        static string? String(JsonElement e, string name) =>
+            e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    }
+
     public async Task StopAsync()
     {
         _stopping = true;
@@ -422,6 +459,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
                 Raise(new StatusEvent(system.Status));
                 break;
+            case "bridge_state" when !string.IsNullOrEmpty(system.State):
+                Raise(new RemoteControlStateEvent(system.State));
+                break;
         }
     }
 
@@ -507,6 +547,22 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     {
         if (line.Message?.Content is not { } content)
         {
+            return;
+        }
+
+        // A replayed prompt we did not send came from Remote Control: it starts a turn of its own.
+        if (line.IsReplay == true && line.ParentToolUseId is null && content.All(b => b.Type == "text")
+            && !(line.Uuid is { } uuid && _sentUuids.ContainsKey(uuid)))
+        {
+            var text = string.Join("\n", content.Select(b => b.Text).Where(t => !string.IsNullOrEmpty(t)));
+            if (text.Length > 0)
+            {
+                _turnRunning = true;
+                _interruptRequested = false;
+                _assistantError = null;
+                Raise(new RemotePromptEvent(text, line.Uuid));
+            }
+
             return;
         }
 

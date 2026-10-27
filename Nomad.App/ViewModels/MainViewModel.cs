@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
+using Nomad.Core.Remote;
 using Nomad.Core.Sessions;
 using Nomad.Core.Settings;
 
@@ -57,6 +58,198 @@ public sealed partial class MainViewModel : ObservableObject
         _usageTimer.Tick += (_, _) => _ = Usage.RefreshAsync();
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
+
+        _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        _phoneTimer.Tick += (_, _) => _ = ScanPhoneSessionsAsync();
+
+        // Scripted runs leave the folders to the user's own instance (one server per folder).
+        if (!dev.IsActive || dev.Phone)
+        {
+            foreach (var folder in settings.PhoneFolders)
+            {
+                StartPhoneServer(folder);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ phone (Remote Control servers)
+
+    private readonly Dictionary<string, RemoteControlServer> _servers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly DispatcherTimer _phoneTimer;
+
+    // Running phone sessions by claude.ai id, with the transcript they write and its session id.
+    private readonly Dictionary<string, (PhoneSessionProcess Process, string File, string SessionId)> _phone = new(StringComparer.Ordinal);
+    private bool _phoneScanning;
+
+    /// <summary>Raised when a folder's server changed state (the settings page shows it).</summary>
+    public event Action<string>? PhoneServerChanged;
+
+    /// <summary>A Remote Control server process is running (closing waits for it to stop).</summary>
+    public bool HasPhoneServers => _servers.Values.Any(s => s.ProcessId is not null);
+
+    public RemoteControlServer? PhoneServer(string folder) => _servers.GetValueOrDefault(folder.TrimEnd('\\', '/'));
+
+    public void AddPhoneFolder(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        if (Settings.PhoneFolders.Any(f => string.Equals(f.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Settings.PhoneFolders.Add(folder);
+        SaveSettings();
+        StartPhoneServer(folder);
+    }
+
+    public async Task RemovePhoneFolderAsync(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        Settings.PhoneFolders.RemoveAll(f => string.Equals(f.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase));
+        SaveSettings();
+        if (_servers.Remove(folder, out var server))
+        {
+            await server.StopAsync();
+        }
+
+        UpdatePhoneTimer();
+    }
+
+    /// <summary>Tries a folder's server again (after the one-time setup in a terminal).</summary>
+    public void RetryPhoneServer(string folder) => StartPhoneServer(folder);
+
+    private void StartPhoneServer(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        if (!_servers.TryGetValue(folder, out var server))
+        {
+            var mode = Settings.DefaultPermissionMode;
+            server = new RemoteControlServer(folder, Settings.CliPath, mode);
+            server.Changed += () => Post(() =>
+            {
+                UpdatePhoneTimer();
+                PhoneServerChanged?.Invoke(folder);
+            });
+            _servers[folder] = server;
+        }
+
+        server.Start();
+        UpdatePhoneTimer();
+    }
+
+    private void UpdatePhoneTimer()
+    {
+        var any = _servers.Values.Any(s => s.State is RemoteControlServerState.Running or RemoteControlServerState.Starting) || _phone.Count > 0;
+        if (any)
+        {
+            _phoneTimer.Start();
+        }
+        else
+        {
+            _phoneTimer.Stop();
+        }
+    }
+
+    /// <summary>Finds sessions the servers started for the phone and shows them as alive.</summary>
+    private async Task ScanPhoneSessionsAsync()
+    {
+        if (_phoneScanning)
+        {
+            return;
+        }
+
+        _phoneScanning = true;
+        try
+        {
+            var folders = _servers.Values.Where(s => s.ProcessId is not null).ToDictionary(s => s.ProcessId!.Value, s => s.Folder);
+            var known = _phone.ToDictionary(p => p.Key, p => p.Value.File, StringComparer.Ordinal);
+            var root = Store.ProjectsRoot;
+            var found = await Task.Run(() =>
+            {
+                var result = new List<(PhoneSessionProcess Process, string File)>();
+                var taken = new HashSet<string>(known.Values, StringComparer.OrdinalIgnoreCase);
+                foreach (var p in RemoteSessionScanner.Scan().OrderBy(p => p.StartedUtc))
+                {
+                    if (known.TryGetValue(p.RemoteId, out var file))
+                    {
+                        result.Add((p, file));
+                    }
+                    else if (folders.TryGetValue(p.ParentProcessId, out var folder)
+                        && RemoteSessionScanner.FindTranscript(root, folder, p.StartedUtc, taken) is { } newFile)
+                    {
+                        taken.Add(newFile);
+                        result.Add((p, newFile));
+                    }
+                }
+
+                return result;
+            });
+
+            var changed = false;
+            var alive = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var (process, file) in found)
+            {
+                alive.Add(process.RemoteId);
+                if (!_phone.ContainsKey(process.RemoteId))
+                {
+                    _phone[process.RemoteId] = (process, file, Path.GetFileNameWithoutExtension(file));
+                    changed = true;
+                }
+            }
+
+            foreach (var gone in _phone.Keys.Where(k => !alive.Contains(k)).ToList())
+            {
+                var sessionId = _phone[gone].SessionId;
+                _phone.Remove(gone);
+                if (_open.TryGetValue(sessionId, out var session))
+                {
+                    session.SetPhoneSession(null, null);
+                }
+
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await RefreshSessionsAsync();
+                foreach (var (process, file, sessionId) in _phone.Values)
+                {
+                    if (_open.TryGetValue(sessionId, out var session) && !session.IsPhoneSession)
+                    {
+                        session.SetPhoneSession(process, file);
+                    }
+                }
+            }
+
+            UpdatePhoneTimer();
+        }
+        finally
+        {
+            _phoneScanning = false;
+        }
+    }
+
+    private bool IsPhone(string sessionId) => _phone.Values.Any(p => p.SessionId == sessionId);
+
+    /// <summary>A phone session was taken over by Nomad ("Continue here").</summary>
+    public void OnPhoneSessionEnded(SessionViewModel session)
+    {
+        if (session.SessionId is not { } id)
+        {
+            return;
+        }
+
+        foreach (var key in _phone.Where(p => p.Value.SessionId == id).Select(p => p.Key).ToList())
+        {
+            _phone.Remove(key);
+        }
+
+        if (_all.FirstOrDefault(s => s.SessionId == id) is { } vm)
+        {
+            vm.IsPhone = false;
+            vm.IsAlive = session.IsProcessRunning;
+            ApplyFilter();
+        }
     }
 
     public NomadSettings Settings { get; }
@@ -219,6 +412,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var session = CreateStoredSession(item);
+        if (_phone.Values.FirstOrDefault(p => p.SessionId == item.SessionId) is { File: not null } phone)
+        {
+            session.SetPhoneSession(phone.Process, phone.File);
+        }
+
         Current = session;
         await LoadHistoryAsync(session, item);
     }
@@ -226,6 +424,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Moves a session between Alive and Idle: ends its CLI process, or starts one that resumes it.</summary>
     public async Task ToggleAliveAsync(SessionListItemViewModel item)
     {
+        if (item.IsPhone)
+        {
+            return; // Its process belongs to the phone.
+        }
+
         if (_open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning)
         {
             await session.SleepAsync();
@@ -289,7 +492,8 @@ public sealed partial class MainViewModel : ObservableObject
         var now = DateTime.UtcNow;
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {
-            if (session.IsProcessRunning && !session.IsTurnRunning && now - session.LastActivityUtc > IdleTimeout)
+            // Remote Control sessions stay up: without a process the phone cannot reach them.
+            if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasRemoteControlUrl && now - session.LastActivityUtc > IdleTimeout)
             {
                 _ = session.SleepAsync();
             }
@@ -393,6 +597,7 @@ public sealed partial class MainViewModel : ObservableObject
     public void CloseSettings()
     {
         IsSettingsOpen = false;
+        SettingsPage?.Detach();
         SettingsPage = null;
         SaveSettings();
     }
@@ -435,7 +640,8 @@ public sealed partial class MainViewModel : ObservableObject
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
             // An open session knows its newest title (a generated one may not be on disk yet).
             vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
-            vm.IsAlive = live?.IsProcessRunning == true;
+            vm.IsPhone = IsPhone(s.SessionId);
+            vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone;
             merged.Add(vm);
         }
 
@@ -668,8 +874,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _idleTimer.Stop();
         _usageTimer.Stop();
+        _phoneTimer.Stop();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
-        await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()));
+        await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()).Concat(_servers.Values.Select(s => s.StopAsync())));
     }
 
     private static string Initials(string name)

@@ -90,6 +90,9 @@ public sealed class SystemLine : CliLine
 
     /// <summary>For subtype <c>status</c>: requesting | compacting | null.</summary>
     [JsonPropertyName("status")] public string? Status { get; set; }
+
+    /// <summary>For subtype <c>bridge_state</c>: the Remote Control bridge's state.</summary>
+    [JsonPropertyName("state")] public string? State { get; set; }
 }
 
 public sealed class StreamEventLine : CliLine
@@ -116,6 +119,7 @@ public sealed class UserLine : CliLine
     /// <summary>Structured tool output (e.g. Edit's structuredPatch), shape depends on the tool.</summary>
     [JsonPropertyName("tool_use_result")] public JsonElement ToolUseResult { get; set; }
 
+    [JsonPropertyName("uuid")] public string? Uuid { get; set; }
     [JsonPropertyName("isReplay")] public bool? IsReplay { get; set; }
     [JsonPropertyName("isSynthetic")] public bool? IsSynthetic { get; set; }
 }

@@ -64,17 +64,25 @@
                     <MenuItem Header="{Binding AliveToggleText}" Click="OnToggleAliveClick" />
                   </ContextMenu>
                 </Button.ContextMenu>
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Text="{Binding Title}"
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                  <!-- Started from the phone: it runs in the Claude app, Nomad shows it live. -->
+                  <c:Icon Size="12"
+                          Data="{StaticResource IconPhone}"
+                          Margin="0,0,6,0"
+                          VerticalAlignment="Center"
+                          IsVisible="{Binding IsPhone}"
+                          ToolTip.Tip="Running from the Claude app" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding Title}"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center" />
-                  <Ellipse Grid.Column="1"
+                  <Ellipse Grid.Column="2"
                            Width="6" Height="6"
                            Margin="10,0,4,0"
                            Fill="{StaticResource AccentBrush}"
                            IsVisible="{Binding IsRunning}"
                            VerticalAlignment="Center" />
-                  <Ellipse Grid.Column="1"
+                  <Ellipse Grid.Column="2"
                            Width="6" Height="6"
                            Margin="10,0,4,0"
                            Fill="{StaticResource UnreadBrush}"

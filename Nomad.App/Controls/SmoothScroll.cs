@@ -21,6 +21,9 @@ public static class SmoothScroll
 
     private const double NotchPixels = 110;
 
+    /// <summary>Time constant of the ease-out: about 63% of the remaining distance per this many ms.</summary>
+    private const double EaseMs = 60;
+
     private static readonly ConditionalWeakTable<ScrollViewer, Glide> Glides = new();
 
     static SmoothScroll()
@@ -42,7 +45,12 @@ public static class SmoothScroll
     private sealed class Glide
     {
         public double Target;
-        public DispatcherTimer? Timer;
+
+        /// <summary>A frame callback is pending: the glide runs.</summary>
+        public bool IsRunning;
+
+        /// <summary>Time of the previous frame (null on the first frame of a glide).</summary>
+        public TimeSpan? LastFrame;
     }
 
     private static void OnWheel(object? sender, PointerWheelEventArgs e)
@@ -60,7 +68,7 @@ public static class SmoothScroll
 
         var max = Math.Max(0, viewer.Extent.Height - viewer.Viewport.Height);
         var glide = Glides.GetValue(viewer, _ => new Glide());
-        var running = glide.Timer?.IsEnabled == true;
+        var running = glide.IsRunning;
         var from = running ? glide.Target : viewer.Offset.Y;
         var target = Math.Clamp(from - e.Delta.Y * NotchPixels, 0, max);
         if (Math.Abs(target - from) < 0.5 && !running)
@@ -70,23 +78,36 @@ public static class SmoothScroll
 
         e.Handled = true;
         glide.Target = target;
-        glide.Timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(15), DispatcherPriority.Render, (_, _) => Step(viewer, glide));
-        glide.Timer.Start();
+        if (!running && TopLevel.GetTopLevel(viewer) is { } top)
+        {
+            glide.IsRunning = true;
+            glide.LastFrame = null;
+            top.RequestAnimationFrame(time => Step(viewer, glide, time));
+        }
     }
 
-    /// <summary>One frame: cover a share of the remaining distance (an ease-out that retargets cleanly).</summary>
-    private static void Step(ScrollViewer viewer, Glide glide)
+    /// <summary>
+    /// One rendered frame (at the display's refresh rate): cover a share of the remaining distance
+    /// that depends on the time since the last frame, so the ease-out looks the same at 60 or 144 Hz
+    /// and retargets cleanly.
+    /// </summary>
+    private static void Step(ScrollViewer viewer, Glide glide, TimeSpan time)
     {
         var y = viewer.Offset.Y;
         var left = glide.Target - y;
-        if (Math.Abs(left) < 0.5 || !viewer.IsAttachedToVisualTree())
+        if (Math.Abs(left) < 0.5 || TopLevel.GetTopLevel(viewer) is not { } top)
         {
             viewer.Offset = viewer.Offset.WithY(glide.Target);
-            glide.Timer?.Stop();
+            glide.IsRunning = false;
             return;
         }
 
-        viewer.Offset = viewer.Offset.WithY(y + left * 0.22);
+        // The first frame has no previous one: assume a 144 Hz frame.
+        var dt = glide.LastFrame is { } last ? Math.Clamp((time - last).TotalMilliseconds, 0, 50) : 1000.0 / 144;
+        glide.LastFrame = time;
+        var share = 1 - Math.Exp(-dt / EaseMs);
+        viewer.Offset = viewer.Offset.WithY(y + left * share);
+        top.RequestAnimationFrame(t => Step(viewer, glide, t));
     }
 
     private static bool InnerCanTake(ScrollViewer outer, PointerWheelEventArgs e)
