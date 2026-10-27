@@ -299,7 +299,35 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done" : "Send (Enter)";
 
-    partial void OnComposerTextChanged(string value) => UpdateCommandMenu();
+    partial void OnComposerTextChanged(string value)
+    {
+        UpdateCommandMenu();
+        if (value.Length > 0)
+        {
+            Suggestion = null; // Typing starts a prompt of your own.
+        }
+    }
+
+    /// <summary>The CLI's guess at the next prompt: ghost text in the empty composer, taken with Tab, → or a right-click.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ComposerPlaceholder))]
+    [NotifyPropertyChangedFor(nameof(HasSuggestion))]
+    public partial string? Suggestion { get; set; }
+
+    public bool HasSuggestion => !string.IsNullOrEmpty(Suggestion);
+
+    /// <summary>Puts the suggestion in the composer to edit or send. False when there is none.</summary>
+    public bool AcceptSuggestion()
+    {
+        if (Suggestion is not { Length: > 0 } text || ComposerText.Length > 0)
+        {
+            return false;
+        }
+
+        Suggestion = null;
+        ComposerText = text;
+        return true;
+    }
 
     /// <summary>Thinking and tool lines are shown (the "Show activity" setting).</summary>
     public bool ShowActivity => _main.ShowActivity;
@@ -473,7 +501,7 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    public string ComposerPlaceholder => IsNew ? "Describe a task or ask a question" : "Type / for commands";
+    public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
 
@@ -501,6 +529,7 @@ public sealed partial class SessionViewModel : ObservableObject
         if (value)
         {
             _turnStartUtc = DateTime.UtcNow;
+            Suggestion = null; // It was a guess at this prompt.
             _workingTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) => UpdateWorking());
             _workingTimer.Start();
             UpdateWorking();
@@ -1168,6 +1197,10 @@ public sealed partial class SessionViewModel : ObservableObject
         _restartRequired = false;
         Folder ??= _main.CreateScratchFolder();
         var backend = new ClaudeCodeBackend();
+        if (_main.Dev.LogPath is { } log)
+        {
+            backend.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
+        }
         backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
         await backend.StartAsync(new AgentStartOptions
         {
@@ -1176,6 +1209,7 @@ public sealed partial class SessionViewModel : ObservableObject
             PermissionMode = PermissionMode,
             Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
             ThinkingDisplay = "summarized",
+            PromptSuggestions = _main.Settings.PromptSuggestions,
             FastMode = FastMode,
             ResumeSessionId = SessionId ?? _forkFrom,
             ResumeSessionAt = _resumeAt,
@@ -1376,6 +1410,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 _turnToolCount = 0;
                 ContentChanged?.Invoke();
                 _main.OnSessionActivity(this);
+                break;
+
+            case PromptSuggestionEvent suggestion when !IsTurnRunning && ComposerText.Length == 0 && _main.Settings.PromptSuggestions:
+                Suggestion = suggestion.Text;
                 break;
 
             case RemoteControlStateEvent bridge:

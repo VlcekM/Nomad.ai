@@ -58,6 +58,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
         RemoteControlByDefault = s.RemoteControlByDefault;
+        PromptSuggestions = s.PromptSuggestions;
         RefreshPhoneFolders();
         main.PhoneServerChanged += OnPhoneServerChanged;
         UpdateCliStatus();
@@ -212,6 +213,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ToggleRemoteControlByDefault() => RemoteControlByDefault = !RemoteControlByDefault;
 
     partial void OnRemoteControlByDefaultChanged(bool value) => Apply(s => s.RemoteControlByDefault = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool PromptSuggestions { get; set; }
+
+    [RelayCommand]
+    private void TogglePromptSuggestions() => PromptSuggestions = !PromptSuggestions;
+
+    partial void OnPromptSuggestionsChanged(bool value) => Apply(s => s.PromptSuggestions = value, appearance: false);
 
     /// <summary>Folders the phone can start sessions in, each with its server's state.</summary>
     public ObservableCollection<PhoneFolderRow> PhoneFolders { get; } = [];

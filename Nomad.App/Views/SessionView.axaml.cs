@@ -21,6 +21,7 @@ public partial class SessionView : UserControl
     {
         InitializeComponent();
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
+        Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnViewKeyDown, RoutingStrategies.Bubble);
         Scroller.ScrollChanged += OnScrollChanged;
 
@@ -170,6 +171,27 @@ public partial class SessionView : UserControl
 
     // ------------------------------------------------------------------ keyboard
 
+    private bool TakeSuggestion()
+    {
+        if (Vm?.AcceptSuggestion() != true)
+        {
+            return false;
+        }
+
+        Composer.Focus();
+        Composer.CaretIndex = Composer.Text?.Length ?? 0;
+        return true;
+    }
+
+    // A right-click on the empty composer takes the suggestion instead of opening the edit menu.
+    private void OnComposerContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (Vm is { HasSuggestion: true } && TakeSuggestion())
+        {
+            e.Handled = true;
+        }
+    }
+
     private void OnComposerKeyDown(object? sender, KeyEventArgs e)
     {
         if (Vm is not { } vm)
@@ -201,6 +223,21 @@ public partial class SessionView : UserControl
                     return;
                 case Key.Escape:
                     vm.DismissCommandMenu();
+                    e.Handled = true;
+                    return;
+            }
+        }
+
+        // A suggested prompt (ghost text in the empty composer): Tab or → takes it, Esc dismisses it.
+        if (vm.HasSuggestion && e.KeyModifiers == KeyModifiers.None)
+        {
+            switch (e.Key)
+            {
+                case Key.Tab or Key.Right when TakeSuggestion():
+                    e.Handled = true;
+                    return;
+                case Key.Escape:
+                    vm.Suggestion = null;
                     e.Handled = true;
                     return;
             }

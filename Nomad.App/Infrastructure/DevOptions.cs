@@ -26,6 +26,8 @@ namespace Nomad.App.Infrastructure;
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-compose "&lt;text&gt;"      put this text in the composer after start (\n for new lines)
+/// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
+/// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
 /// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
 /// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
 /// --dev-update-after &lt;seconds&gt;  first update check this long after start (to catch the update chip folding in)
@@ -49,6 +51,9 @@ public sealed class DevOptions
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
 
+    /// <summary>Appends every line to and from the CLI to this file ("    public bool Lean { get; private set; }gt; " sent, "    public bool Lean { get; private set; }lt; " received).</summary>
+    public string? LogPath { get; private set; }
+
     /// <summary>Start the phone folders' Remote Control servers in a scripted run too (off by default).</summary>
     public bool Phone { get; private set; }
     public bool ExpandTools { get; private set; }
@@ -63,9 +68,14 @@ public sealed class DevOptions
     public double? UpdateCheckAfterSeconds { get; private set; }
     public string? ReleasesRepository { get; private set; }
 
-    public IReadOnlyList<string> ExtraCliArguments => Lean
-        ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion"]
-        : [];
+    public IReadOnlyList<string> ExtraCliArguments =>
+    [
+        .. Lean ? ["--strict-mcp-config", "--disable-slash-commands", "--tools", "Bash,Read,Write,Edit,Glob,Grep,AskUserQuestion"] : (string[])[],
+        .. CliDebugPath is { } debug ? ["--debug-file", debug] : (string[])[],
+    ];
+
+    /// <summary>The CLI writes its debug log here (<c>--debug-file</c>).</summary>
+    public string? CliDebugPath { get; private set; }
 
     public bool IsActive => Cwd is not null || Prompt is not null || ScreenshotPath is not null || SessionId is not null;
 
@@ -120,6 +130,8 @@ public sealed class DevOptions
                 case "--dev-releases-repo": o.ReleasesRepository = Next(); break;
                 case "--dev-settings": o.SettingsPath = Path.GetFullPath(Next()); break;
                 case "--dev-lean": o.Lean = true; break;
+                case "--dev-log": o.LogPath = Path.GetFullPath(Next()); break;
+                case "--dev-cli-debug": o.CliDebugPath = Path.GetFullPath(Next()); break;
                 case "--dev-phone": o.Phone = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;

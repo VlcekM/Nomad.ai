@@ -935,6 +935,10 @@
 
           <!-- While Claude works, Send queues the prompt and Stop sits beside it. -->
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,7,8,0" VerticalAlignment="Top">
+            <!-- A suggested prompt is showing as ghost text: how to take it. -->
+            <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
+              <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+            </Border>
             <Button Theme="{StaticResource SendButton}"
                     Command="{Binding SendCommand}"
                     IsVisible="{Binding ShowSendButton}"

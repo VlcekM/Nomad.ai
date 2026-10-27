@@ -270,6 +270,24 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Suggest the next prompt" Classes="rowlabel" />
+                  <TextBlock Text="After a turn, Claude Code guesses what you'll ask next; it shows as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding TogglePromptSuggestionsCommand}">
+                  <Border Classes="switch" Classes.on="{Binding PromptSuggestions}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Default model" Classes="rowlabel" />
                   <TextBlock Text="Model of new sessions; each session can switch from the status row." Classes="rowhint" />
                 </StackPanel>
