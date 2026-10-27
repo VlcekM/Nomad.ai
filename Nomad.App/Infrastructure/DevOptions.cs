@@ -13,7 +13,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
-/// --dev-menu model|mode|folder|plus|usage|remote   open a menu before the screenshot
+/// --dev-menu model|mode|folder|plus|usage|remote|update   open a menu (or the update prompt) before the screenshot
 /// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
@@ -25,6 +25,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-update-source &lt;dir&gt;   update from a local Velopack release folder instead of GitHub (an installed build)
+/// --dev-update-after &lt;seconds&gt;  first update check this long after start (to catch the update chip folding in)
 /// --dev-releases-repo &lt;o/r&gt;   list another repository's GitHub releases on the Updates page
 /// </code>
 /// </summary>
@@ -53,6 +54,7 @@ public sealed class DevOptions
     public double? StopAfterSeconds { get; private set; }
     public (string Gesture, double Seconds)? Key { get; private set; }
     public string? UpdateSource { get; private set; }
+    public double? UpdateCheckAfterSeconds { get; private set; }
     public string? ReleasesRepository { get; private set; }
 
     public IReadOnlyList<string> ExtraCliArguments => Lean
@@ -102,6 +104,13 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-update-source": o.UpdateSource = Path.GetFullPath(Next()); break;
+                case "--dev-update-after":
+                    if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var check))
+                    {
+                        o.UpdateCheckAfterSeconds = check;
+                    }
+
+                    break;
                 case "--dev-releases-repo": o.ReleasesRepository = Next(); break;
                 case "--dev-settings": o.SettingsPath = Path.GetFullPath(Next()); break;
                 case "--dev-lean": o.Lean = true; break;

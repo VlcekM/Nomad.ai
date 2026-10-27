@@ -269,7 +269,16 @@ public sealed partial class UpdateService : ObservableObject
             return;
         }
 
-        _ = CheckAsync(automatic: true);
+        if (_main.Dev.UpdateCheckAfterSeconds is { } after)
+        {
+            // --dev-update-after: a screenshot can then catch the chip folding in.
+            DispatcherTimer.RunOnce(() => _ = CheckAsync(automatic: true), TimeSpan.FromSeconds(after));
+        }
+        else
+        {
+            _ = CheckAsync(automatic: true);
+        }
+
         _timer = new DispatcherTimer(CheckInterval, DispatcherPriority.Background, (_, _) => _ = CheckAsync(automatic: true));
         _timer.Start();
     }
