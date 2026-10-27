@@ -3,6 +3,19 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.8.0
+
+- Ctrl+T searches sessions by title and conversation, with Alive / Idle / Archived chips to filter by; ages show up to
+  30 days, then the date.
+- Sidebar rows of sessions whose worktree branch has been merged show a white merged icon at the left.
+- Sessions whose turn was cut short by Nomad.ai closing (a restart, an update, a crash) carry on by themselves at the
+  next start, told "You were interrupted by an app restart. Continue".
+- New app icon: a black tent on a white rounded square.
+- Context menus look like the popup menus; the session row tooltip fits its text and the path no longer wraps.
+- Pane icons fill while their pane is shown; the side panel's cards have a menu.
+- Shift+Enter sends; Esc no longer stops a turn.
+- Paths in inline code: Ctrl+click works on every line of a wrapped path and opens Explorer.
+
 ## v1.7.0
 
 - Sidebar rows show the session's GitHub pull request and issue in their state's colours (open, draft, merged,
@@ -16,8 +29,6 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - The side panel stays closed on the New page and slides in once the session starts.
 - Files Claude sends (SendUserFile) show in the transcript: images large, other files as chips that open on a click.
 - Question card: rounded option highlights with some room around them, and a white Submit button.
-- Sessions whose turn was cut short by Nomad.ai closing (a restart, an update, a crash) carry on by themselves at the
-  next start, told "You were interrupted by an app restart. Continue".
 
 ## v1.6.0
 
