@@ -3,6 +3,19 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.5.0
+
+- Side panel: the session's subagents with their duration and what they did last; a click opens a subagent's own
+  conversation (Esc goes back). Background (async) agents run until their completion notice.
+- Paths and URLs in `inline code`: a URL opens with a click, a path that exists with Ctrl+click (Explorer, with it
+  selected); right-click either for Show in Explorer, Open and Copy.
+
+- Sidebar: "Hours, then days" grouping (last 2, 8 and 24 hours, then each day); idle sessions show a sleeping moon,
+  and long titles fade out instead of ending in "…".
+- The transcript fades out under the title bar when scrolled.
+- The side panel opens and closes from a strip on the window's right edge too; its text is a point larger.
+- Composer image thumbnails have clean rounded corners.
+
 ## v1.4.1
 
 - Rename a session: double-click its row, right-click › Rename, or F2 for the current one.

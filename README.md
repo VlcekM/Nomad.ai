@@ -143,9 +143,13 @@ the previous tag.
   while other sessions are open, and its text across restarts.
 - **Composer attachments.** Above a dashed rule, apart from the text: images named underneath, a click
   shows one large (← → step through, Esc or a click closes); images in sent prompts open the same way.
-- **Side panel** (Ctrl+Shift+B, or the panel button in the title bar): the folder's git state and
-  latest commits (open it in Explorer or a terminal), the context window, plan usage and the MCP
-  servers (configured ones before the CLI starts, then their connection state). Each card folds.
+- **Side panel** (Ctrl+Shift+B, the panel button in the title bar, or the strip on the right edge): the
+  folder's git state and latest commits (open it in Explorer or a terminal), the session's subagents
+  (duration, last status; a click opens a subagent's own conversation), the context window, plan usage
+  and the MCP servers (configured ones before the CLI starts, then their connection state). Each card folds.
+- **Paths in replies.** A URL in `inline code` opens with a click; a file or folder path that exists
+  (absolute, or relative to the session's folder, `:line` suffixes ignored) with Ctrl+click shows it
+  selected in Explorer. Right-click either for Show in Explorer, Open and Copy.
 - **Settings** (gear in the sidebar, or Ctrl+,): interface and code fonts, interface and transcript
   text size, transcript width, display name; CLI path and the default model, mode and effort for
   new sessions. Changes are saved at once. With the Claude desktop app installed, Anthropic Sans and
@@ -171,7 +175,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Ctrl+N | New session |
 | Ctrl+B | Show or hide the sidebar |
 | F2 | Rename the current session (also a double-click or right-click on its row) |
-| Ctrl+Shift+B | Show or hide the side panel |
+| Ctrl+Shift+B | Show or hide the side panel (or click the strip on the window's right edge) |
 | Ctrl+, | Settings |
 
 ### Files
