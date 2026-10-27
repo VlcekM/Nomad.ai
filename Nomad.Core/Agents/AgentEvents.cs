@@ -37,6 +37,9 @@ public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 /// <summary>The Remote Control bridge's state: ready | connected | reconnecting | failed | disconnected.</summary>
 public sealed record RemoteControlStateEvent(string State) : AgentEvent;
 
+/// <summary>The CLI's guess at the next prompt, after a turn: offered as ghost text in the composer.</summary>
+public sealed record PromptSuggestionEvent(string Text) : AgentEvent;
+
 /// <summary>A session's Remote Control link (claude.ai/code/session_…) and its bridge session id, for reattaching.</summary>
 public sealed record RemoteControlInfo(string? SessionUrl, string? BridgeSessionId);
 
@@ -153,6 +156,9 @@ public sealed record AgentStartOptions
     public string? PermissionMode { get; init; }
     public string? Effort { get; init; }
     public string? ThinkingDisplay { get; init; }
+
+    /// <summary>Ask the CLI for a guess at the next prompt after each turn.</summary>
+    public bool PromptSuggestions { get; init; }
     public bool FastMode { get; init; }
     public string? ResumeSessionId { get; init; }
 

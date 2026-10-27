@@ -96,6 +96,12 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             args.Add("--include-partial-messages");
         }
 
+        if (o.PromptSuggestions)
+        {
+            args.Add("--prompt-suggestions");
+            args.Add("true");
+        }
+
         if (o.ReplayUserMessages)
         {
             args.Add("--replay-user-messages");
@@ -216,6 +222,10 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
         {
             psi.Environment.Remove(name);
         }
+
+        // What a parent session set is gone; Nomad is an SDK host of its own, as the CLI names it. Some of the CLI's
+        // SDK features (prompt suggestions) only run under this entrypoint.
+        psi.Environment["CLAUDE_CODE_ENTRYPOINT"] = "sdk-cli";
 
         var process = new System.Diagnostics.Process { StartInfo = psi };
         if (!process.Start())

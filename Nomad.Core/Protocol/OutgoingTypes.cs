@@ -76,6 +76,9 @@ public sealed class OutgoingControlPayload
 
     /// <summary><c>remote_control</c>: the bridge session of an earlier process to continue (same link).</summary>
     [JsonPropertyName("reattach_session_id")] public string? ReattachSessionId { get; set; }
+
+    /// <summary><c>initialize</c>: a <c>prompt_suggestion</c> line after each turn (the flag alone is overridden by it).</summary>
+    [JsonPropertyName("promptSuggestions")] public bool? PromptSuggestions { get; set; }
 }
 
 /// <summary>Session-scoped settings overlay for <c>apply_flag_settings</c>.</summary>

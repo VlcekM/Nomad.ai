@@ -186,6 +186,12 @@ public sealed class ControlCancelLine : CliLine
     [JsonPropertyName("request_id")] public string? RequestId { get; set; }
 }
 
+/// <summary><c>prompt_suggestion</c>: the CLI's guess at the next prompt, after a turn (with <c>--prompt-suggestions</c>).</summary>
+public sealed class PromptSuggestionLine : CliLine
+{
+    [JsonPropertyName("suggestion")] public string? Suggestion { get; set; }
+}
+
 /// <summary>Any line type Nomad does not model (rate_limit_event, keep_alive, …).</summary>
 public sealed class UnknownLine : CliLine
 {

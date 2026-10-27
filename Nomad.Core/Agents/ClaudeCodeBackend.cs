@@ -62,6 +62,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             PermissionMode = options.PermissionMode,
             Effort = options.Effort,
             ThinkingDisplay = options.ThinkingDisplay,
+            PromptSuggestions = options.PromptSuggestions,
             ResumeSessionId = options.ResumeSessionId,
             ResumeSessionAt = options.ResumeSessionAt,
             ForkSession = options.ForkSession,
@@ -78,7 +79,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         cli.Start();
 
         // The SDK always opens with initialize; it also gives us the account and model catalogue.
-        _ = InitializeAsync(options.FastMode);
+        _ = InitializeAsync(options.FastMode, options.PromptSuggestions);
         return Task.CompletedTask;
     }
 
@@ -322,9 +323,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     // ---------------------------------------------------------------- outgoing
 
-    private async Task InitializeAsync(bool fastMode)
+    private async Task InitializeAsync(bool fastMode, bool promptSuggestions)
     {
-        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "initialize" }, CancellationToken.None).ConfigureAwait(false);
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "initialize", PromptSuggestions = promptSuggestions ? true : null }, CancellationToken.None).ConfigureAwait(false);
         if (response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object })
         {
             try
@@ -424,6 +425,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     tcs.TrySetResult(response.Response);
                 }
 
+                break;
+            case PromptSuggestionLine { Suggestion: { Length: > 0 } suggestion }:
+                Raise(new PromptSuggestionEvent(suggestion.Trim()));
                 break;
             case ControlCancelLine cancel:
                 if (cancel.RequestId is { } cancelled && _pendingPermissions.TryRemove(cancelled, out _))

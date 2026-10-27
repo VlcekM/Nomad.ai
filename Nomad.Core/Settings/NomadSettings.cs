@@ -22,6 +22,9 @@ public sealed class NomadSettings
     /// <summary>Show the activity lines (thinking, tool groups such as "Read a file"); off: only prompts and replies.</summary>
     public bool ShowActivity { get; set; } = true;
 
+    /// <summary>After a turn, the CLI guesses the next prompt; it shows as ghost text in an empty composer.</summary>
+    public bool PromptSuggestions { get; set; } = true;
+
     // Claude Code's slash commands, as the last CLI listed them: offered when "/" is typed before a process runs.
     public List<Protocol.SlashCommand> SlashCommands { get; set; } = [];
 

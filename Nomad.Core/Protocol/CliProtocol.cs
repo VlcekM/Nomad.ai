@@ -31,6 +31,7 @@ public static class CliProtocol
                 "control_request" => JsonSerializer.Deserialize(bytes, ProtocolJsonContext.Default.ControlRequestLine),
                 "control_response" => JsonSerializer.Deserialize(bytes, ProtocolJsonContext.Default.ControlResponseLine),
                 "control_cancel_request" => JsonSerializer.Deserialize(bytes, ProtocolJsonContext.Default.ControlCancelLine),
+                "prompt_suggestion" => JsonSerializer.Deserialize(bytes, ProtocolJsonContext.Default.PromptSuggestionLine),
                 _ => new UnknownLine { Type = type, Raw = line },
             };
             return parsed;

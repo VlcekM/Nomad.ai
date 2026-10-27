@@ -54,6 +54,9 @@ public sealed record ClaudeCliOptions
     /// <summary>Allow switching into bypassPermissions later in the session.</summary>
     public bool AllowBypassPermissions { get; init; }
 
+    /// <summary><c>--prompt-suggestions true</c>: a <c>prompt_suggestion</c> line after each turn.</summary>
+    public bool PromptSuggestions { get; init; }
+
     /// <summary>Additional raw arguments appended at the end.</summary>
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
 }

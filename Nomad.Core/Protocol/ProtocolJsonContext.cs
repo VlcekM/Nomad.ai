@@ -16,6 +16,7 @@ namespace Nomad.Core.Protocol;
 [JsonSerializable(typeof(ControlRequestLine))]
 [JsonSerializable(typeof(ControlResponseLine))]
 [JsonSerializable(typeof(ControlCancelLine))]
+[JsonSerializable(typeof(PromptSuggestionLine))]
 [JsonSerializable(typeof(WireContentBlock))]
 [JsonSerializable(typeof(InitializeResponse))]
 [JsonSerializable(typeof(OutgoingUserMessage))]
