@@ -219,7 +219,7 @@ public partial class MainWindow : Window
                     }
                     else
                     {
-                        SearchList.ContainerFromIndex(index)?.BringIntoView();
+                        SearchList.ScrollIntoView(index);
                     }
                 }, DispatcherPriority.Loaded);
             }
@@ -248,10 +248,10 @@ public partial class MainWindow : Window
         }
     }
 
-    // A row that joins the results fades in (those that stay keep their place).
+    // A row that joins the results fades in (those that stay keep their place, and rows scrolled to just appear).
     private void OnSearchRowPrepared(object? sender, ContainerPreparedEventArgs e)
     {
-        if (_vm.Search.IsRaised)
+        if (_vm.Search.IsRaised && _vm.Search.Results.ElementAtOrDefault(e.Index) is { IsFresh: true })
         {
             Nomad.App.Controls.Entrance.Fade(e.Container, this);
         }

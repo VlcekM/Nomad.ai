@@ -1017,7 +1017,7 @@
               VerticalAlignment="Top"
               CornerRadius="10"
               ClipToBounds="True"
-              Background="{DynamicResource BgMenuBrush}"
+              Background="{DynamicResource BgMainBrush}"
               BorderBrush="{DynamicResource BorderBrush}"
               BorderThickness="1"
               BoxShadow="0 16 48 0 #59000000">
@@ -1045,6 +1045,11 @@
           <Border Grid.Row="2" Height="1" Background="{DynamicResource BorderDividerBrush}" />
           <ScrollViewer Grid.Row="3" Name="SearchScroll" MaxHeight="520" HorizontalScrollBarVisibility="Disabled">
             <ItemsControl Name="SearchList" ItemsSource="{Binding Search.Results}" Margin="0,5" ContainerPrepared="OnSearchRowPrepared">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SessionSearchResult">
                   <Button Theme="{StaticResource RowButton}"

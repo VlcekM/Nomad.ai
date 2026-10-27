@@ -314,6 +314,7 @@ public sealed partial class SessionSearchViewModel : ObservableObject
     private void Show(List<Hit> hits, bool searching)
     {
         var keep = Selected?.Item;
+        var shown = Results.ToHashSet();
         var list = new List<SessionSearchResult>(hits.Count);
         foreach (var hit in hits)
         {
@@ -323,6 +324,7 @@ public sealed partial class SessionSearchViewModel : ObservableObject
             }
 
             row.Set(hit.Title, hit.Text);
+            row.IsFresh = !shown.Contains(row);
             list.Add(row);
         }
 
@@ -330,6 +332,9 @@ public sealed partial class SessionSearchViewModel : ObservableObject
         {
             row.IsSelected = false;
         }
+
+        // Only the rows on screen as they join fade in, not those scrolled to later.
+        Dispatcher.UIThread.Post(() => list.ForEach(r => r.IsFresh = false), DispatcherPriority.Background);
 
         MainViewModel.SyncList(Results, list);
         // The same session stays selected as more matches arrive; a new query starts at the top.
@@ -375,6 +380,9 @@ public sealed partial class SessionSearchResult(SessionListItemViewModel item) :
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>Just joined the results: its row fades in when it first appears.</summary>
+    public bool IsFresh { get; set; }
 
     [ObservableProperty]
     public partial string When { get; set; } = "";
