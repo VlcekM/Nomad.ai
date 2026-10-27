@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Extensions.TaskLists;
@@ -189,7 +190,7 @@ public static class MarkdownRenderer
                     AddInlines(target, links, emphasis, s);
                     break;
                 case CodeInline code:
-                    AppendCode(target, code.Content);
+                    AppendCode(target, links, code.Content);
                     break;
                 case LinkInline { IsImage: true } image:
                     Append(target, "[" + PlainText(image) + "]", style);
@@ -275,8 +276,9 @@ public static class MarkdownRenderer
         }
     }
 
-    // Real text, so its letters select like the rest; MarkdownTextBlock draws the pill behind it.
-    private static void AppendCode(InlineCollection target, string code)
+    // Real text, so its letters select like the rest; MarkdownTextBlock draws the pill behind it. A URL or a file
+    // path in it can be opened (LinkSupport: a click on a URL, Ctrl+click or right-click on a path).
+    private static void AppendCode(InlineCollection target, List<LinkRange> links, string code)
     {
         if (code.Length == 0)
         {
@@ -288,13 +290,23 @@ public static class MarkdownRenderer
         LinkSupport.Advance(target, 1);
         var style = MarkdownStyle.Current;
         var start = LinkSupport.Position(target);
-        target.Add(new Run(code)
+        var run = new Run(code)
         {
             FontFamily = style.CodeFont,
             FontSize = style.CodeSize,
             Foreground = InlineCode,
-        });
+        };
+        target.Add(run);
         LinkSupport.Advance(target, code.Length);
+        if (LinkSupport.CodeTarget(code) is { } kind)
+        {
+            links.Add(new LinkRange(start, start + code.Length, kind == CodeLinkKind.Url ? code.Trim() : LinkSupport.PathPrefix + code.Trim()));
+            if (kind is CodeLinkKind.Url or CodeLinkKind.AbsolutePath)
+            {
+                run.TextDecorations = TextDecorations.Underline;
+            }
+        }
+
         MarkdownTextBlock.AddCodeRange(target, start, code.Length);
         target.Add(new Run(MarkdownTextBlock.PillGap));
         LinkSupport.Advance(target, 1);
@@ -563,11 +575,19 @@ public static class MarkdownRenderer
 /// <summary>A clickable range of a text block's text.</summary>
 public sealed record LinkRange(int Start, int End, string Url);
 
+/// <summary>What an inline code span may point at.</summary>
+public enum CodeLinkKind
+{
+    Url,
+    AbsolutePath,
+    RelativePath,
+}
+
 /// <summary>
 /// Links are ordinary underlined runs; clicks are mapped back to them by hit-testing the text
 /// layout, so long links wrap like the rest of the paragraph.
 /// </summary>
-public static class LinkSupport
+public static partial class LinkSupport
 {
     private static readonly AttachedProperty<List<LinkRange>?> LinksProperty =
         AvaloniaProperty.RegisterAttached<SelectableTextBlock, SelectableTextBlock, List<LinkRange>?>("Links");
@@ -595,6 +615,9 @@ public static class LinkSupport
 
     public static void Advance(InlineCollection inlines, int length) => Positions.GetValue(inlines, static _ => new StrongBox()).Value += length;
 
+    /// <summary>Marks a link that is a file path from inline code (opened in Explorer, not the browser).</summary>
+    public const string PathPrefix = "path:";
+
     public static void Attach(SelectableTextBlock block)
     {
         Point? pressedAt = null;
@@ -607,9 +630,20 @@ public static class LinkSupport
                 return;
             }
 
-            if (Hit(block, at) is { } link)
+            if (Hit(block, at) is not { } link)
+            {
+                return;
+            }
+
+            // A path opens with Ctrl+click: a plain click stays free for putting the caret in or selecting it.
+            if (!link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
             {
                 Open(link.Url);
+                e.Handled = true;
+            }
+            else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && ResolvePath(block, link.Url) is { } path)
+            {
+                ShowInExplorer(path);
                 e.Handled = true;
             }
         };
@@ -621,8 +655,149 @@ public static class LinkSupport
                 return;
             }
 
-            block.Cursor = Hit(block, e.GetPosition(block)) is not null ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
+            var link = Hit(block, e.GetPosition(block));
+            var path = link?.Url.StartsWith(PathPrefix, StringComparison.Ordinal) == true ? ResolvePath(block, link.Url) : null;
+            var hand = link is not null && (path is null ? !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal) : e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            block.Cursor = hand ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
+            var tip = path is not null ? "Ctrl+click to show in Explorer · right-click for more" : null;
+            if (!Equals(ToolTip.GetTip(block), tip))
+            {
+                ToolTip.SetTip(block, tip);
+            }
         };
+
+        // Right-click on a path or URL in inline code: open it, show it in Explorer, copy it.
+        block.ContextRequested += (_, e) =>
+        {
+            if (!e.TryGetPosition(block, out var at) || Hit(block, at) is not { } link)
+            {
+                return;
+            }
+
+            var menu = new ContextMenu();
+            if (link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+            {
+                if (ResolvePath(block, link.Url) is not { } path)
+                {
+                    return;
+                }
+
+                menu.Items.Add(Item("Show in Explorer", () => ShowInExplorer(path)));
+                menu.Items.Add(Item(Directory.Exists(path) ? "Open folder" : "Open", () => OpenWithShell(path)));
+                menu.Items.Add(Item("Copy path", () => _ = TopLevel.GetTopLevel(block)?.Clipboard?.SetTextAsync(path)));
+            }
+            else
+            {
+                menu.Items.Add(Item("Open link", () => Open(link.Url)));
+                menu.Items.Add(Item("Copy link", () => _ = TopLevel.GetTopLevel(block)?.Clipboard?.SetTextAsync(link.Url)));
+            }
+
+            menu.Open(block);
+            e.Handled = true;
+        };
+    }
+
+    private static MenuItem Item(string header, Action action)
+    {
+        var item = new MenuItem { Header = header };
+        item.Click += (_, _) => action();
+        return item;
+    }
+
+    /// <summary>
+    /// Whether inline code looks like something to open: a web URL, an absolute path (<c>R:\x</c>, <c>\\server\x</c>,
+    /// <c>~/x</c>, <c>%APPDATA%\x</c>), or a relative path with a folder or an extension (<c>src/App.cs</c>). Paths
+    /// are only opened once they turn out to exist.
+    /// </summary>
+    public static CodeLinkKind? CodeTarget(string code)
+    {
+        var text = code.Trim();
+        if (text.Length < 3 || text.Length > 400 || text.Contains('\n'))
+        {
+            return null;
+        }
+
+        if (text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || text.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return text.Contains(' ') ? null : CodeLinkKind.Url;
+        }
+
+        if ((char.IsAsciiLetter(text[0]) && text[1] == ':' && text[2] is '\\' or '/') || text.StartsWith(@"\\", StringComparison.Ordinal)
+            || text.StartsWith("~/", StringComparison.Ordinal) || text.StartsWith(@"~\", StringComparison.Ordinal) || text.StartsWith('%'))
+        {
+            return CodeLinkKind.AbsolutePath;
+        }
+
+        // Commands and code ("git push", "a = b", "Foo()") are not paths.
+        if (text.IndexOfAny([' ', '(', ')', '=', '<', '>', '|', '"', '*', '?', ';']) >= 0)
+        {
+            return null;
+        }
+
+        return text.Contains('/') || text.Contains('\\') || Path.HasExtension(text) ? CodeLinkKind.RelativePath : null;
+    }
+
+    /// <summary>
+    /// The existing file or folder a path link names: environment variables and <c>~</c> expanded, a trailing
+    /// <c>:line</c> or <c>:line:column</c> dropped, a relative path taken from the session's folder. Null otherwise.
+    /// </summary>
+    private static string? ResolvePath(Control block, string url)
+    {
+        var text = Environment.ExpandEnvironmentVariables(url[PathPrefix.Length..].Trim().TrimEnd('.', ',', ';'));
+        if (text.StartsWith('~'))
+        {
+            text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + text[1..];
+        }
+
+        text = LineSuffix().Replace(text, "").Replace('/', '\\');
+        try
+        {
+            if (!Path.IsPathRooted(text))
+            {
+                var folder = (block.FindAncestorOfType<Nomad.App.Views.SessionView>()?.DataContext as Nomad.App.ViewModels.SessionViewModel)?.Folder;
+                if (folder is null)
+                {
+                    return null;
+                }
+
+                text = Path.Combine(folder, text);
+            }
+
+            var full = Path.GetFullPath(text);
+            return File.Exists(full) || Directory.Exists(full) ? full.TrimEnd('\\') is { Length: > 2 } trimmed ? trimmed : full : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
+        {
+            return null;
+        }
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@":\d+(:\d+)?$")]
+    private static partial System.Text.RegularExpressions.Regex LineSuffix();
+
+    /// <summary>Opens Explorer on the item's folder with the item selected.</summary>
+    public static void ShowInExplorer(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
+        }
+        catch (Exception)
+        {
+            // No Explorer (unusual Windows setups): nothing to do.
+        }
+    }
+
+    private static void OpenWithShell(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception)
+        {
+            // No app for this file type.
+        }
     }
 
     private static LinkRange? Hit(SelectableTextBlock block, Point point)
