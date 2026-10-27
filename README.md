@@ -146,6 +146,10 @@ the previous tag.
   while other sessions are open, and its text across restarts.
 - **Composer attachments.** Above a dashed rule, apart from the text: images named underneath, a click
   shows one large (← → step through, Esc or a click closes); images in sent prompts open the same way.
+- **Session search** (Ctrl+T, or the menu): finds sessions by title or by anything said in them (your prompts and
+  Claude's replies, not tool output), archived ones included. Each result shows whether it is alive, idle or
+  archived, a filter for each, and how long ago it was active (up to 30 days, then the date). The transcripts are
+  read in the background the first time; matches come in as they are.
 - **Side panel** (Ctrl+Shift+B, the panel button in the title bar, or the strip on the right edge): the
   folder's git state and latest commits (open it in Explorer or a terminal), the session's subagents
   (duration, last status; a click opens a subagent's own conversation), the context window, plan usage
@@ -177,6 +181,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Ctrl+1 … Ctrl+9 | Open the sidebar's sessions, top to bottom (hold Ctrl to see their numbers) |
 | Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |
 | Ctrl+N | New session |
+| Ctrl+T | Search sessions: chat titles and conversations, alive, idle and archived (↑↓, Enter opens, Esc closes) |
 | Ctrl+B | Show or hide the sidebar |
 | F2 | Rename the current session (also a double-click or right-click on its row) |
 | Ctrl+Shift+B | Show or hide the side panel (or click the strip on the window's right edge) |
@@ -255,6 +260,7 @@ read should be a free 304 from the ETag cache).
 | `--dev-drag x1,y1,x2,y2 <seconds>` | Drag with the left button between two window points (sent to Nomad's window only; the cursor never moves) |
 | `--dev-drag-ctrl` | Hold Ctrl during `--dev-drag` (for Nomad's thread only, never the real keyboard); in a screenshot run, Show in Explorer only logs the path |
 | `--dev-compose "<text>"` | Put text in the composer (`\n` for new lines) |
+| `--dev-search "<query>"` | Open the session search (Ctrl+T) with this query |
 | `--dev-paste-image <file>` | Attach an image (or any file, as a chip) to the composer, as a paste would; repeatable |
 | `--dev-log <file>` | Append every line to and from the CLI to a file (`> ` sent, `< ` received) |
 | `--dev-cli-debug <file>` | Have the CLI write its debug log to a file (`--debug-file`) |

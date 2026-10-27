@@ -70,6 +70,19 @@ public static class Format
         };
     }
 
+    /// <summary>"just now", "5 minutes ago", "3 hours ago", "yesterday", "12 days ago" up to 30 days, then "12 Oct 2026".</summary>
+    public static string Since(DateTime utc)
+    {
+        var age = DateTime.UtcNow - utc;
+        return age.TotalHours switch
+        {
+            < 24 => Ago(utc),
+            < 48 => "yesterday",
+            < 31 * 24 => $"{(int)age.TotalDays} days ago",
+            _ => utc.ToLocalTime().ToString("d MMM yyyy", CultureInfo.InvariantCulture),
+        };
+    }
+
     /// <summary>"now", "5m", "3h", "2d", then "12 Oct".</summary>
     public static string AgoShort(DateTime utc)
     {

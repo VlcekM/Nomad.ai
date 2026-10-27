@@ -41,4 +41,29 @@ public static class Entrance
 
         top.RequestAnimationFrame(Step);
     }
+
+    /// <summary>Only the fade (150 ms), for a row joining a list that should not seem to move.</summary>
+    public static void Fade(Control control, TopLevel? topLevel = null)
+    {
+        if ((topLevel ?? TopLevel.GetTopLevel(control)) is not { } top)
+        {
+            return;
+        }
+
+        control.Opacity = 0;
+        TimeSpan? start = null;
+
+        void Step(TimeSpan time)
+        {
+            start ??= time;
+            var p = Math.Clamp((time - start.Value).TotalMilliseconds / 150, 0, 1);
+            control.Opacity = 1 - Math.Pow(1 - p, 3);
+            if (p < 1)
+            {
+                top.RequestAnimationFrame(Step);
+            }
+        }
+
+        top.RequestAnimationFrame(Step);
+    }
 }
