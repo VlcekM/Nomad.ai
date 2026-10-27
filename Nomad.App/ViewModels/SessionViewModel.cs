@@ -139,6 +139,9 @@ public sealed partial class SessionViewModel : ObservableObject
         : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"worktree · {GitBranch}"
         : GitBranch;
 
+    /// <summary>The branch the git chip is about: the worktree's start for a new session with Worktree on, else the checked-out one.</summary>
+    private string ChipBranch => IsNew && UseWorktree ? WorktreeFrom ?? GitBranch : GitBranch;
+
     public string GitChipToolTip =>
         IsNew ? (UseWorktree ? "The branch the new worktree starts from" : "Switch branch")
         : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"Worktree {Folder}, branch {GitBranch}"
@@ -228,7 +231,34 @@ public sealed partial class SessionViewModel : ObservableObject
         IsGitFolder = status is not null;
         GitBranch = status?.Branch ?? "";
         OnPropertyChanged(nameof(GitChipToolTip));
+        await RefreshAheadAsync();
     }
+
+    /// <summary>Commits on the chip's branch not pushed to its upstream yet (shown as ↑N next to it).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGitAhead))]
+    [NotifyPropertyChangedFor(nameof(GitAheadText))]
+    [NotifyPropertyChangedFor(nameof(GitAheadToolTip))]
+    public partial int GitAhead { get; set; }
+
+    public bool HasGitAhead => GitAhead > 0;
+
+    public string GitAheadText => $"↑{GitAhead}";
+
+    public string GitAheadToolTip => GitAhead == 1 ? "1 commit not pushed yet" : $"{GitAhead} commits not pushed yet";
+
+    private async Task RefreshAheadAsync()
+    {
+        var folder = Folder;
+        var branch = ChipBranch;
+        var ahead = folder is null || branch.Length == 0 || branch == "detached" ? 0 : await GitInfo.AheadAsync(folder, branch);
+        if (folder == Folder && branch == ChipBranch)
+        {
+            GitAhead = ahead;
+        }
+    }
+
+    partial void OnWorktreeFromChanged(string? value) => _ = RefreshAheadAsync();
 
     /// <summary>Start the new session in a new worktree of the folder's repository (kept for the next ones too).</summary>
     public bool UseWorktree
@@ -245,6 +275,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 OnPropertyChanged(nameof(GitChipToolTip));
                 OnPropertyChanged(nameof(BranchMenuHeader));
                 OnPropertyChanged(nameof(WorktreeToolTip));
+                _ = RefreshAheadAsync();
             }
         }
     }

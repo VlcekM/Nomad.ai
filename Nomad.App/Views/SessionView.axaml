@@ -1358,6 +1358,8 @@
           <StackPanel Orientation="Horizontal" Spacing="6">
             <c:Icon Size="13" Data="{StaticResource IconGitBranch}" />
             <TextBlock Classes="status branchtext" Text="{Binding GitChipText}" MaxWidth="180" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            <TextBlock Classes="status ahead" Classes.on="{Binding HasGitAhead}" IsVisible="{Binding HasGitAhead}"
+                       Text="{Binding GitAheadText}" ToolTip.Tip="{Binding GitAheadToolTip}" VerticalAlignment="Center" />
           </StackPanel>
           <FlyoutBase.AttachedFlyout>
             <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">

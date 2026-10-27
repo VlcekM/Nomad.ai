@@ -137,6 +137,13 @@ public static class GitInfo
         return (text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
+    /// <summary>How many commits a local branch has that its upstream does not (not pushed yet); 0 without an upstream.</summary>
+    public static async Task<int> AheadAsync(string folder, string branch)
+    {
+        var text = await RunAsync(folder, "rev-list", "--count", $"{branch}@{{upstream}}..{branch}", "--");
+        return int.TryParse(text?.Trim(), CultureInfo.InvariantCulture, out var ahead) ? ahead : 0;
+    }
+
     /// <summary>Checks out another branch in the folder (<c>git switch</c>); null when done, or git's reason it could not.</summary>
     public static async Task<string?> SwitchBranchAsync(string folder, string branch)
     {

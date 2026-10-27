@@ -599,16 +599,16 @@
 
           <!-- Account footer -->
           <Border Grid.Row="7"
-                  Height="54"
+                  Height="48"
                   BorderBrush="{DynamicResource BorderDividerBrush}"
                   BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto">
-            <!-- The whole footer is the settings button: a rounded row 6 px inside the corner. -->
+            <!-- The whole footer is the settings button: a rounded row 9 px inside the corner. -->
             <Button Theme="{StaticResource RowButton}"
                     Command="{Binding OpenSettingsCommand}"
                     Height="NaN"
-                    Margin="6"
-                    Padding="10,0,10,0"
+                    Margin="9"
+                    Padding="15,0,15,0"
                     CornerRadius="6"
                     ToolTip.Tip="Settings (Ctrl+,)">
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
@@ -663,7 +663,7 @@
                 <Style Selector="Button#UpdateChip.on">
                   <Setter Property="Opacity" Value="1" />
                   <Setter Property="MaxWidth" Value="260" />
-                  <Setter Property="Margin" Value="0,0,8,0" />
+                  <Setter Property="Margin" Value="0,0,12,0" />
                   <Setter Property="IsHitTestVisible" Value="True" />
                 </Style>
               </Button.Styles>
@@ -792,6 +792,13 @@
                          FontSize="{DynamicResource UiFontSizeSmall}"
                          MaxWidth="220"
                          TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Current.GitAheadText}"
+                         Classes="muted ahead"
+                         Classes.on="{Binding Current.HasGitAhead}"
+                         IsVisible="{Binding Current.HasGitAhead}"
+                         ToolTip.Tip="{Binding Current.GitAheadToolTip}"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
                          VerticalAlignment="Center" />
             </StackPanel>
             <Border Name="TitleWorktree"

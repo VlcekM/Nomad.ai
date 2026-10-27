@@ -3,6 +3,19 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.9.0
+
+- The branch chip (and a started session's branch in the title bar) shows ↑N when the branch has commits not pushed
+  yet.
+- Clicking a notification opens its session, also when Nomad.ai is already running.
+- Send instantly is on Ctrl: Ctrl+Enter or Ctrl+click sends at once while Claude works, and holding Ctrl slides the
+  label into the send button.
+- Alive sessions in a worktree go Idle once its branch is merged.
+- Mode moved from the status row into the model menu, as a nested Mode menu.
+- Git chips slide and fade into place; the Worktree toggle has a label and no white flash on hover.
+- The Idle heading drops its New button; its list options fade in on hover.
+- The account bar at the bottom left is slimmer, with more room around it.
+
 ## v1.8.0
 
 - Ctrl+T searches sessions by title and conversation, with Alive / Idle / Archived chips to filter by; ages show up to
