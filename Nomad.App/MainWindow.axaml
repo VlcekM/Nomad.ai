@@ -859,6 +859,21 @@
                        Margin="6,0,0,0"
                        IsVisible="{Binding !Current.HasTitle}"
                        VerticalAlignment="Center" />
+            <!-- The project's name, then "|" before the branch. -->
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6"
+                        Margin="6,0,0,0"
+                        Background="Transparent"
+                        IsVisible="{Binding Current.ShowTitleGit}"
+                        TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
+                        ToolTip.Tip="{Binding Current.FolderToolTip}">
+              <TextBlock Text="{Binding Current.FolderName}"
+                         Classes="muted"
+                         MaxWidth="220"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="|" Classes="muted" VerticalAlignment="Center" />
+            </StackPanel>
             <StackPanel Name="TitleBranch"
                         Orientation="Horizontal"
                         Spacing="6"

@@ -658,10 +658,23 @@ public static partial class LinkSupport
                 return;
             }
 
-            // A URL opens with a plain click; a path only with Ctrl (a plain click stays free for the caret and selection).
-            if (!moved && Hit(block, at) is { } link && !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+            // A plain click (not a drag that selects) opens a URL, or a path with its app; Ctrl+click shows a path in Explorer.
+            if (!moved && e.InitialPressMouseButton == MouseButton.Left && Hit(block, at) is { } link)
             {
-                Open(link.Url);
+                if (!link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+                {
+                    Open(link.Url);
+                }
+                else if (ResolvePath(block, link.Url) is { } file)
+                {
+                    block.ClearSelection();
+                    OpenWithShell(file);
+                }
+                else
+                {
+                    return;
+                }
+
                 e.Handled = true;
             }
         }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
@@ -677,7 +690,7 @@ public static partial class LinkSupport
             var path = link?.Url.StartsWith(PathPrefix, StringComparison.Ordinal) == true ? ResolvePath(block, link.Url) : null;
             var hand = link is not null && (path is not null || !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal));
             block.Cursor = hand ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
-            var tip = path is not null ? "Ctrl+click to show in Explorer · right-click for more" : null;
+            var tip = path is not null ? "Click to open · Ctrl+click to show in Explorer · right-click for more" : null;
             if (!Equals(ToolTip.GetTip(block), tip))
             {
                 ToolTip.SetTip(block, tip);
@@ -805,6 +818,9 @@ public static partial class LinkSupport
 
         try
         {
+            // The explorer.exe started here hands the window to the running shell process, which may not take the
+            // foreground on its own (the window would only flash in the taskbar): this app has it, so pass it on.
+            AllowSetForegroundWindow(AsfwAny);
             Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
         }
         catch (Exception)
@@ -813,10 +829,24 @@ public static partial class LinkSupport
         }
     }
 
+    private const int AsfwAny = -1;
+
+    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static partial bool AllowSetForegroundWindow(int processId);
+
     private static void OpenWithShell(string path)
     {
+        if (Program.Dev.ScreenshotPath is not null)
+        {
+            Console.Error.WriteLine($"Open {path}");
+            return;
+        }
+
         try
         {
+            // A folder (or a file whose app is already running) opens in another process; let it come to the front.
+            AllowSetForegroundWindow(AsfwAny);
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception)
