@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Nomad.App.Controls;
 using Nomad.App.Infrastructure;
 
 namespace Nomad.App.ViewModels;
@@ -30,11 +31,11 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     public partial bool IsSelected { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnread))]
+    [NotifyPropertyChangedFor(nameof(Mark))]
     public partial bool IsRunning { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnread))]
+    [NotifyPropertyChangedFor(nameof(Mark))]
     public partial bool IsUnread { get; set; }
 
     /// <summary>The session has a running CLI process (the sidebar's Alive list).</summary>
@@ -69,13 +70,29 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     public string ArchiveToggleText => IsArchived ? "Unarchive" : "Archive";
 
-    public bool ShowUnread => IsUnread && !IsRunning;
+    /// <summary>Claude waits for an answer: a permission, or a question.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Mark))]
+    public partial bool IsWaiting { get; set; }
+
+    /// <summary>The mark on the right: asking beats working, working beats unread.</summary>
+    public SessionMark Mark => IsWaiting ? SessionMark.Waiting : IsRunning ? SessionMark.Working : IsUnread ? SessionMark.Unread : SessionMark.None;
 
     public string ToolTipText => $"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
-/// <summary>A group heading in the sidebar's Idle list ("Today", a folder, "Archived").</summary>
-public sealed class SessionGroupHeader(string title)
+/// <summary>A group heading in the sidebar's Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>
+public sealed partial class SessionGroupHeader(string key, string title) : ObservableObject
 {
+    /// <summary>"Date:Today", "Folder:Nomad.ai", "Archived": how its collapsed state is remembered.</summary>
+    public string Key { get; } = key;
+
     public string Title { get; } = title;
+
+    [ObservableProperty]
+    public partial bool IsCollapsed { get; set; }
+
+    /// <summary>How many sessions it holds: shown while it is collapsed.</summary>
+    [ObservableProperty]
+    public partial int Count { get; set; }
 }

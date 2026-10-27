@@ -73,6 +73,24 @@ public sealed class NomadSettings
     /// <summary>Session ids archived from the sidebar: hidden from the list, their transcripts kept.</summary>
     public List<string> ArchivedSessions { get; set; } = [];
 
+    /// <summary>Sessions untouched for <see cref="AutoArchiveHours"/> are archived (not while alive or open).</summary>
+    public bool AutoArchive { get; set; } = true;
+
+    /// <summary>How long a session stays untouched before it is archived (at least 1 hour).</summary>
+    public int AutoArchiveHours { get; set; } = 24;
+
+    /// <summary>
+    /// Session id → when it was unarchived by hand: that counts as touching it, so auto-archive waits again from
+    /// then. Dropped once the session is archived again.
+    /// </summary>
+    public Dictionary<string, DateTime> UnarchivedUtc { get; set; } = [];
+
+    /// <summary>Collapsed Idle groups, as "Grouping:Title" ("Date:Yesterday", "Folder:Nomad.ai", "Archived").</summary>
+    public List<string> CollapsedGroups { get; set; } = [];
+
+    /// <summary>The Alive section is folded to its heading.</summary>
+    public bool AliveCollapsed { get; set; }
+
     // Window and session state
     public bool SidebarCollapsed { get; set; }
 

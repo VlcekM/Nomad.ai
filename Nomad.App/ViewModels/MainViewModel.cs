@@ -53,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
         _idleTimer.Tick += (_, _) =>
         {
             SleepIdleSessions();
+            _ = AutoArchiveSessionsAsync(fold: true);
             Current.TickClock();
         };
         _idleTimer.Start();
@@ -440,6 +441,13 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool HasAlive { get; set; }
+
+    [ObservableProperty]
+    public partial int AliveCount { get; set; }
+
+    /// <summary>Idle sessions listed (archived ones not counted).</summary>
+    [ObservableProperty]
+    public partial int IdleCount { get; set; }
 
     [ObservableProperty]
     public partial string UserName { get; set; } = "";
@@ -859,6 +867,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         ApplyFilter();
+        await AutoArchiveSessionsAsync(fold: false);
         OnPropertyChanged(nameof(RecentFolders));
         Current.RefreshFolders();
     }
@@ -878,26 +887,43 @@ public sealed partial class MainViewModel : ObservableObject
         Sync(Alive, list.Where(s => s.IsAlive).ToList());
         Sync(Recents, GroupIdle(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList()));
         HasAlive = Alive.Count > 0;
+        AliveCount = Alive.Count;
+        IdleCount = list.Count(s => !s.IsAlive && !s.IsArchived);
         HasNoSessions = _all.Count == 0;
     }
 
     // Reused across filters, so a heading that stays keeps its row in the list.
     private readonly Dictionary<string, SessionGroupHeader> _headers = new(StringComparer.Ordinal);
 
-    private SessionGroupHeader Header(string title)
+    private SessionGroupHeader Header(string key, string title)
     {
-        if (!_headers.TryGetValue(title, out var header))
+        if (!_headers.TryGetValue(key, out var header))
         {
-            _headers[title] = header = new SessionGroupHeader(title);
+            _headers[key] = header = new SessionGroupHeader(key, title);
         }
 
+        header.IsCollapsed = Settings.CollapsedGroups.Contains(key);
         return header;
     }
 
-    /// <summary>The Idle list's entries: the sessions (newest first) under their group headings, then the archived ones.</summary>
+    /// <summary>
+    /// The Idle list's entries: the sessions (newest first) under their group headings, then the archived ones.
+    /// A collapsed group lists only its heading, except while searching.
+    /// </summary>
     private List<object> GroupIdle(List<SessionListItemViewModel> sessions, List<SessionListItemViewModel> archived)
     {
+        var searching = SearchText.Trim().Length > 0;
         var result = new List<object>(sessions.Count + archived.Count + 8);
+        void AddGroup(SessionGroupHeader header, IReadOnlyCollection<SessionListItemViewModel> rows)
+        {
+            header.Count = rows.Count;
+            result.Add(header);
+            if (!header.IsCollapsed || searching)
+            {
+                result.AddRange(rows);
+            }
+        }
+
         if (Settings.SessionGrouping == "None")
         {
             result.AddRange(sessions);
@@ -911,19 +937,85 @@ public sealed partial class MainViewModel : ObservableObject
             // Groups in the order of their newest session; within a group, newest first.
             foreach (var group in sessions.GroupBy(key))
             {
-                result.Add(Header(group.Key));
-                result.AddRange(group);
+                AddGroup(Header(Settings.SessionGrouping + ":" + group.Key, group.Key), group.ToList());
             }
         }
 
         if (archived.Count > 0)
         {
-            result.Add(Header("Archived"));
-            result.AddRange(archived);
+            AddGroup(Header("Archived", "Archived"), archived);
         }
 
         return result;
     }
+
+    /// <summary>Folds a group's rows away under its heading, or unfolds them (their height grows back from 0).</summary>
+    public async Task ToggleGroupAsync(SessionGroupHeader header)
+    {
+        var index = Recents.IndexOf(header);
+        var rows = Recents.Skip(index + 1).TakeWhile(o => o is SessionListItemViewModel).Cast<SessionListItemViewModel>().ToList();
+        if (!header.IsCollapsed)
+        {
+            header.IsCollapsed = true;
+            Settings.CollapsedGroups.Add(header.Key);
+            SaveSettings();
+            if (SearchText.Trim().Length > 0)
+            {
+                return; // A search lists every match: the group folds once it ends.
+            }
+
+            foreach (var row in rows)
+            {
+                row.IsLeaving = true;
+            }
+
+            await Task.Delay(200);
+            ApplyFilter();
+            foreach (var row in rows)
+            {
+                row.IsLeaving = false;
+            }
+
+            return;
+        }
+
+        header.IsCollapsed = false;
+        Settings.CollapsedGroups.Remove(header.Key);
+        SaveSettings();
+
+        // The rows come in folded, then unfold once laid out.
+        var before = Recents.OfType<SessionListItemViewModel>().ToHashSet();
+        var all = _all.Where(s => !before.Contains(s)).ToList();
+        foreach (var row in all)
+        {
+            row.IsLeaving = true;
+        }
+
+        ApplyFilter();
+        await Task.Delay(30);
+        foreach (var row in all)
+        {
+            row.IsLeaving = false;
+        }
+    }
+
+    /// <summary>The Alive list is folded to its heading.</summary>
+    public bool IsAliveCollapsed
+    {
+        get => Settings.AliveCollapsed;
+        set
+        {
+            if (Settings.AliveCollapsed != value)
+            {
+                Settings.AliveCollapsed = value;
+                SaveSettings();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleAliveSection() => IsAliveCollapsed = !IsAliveCollapsed;
 
     /// <summary>"Today", "Yesterday", "Previous 7 days", "Previous 30 days", then the month ("September 2026").</summary>
     public static string DateGroup(DateTime utc)
@@ -942,14 +1034,74 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ------------------------------------------------------------------ archive and delete
 
+    /// <summary>Brings a session back; that counts as touching it, so auto-archive waits its full time again.</summary>
+    private void Unarchive(SessionListItemViewModel item)
+    {
+        Settings.ArchivedSessions.Remove(item.SessionId);
+        Settings.UnarchivedUtc[item.SessionId] = DateTime.UtcNow;
+        SaveSettings();
+        item.IsArchived = false;
+    }
+
+    /// <summary>The auto-archive time, at least an hour.</summary>
+    public TimeSpan AutoArchiveAfter => TimeSpan.FromHours(Math.Max(1, Settings.AutoArchiveHours));
+
+    /// <summary>The auto-archive settings changed: archive what is due now.</summary>
+    public void ApplyAutoArchive() => _ = AutoArchiveSessionsAsync(fold: true);
+
+    /// <summary>
+    /// Archives the sessions untouched for <see cref="AutoArchiveAfter"/>: not the open one, nor one that is alive,
+    /// running a turn, or run by the phone or elsewhere. Listed rows fold away first when <paramref name="fold"/>.
+    /// </summary>
+    private async Task AutoArchiveSessionsAsync(bool fold)
+    {
+        if (!Settings.AutoArchive)
+        {
+            return;
+        }
+
+        var cutoff = DateTime.UtcNow - AutoArchiveAfter;
+        var due = _all.Where(item =>
+        {
+            var touched = Settings.UnarchivedUtc.TryGetValue(item.SessionId, out var unarchived) && unarchived > item.LastActivityUtc
+                ? unarchived
+                : item.LastActivityUtc;
+            return !item.IsArchived && touched < cutoff && !item.IsAlive && !item.IsRunning && item.CanManage
+                && item.SessionId != Current.SessionId && !(_open.TryGetValue(item.SessionId, out var s) && s.IsProcessRunning);
+        }).ToList();
+        if (due.Count == 0)
+        {
+            return;
+        }
+
+        if (fold && !Settings.ShowArchived)
+        {
+            foreach (var item in due)
+            {
+                item.IsLeaving = true;
+            }
+
+            await Task.Delay(200);
+        }
+
+        foreach (var item in due)
+        {
+            Settings.ArchivedSessions.Add(item.SessionId);
+            Settings.UnarchivedUtc.Remove(item.SessionId);
+            item.IsArchived = true;
+            item.IsLeaving = false;
+        }
+
+        SaveSettings();
+        ApplyFilter();
+    }
+
     /// <summary>Archives a session (ending its process) or brings it back.</summary>
     public async Task ToggleArchivedAsync(SessionListItemViewModel item)
     {
         if (item.IsArchived)
         {
-            Settings.ArchivedSessions.Remove(item.SessionId);
-            SaveSettings();
-            item.IsArchived = false;
+            Unarchive(item);
             ApplyFilter();
             return;
         }
@@ -966,6 +1118,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         Settings.ArchivedSessions.Remove(item.SessionId);
         Settings.ArchivedSessions.Add(item.SessionId);
+        Settings.UnarchivedUtc.Remove(item.SessionId);
         SaveSettings();
         item.IsArchived = true;
         item.IsLeaving = false;
@@ -1096,6 +1249,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
+        vm.IsWaiting = session.PendingPermission is not null;
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
@@ -1130,6 +1284,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             vm.IsRunning = session.IsTurnRunning;
             vm.LastActivityUtc = DateTime.UtcNow;
+            if (vm.IsArchived && session.IsTurnRunning)
+            {
+                Unarchive(vm); // A prompt sent to an archived session brings it back.
+            }
+
             MoveToTop(vm);
         }
     }
@@ -1146,6 +1305,15 @@ public sealed partial class MainViewModel : ObservableObject
         TurnCompleted?.Invoke(session);
         _ = RefreshSessionsAsync();
         _ = Usage.RefreshAsync();
+    }
+
+    /// <summary>A permission or question is pending, or was answered: the row's yellow dot.</summary>
+    public void OnWaitingChanged(SessionViewModel session)
+    {
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
+        {
+            vm.IsWaiting = session.PendingPermission is not null;
+        }
     }
 
     public void OnPermissionRequested(SessionViewModel session)

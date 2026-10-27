@@ -69,6 +69,66 @@
               <Setter Property="Margin" Value="8,0,11,0" />
               <Setter Property="IsHitTestVisible" Value="False" />
             </Style>
+
+            <!-- Section and group headings: the chevron shows on hover (always while collapsed) and turns
+                 to point right when collapsed; a collapsed group shows its count. -->
+            <Style Selector="c|Icon.sectionchev">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="RenderTransform" Value="rotate(0deg)" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                  <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button:pointerover c|Icon.sectionchev">
+              <Setter Property="Opacity" Value="1" />
+            </Style>
+            <Style Selector="Button.collapsed c|Icon.sectionchev">
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+            </Style>
+            <Style Selector="TextBlock.groupcount">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button.collapsed TextBlock.groupcount">
+              <Setter Property="Opacity" Value="1" />
+            </Style>
+            <Style Selector="Button.groupheader:pointerover, Button.groupheader:pressed">
+              <Setter Property="Background" Value="Transparent" />
+            </Style>
+            <Style Selector="Button.groupheader:pointerover TextBlock">
+              <Setter Property="Foreground" Value="{StaticResource TextChromeBrush}" />
+            </Style>
+
+            <!-- Alive / Idle: a heading with a count badge. -->
+            <Style Selector="TextBlock.sectiontitle">
+              <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+              <Setter Property="FontWeight" Value="SemiBold" />
+              <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style Selector="Border.sectioncount">
+              <Setter Property="Background" Value="{StaticResource BgChipBrush}" />
+              <Setter Property="CornerRadius" Value="8" />
+              <Setter Property="Padding" Value="6,0" />
+              <Setter Property="Height" Value="16" />
+              <Setter Property="MinWidth" Value="18" />
+              <Setter Property="Margin" Value="7,0,0,0" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style Selector="Border.sectioncount > TextBlock">
+              <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTiny}" />
+              <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+              <Setter Property="HorizontalAlignment" Value="Center" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
           </Grid.Styles>
           <!-- Inherited by both lists: a session row, and the Idle list's group headings. -->
           <Grid.DataTemplates>
@@ -110,27 +170,48 @@
                              Text="{Binding Title}"
                              TextTrimming="CharacterEllipsis"
                              VerticalAlignment="Center" />
-                  <Ellipse Grid.Column="2"
-                           Width="6" Height="6"
-                           Margin="10,0,4,0"
-                           Fill="{StaticResource AccentBrush}"
-                           IsVisible="{Binding IsRunning}"
-                           VerticalAlignment="Center" />
-                  <Ellipse Grid.Column="2"
-                           Width="6" Height="6"
-                           Margin="10,0,4,0"
-                           Fill="{StaticResource UnreadBrush}"
-                           IsVisible="{Binding ShowUnread}"
-                           VerticalAlignment="Center" />
+                  <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
+                  <c:StatusMark Grid.Column="2"
+                                Margin="10,0,1,0"
+                                VerticalAlignment="Center"
+                                Mark="{Binding Mark}"
+                                WorkingBrush="{StaticResource AccentBrush}"
+                                WaitingBrush="{StaticResource WaitingBrush}"
+                                UnreadBrush="{StaticResource UnreadBrush}" />
                 </Grid>
               </Button>
             </DataTemplate>
+            <!-- A click folds the group's rows away; collapsed, it shows how many it holds. -->
             <DataTemplate x:DataType="vm:SessionGroupHeader">
-              <TextBlock Text="{Binding Title}"
-                         Margin="18,10,11,3"
-                         FontSize="{DynamicResource UiFontSizeSmall}"
-                         Foreground="{StaticResource TextMutedBrush}"
-                         TextTrimming="CharacterEllipsis" />
+              <Button Theme="{StaticResource RowButton}"
+                      Classes="groupheader"
+                      Classes.collapsed="{Binding IsCollapsed}"
+                      Height="24"
+                      Margin="8,8,11,1"
+                      Padding="10,0,8,0"
+                      Click="OnGroupHeaderClick">
+                <Grid ColumnDefinitions="Auto,Auto,*">
+                  <TextBlock Text="{Binding Title}"
+                             FontSize="{DynamicResource UiFontSizeSmall}"
+                             Foreground="{StaticResource TextMutedBrush}"
+                             TextTrimming="CharacterEllipsis"
+                             VerticalAlignment="Center" />
+                  <c:Icon Grid.Column="1"
+                          Classes="sectionchev"
+                          Size="11"
+                          Margin="5,0,0,0"
+                          Data="{StaticResource IconChevronDown}"
+                          Stroke="{StaticResource TextMutedBrush}"
+                          VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2"
+                             Classes="groupcount"
+                             Text="{Binding Count}"
+                             HorizontalAlignment="Right"
+                             FontSize="{DynamicResource UiFontSizeSmall}"
+                             Foreground="{StaticResource TextMutedBrush}"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Button>
             </DataTemplate>
           </Grid.DataTemplates>
 
@@ -209,27 +290,46 @@
             </StackPanel>
           </Button>
 
-          <!-- Alive: sessions with a running CLI process -->
-          <Grid Grid.Row="3" Margin="18,18,11,2" Height="24" IsVisible="{Binding HasAlive}">
-            <TextBlock Text="Alive"
-                       Classes="section"
-                       VerticalAlignment="Center"
-                       ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle." />
-          </Grid>
-          <ScrollViewer Grid.Row="4"
-                        MaxHeight="240"
-                        IsVisible="{Binding HasAlive}"
-                        HorizontalScrollBarVisibility="Disabled"
-                        VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Alive}" />
-          </ScrollViewer>
+          <!-- Alive: sessions with a running CLI process. The heading folds the list. -->
+          <Button Grid.Row="3"
+                  Theme="{StaticResource RowButton}"
+                  Classes="groupheader"
+                  Classes.collapsed="{Binding IsAliveCollapsed}"
+                  Height="24"
+                  Margin="8,18,11,3"
+                  Padding="10,0,8,0"
+                  IsVisible="{Binding HasAlive}"
+                  Command="{Binding ToggleAliveSectionCommand}"
+                  ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle."
+                  ToolTip.ShowDelay="700">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Alive" Classes="sectiontitle" />
+              <Border Classes="sectioncount">
+                <TextBlock Text="{Binding AliveCount}" />
+              </Border>
+              <c:Icon Classes="sectionchev" Size="11" Margin="6,0,0,0" Data="{StaticResource IconChevronDown}" Stroke="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Panel Grid.Row="4" IsVisible="{Binding HasAlive}">
+            <ScrollViewer MaxHeight="240"
+                          c:Fold.IsOpen="{Binding !IsAliveCollapsed}"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding Alive}" />
+            </ScrollViewer>
+          </Panel>
 
           <!-- Idle header -->
           <Grid Grid.Row="5" ColumnDefinitions="*,Auto,Auto" Margin="18,18,11,2" Height="24">
-            <TextBlock Text="Idle"
-                       Classes="section"
-                       VerticalAlignment="Center"
-                       ToolTip.Tip="Sessions without a process. Sending a prompt resumes one." />
+            <StackPanel Orientation="Horizontal"
+                        Background="Transparent"
+                        ToolTip.Tip="Sessions without a process. Sending a prompt resumes one."
+                        ToolTip.ShowDelay="700">
+              <TextBlock Text="Idle" Classes="sectiontitle" />
+              <Border Classes="sectioncount">
+                <TextBlock Text="{Binding IdleCount}" />
+              </Border>
+            </StackPanel>
             <!-- List options: grouping and archived sessions. -->
             <Button Grid.Column="1"
                     Name="ListOptionsButton"

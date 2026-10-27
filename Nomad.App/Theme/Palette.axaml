@@ -46,6 +46,7 @@
   <Color x:Key="DangerSubtleColor">#1FE0605A</Color>
   <Color x:Key="LinkColor">#6FA2EA</Color>
   <Color x:Key="UnreadColor">#327CD7</Color>
+  <Color x:Key="WaitingColor">#E3B341</Color>
   <Color x:Key="CheckColor">#2A74CC</Color>
   <Color x:Key="RingColor">#2A78D6</Color>
   <Color x:Key="InlineCodeColor">#DE8170</Color>
@@ -84,6 +85,7 @@
   <SolidColorBrush x:Key="DangerSubtleBrush" Color="{StaticResource DangerSubtleColor}" />
   <SolidColorBrush x:Key="LinkBrush" Color="{StaticResource LinkColor}" />
   <SolidColorBrush x:Key="UnreadBrush" Color="{StaticResource UnreadColor}" />
+  <SolidColorBrush x:Key="WaitingBrush" Color="{StaticResource WaitingColor}" />
   <SolidColorBrush x:Key="CheckBrush" Color="{StaticResource CheckColor}" />
   <SolidColorBrush x:Key="RingBrush" Color="{StaticResource RingColor}" />
   <SolidColorBrush x:Key="InlineCodeBrush" Color="{StaticResource InlineCodeColor}" />
