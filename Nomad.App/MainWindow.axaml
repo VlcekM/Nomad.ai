@@ -98,8 +98,16 @@
                   <DoubleTransition Property="Height" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
                   <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
                 </Transitions>
               </Setter>
+            </Style>
+            <!-- Idle sessions' titles are a little muted, back to full on hover or when selected. -->
+            <Style Selector="Button.sessionrow.idle:not(.selected)">
+              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            </Style>
+            <Style Selector="Button.sessionrow.idle:not(.selected):pointerover">
+              <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
             </Style>
             <!-- A row's GitHub icons fold in and fade as they become known. -->
             <Style Selector="StackPanel.ghlinks > Border">
@@ -256,6 +264,7 @@
                       Classes="sessionrow"
                       Classes.selected="{Binding IsSelected}"
                       Classes.leaving="{Binding IsLeaving}"
+                      Classes.idle="{Binding !IsAlive}"
                       Padding="10,0,8,0"
                       Click="OnRecentClick"
                       DoubleTapped="OnSessionRowDoubleTapped"
@@ -512,9 +521,12 @@
 
           <!-- Idle header: the heading folds the list. -->
           <Grid Grid.Row="5" Classes="idleheader" ColumnDefinitions="Auto,*,Auto" Margin="8,18,11,2" Height="24" Background="Transparent">
-            <Button Theme="{StaticResource RowButton}"
+            <!-- The whole heading folds the list; the list options button sits on top of it. -->
+            <Button Grid.ColumnSpan="3"
+                    Theme="{StaticResource RowButton}"
                     Classes="groupheader"
                     Classes.collapsed="{Binding IsIdleCollapsed}"
+                    HorizontalContentAlignment="Left"
                     Height="24"
                     Padding="10,0,8,0"
                     Command="{Binding ToggleIdleSectionCommand}"
