@@ -9,6 +9,7 @@ Newest first: the newest heading is also the version of local builds (`Directory
   is unpinned there).
 - Files dragged over a session show a "Drop to attach" frame: images and files dropped anywhere on it are attached.
 - Alive and Idle scroll together in one list, headings and all; the Alive list is no longer capped in height.
+- The sidebar search has a × that clears it, shown while something is typed.
 
 ## v1.11.0
 

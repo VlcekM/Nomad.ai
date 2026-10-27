@@ -150,6 +150,20 @@
             <Style Selector="Button.sessionrow.idle:not(.selected):pointerover">
               <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
             </Style>
+            <!-- The search box's clear button fades in while there is a search. -->
+            <Style Selector="Button#ClearSearchButton">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button#ClearSearchButton.shown">
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="IsHitTestVisible" Value="True" />
+            </Style>
             <!-- A row's GitHub icons fold in and fade as they become known. -->
             <Style Selector="StackPanel.ghlinks > Border">
               <Setter Property="MaxWidth" Value="0" />
@@ -526,14 +540,26 @@
                   Background="{DynamicResource BgSearchBrush}"
                   BorderBrush="{DynamicResource BorderBrush}"
                   BorderThickness="1">
-            <Grid ColumnDefinitions="Auto,*">
+            <Grid ColumnDefinitions="Auto,*,Auto">
               <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="8,0,10,0" />
               <TextBox Grid.Column="1"
                        Theme="{StaticResource BareTextBox}"
                        Watermark="Search"
                        Text="{Binding SearchText}"
                        FontSize="{DynamicResource UiFontSize}"
-                       Margin="0,0,8,0" />
+                       Margin="0,0,4,0" />
+              <!-- Clears the search; fades in once something is typed. -->
+              <Button Grid.Column="2"
+                      Name="ClearSearchButton"
+                      Theme="{StaticResource IconButton}"
+                      Width="19" Height="19"
+                      Margin="0,0,2,0"
+                      Focusable="False"
+                      Command="{Binding ClearSearchCommand}"
+                      Classes.shown="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                      ToolTip.Tip="Clear search">
+                <c:Icon Size="10" Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" />
+              </Button>
             </Grid>
           </Border>
 

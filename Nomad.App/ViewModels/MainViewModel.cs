@@ -705,6 +705,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
 
+    [RelayCommand]
+    private void ClearSearch() => SearchText = "";
+
     partial void OnIsSidebarOpenChanged(bool value)
     {
         Settings.SidebarCollapsed = !value;
