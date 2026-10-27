@@ -1385,6 +1385,13 @@
               <TextBlock Classes="status" Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
               <TextBlock Classes="status" Text="{Binding GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
             </StackPanel>
+            <!-- Uncommitted changes in the checkout: "| N changed", as on the project cards. -->
+            <StackPanel Classes="ahead" Classes.on="{Binding HasGitChanges}" IsVisible="{Binding HasGitChanges}"
+                        Orientation="Horizontal" Background="Transparent"
+                        ToolTip.Tip="{Binding GitChangesToolTip}" ToolTip.ShowDelay="0">
+              <TextBlock Classes="status" Text="|" Foreground="{DynamicResource TextMutedBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+              <TextBlock Classes="status" Text="{Binding GitChangesText}" FontWeight="Bold" Foreground="{DynamicResource WaitingBrush}" VerticalAlignment="Center" />
+            </StackPanel>
           </StackPanel>
           <FlyoutBase.AttachedFlyout>
             <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">

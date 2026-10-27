@@ -229,6 +229,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         IsGitFolder = status is not null;
+        GitChanges = status?.Changes ?? 0;
         GitBranch = status?.Branch ?? "";
         OnPropertyChanged(nameof(GitChipToolTip));
         await RefreshAheadAsync();
@@ -243,6 +244,19 @@ public sealed partial class SessionViewModel : ObservableObject
     public bool HasGitAhead => GitAhead > 0;
 
     public string GitAheadToolTip => GitAhead == 1 ? "1 commit not pushed yet" : $"{GitAhead} commits not pushed yet";
+
+    /// <summary>Files changed in the folder's checkout and not committed (shown as "N changed" after the branch).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGitChanges))]
+    [NotifyPropertyChangedFor(nameof(GitChangesText))]
+    [NotifyPropertyChangedFor(nameof(GitChangesToolTip))]
+    public partial int GitChanges { get; set; }
+
+    public bool HasGitChanges => GitChanges > 0;
+
+    public string GitChangesText => $"{GitChanges} changed";
+
+    public string GitChangesToolTip => GitChanges == 1 ? "1 file with uncommitted changes" : $"{GitChanges} files with uncommitted changes";
 
     private async Task RefreshAheadAsync()
     {

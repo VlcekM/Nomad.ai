@@ -807,6 +807,18 @@
                 <TextBlock Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                 <TextBlock Text="{Binding Current.GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
               </StackPanel>
+              <!-- Uncommitted changes in the checkout: "| N changed", as on the project cards. -->
+              <StackPanel Classes="ahead"
+                          Classes.on="{Binding Current.HasGitChanges}"
+                          IsVisible="{Binding Current.HasGitChanges}"
+                          Orientation="Horizontal"
+                          Background="Transparent"
+                          TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
+                          ToolTip.Tip="{Binding Current.GitChangesToolTip}"
+                          ToolTip.ShowDelay="0">
+                <TextBlock Text="|" Classes="muted" Margin="0,0,6,0" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Current.GitChangesText}" FontWeight="Bold" Foreground="{DynamicResource WaitingBrush}" VerticalAlignment="Center" />
+              </StackPanel>
             </StackPanel>
             <Border Name="TitleWorktree"
                     Background="Transparent"

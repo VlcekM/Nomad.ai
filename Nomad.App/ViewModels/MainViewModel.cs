@@ -82,6 +82,11 @@ public sealed partial class MainViewModel : ObservableObject
         _elsewhereTimer.Tick += (_, _) => _ = ScanElsewhereAsync();
         _elsewhereTimer.Start();
 
+        // The open session's branch, unpushed commits and uncommitted changes, which other sessions and terminals change too.
+        _gitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _gitTimer.Tick += (_, _) => _ = Current.RefreshGitAsync();
+        _gitTimer.Start();
+
         // Scripted runs leave the folders to the user's own instance (one server per folder).
         if (!dev.IsActive || dev.Phone)
         {
@@ -99,6 +104,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private readonly Dictionary<string, RemoteControlServer> _servers = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _phoneTimer;
+    private readonly DispatcherTimer _gitTimer;
 
     // Running phone sessions by claude.ai id, with the transcript they write and its session id.
     private readonly Dictionary<string, (PhoneSessionProcess Process, string File, string SessionId)> _phone = new(StringComparer.Ordinal);
