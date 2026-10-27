@@ -694,9 +694,10 @@
           </ContentControl>
 
           <!-- A thin strip on the right edge toggles the side panel: "Side panel" written sideways along it, brighter
-               on hover. -->
+               on hover, fading out while the panel is open. -->
           <Border Grid.Column="1"
                   Name="PanelStrip"
+                  Classes.open="{Binding IsSidePanelOpen}"
                   Width="14"
                   Background="Transparent"
                   Cursor="Hand"
@@ -714,6 +715,9 @@
               </Style>
               <Style Selector="Border#PanelStrip:pointerover TextBlock">
                 <Setter Property="Opacity" Value="1" />
+              </Style>
+              <Style Selector="Border#PanelStrip.open TextBlock">
+                <Setter Property="Opacity" Value="0" />
               </Style>
             </Border.Styles>
             <LayoutTransformControl HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
