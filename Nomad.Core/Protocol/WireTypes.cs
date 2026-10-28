@@ -104,6 +104,9 @@ public sealed class SystemLine : CliLine
     [JsonPropertyName("task_id")] public string? TaskId { get; set; }
     [JsonPropertyName("tool_use_id")] public string? ToolUseId { get; set; }
     [JsonPropertyName("summary")] public string? Summary { get; set; }
+
+    /// <summary>For subtype <c>task_started</c>: false for a command or agent the turn waits on (no background task).</summary>
+    [JsonPropertyName("is_backgrounded")] public bool? IsBackgrounded { get; set; }
 }
 
 public sealed class WireMcpServer

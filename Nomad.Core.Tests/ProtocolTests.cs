@@ -77,6 +77,19 @@ public class ProtocolTests
     }
 
     [Fact]
+    public void AForegroundTasksEndRaisesNothing()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        backend.HandleLine("""{"type":"system","subtype":"task_started","task_id":"bbciz9xxs","tool_use_id":"toolu_01XH","description":"Sleep","is_backgrounded":false,"task_type":"local_bash","session_id":"s"}""");
+        backend.HandleLine("""{"type":"system","subtype":"task_notification","task_id":"bbciz9xxs","tool_use_id":"toolu_01XH","status":"completed","summary":"Sleep","session_id":"s"}""");
+
+        Assert.Empty(events.OfType<TaskNotificationEvent>());
+    }
+
+    [Fact]
     public void InterruptedTurnIsNotAnError()
     {
         var backend = new ClaudeCodeBackend();

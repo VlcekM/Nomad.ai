@@ -17,6 +17,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ControlResponseBody?>> _pendingControl = new();
     private readonly ConcurrentDictionary<string, PermissionRequest> _pendingPermissions = new();
     private readonly ConcurrentDictionary<string, byte> _sentUuids = new(StringComparer.Ordinal);
+
+    /// <summary>Tasks the CLI started in the foreground (long commands it tracks as tasks): their end is no notice.</summary>
+    private readonly ConcurrentDictionary<string, byte> _foregroundTasks = new(StringComparer.Ordinal);
     private ClaudeCliProcess? _cli;
     private int _requestCounter;
     private volatile bool _turnRunning;
@@ -470,6 +473,11 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             case "bridge_state" when !string.IsNullOrEmpty(system.State):
                 Raise(new RemoteControlStateEvent(system.State));
                 break;
+            case "task_started" when system.IsBackgrounded == false && system.TaskId is not null:
+                _foregroundTasks.TryAdd(system.TaskId, 0);
+                break;
+            case "task_notification" when system.TaskId is not null && _foregroundTasks.TryRemove(system.TaskId, out _):
+                break; // A command the turn waited on: its call already shows how it went.
             case "task_notification":
                 Raise(new TaskNotificationEvent(system.TaskId, system.ToolUseId, system.Status?.ToLowerInvariant(), system.Summary));
                 break;
