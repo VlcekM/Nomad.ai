@@ -510,11 +510,12 @@
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
             <c:HazardStripes IsVisible="{x:Static app:Program.IsDebugRun}" />
             <!-- A debug run says so, at the right end of the bar, level with the buttons. -->
-            <TextBlock Text="(DEBUG)"
+            <TextBlock Text="DEBUG"
                        IsVisible="{x:Static app:Program.IsDebugRun}"
                        IsHitTestVisible="False"
-                       FontSize="10"
-                       FontWeight="SemiBold"
+                       FontFamily="{DynamicResource MonoFont}"
+                       FontSize="13"
+                       FontWeight="Bold"
                        LetterSpacing="0.5"
                        Foreground="#F2C12E"
                        HorizontalAlignment="Right"
