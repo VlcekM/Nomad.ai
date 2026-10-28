@@ -175,7 +175,15 @@ public static class MarkdownRenderer
             switch (inline)
             {
                 case LiteralInline literal:
-                    Append(target, literal.Content.ToString(), style);
+                    // Markdig may split one stretch of text into several literals, so a URL is looked for across them.
+                    var text = new StringBuilder(literal.Content.ToString());
+                    while (inline.NextSibling is LiteralInline next)
+                    {
+                        text.Append(next.Content.ToString());
+                        inline = next;
+                    }
+
+                    AppendText(target, links, text.ToString(), style);
                     break;
                 case EmphasisInline emphasis:
                     var s = style;
@@ -235,6 +243,22 @@ public static class MarkdownRenderer
 
         target.Add(MakeRun(text, style));
         LinkSupport.Advance(target, text.Length);
+    }
+
+    // Plain text with its bare web addresses as links: Markdig's autolinks skip hosts without a dot
+    // (http://localhost:4321), so they are found here.
+    private static void AppendText(InlineCollection target, List<LinkRange> links, string text, InlineStyle style)
+    {
+        var at = 0;
+        foreach (var url in LinkSupport.FindUrls(text))
+        {
+            Append(target, text[at..url.Start], style);
+            var address = text.Substring(url.Start, url.Length);
+            AppendLink(target, links, address, address.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? "https://" + address : address, style);
+            at = url.Start + url.Length;
+        }
+
+        Append(target, text[at..], style);
     }
 
     private static Run MakeRun(string text, InlineStyle style)
@@ -805,6 +829,43 @@ public static partial class LinkSupport
 
     [System.Text.RegularExpressions.GeneratedRegex(@":\d+(:\d+)?$")]
     private static partial System.Text.RegularExpressions.Regex LineSuffix();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"(?<![\w@/.])(?:https?://|www\.)[^\s<>""'`]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex BareUrl();
+
+    /// <summary>
+    /// The web addresses in plain text (<c>http://</c>, <c>https://</c>, <c>www.</c>), without the punctuation that
+    /// ends a sentence after them or a closing bracket they did not open.
+    /// </summary>
+    public static IEnumerable<(int Start, int Length)> FindUrls(string text)
+    {
+        foreach (System.Text.RegularExpressions.Match match in BareUrl().Matches(text))
+        {
+            var url = match.Value;
+            while (url.Length > 0)
+            {
+                var last = url[^1];
+                var unopened = last switch
+                {
+                    ')' => url.Count(c => c == ')') > url.Count(c => c == '('),
+                    ']' => url.Count(c => c == ']') > url.Count(c => c == '['),
+                    '}' => url.Count(c => c == '}') > url.Count(c => c == '{'),
+                    _ => false,
+                };
+                if (!unopened && last is not ('.' or ',' or ';' or ':' or '!' or '?' or '*' or '_' or '~'))
+                {
+                    break;
+                }
+
+                url = url[..^1];
+            }
+
+            if (url.Length > (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? 4 : url.IndexOf("://", StringComparison.Ordinal) + 3))
+            {
+                yield return (match.Index, url.Length);
+            }
+        }
+    }
 
     /// <summary>Opens Explorer on the item's folder with the item selected.</summary>
     public static void ShowInExplorer(string path)
