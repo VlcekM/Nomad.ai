@@ -1090,6 +1090,17 @@ public partial class SessionView : UserControl
         }
     }
 
+    /// <summary>A model chip's tooltip names F1…F4 too while they pick the model (a new session, with the setting on).</summary>
+    private void OnModelChipTipOpening(object? sender, CancelRoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option } chip)
+        {
+            ToolTip.SetTip(chip, Vm?.ModelFunctionKeys == true
+                ? $"Ctrl+Shift+{option.ShortcutText} or F{option.ShortcutText}"
+                : $"Ctrl+Shift+{option.ShortcutText}");
+        }
+    }
+
     private void OnPageClicked(object? sender, PointerReleasedEventArgs e)
     {
         if (e.InitialPressMouseButton != MouseButton.Left || Composer.IsFocused || Controls.SelectionAssist.IsSelecting)

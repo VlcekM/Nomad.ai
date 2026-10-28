@@ -1759,7 +1759,8 @@
                       Classes="modelchip"
                       Classes.selected="{Binding IsSelected}"
                       Click="OnModelChipClick"
-                      ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+Shift+{0}'}">
+                      ToolTip.Tip="{Binding ShortcutText, StringFormat='Ctrl+Shift+{0}'}"
+                      ToolTip.ToolTipOpening="OnModelChipTipOpening">
                 <TextBlock Classes="status" Text="{Binding Label}" VerticalAlignment="Center" />
               </Button>
             </DataTemplate>

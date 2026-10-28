@@ -110,6 +110,9 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
     public partial bool IsGitFolder { get; set; }
 
+    /// <summary>F1…F4 pick the model: only on the new-session screen, and only with the setting on.</summary>
+    public bool ModelFunctionKeys => IsNew && _main.Settings.ModelFunctionKeys;
+
     public bool ShowWorktreeToggle => IsNew && IsGitFolder;
 
     /// <summary>A started session shows its branch (and worktree, if any) in the title bar instead of the status row.</summary>

@@ -180,7 +180,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Esc | Deny a pending permission (a running turn stops only with the Stop button) |
 | Ctrl+1 … Ctrl+9 | Open the sidebar's sessions, top to bottom (hold Ctrl to see their numbers) |
 | Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |
-| F1 … F4 | Switch model, Fable to Haiku (off by default: Settings › Claude Code; F2 then no longer renames) |
+| F1 … F4 | Pick a new session's model, Fable to Haiku (off by default: Settings › Claude Code) |
 | Ctrl+N | New session |
 | Ctrl+T | Search sessions: chat titles and conversations, alive, idle and archived (↑↓, Enter opens, Esc closes) |
 | Ctrl+F | Find in the chat: marks every match (Enter / Shift+Enter or F3 / Shift+F3 step through them, Esc closes) |

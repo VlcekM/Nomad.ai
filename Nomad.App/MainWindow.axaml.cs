@@ -133,8 +133,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // F1…F4: the model, when turned on in the settings (F2 renames otherwise).
-            if (vm.Settings.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4)
+            // F1…F4: the model of a new session, when turned on in the settings.
+            if (vm.Current.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4)
             {
                 var index = e.Key - Key.F1;
                 if (index < vm.Current.ModelOptions.Count)
