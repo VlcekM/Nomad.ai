@@ -36,14 +36,14 @@ public static partial class ClaudeFonts
             }
 
             var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nomad", "fonts");
-            foreach (var (family, source) in assets)
+            foreach (var (family, (dist, source)) in assets)
             {
                 // The source name carries a content hash, so a new app version gives a new file.
                 var target = Path.Combine(cache, $"{family.Replace(' ', '-')}-{Path.GetFileNameWithoutExtension(source)}.ttf");
                 if (!File.Exists(target))
                 {
                     Directory.CreateDirectory(cache);
-                    File.WriteAllBytes(target, Woff2.Unpack(File.ReadAllBytes(source)));
+                    File.WriteAllBytes(target, Woff2.Unpack(dist.Read(source)));
                 }
 
                 Files[family] = target;
@@ -64,41 +64,57 @@ public static partial class ClaudeFonts
     /// The Claude app's web bundles (<c>ion-dist</c>): the Microsoft Store (MSIX) install first, then the Squirrel
     /// installs in <c>%LOCALAPPDATA%\AnthropicClaude</c>, newest first.
     /// </summary>
-    public static List<string> IonDists()
+    public static List<IonDist> IonDists()
     {
-        var dists = new List<string>();
+        var resources = new List<string>();
         if (StorePackagePath() is { } package)
         {
-            dists.Add(Path.Combine(package, "app", "resources", "ion-dist"));
+            resources.Add(Path.Combine(package, "app", "resources"));
         }
 
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnthropicClaude");
         if (Directory.Exists(root))
         {
-            dists.AddRange(Directory.GetDirectories(root, "app-*")
-                .Select(d => (Dir: Path.Combine(d, "resources", "ion-dist"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
+            resources.AddRange(Directory.GetDirectories(root, "app-*")
+                .Select(d => (Dir: Path.Combine(d, "resources"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
                 .OrderByDescending(d => d.Version)
                 .Select(d => d.Dir));
         }
 
-        return dists.Where(Directory.Exists).ToList();
+        var dists = new List<IonDist>();
+        foreach (var folder in resources)
+        {
+            try
+            {
+                if (IonDist.At(folder) is { } dist)
+                {
+                    dists.Add(dist);
+                }
+            }
+            catch (Exception)
+            {
+                // An archive that can't be read: try the next install.
+            }
+        }
+
+        return dists;
     }
 
     /// <summary>Upright Anthropic Sans and Mono from the stylesheets of the first Claude app install that has them.</summary>
-    private static Dictionary<string, string>? FindAssets()
+    private static Dictionary<string, (IonDist Dist, string Path)>? FindAssets()
     {
         foreach (var dist in IonDists())
         {
-            var found = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var css in Directory.EnumerateFiles(dist, "*.css", SearchOption.AllDirectories))
+            var found = new Dictionary<string, (IonDist, string)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (css, _) in dist.Files("", ".css"))
             {
-                foreach (Match m in FontFace().Matches(File.ReadAllText(css)))
+                foreach (Match m in FontFace().Matches(dist.ReadText(css)))
                 {
                     var family = m.Groups[1].Value == "sans" ? Sans : Mono;
-                    var file = Path.Combine(dist, m.Groups[2].Value.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
-                    if (!found.ContainsKey(family) && File.Exists(file))
+                    var file = m.Groups[2].Value.TrimStart('/');
+                    if (!found.ContainsKey(family) && dist.Exists(file))
                     {
-                        found[family] = file;
+                        found[family] = (dist, file);
                     }
                 }
 

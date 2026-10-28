@@ -49,25 +49,18 @@ public static partial class WorkingMarkSheets
     {
         foreach (var dist in ClaudeFonts.IonDists())
         {
-            var assets = Path.Combine(dist, "assets");
-            if (!Directory.Exists(assets))
-            {
-                continue;
-            }
-
             // The sheets' script is some 60 KB; most of the bundle's thousands of files can be skipped by size.
-            foreach (var file in Directory.EnumerateFiles(assets, "*.js", SearchOption.AllDirectories))
+            foreach (var (file, length) in dist.Files("assets", ".js"))
             {
-                var length = new FileInfo(file).Length;
                 if (length is < 20_000 or > 400_000)
                 {
                     continue;
                 }
 
-                var script = File.ReadAllText(file);
+                var script = dist.ReadText(file);
                 if (script.Contains("SHEET_FRAME", StringComparison.Ordinal) && script.Contains("\"think.loop\":{frames:", StringComparison.Ordinal))
                 {
-                    return Parse(script, Path.GetDirectoryName(file)!);
+                    return Parse(script, dist, file[..(file.LastIndexOf('/') + 1)]);
                 }
             }
         }
@@ -75,7 +68,7 @@ public static partial class WorkingMarkSheets
         return null;
     }
 
-    private static Dictionary<string, MarkSheet>? Parse(string script, string folder)
+    private static Dictionary<string, MarkSheet>? Parse(string script, IonDist dist, string folder)
     {
         // "think.loop":{frames:110,speed:33.3333,seams:[54],rest:95}, and grow:{...} without quotes.
         var info = new Dictionary<string, (int Frames, double Speed, int[] Seams)>(StringComparer.Ordinal);
@@ -110,7 +103,7 @@ public static partial class WorkingMarkSheets
                 continue;
             }
 
-            if (urls.TryGetValue(entry.Groups[2].Value, out var url) && Load(url, folder) is { } strip)
+            if (urls.TryGetValue(entry.Groups[2].Value, out var url) && Load(url, dist, folder) is { } strip)
             {
                 sheets[name] = new MarkSheet(strip, meta.Frames, meta.Speed, meta.Seams);
             }
@@ -125,7 +118,7 @@ public static partial class WorkingMarkSheets
         : name.StartsWith("compose.", StringComparison.Ordinal) ? "quill" + name[7..]
         : name;
 
-    private static Bitmap? Load(string url, string folder)
+    private static Bitmap? Load(string url, IonDist dist, string folder)
     {
         byte[] bytes;
         if (url.StartsWith("data:", StringComparison.Ordinal))
@@ -134,13 +127,13 @@ public static partial class WorkingMarkSheets
         }
         else
         {
-            var file = Path.Combine(folder, Path.GetFileName(url));
-            if (!File.Exists(file))
+            var file = folder + url[(url.LastIndexOf('/') + 1)..];
+            if (!dist.Exists(file))
             {
                 return null;
             }
 
-            bytes = File.ReadAllBytes(file);
+            bytes = dist.Read(file);
         }
 
         using var stream = new MemoryStream(bytes);
