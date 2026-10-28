@@ -124,6 +124,71 @@
           </StackPanel>
         </Border>
 
+        <!-- ============================================================ context -->
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Context" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Context" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <StackPanel Spacing="6" Margin="0,4,0,0">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding ContextPercentText}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" />
+                <TextBlock Grid.Column="1" Text="{Binding ContextAmountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+              </Grid>
+              <c:FillSlider Height="5" Thickness="5"
+                            Maximum="1"
+                            Value="{Binding ContextFraction}"
+                            IsHitTestVisible="False"
+                            TrackBrush="{DynamicResource BarTrackBrush}"
+                            FillBrush="{DynamicResource RingBrush}" />
+              <TextBlock Text="{Binding AgentMeta}"
+                         IsVisible="{Binding HasRun}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeTiny}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- ============================================================ plan usage -->
+        <Border Classes="card usage">
+          <StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+              <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Usage" Click="OnHeaderClick">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="Plan usage" />
+                  <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" ToolTip.Tip="Usage on claude.ai">
+                <c:Icon Size="12" Data="{StaticResource IconArrowRight}" />
+              </Button>
+            </Grid>
+            <StackPanel Margin="0,4,0,0">
+              <c:Skeleton IsActive="{Binding Usage.IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
+              <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="11" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+              <TextBlock Text="{Binding Usage.UnavailableText}"
+                         Classes="muted"
+                         TextWrapping="Wrap"
+                         FontSize="{DynamicResource UiFontSizeSmall}"
+                         IsVisible="{Binding Usage.IsUnavailable}" />
+              <ContentControl Content="{Binding Usage}"
+                              ContentTemplate="{StaticResource UsageStaleTemplate}"
+                              Margin="0,8,0,0"
+                              IsVisible="{Binding Usage.IsStale}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
         <!-- ============================================================ subagents -->
         <Panel IsVisible="{Binding HasSubagents}">
         <Border Classes="card">
@@ -215,71 +280,6 @@
         </Border>
         </Panel>
 
-        <!-- ============================================================ context -->
-        <Border Classes="card">
-          <StackPanel>
-            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Context" Click="OnHeaderClick">
-              <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Context" />
-                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
-              </StackPanel>
-            </Button>
-            <StackPanel Spacing="6" Margin="0,4,0,0">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="{Binding ContextPercentText}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" />
-                <TextBlock Grid.Column="1" Text="{Binding ContextAmountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
-              </Grid>
-              <c:FillSlider Height="5" Thickness="5"
-                            Maximum="1"
-                            Value="{Binding ContextFraction}"
-                            IsHitTestVisible="False"
-                            TrackBrush="{DynamicResource BarTrackBrush}"
-                            FillBrush="{DynamicResource RingBrush}" />
-              <TextBlock Text="{Binding AgentMeta}"
-                         IsVisible="{Binding HasRun}"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         FontSize="{DynamicResource UiFontSizeTiny}" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
-        <!-- ============================================================ plan usage -->
-        <Border Classes="card usage">
-          <StackPanel>
-            <Grid ColumnDefinitions="*,Auto">
-              <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Usage" Click="OnHeaderClick">
-                <StackPanel Orientation="Horizontal" Spacing="4">
-                  <TextBlock Text="Plan usage" />
-                  <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
-                </StackPanel>
-              </Button>
-              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" ToolTip.Tip="Usage on claude.ai">
-                <c:Icon Size="12" Data="{StaticResource IconArrowRight}" />
-              </Button>
-            </Grid>
-            <StackPanel Margin="0,4,0,0">
-              <c:Skeleton IsActive="{Binding Usage.IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
-              <ItemsControl ItemsSource="{Binding Usage.Rows}" IsVisible="{Binding Usage.HasUsage}" ItemTemplate="{StaticResource UsageRowTemplate}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <StackPanel Spacing="11" />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-              </ItemsControl>
-              <TextBlock Text="{Binding Usage.UnavailableText}"
-                         Classes="muted"
-                         TextWrapping="Wrap"
-                         FontSize="{DynamicResource UiFontSizeSmall}"
-                         IsVisible="{Binding Usage.IsUnavailable}" />
-              <ContentControl Content="{Binding Usage}"
-                              ContentTemplate="{StaticResource UsageStaleTemplate}"
-                              Margin="0,8,0,0"
-                              IsVisible="{Binding Usage.IsStale}" />
-            </StackPanel>
-          </StackPanel>
-        </Border>
-
         <!-- ============================================================ MCP servers -->
         <Border Classes="card">
           <StackPanel>
@@ -333,17 +333,17 @@
             <Button Theme="{StaticResource MenuItemButton}" Tag="Project" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Project" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
-            <Button Theme="{StaticResource MenuItemButton}" Tag="Subagents" Click="OnCardToggleClick">
-              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
-            </Button>
-            <Button Theme="{StaticResource MenuItemButton}" Tag="Tasks" Click="OnCardToggleClick">
-              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Background tasks" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
-            </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Context" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Context" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Usage" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Plan usage" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Subagents" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+            </Button>
+            <Button Theme="{StaticResource MenuItemButton}" Tag="Tasks" Click="OnCardToggleClick">
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Background tasks" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Mcp" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="MCP servers" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
