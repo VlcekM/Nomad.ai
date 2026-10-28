@@ -204,6 +204,14 @@ public static class MarkdownRenderer
                 case LinkInline { IsImage: true } image:
                     Append(target, "[" + PlainText(image) + "]", style);
                     break;
+                case LinkInline { IsAutoLink: true } auto when PlainText(auto) is var address && LinkSupport.TrimUrlEnd(address) is var trimmed
+                                                               && trimmed.Length < address.Length && trimmed.Length > 0:
+                    // Markdig's bare autolinks keep a trailing ';' (or the like) that ends the sentence, not the address.
+                    var cut = address[trimmed.Length..];
+                    var url = auto.Url is { } u && u.EndsWith(cut, StringComparison.Ordinal) ? u[..^cut.Length] : auto.Url;
+                    AppendLink(target, links, trimmed, url, style);
+                    Append(target, cut, style);
+                    break;
                 case LinkInline link:
                     AppendLink(target, links, PlainText(link), link.Url, style);
                     break;
@@ -837,29 +845,35 @@ public static partial class LinkSupport
     /// The web addresses in plain text (<c>http://</c>, <c>https://</c>, <c>www.</c>), without the punctuation that
     /// ends a sentence after them or a closing bracket they did not open.
     /// </summary>
+    public static string TrimUrlEnd(string url)
+    {
+        while (url.Length > 0)
+        {
+            var last = url[^1];
+            var unopened = last switch
+            {
+                ')' => url.Count(c => c == ')') > url.Count(c => c == '('),
+                ']' => url.Count(c => c == ']') > url.Count(c => c == '['),
+                '}' => url.Count(c => c == '}') > url.Count(c => c == '{'),
+                _ => false,
+            };
+            if (!unopened && last is not ('.' or ',' or ';' or ':' or '!' or '?' or '*' or '_' or '~'))
+            {
+                return url;
+            }
+
+            url = url[..^1];
+        }
+
+        return url;
+    }
+
+    /// <summary>The web addresses in plain text (see <see cref="TrimUrlEnd"/> for where one ends).</summary>
     public static IEnumerable<(int Start, int Length)> FindUrls(string text)
     {
         foreach (System.Text.RegularExpressions.Match match in BareUrl().Matches(text))
         {
-            var url = match.Value;
-            while (url.Length > 0)
-            {
-                var last = url[^1];
-                var unopened = last switch
-                {
-                    ')' => url.Count(c => c == ')') > url.Count(c => c == '('),
-                    ']' => url.Count(c => c == ']') > url.Count(c => c == '['),
-                    '}' => url.Count(c => c == '}') > url.Count(c => c == '{'),
-                    _ => false,
-                };
-                if (!unopened && last is not ('.' or ',' or ';' or ':' or '!' or '?' or '*' or '_' or '~'))
-                {
-                    break;
-                }
-
-                url = url[..^1];
-            }
-
+            var url = TrimUrlEnd(match.Value);
             if (url.Length > (url.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? 4 : url.IndexOf("://", StringComparison.Ordinal) + 3))
             {
                 yield return (match.Index, url.Length);
