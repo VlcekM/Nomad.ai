@@ -7,13 +7,19 @@ using Nomad.Core.Settings;
 
 namespace Nomad.App.Infrastructure;
 
-/// <summary>A palette token a theme can recolor ("BgMain" for BgMainBrush and BgMainColor), as the editor lists it.</summary>
+/// <summary>A base color a theme can set ("BgMain" for BgMainBrush and BgMainColor), as the editor lists it.</summary>
 public sealed record ThemeToken(string Key, string Group, string Label);
 
 /// <summary>
 /// Color themes. The built-in one, Nomad, is Theme/Palette.axaml itself and can be neither changed nor deleted. A
 /// custom theme is laid over it as one more merged dictionary, with the dark and light colors it sets; whatever it
 /// leaves out falls through to the palette.
+/// <para>
+/// A theme sets only a few base colors (<see cref="Tokens"/>); the palette's other tokens follow them. Each of those
+/// sits between two base colors (a button between the raised surface and the text, say) at the spot the palette puts
+/// it, and moves with them by as much as that spot does. With Nomad's own base colors it is exactly the palette's, and
+/// under any theme every surface, line and state keeps a shade of its own.
+/// </para>
 /// </summary>
 public static class Themes
 {
@@ -31,16 +37,89 @@ public static class Themes
         ["TextSecondary"] = ["ComboBoxDropDownGlyphForeground"],
     };
 
-    private static readonly string[] ControlTokens =
-        ["BarTrack", "RingTrack", "Skeleton", "SliderTick", "SwitchOff", "ScrollThumb", "ScrollThumbHover", "Pace"];
+    // The palette tokens that follow the base colors, each with the two it sits between (the same one twice: it
+    // shifts with that color and keeps its own alpha). Tokens left out (the dim overlay, the caption's close hover)
+    // stay Nomad's under any theme.
+    private static readonly Dictionary<string, (string From, string To)> Followers = new()
+    {
+        ["BgHover"] = ("TextPrimary", "TextPrimary"),
+        ["BgPressed"] = ("TextPrimary", "TextPrimary"),
+        ["BgSearch"] = ("BgInput", "BgMain"),
+        ["BgCode"] = ("BgMain", "BgRaised"),
+        ["BgChip"] = ("BgRaised", "TextPrimary"),
+        ["BgMenu"] = ("BgInput", "BgInput"),
+        ["BgButton"] = ("BgRaised", "TextPrimary"),
+        ["BgButtonHover"] = ("BgRaised", "TextPrimary"),
+        ["BgSegments"] = ("BgMain", "TextPrimary"),
+        ["BgSegmentChecked"] = ("BgInput", "TextPrimary"),
+        ["BgNavSelected"] = ("BgSelected", "TextPrimary"),
+        ["BgField"] = ("BgInput", "BgInput"),
+        ["BgSettings"] = ("BgMain", "TextPrimary"),
+        ["BorderInput"] = ("Border", "TextPrimary"),
+        ["BorderCard"] = ("Border", "BgMain"),
+        ["BorderDivider"] = ("Border", "BgMain"),
+        ["BorderSubtle"] = ("TextPrimary", "TextPrimary"),
+        ["BorderField"] = ("Border", "TextPrimary"),
+        ["BorderSettings"] = ("Border", "BgMain"),
+        ["InlineCodeBorder"] = ("Border", "TextPrimary"),
+        ["TextChrome"] = ("TextPrimary", "TextMuted"),
+        ["TextSecondary"] = ("TextPrimary", "TextMuted"),
+        ["TextNav"] = ("TextPrimary", "TextMuted"),
+        ["TextOnAccent"] = ("BgMain", "BgMain"),
+        ["TextCaret"] = ("TextPrimary", "TextPrimary"),
+        ["TextSelection"] = ("Ring", "Ring"),
+        ["AccentEmphasis"] = ("Accent", "BgMain"),
+        ["AccentSubtle"] = ("Accent", "Accent"),
+        ["InlineCode"] = ("Accent", "TextPrimary"),
+        ["DiffAdd"] = ("Success", "TextPrimary"),
+        ["DiffAddBg"] = ("Success", "BgMain"),
+        ["DiffDel"] = ("Danger", "TextPrimary"),
+        ["DiffDelBg"] = ("Danger", "BgMain"),
+        ["DangerSubtle"] = ("Danger", "Danger"),
+        ["Link"] = ("Ring", "TextPrimary"),
+        ["LinkSubtle"] = ("Ring", "Ring"),
+        ["Unread"] = ("Ring", "Ring"),
+        ["Check"] = ("Ring", "Ring"),
+        ["Pace"] = ("Ring", "Ring"),
+        ["BarTrack"] = ("BgRaised", "TextPrimary"),
+        ["SwitchOff"] = ("BgRaised", "TextPrimary"),
+        ["RingTrack"] = ("TextPrimary", "TextPrimary"),
+        ["Skeleton"] = ("TextPrimary", "TextPrimary"),
+        ["SliderTick"] = ("TextPrimary", "TextPrimary"),
+        ["ScrollThumb"] = ("TextPrimary", "TextPrimary"),
+        ["ScrollThumbHover"] = ("TextPrimary", "TextPrimary"),
+        ["JumpFill"] = ("BgRaised", "TextPrimary"),
+        ["JumpEdge"] = ("Border", "TextPrimary"),
+        ["JumpArrow"] = ("TextPrimary", "TextMuted"),
+        ["ShimmerBase"] = ("TextMuted", "TextPrimary"),
+        ["ShimmerHighlight"] = ("TextPrimary", "TextPrimary"),
+        ["GhOpen"] = ("Success", "TextPrimary"),
+        ["GhClosed"] = ("Danger", "TextPrimary"),
+        ["GhNeutral"] = ("TextMuted", "TextMuted"),
+    };
 
     private static ResourceDictionary? _overlay;
-    private static IReadOnlyList<ThemeToken>? _tokens;
 
     public static string Folder => Path.Combine(Path.GetDirectoryName(Program.SettingsPath)!, "themes");
 
-    /// <summary>Every token, in the palette's order, grouped as the editor shows them.</summary>
-    public static IReadOnlyList<ThemeToken> Tokens => _tokens is { Count: > 0 } ? _tokens : _tokens = ReadTokens();
+    /// <summary>The base colors a theme sets, grouped as the editor shows them.</summary>
+    public static IReadOnlyList<ThemeToken> Tokens { get; } =
+    [
+        new("BgSidebar", "Surfaces", "Sidebar"),
+        new("BgMain", "Surfaces", "Background"),
+        new("BgRaised", "Surfaces", "Raised"),
+        new("BgInput", "Surfaces", "Input and menus"),
+        new("BgSelected", "Surfaces", "Selected"),
+        new("Border", "Lines and text", "Border"),
+        new("TextPrimary", "Lines and text", "Text"),
+        new("TextMuted", "Lines and text", "Muted text"),
+        new("Accent", "Accents and states", "Accent"),
+        new("Ring", "Accents and states", "Focus"),
+        new("Success", "Accents and states", "Success"),
+        new("Waiting", "Accents and states", "Waiting"),
+        new("Danger", "Accents and states", "Danger"),
+        new("GhMerged", "Accents and states", "Merged"),
+    ];
 
     /// <summary>The built-in color of a token in a mode.</summary>
     public static Color DefaultColor(string token, ThemeVariant variant) =>
@@ -90,8 +169,8 @@ public static class Themes
         }
 
         var overlay = new ResourceDictionary();
-        overlay.ThemeDictionaries[ThemeVariant.Dark] = Variant(theme.Dark);
-        overlay.ThemeDictionaries[ThemeVariant.Light] = Variant(theme.Light);
+        overlay.ThemeDictionaries[ThemeVariant.Dark] = Variant(theme.Dark, ThemeVariant.Dark);
+        overlay.ThemeDictionaries[ThemeVariant.Light] = Variant(theme.Light, ThemeVariant.Light);
         var index = _overlay is null ? -1 : merged.IndexOf(_overlay);
         if (index >= 0)
         {
@@ -125,32 +204,70 @@ public static class Themes
 
     public static string Hex(Color c) => c.A == 255 ? $"#{c.R:X2}{c.G:X2}{c.B:X2}" : $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
-    private static ResourceDictionary Variant(Dictionary<string, string> colors)
+    // One mode of a theme: its base colors, and the tokens that follow the ones it changed. Colors of tokens that
+    // aren't base colors (from themes saved before there were base colors) are left out.
+    private static ResourceDictionary Variant(Dictionary<string, string> colors, ThemeVariant variant)
     {
         var dictionary = new ResourceDictionary();
-        foreach (var (token, text) in colors)
+        var moved = new Dictionary<string, (int R, int G, int B)>();
+        foreach (var token in Tokens)
         {
-            if (!TryParse(text, out var color) || !Tokens.Any(t => t.Key == token))
+            var @default = DefaultColor(token.Key, variant);
+            var color = TryParse(colors.GetValueOrDefault(token.Key), out var own) ? own : @default;
+            moved[token.Key] = (color.R - @default.R, color.G - @default.G, color.B - @default.B);
+            if (color != @default)
+            {
+                Set(dictionary, token.Key, color);
+            }
+        }
+
+        foreach (var (token, (from, to)) in Followers)
+        {
+            var (a, b) = (moved[from], moved[to]);
+            if (a == default && b == default)
             {
                 continue;
             }
 
-            dictionary[token + "Brush"] = new SolidColorBrush(color);
-            dictionary[token + "Color"] = color;
-            if (token == "BgMain")
-            {
-                dictionary["BgMainClearBrush"] = new SolidColorBrush(Color.FromArgb(0, color.R, color.G, color.B));
-                dictionary["BgMainClearColor"] = Color.FromArgb(0, color.R, color.G, color.B);
-            }
-
-            foreach (var key in Derived.GetValueOrDefault(token, []))
-            {
-                dictionary[key] = new SolidColorBrush(color);
-            }
+            // How far along the line from one base color to the other the palette puts the token, and so how much of
+            // each one's move it takes.
+            var c = DefaultColor(token, variant);
+            var at = Along(c, DefaultColor(from, variant), DefaultColor(to, variant));
+            Set(dictionary, token, Color.FromArgb(c.A,
+                Channel(c.R + a.R + (b.R - a.R) * at),
+                Channel(c.G + a.G + (b.G - a.G) * at),
+                Channel(c.B + a.B + (b.B - a.B) * at)));
         }
 
         return dictionary;
     }
+
+    private static void Set(ResourceDictionary dictionary, string token, Color color)
+    {
+        dictionary[token + "Brush"] = new SolidColorBrush(color);
+        dictionary[token + "Color"] = color;
+        if (token == "BgMain")
+        {
+            dictionary["BgMainClearBrush"] = new SolidColorBrush(Color.FromArgb(0, color.R, color.G, color.B));
+            dictionary["BgMainClearColor"] = Color.FromArgb(0, color.R, color.G, color.B);
+        }
+
+        foreach (var key in Derived.GetValueOrDefault(token, []))
+        {
+            dictionary[key] = new SolidColorBrush(color);
+        }
+    }
+
+    // The point nearest c on the line from a to b, as a fraction of the way (0 when a and b are one color). Kept
+    // near the segment, so a token close to neither end doesn't take a magnified share of their moves.
+    private static double Along(Color c, Color a, Color b)
+    {
+        double dr = b.R - a.R, dg = b.G - a.G, db = b.B - a.B;
+        var length = dr * dr + dg * dg + db * db;
+        return length == 0 ? 0 : Math.Clamp(((c.R - a.R) * dr + (c.G - a.G) * dg + (c.B - a.B) * db) / length, -1, 2);
+    }
+
+    private static byte Channel(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
 
     private static IResourceProvider? Palette(ThemeVariant variant)
     {
@@ -161,47 +278,5 @@ public static class Themes
             .OfType<ResourceDictionary>()
             .FirstOrDefault(d => !ReferenceEquals(d, _overlay) && d.ThemeDictionaries.Count > 0);
         return palette?.ThemeDictionaries.TryGetValue(variant, out var provider) == true ? provider : null;
-    }
-
-    private static IReadOnlyList<ThemeToken> ReadTokens()
-    {
-        if (Palette(ThemeVariant.Dark) is not ResourceDictionary dark)
-        {
-            return [];
-        }
-
-        var derived = Derived.Values.SelectMany(k => k).ToHashSet();
-        return dark.Keys.OfType<string>()
-            .Where(k => k.EndsWith("Brush", StringComparison.Ordinal) && k != "BgMainClearBrush" && !derived.Contains(k))
-            .Select(k => k[..^"Brush".Length])
-            .Select(k => new ThemeToken(k, GroupOf(k), LabelOf(k)))
-            .OrderBy(t => Array.IndexOf(Groups, t.Group))
-            .ToList();
-    }
-
-    private static readonly string[] Groups = ["Surfaces", "Lines", "Text", "Accents and states", "Controls", "GitHub"];
-
-    private static string GroupOf(string token) => token switch
-    {
-        _ when token.StartsWith("Bg", StringComparison.Ordinal) => "Surfaces",
-        _ when token.StartsWith("Border", StringComparison.Ordinal) || token == "InlineCodeBorder" => "Lines",
-        _ when token.StartsWith("Text", StringComparison.Ordinal) => "Text",
-        _ when token.StartsWith("Gh", StringComparison.Ordinal) => "GitHub",
-        _ when ControlTokens.Contains(token) || token.StartsWith("Jump", StringComparison.Ordinal) || token.StartsWith("Shimmer", StringComparison.Ordinal) => "Controls",
-        _ => "Accents and states",
-    };
-
-    // "BgNavSelected" → "Nav selected", "DiffAddBg" → "Diff add background", "Border" → "Border".
-    private static string LabelOf(string token)
-    {
-        var words = System.Text.RegularExpressions.Regex.Split(token, "(?<=[a-z])(?=[A-Z])").ToList();
-        if (words.Count > 1 && words[0] is "Bg" or "Border" or "Text" or "Gh")
-        {
-            words.RemoveAt(0);
-        }
-
-        words = words.Select(w => w == "Bg" ? "background" : w.ToLowerInvariant()).ToList();
-        var label = string.Join(' ', words);
-        return char.ToUpperInvariant(label[0]) + label[1..];
     }
 }

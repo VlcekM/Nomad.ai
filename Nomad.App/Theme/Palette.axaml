@@ -5,6 +5,7 @@
     app (docs/reference, 1920x1080 at 100 %); where DESIGN.md's estimates differ, the screenshots win. Light: the
     same roles on Claude's warm paper tones. The accent is a copper of its own, a little off Claude's terracotta.
     Everything that depends on the theme is looked up with DynamicResource, so a theme switch applies at once.
+    A custom theme sets only the 14 base colors in Infrastructure/Themes.cs; the other tokens here follow them.
   -->
   <ResourceDictionary.ThemeDictionaries>
     <ResourceDictionary x:Key="Dark">
