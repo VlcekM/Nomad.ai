@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.15.2
+
+- A right-click in the prompt box opens Cut, Copy, Paste and Select all; Paste attaches images like Ctrl+V.
+- The sidebar's working spinner is a little larger.
+
 ## v1.15.1
 
 - The Claude app's fonts are found again with Claude 4.29 and later, which packs its web bundle into an archive.
