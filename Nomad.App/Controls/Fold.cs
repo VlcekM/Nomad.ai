@@ -17,6 +17,11 @@ public static class Fold
     private const double DurationMs = 200;
     private const double Slide = 4;
 
+    // A frame longer than this (rows being built as a list unfolds) counts as one ordinary frame, so the fold pauses
+    // through the stall instead of jumping most of the way in a single frame.
+    private static readonly TimeSpan LongFrame = TimeSpan.FromMilliseconds(50);
+    private static readonly TimeSpan Frame = TimeSpan.FromMilliseconds(16);
+
     private sealed class Run
     {
         public bool Open;
@@ -24,6 +29,7 @@ public static class Fold
         public double ToHeight;
         public double FromOpacity;
         public TimeSpan? Start;
+        public TimeSpan Last;
     }
 
     private static readonly Dictionary<Control, Run> Runs = [];
@@ -80,6 +86,12 @@ public static class Fold
         }
 
         run.Start ??= time;
+        if (time - run.Last > LongFrame && run.Last > TimeSpan.Zero)
+        {
+            run.Start += time - run.Last - Frame;
+        }
+
+        run.Last = time;
         var progress = Math.Clamp((time - run.Start.Value).TotalMilliseconds / DurationMs, 0, 1);
         var eased = 1 - Math.Pow(1 - progress, 3);
 
