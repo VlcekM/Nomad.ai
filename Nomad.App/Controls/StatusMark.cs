@@ -45,8 +45,8 @@ public sealed class StatusMark : Control
     private static readonly TimeSpan SpinPeriod = TimeSpan.FromMilliseconds(900);
     private static readonly TimeSpan OrbitPeriod = TimeSpan.FromMilliseconds(1600);
     private const double DotSize = 6;
-    private const double SpinnerSize = 10;
-    private const double SpinnerStroke = 1.6;
+    private const double SpinnerSize = 13;
+    private const double SpinnerStroke = 1.8;
 
     private readonly DateTime _start = DateTime.UtcNow;
     private DispatcherTimer? _timer;
@@ -81,7 +81,7 @@ public sealed class StatusMark : Control
     }
 
 
-    protected override Size MeasureOverride(Size availableSize) => new(12, 12);
+    protected override Size MeasureOverride(Size availableSize) => new(14, 14);
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {

@@ -423,7 +423,7 @@
                   </StackPanel>
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
                   <c:StatusMark Grid.Column="3"
-                                Margin="10,0,1,0"
+                                Margin="9,0,0,0"
                                 VerticalAlignment="Center"
                                 Mark="{Binding Mark}"
                                 WorkingBrush="{DynamicResource AccentBrush}"
