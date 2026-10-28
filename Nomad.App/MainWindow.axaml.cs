@@ -31,6 +31,16 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+
+        // A debug run (--dev-*) says so in the taskbar too: its own title and a gold tent.
+        if (Program.IsDebugRun)
+        {
+            Title = "Nomad.ai (DEBUG)";
+            if (Infrastructure.DebugIcon.Create() is { } icon)
+            {
+                Icon = icon;
+            }
+        }
         HookGitGlide();
 
         // A session done or waiting while the window is in the background: a notification and/or a flashing taskbar button.
