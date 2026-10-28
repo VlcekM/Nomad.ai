@@ -944,10 +944,8 @@ public partial class SessionView : UserControl
         }, DispatcherPriority.Loaded);
     }
 
-    private IDisposable? _sendInstantlyDelay;
-
     /// <summary>
-    /// Ctrl held on its own while Claude works: after a moment "Send instantly" slides out of the send button. Any
+    /// Ctrl pressed while Claude works: "Send instantly" slides out of the send button. Any
     /// other key (a shortcut, Enter sending) takes it away again.
     /// </summary>
     private void OnComposerCtrlDown(object? sender, KeyEventArgs e)
@@ -958,20 +956,11 @@ public partial class SessionView : UserControl
             return;
         }
 
-        if (_sendInstantlyDelay is null && SendInstantlyLabel.Opacity == 0)
-        {
-            _sendInstantlyDelay = DispatcherTimer.RunOnce(() =>
-            {
-                _sendInstantlyDelay = null;
-                ShowSendInstantly(Vm is { IsTurnRunning: true, ShowSendButton: true });
-            }, TimeSpan.FromMilliseconds(150));
-        }
+        ShowSendInstantly(Vm is { IsTurnRunning: true, ShowSendButton: true });
     }
 
     private void ShowSendInstantly(bool show)
     {
-        _sendInstantlyDelay?.Dispose();
-        _sendInstantlyDelay = null;
         var width = 0.0;
         if (show && SendInstantlyLabel.Child is { } text)
         {

@@ -1387,8 +1387,8 @@
                 <Border Name="SendInstantlyLabel" Width="0" Opacity="0" ClipToBounds="True">
                   <Border.Transitions>
                     <Transitions>
-                      <DoubleTransition Property="Width" Duration="0:0:0.3" Easing="CubicEaseOut" />
-                      <DoubleTransition Property="Opacity" Duration="0:0:0.3" Easing="CubicEaseOut" />
+                      <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                      <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
                     </Transitions>
                   </Border.Transitions>
                   <TextBlock Text="Send instantly" FontSize="{DynamicResource UiFontSizeSmall}" Margin="10,0,0,0" VerticalAlignment="Center" />
