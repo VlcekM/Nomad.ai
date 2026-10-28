@@ -22,6 +22,7 @@ public partial class SessionView : UserControl
         InitializeComponent();
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
+        Composer.ContextMenu = BuildComposerMenu();
         Composer.AddHandler(KeyDownEvent, OnComposerCtrlDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         Composer.AddHandler(KeyUpEvent, (_, e) =>
         {
@@ -279,7 +280,51 @@ public partial class SessionView : UserControl
         if (Vm is { HasSuggestion: true } && TakeSuggestion())
         {
             e.Handled = true;
+            return;
         }
+
+        // Tunnels in before the menu opens, so its items show what applies right now.
+        if (Composer.ContextMenu is { } menu)
+        {
+            var items = menu.Items.OfType<MenuItem>().ToList();
+            items[0].IsEnabled = Composer.CanCut;
+            items[1].IsEnabled = Composer.CanCopy;
+            items[2].IsEnabled = Composer.CanPaste;
+            items[3].IsEnabled = !string.IsNullOrEmpty(Composer.Text);
+        }
+    }
+
+    // The composer's theme has no edit menu of its own. Paste attaches images like Ctrl+V does.
+    private ContextMenu BuildComposerMenu()
+    {
+        MenuItem Item(string header, string gesture, Action action)
+        {
+            var item = new MenuItem { Header = header, InputGesture = KeyGesture.Parse(gesture) };
+            item.Click += (_, _) =>
+            {
+                Composer.Focus();
+                action();
+            };
+            return item;
+        }
+
+        var menu = new ContextMenu();
+        menu.Items.Add(Item("Cut", "Ctrl+X", Composer.Cut));
+        menu.Items.Add(Item("Copy", "Ctrl+C", Composer.Copy));
+        menu.Items.Add(Item("Paste", "Ctrl+V", () =>
+        {
+            if (Infrastructure.PromptImages.FromClipboard() is { Count: > 0 } images)
+            {
+                Vm?.AddAttachments(images);
+            }
+            else
+            {
+                Composer.Paste();
+            }
+        }));
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Select all", "Ctrl+A", Composer.SelectAll));
+        return menu;
     }
 
     private void OnComposerKeyDown(object? sender, KeyEventArgs e)
@@ -444,6 +489,15 @@ public partial class SessionView : UserControl
     {
         switch (name)
         {
+            case "composer":
+                // Asked for as a right-click asks, so the items' enabled states are set.
+                Composer.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent, Source = Composer });
+                if (Composer.ContextMenu is { IsOpen: false } composerMenu)
+                {
+                    composerMenu.Open(Composer);
+                }
+
+                break;
             case "model":
                 ModelChip.Flyout?.ShowAt(ModelChip);
                 break;
