@@ -637,8 +637,47 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowSidePanel))]
     public partial bool IsSidePanelOpen { get; set; }
 
-    /// <summary>The side panel is shown: open, and not on the new-session page (it slides in once the session starts).</summary>
-    public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew;
+    /// <summary>
+    /// The side panel is shown: open, and not on the new-session page (it slides in once the session starts) nor
+    /// in the Files view (whose tree may be on the same side).
+    /// </summary>
+    public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew && !Current.IsFilesView;
+
+    /// <summary>In the Files view, the tree is on the right and the file on the left; off, the other way round.</summary>
+    public bool FileTreeOnRight
+    {
+        get => Settings.FileTreeOnRight;
+        set
+        {
+            if (Settings.FileTreeOnRight != value)
+            {
+                Settings.FileTreeOnRight = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnFileTreeSideChanged();
+                }
+            }
+        }
+    }
+
+    public const double DefaultFileTreeWidth = 280;
+
+    /// <summary>The Files view's tree width (its inner edge drags it).</summary>
+    public double FileTreeWidth
+    {
+        get => Math.Clamp(Settings.FileTreeWidth, 180, 720);
+        set
+        {
+            value = Math.Clamp(Math.Round(value), 180, 720);
+            if (Math.Abs(Settings.FileTreeWidth - value) > 0.1)
+            {
+                Settings.FileTreeWidth = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     partial void OnIsSidePanelOpenChanged(bool value)
     {
@@ -783,6 +822,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void OnCurrentPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(SessionViewModel.IsFilesView))
+        {
+            OnPropertyChanged(nameof(ShowSidePanel));
+        }
+
         if (e.PropertyName == nameof(SessionViewModel.IsNew))
         {
             OnPropertyChanged(nameof(IsNewSelected));

@@ -408,6 +408,20 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Folder tree on the right" Classes="rowlabel" />
+                  <TextBlock Text="In a chat's Files view, the folder tree is on the right and the open file on the left. Off: the other way round."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFileTreeOnRightCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding FileTreeOnRight}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Compact model picker" Classes="rowlabel" />
                   <TextBlock Text="The status row shows only the current model. The other models and the effort slider are in its menu."
                              Classes="rowhint" />

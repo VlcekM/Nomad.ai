@@ -157,6 +157,12 @@ public sealed class NomadSettings
     /// <summary>The side panel's width, dragged at its left edge (240–560).</summary>
     public double SidePanelWidth { get; set; } = 296;
 
+    /// <summary>In a chat's Files view, the folder tree is on the right and the open file on the left; off, swapped.</summary>
+    public bool FileTreeOnRight { get; set; } = true;
+
+    /// <summary>The Files view's tree width, dragged at its inner edge (180–720).</summary>
+    public double FileTreeWidth { get; set; } = 280;
+
     /// <summary>Side panel cards turned off in its menu ("Project", "Subagents", "Tasks", "Context", "Usage", "Mcp").</summary>
     public List<string> HiddenPanelCards { get; set; } = [];
     public List<string> RecentFolders { get; set; } = [];

@@ -163,6 +163,11 @@ public partial class MainWindow : Window
                 vm.ToggleSidePanel();
                 e.Handled = true;
             }
+            else if (e.Key == Key.E && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+            {
+                vm.Current.ToggleFilesView();
+                e.Handled = true;
+            }
 
             // Ctrl+1…9 opens the sidebar's rows top to bottom; holding Ctrl shows their numbers.
             if (e.KeyModifiers == KeyModifiers.Control && e.Key is >= Key.D1 and <= Key.D9 or >= Key.NumPad1 and <= Key.NumPad9)
@@ -1133,6 +1138,19 @@ public partial class MainWindow : Window
                     view.FindText = find;
                 }
             }, TimeSpan.FromSeconds(2));
+        }
+
+        if (dev.Files)
+        {
+            DispatcherTimer.RunOnce(() =>
+            {
+                var session = _vm.Current;
+                session.IsFilesView = session.HasFolder;
+                if (dev.FilesOpen is { } open && session.Folder is { } folder)
+                {
+                    _ = session.Files.RevealAsync(Path.GetFullPath(Path.Combine(folder, open)));
+                }
+            }, TimeSpan.FromSeconds(1.5));
         }
 
         if (dev.Compose is { } compose)

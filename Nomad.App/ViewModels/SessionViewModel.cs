@@ -50,6 +50,7 @@ public sealed partial class SessionViewModel : ObservableObject
         PermissionMode = main.Settings.DefaultPermissionMode;
         Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
+        Files.SetFolder(Folder);
 
         foreach (var m in Catalog.Models)
         {
@@ -453,6 +454,12 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsNoFolder));
         SyncFolderSelection();
+        Files.SetFolder(value);
+        if (value is null)
+        {
+            IsFilesView = false;
+        }
+
         if (IsNew)
         {
             WorktreeFrom = null;
@@ -949,6 +956,28 @@ public sealed partial class SessionViewModel : ObservableObject
     public bool ShowUsageRing => _main.ShowUsageRing;
 
     public void OnShowUsageRingChanged() => OnPropertyChanged(nameof(ShowUsageRing));
+
+    // ------------------------------------------------------------------ files view
+
+    /// <summary>The folder's files and the one picked among them.</summary>
+    public FilesViewModel Files { get; } = new();
+
+    /// <summary>The Files view instead of the chat (the switch in the middle of the title bar, Ctrl+Shift+E).</summary>
+    [ObservableProperty]
+    public partial bool IsFilesView { get; set; }
+
+    [RelayCommand]
+    private void ShowChat() => IsFilesView = false;
+
+    [RelayCommand]
+    private void ShowFiles() => IsFilesView = HasFolder;
+
+    public void ToggleFilesView() => IsFilesView = !IsFilesView && HasFolder;
+
+    /// <summary>The Files view has the tree on the right and the file on the left (a setting); off, the other way round.</summary>
+    public bool FileTreeOnRight => _main.FileTreeOnRight;
+
+    public void OnFileTreeSideChanged() => OnPropertyChanged(nameof(FileTreeOnRight));
 
     public bool CompactModelPicker => _main.CompactModelPicker;
 

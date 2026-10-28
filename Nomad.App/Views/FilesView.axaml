@@ -1,0 +1,90 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:c="using:Nomad.App.Controls"
+             xmlns:ide="using:Nomad.App.Ide"
+             x:Class="Nomad.App.Views.FilesView"
+             x:DataType="vm:SessionViewModel">
+
+  <!-- A chat's Files view (the title bar's switch): the open file on one side, the folder's tree on the other
+       (right by default, a setting swaps them). The tree's inner edge drags its width. -->
+  <Grid Name="Layout" ColumnDefinitions="Auto,*,Auto">
+
+    <!-- The file: for now its plain text, until the code view comes. -->
+    <Panel Grid.Column="1">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsVisible="{Binding !Files.HasOpenFile}">
+        <c:Icon Size="22" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" />
+        <TextBlock Text="Pick a file in the tree" Classes="muted" HorizontalAlignment="Center" />
+      </StackPanel>
+
+      <DockPanel Name="FilePane" IsVisible="{Binding Files.HasOpenFile}">
+        <Border DockPanel.Dock="Top" Height="34" Padding="18,0" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
+          <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" ToolTip.Tip="{Binding Files.OpenFile}">
+            <c:Icon Size="14" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="{Binding Files.OpenFileFolder}"
+                       Classes="muted"
+                       MaxWidth="420"
+                       TextTrimming="CharacterEllipsis"
+                       IsVisible="{Binding Files.OpenFileFolder, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="/"
+                       Classes="muted"
+                       IsVisible="{Binding Files.OpenFileFolder, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Files.OpenFileName}" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Files.PreviewNote}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding Files.HasPreviewNote}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <ScrollViewer Name="FileScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <SelectableTextBlock Name="FileText"
+                               Text="{Binding Files.PreviewText}"
+                               FontFamily="{DynamicResource MonoFont}"
+                               FontSize="{DynamicResource CodeFontSize}"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               SelectionBrush="{DynamicResource TextSelectionBrush}"
+                               LineHeight="20"
+                               Margin="18,12,18,24" />
+        </ScrollViewer>
+      </DockPanel>
+    </Panel>
+
+    <!-- The tree. -->
+    <Border Name="TreePane"
+            Grid.Column="2"
+            Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).FileTreeWidth}"
+            Background="{DynamicResource BgSidebarBrush}"
+            BorderBrush="{DynamicResource BorderBrush}"
+            BorderThickness="1,0,0,0">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top"
+                   Text="{Binding FolderName}"
+                   ToolTip.Tip="{Binding Folder}"
+                   Classes="muted"
+                   FontSize="{DynamicResource UiFontSizeSmall}"
+                   FontWeight="Medium"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="16,10,16,0" />
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <ide:FileTreeView Name="Tree"
+                            Tree="{Binding Files.Tree}"
+                            OpenFile="{Binding Files.OpenFile}"
+                            TextElement.FontSize="{DynamicResource UiFontSize}"
+                            TextElement.FontFamily="{DynamicResource UiFont}" />
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- The tree's inner edge: drag to resize it, double-click for the default width. -->
+    <Border Name="TreeGrip"
+            Grid.Column="2"
+            Classes="resizegrip"
+            Margin="-4,0,0,0"
+            HorizontalAlignment="Left"
+            PointerPressed="OnGripPressed"
+            PointerMoved="OnGripMoved"
+            PointerReleased="OnGripReleased"
+            PointerCaptureLost="OnGripCaptureLost">
+      <Border Name="TreeGripLine" HorizontalAlignment="Left" Margin="3,0,0,0" />
+    </Border>
+  </Grid>
+</UserControl>

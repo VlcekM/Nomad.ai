@@ -28,7 +28,7 @@ dotnet build Nomad.App -o <scratch>\build
 Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/DevOptions.cs`):
 
 - `--dev-menu model|mode|folder|branch|plus|usage|remote` opens a status-row menu first (`list` / `alivelist` the Idle / Alive list options, `row` an Idle row's context menu, `group` a folder heading's, `composer` the composer's edit menu); `--dev-settings-open` the settings;
-  `--dev-side-panel` the right-hand panel.
+  `--dev-side-panel` the right-hand panel; `--dev-files [path]` a chat's Files view, with that file open.
 - `--dev-compose "/co"` types into the composer, `--dev-paste-image <file>` attaches an image or file, and
   `--dev-drag x1,y1,x2,y2 <seconds>` drags the mouse inside the window (clicks, text selection; add
   `--dev-drag-ctrl` for a Ctrl+click).

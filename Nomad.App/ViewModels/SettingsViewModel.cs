@@ -59,6 +59,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
         ShowUsageRing = s.ShowUsageRing;
+        FileTreeOnRight = s.FileTreeOnRight;
         CompactModelPicker = s.CompactModelPicker;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
@@ -314,6 +315,20 @@ public sealed partial class SettingsViewModel : ObservableObject
         if (_loaded)
         {
             _main.ShowUsageRing = value;
+        }
+    }
+
+    [ObservableProperty]
+    public partial bool FileTreeOnRight { get; set; }
+
+    [RelayCommand]
+    private void ToggleFileTreeOnRight() => FileTreeOnRight = !FileTreeOnRight;
+
+    partial void OnFileTreeOnRightChanged(bool value)
+    {
+        if (_loaded)
+        {
+            _main.FileTreeOnRight = value;
         }
     }
 
