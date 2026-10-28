@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.15.0
+
+- Color themes come down to 14 base colors; every other shade (hovers, chips, buttons, lines, secondary text) follows
+  them, so a theme stays coherent while setting far fewer. Colors of older themes besides those 14 are no longer read.
+- Clicking a color's swatch in the theme editor opens a picker with hue, shade and opacity.
+- Built-in theme presets: Nomad Ocean, Forest, Violet, Rose and Amber (Nomad with other accents), and Nord, Solarized,
+  Gruvbox, Catppuccin and Tokyo Night, each in dark and light. The theme picker shows each theme's colors as dots.
+- The side panel's Subagents and Background tasks cards sit below Plan usage.
+
 ## v1.14.0
 
 - Responses get a Copy button below them, fading in on hover; it copies the turn's final text as Markdown.
