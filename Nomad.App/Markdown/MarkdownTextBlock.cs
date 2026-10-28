@@ -21,7 +21,8 @@ public sealed class MarkdownTextBlock : SelectableTextBlock
     {
         CopyingToClipboard += async (_, e) =>
         {
-            if (SelectedText is { } text && text.Contains(PillGap, StringComparison.Ordinal) && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+            // A selection over several blocks is copied whole by SelectionAssist.
+            if (!Controls.SelectionAssist.IsSpanning(this) && SelectedText is { } text && text.Contains(PillGap, StringComparison.Ordinal) && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
             {
                 e.Handled = true;
                 await clipboard.SetTextAsync(text.Replace(PillGap, "", StringComparison.Ordinal));
