@@ -13,7 +13,7 @@ namespace Nomad.App.Controls;
 /// Browser-like text selection over a panel of <see cref="SelectableTextBlock"/>s: a press beside a block's text (in
 /// the margin to its right, between lines or paragraphs, in a code block's padding) starts a selection in the nearest
 /// block, and a drag (from there or from the text itself) that leaves its block selects across the blocks it passes,
-/// as it would in a browser; copying it copies all of them. Presses on buttons and boxes are left alone.
+/// as it would in a browser; copying it copies all of them. Presses on buttons, boxes and <c>tap</c> targets are left alone.
 /// </summary>
 public static class SelectionAssist
 {
@@ -299,7 +299,8 @@ public static class SelectionAssist
 
     /// <summary>
     /// The text block a press is on (null beside the text), or <paramref name="own"/> for a press that some control
-    /// handles itself: buttons, boxes, scrollbars.
+    /// handles itself: buttons, boxes, scrollbars, and click targets marked with the <c>tap</c> class (whose Tapped
+    /// would never come if this captured the press).
     /// </summary>
     private static SelectableTextBlock? TextTarget(Visual? source, Visual panel, out bool own)
     {
@@ -307,7 +308,7 @@ public static class SelectionAssist
         SelectableTextBlock? text = null;
         for (var visual = source; visual is not null && !ReferenceEquals(visual, panel); visual = visual.GetVisualParent())
         {
-            if (visual is Button or TextBox or ToggleButton or ScrollBar or Thumb)
+            if (visual is Button or TextBox or ToggleButton or ScrollBar or Thumb || visual is StyledElement { Classes: var classes } && classes.Contains("tap"))
             {
                 own = true;
                 return null;

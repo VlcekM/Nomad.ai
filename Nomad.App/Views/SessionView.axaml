@@ -468,7 +468,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="Bitmap">
-                  <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160" Cursor="Hand" Tapped="OnSentImageTapped">
+                  <Border Classes="tap" CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160" Cursor="Hand" Tapped="OnSentImageTapped">
                     <Border.ContextMenu>
                       <ContextMenu>
                         <MenuItem Header="Copy image" Click="OnCopyImageClick" />
@@ -555,7 +555,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="Bitmap">
-              <Border CornerRadius="8" ClipToBounds="True" MaxWidth="560" MaxHeight="400" Cursor="Hand"
+              <Border Classes="tap" CornerRadius="8" ClipToBounds="True" MaxWidth="560" MaxHeight="400" Cursor="Hand"
                       BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1"
                       HorizontalAlignment="Left" Tapped="OnSentImageTapped">
                 <Border.ContextMenu>
@@ -576,7 +576,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="inf:Attachment">
-              <Border Height="40" MaxWidth="280" Padding="9,0,12,0" CornerRadius="7"
+              <Border Classes="tap" Height="40" MaxWidth="280" Padding="9,0,12,0" CornerRadius="7"
                       Background="{DynamicResource BgInputBrush}"
                       BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                       Cursor="Hand" Tapped="OnSentFileTapped"
@@ -603,7 +603,7 @@
 
     <!-- An artifact Claude published: a card that opens it in the browser; right-click copies the link or opens the file. -->
     <DataTemplate DataType="{x:Type vm:ArtifactItem}" x:DataType="vm:ArtifactItem">
-      <Border Classes="artifact" Margin="0,10,0,4" MinHeight="44" MaxWidth="460" Padding="10,7,14,7" CornerRadius="8"
+      <Border Classes="artifact tap" Margin="0,10,0,4" MinHeight="44" MaxWidth="460" Padding="10,7,14,7" CornerRadius="8"
               HorizontalAlignment="Left"
               Background="{DynamicResource BgInputBrush}" BorderThickness="1"
               Cursor="Hand" Tapped="OnArtifactTapped"
@@ -1007,7 +1007,7 @@
           <ItemsControl ItemsSource="{Binding Subagents}" Padding="14,0,10,0">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="vm:SubagentViewModel">
-                <Border Classes="subagentline" Classes.on="{Binding IsRunning}" ClipToBounds="True"
+                <Border Classes="subagentline tap" Classes.on="{Binding IsRunning}" ClipToBounds="True"
                         Background="Transparent" Cursor="Hand" Tapped="OnSubagentLineTapped"
                         ToolTip.Tip="{Binding Description}">
                   <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0" Height="20">
