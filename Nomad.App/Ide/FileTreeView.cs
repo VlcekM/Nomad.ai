@@ -33,6 +33,8 @@ public sealed class FileTreeView : Control
     private const double Box = 16;
     private const double Slide = 4;
 
+    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
+
     // Folders are yellow, as in Explorer: a darker back with its tab, a lighter front that tilts open when expanded.
     private static readonly IBrush FolderBack = new SolidColorBrush(Color.FromRgb(0xC9, 0x95, 0x32));
     private static readonly IBrush FolderFront = new SolidColorBrush(Color.FromRgb(0xF0, 0xC1, 0x55));
@@ -596,6 +598,7 @@ public sealed class FileTreeView : Control
 
         _hover?.Hover.Retarget(0);
         _hover = row;
+        Cursor = row is null ? null : HandCursor;
         _hover?.Hover.Jump(1); // at once under the pointer; only leaving a row fades
         InvalidateVisual();
         Tick();
