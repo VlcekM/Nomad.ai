@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -657,6 +658,41 @@ public sealed partial class MainViewModel : ObservableObject
                 foreach (var session in _open.Values.Append(Current).Distinct())
                 {
                     session.OnFileTreeSideChanged();
+                }
+            }
+        }
+    }
+
+    /// <summary>The key that switches between Chat and Files (Tab unless rebound in the settings).</summary>
+    public KeyGesture? FilesViewGesture
+    {
+        get
+        {
+            try
+            {
+                return string.IsNullOrWhiteSpace(Settings.FilesViewKey) ? null : KeyGesture.Parse(Settings.FilesViewKey);
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+        }
+    }
+
+    public string FilesViewKey
+    {
+        get => Settings.FilesViewKey;
+        set
+        {
+            if (Settings.FilesViewKey != value)
+            {
+                Settings.FilesViewKey = value;
+                SaveSettings();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(FilesViewGesture));
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnFilesViewKeyChanged();
                 }
             }
         }

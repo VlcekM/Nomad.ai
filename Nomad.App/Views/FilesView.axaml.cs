@@ -98,16 +98,16 @@ public partial class FilesView : UserControl
         }
     }
 
-    /// <summary>The tree on the right (its grip on its left edge) or on the left (the grip on its right).</summary>
+    /// <summary>The tree's card on the right (its grip on the card's left edge) or on the left (the grip on its right).</summary>
     private void ApplySide()
     {
         var right = _session?.FileTreeOnRight ?? true;
         var column = right ? 2 : 0;
         Grid.SetColumn(TreePane, column);
         Grid.SetColumn(TreeGrip, column);
-        TreePane.BorderThickness = right ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
+        TreePane.Margin = right ? new Thickness(6, 4, 12, 12) : new Thickness(12, 4, 6, 12);
         TreeGrip.HorizontalAlignment = right ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-        TreeGrip.Margin = right ? new Thickness(-4, 0, 0, 0) : new Thickness(0, 0, -4, 0);
+        TreeGrip.Margin = right ? new Thickness(2, 4, 0, 12) : new Thickness(0, 4, 2, 12);
         TreeGripLine.HorizontalAlignment = right ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         TreeGripLine.Margin = right ? new Thickness(3, 0, 0, 0) : new Thickness(0, 0, 3, 0);
     }

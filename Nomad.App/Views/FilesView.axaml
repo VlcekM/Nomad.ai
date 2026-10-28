@@ -48,22 +48,25 @@
       </DockPanel>
     </Panel>
 
-    <!-- The tree. -->
+    <!-- The tree, on a card like the side panel's. -->
     <Border Name="TreePane"
             Grid.Column="2"
             Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).FileTreeWidth}"
+            Margin="6,4,12,12"
             Background="{DynamicResource BgSidebarBrush}"
-            BorderBrush="{DynamicResource BorderBrush}"
-            BorderThickness="1,0,0,0">
+            BorderBrush="{DynamicResource BorderCardBrush}"
+            BorderThickness="1"
+            CornerRadius="10"
+            ClipToBounds="True">
       <DockPanel>
         <TextBlock DockPanel.Dock="Top"
                    Text="{Binding FolderName}"
                    ToolTip.Tip="{Binding Folder}"
-                   Classes="muted"
+                   Foreground="{DynamicResource TextChromeBrush}"
                    FontSize="{DynamicResource UiFontSizeSmall}"
                    FontWeight="Medium"
                    TextTrimming="CharacterEllipsis"
-                   Margin="16,10,16,0" />
+                   Margin="14,10,14,0" />
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <ide:FileTreeView Name="Tree"
                             Tree="{Binding Files.Tree}"
@@ -74,11 +77,11 @@
       </DockPanel>
     </Border>
 
-    <!-- The tree's inner edge: drag to resize it, double-click for the default width. -->
+    <!-- The card's inner edge: drag to resize it, double-click for the default width. -->
     <Border Name="TreeGrip"
             Grid.Column="2"
             Classes="resizegrip"
-            Margin="-4,0,0,0"
+            Margin="2,4,0,12"
             HorizontalAlignment="Left"
             PointerPressed="OnGripPressed"
             PointerMoved="OnGripMoved"

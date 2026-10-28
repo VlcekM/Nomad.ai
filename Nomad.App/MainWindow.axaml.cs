@@ -31,6 +31,7 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+        LayoutUpdated += (_, _) => UpdateTitleArea();
         HookGitGlide();
 
         // A session done or waiting while the window is in the background: a notification and/or a flashing taskbar button.
@@ -163,7 +164,7 @@ public partial class MainWindow : Window
                 vm.ToggleSidePanel();
                 e.Handled = true;
             }
-            else if (e.Key == Key.E && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift))
+            else if (vm.FilesViewGesture is { } filesKey && filesKey.Matches(e) && FilesKeyApplies(vm, e))
             {
                 vm.Current.ToggleFilesView();
                 e.Handled = true;
@@ -712,6 +713,41 @@ public partial class MainWindow : Window
     private void OnSidePanelGripReleased(object? sender, PointerReleasedEventArgs e) => EndGripDrag(e.Pointer);
 
     private void OnGripCaptureLost(object? sender, PointerCaptureLostEventArgs e) => EndGripDrag(null);
+
+    /// <summary>The session title stops short of the Chat / Files switch in the middle of the window.</summary>
+    private void UpdateTitleArea()
+    {
+        var max = double.PositiveInfinity;
+        if (ViewSwitch.IsVisible && ViewSwitch.TranslatePoint(default, TitleBar) is { } at)
+        {
+            max = Math.Max(0, Math.Floor(at.X) - 12);
+        }
+
+        if (TitleArea.MaxWidth != max)
+        {
+            TitleArea.MaxWidth = max;
+        }
+    }
+
+    /// <summary>
+    /// The Chat / Files key (Tab by default) switches only where it takes nothing away: not in a dialog, not in a text
+    /// box other than the composer, and not while the composer's Tab completes a "/" command or takes a suggestion.
+    /// </summary>
+    private static bool FilesKeyApplies(MainViewModel vm, KeyEventArgs e)
+    {
+        var session = vm.Current;
+        if (!session.CanShowFiles || vm.IsSettingsOpen || vm.Search.IsOpen)
+        {
+            return false;
+        }
+
+        if (e.Source is TextBox box)
+        {
+            return box.Name == "Composer" && !session.IsCommandMenuOpen && !(session.HasSuggestion && e.KeyModifiers == KeyModifiers.None);
+        }
+
+        return true;
+    }
 
     /// <summary>Starts dragging a pane's edge (a double-click resets its width instead).</summary>
     private void BeginGripDrag(PointerPressedEventArgs e, Border grip, Border pane, double offset, Action reset)

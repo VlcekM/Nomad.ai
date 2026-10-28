@@ -60,6 +60,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         FlashTaskbar = s.FlashTaskbar;
         ShowUsageRing = s.ShowUsageRing;
         FileTreeOnRight = s.FileTreeOnRight;
+        FilesViewKey = s.FilesViewKey;
         CompactModelPicker = s.CompactModelPicker;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
@@ -330,6 +331,34 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             _main.FileTreeOnRight = value;
         }
+    }
+
+    /// <summary>The key that switches a chat between Chat and Files, as shown on its button.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilesViewKeyText))]
+    [NotifyPropertyChangedFor(nameof(IsFilesViewKeyChanged))]
+    public partial string FilesViewKey { get; set; } = "Tab";
+
+    /// <summary>Waiting for the key to bind (the button was clicked).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FilesViewKeyText))]
+    public partial bool IsCapturingFilesKey { get; set; }
+
+    public string FilesViewKeyText => IsCapturingFilesKey ? "Press a key…" : string.IsNullOrEmpty(FilesViewKey) ? "None" : FilesViewKey;
+
+    public bool IsFilesViewKeyChanged => FilesViewKey != "Tab";
+
+    [RelayCommand]
+    private void CaptureFilesKey() => IsCapturingFilesKey = !IsCapturingFilesKey;
+
+    [RelayCommand]
+    private void ResetFilesKey() => SetFilesViewKey("Tab");
+
+    public void SetFilesViewKey(string key)
+    {
+        IsCapturingFilesKey = false;
+        FilesViewKey = key;
+        _main.FilesViewKey = key;
     }
 
     [ObservableProperty]

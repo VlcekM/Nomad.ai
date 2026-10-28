@@ -93,6 +93,7 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(GitChipToolTip))]
     [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
     [NotifyPropertyChangedFor(nameof(IsWorktreeSession))]
+    [NotifyPropertyChangedFor(nameof(CanShowFiles))]
     public partial bool IsNew { get; set; } = true;
 
     [ObservableProperty]
@@ -100,6 +101,7 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(WorktreeTitleToolTip))]
     [NotifyPropertyChangedFor(nameof(FolderName))]
     [NotifyPropertyChangedFor(nameof(HasFolder))]
+    [NotifyPropertyChangedFor(nameof(CanShowFiles))]
     [NotifyPropertyChangedFor(nameof(FolderToolTip))]
     public partial string? Folder { get; set; }
 
@@ -966,13 +968,26 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsFilesView { get; set; }
 
+    /// <summary>The Chat / Files switch shows for a started session with a folder (not on the new-session screen).</summary>
+    public bool CanShowFiles => !IsNew && HasFolder;
+
     [RelayCommand]
     private void ShowChat() => IsFilesView = false;
 
     [RelayCommand]
-    private void ShowFiles() => IsFilesView = HasFolder;
+    private void ShowFiles() => IsFilesView = CanShowFiles;
 
-    public void ToggleFilesView() => IsFilesView = !IsFilesView && HasFolder;
+    public void ToggleFilesView() => IsFilesView = !IsFilesView && CanShowFiles;
+
+    public string ChatToolTip => _main.FilesViewGesture is { } key ? $"Chat ({key})" : "Chat";
+
+    public string FilesToolTip => _main.FilesViewGesture is { } key ? $"Files ({key})" : "Files";
+
+    public void OnFilesViewKeyChanged()
+    {
+        OnPropertyChanged(nameof(ChatToolTip));
+        OnPropertyChanged(nameof(FilesToolTip));
+    }
 
     /// <summary>The Files view has the tree on the right and the file on the left (a setting); off, the other way round.</summary>
     public bool FileTreeOnRight => _main.FileTreeOnRight;

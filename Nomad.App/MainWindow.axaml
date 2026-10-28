@@ -950,11 +950,11 @@
       <Grid Grid.Column="1" RowDefinitions="36,*">
         <Grid Grid.Row="0"
               Name="TitleBar"
-              ColumnDefinitions="*,Auto,*"
+              ColumnDefinitions="*,Auto"
               Background="Transparent"
               PointerPressed="OnTitleBarPointerPressed">
-          <!-- Equal sides keep the Chat / Files switch in the middle; the title is cut off before it. -->
-          <Grid ColumnDefinitions="Auto,*" ClipToBounds="True">
+          <!-- Cut off before the Chat / Files switch (its MaxWidth follows the switch, see UpdateTitleArea). -->
+          <Grid Name="TitleArea" ColumnDefinitions="Auto,*" ClipToBounds="True" HorizontalAlignment="Left">
             <!-- Sidebar collapsed: its buttons move here. -->
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
                         IsVisible="{Binding !IsSidebarOpen}">
@@ -1071,26 +1071,7 @@
             </StackPanel>
           </Grid>
 
-          <!-- Chat or Files (Ctrl+Shift+E), for a session with a folder: the thumb slides to the side picked. -->
-          <Border Grid.Column="1"
-                  Classes="viewswitch"
-                  Classes.files="{Binding Current.IsFilesView}"
-                  IsVisible="{Binding Current.HasFolder}"
-                  Margin="12,0">
-            <Panel>
-              <Border Classes="thumb" />
-              <StackPanel Orientation="Horizontal">
-                <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="Chat (Ctrl+Shift+E)">
-                  <c:Icon Size="15" Data="{StaticResource IconChat}" />
-                </Button>
-                <Button Theme="{StaticResource FlatButton}" Classes="files" Command="{Binding Current.ShowFilesCommand}" ToolTip.Tip="Files (Ctrl+Shift+E)">
-                  <c:Icon Size="15" Data="{StaticResource IconFolder}" />
-                </Button>
-              </StackPanel>
-            </Panel>
-          </Border>
-
-          <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+          <StackPanel Grid.Column="1" Orientation="Horizontal">
             <Button Theme="{StaticResource IconButton}"
                     Classes.on="{Binding IsSidePanelOpen}"
                     IsVisible="{Binding !Current.IsNew}"
@@ -1169,6 +1150,27 @@
       </Grid>
     </Grid>
 
+    <!-- Chat or Files (Tab by default), for a started session with a folder: in the middle of the window's top edge,
+         its thumb sliding to the side picked. -->
+    <Border Name="ViewSwitch"
+            Classes="viewswitch"
+            Classes.files="{Binding Current.IsFilesView}"
+            IsVisible="{Binding Current.CanShowFiles}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Margin="0,4,0,0">
+      <Panel>
+        <Border Classes="thumb" />
+        <StackPanel Orientation="Horizontal">
+          <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
+            <c:Icon Size="15" Data="{StaticResource IconChat}" />
+          </Button>
+          <Button Theme="{StaticResource FlatButton}" Classes="files" Command="{Binding Current.ShowFilesCommand}" ToolTip.Tip="{Binding Current.FilesToolTip}">
+            <c:Icon Size="15" Data="{StaticResource IconFolder}" />
+          </Button>
+        </StackPanel>
+      </Panel>
+    </Border>
 
     <!-- ============================================================ settings -->
     <!-- The dim fades in while the dialog grows a little into place, and back out. -->

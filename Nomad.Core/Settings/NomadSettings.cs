@@ -160,6 +160,9 @@ public sealed class NomadSettings
     /// <summary>In a chat's Files view, the folder tree is on the right and the open file on the left; off, swapped.</summary>
     public bool FileTreeOnRight { get; set; } = true;
 
+    /// <summary>The key that switches a chat between Chat and Files, as Avalonia writes a key gesture ("Tab", "Ctrl+Shift+E").</summary>
+    public string FilesViewKey { get; set; } = "Tab";
+
     /// <summary>The Files view's tree width, dragged at its inner edge (180–720).</summary>
     public double FileTreeWidth { get; set; } = 280;
 

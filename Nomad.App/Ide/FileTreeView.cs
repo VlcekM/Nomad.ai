@@ -33,6 +33,13 @@ public sealed class FileTreeView : Control
     private const double Box = 16;
     private const double Slide = 4;
 
+    // Folders are yellow, as in Explorer: a darker back with its tab, a lighter front that tilts open when expanded.
+    private static readonly IBrush FolderBack = new SolidColorBrush(Color.FromRgb(0xC9, 0x95, 0x32));
+    private static readonly IBrush FolderFront = new SolidColorBrush(Color.FromRgb(0xF0, 0xC1, 0x55));
+    private static readonly Geometry FolderBackShape = StreamGeometry.Parse("M1.5,4 C1.5,3.17 2.17,2.5 3,2.5 L6.2,2.5 L7.7,4 L13,4 C13.83,4 14.5,4.67 14.5,5.5 L14.5,12 C14.5,12.83 13.83,13.5 13,13.5 L3,13.5 C2.17,13.5 1.5,12.83 1.5,12 Z");
+    private static readonly Geometry FolderFrontShape = StreamGeometry.Parse("M1.5,6.5 L14.5,6.5 L14.5,12 C14.5,12.83 13.83,13.5 13,13.5 L3,13.5 C2.17,13.5 1.5,12.83 1.5,12 Z");
+    private static readonly Geometry FolderFrontOpenShape = StreamGeometry.Parse("M3.6,7 L15.2,7 L13.6,12.6 C13.46,13.13 13,13.5 12.45,13.5 L2.2,13.5 C1.75,13.5 1.45,13.08 1.58,12.65 Z");
+
     private readonly List<Row> _rows = [];
     private FileTree? _tree;
     private Row? _hover;
@@ -409,8 +416,6 @@ public sealed class FileTreeView : Control
         var guidePen = new Pen(guideBrush, 1);
         var textBrush = Brush("TextPrimaryBrush");
         var chevron = Shape("IconChevronRight");
-        var folder = Shape("IconFolder");
-        var folderOpen = Shape("IconFolderOpen");
         var file = Shape("IconFile");
         var family = TextElement.GetFontFamily(this);
         var fontSize = FontSize;
@@ -463,12 +468,16 @@ public sealed class FileTreeView : Control
                     }
                 }
 
-                var icon = row.Node.IsDirectory ? (row.Node.IsExpanded ? folderOpen ?? folder : folder) : file;
-                if (icon is not null)
+                using (context.PushTransform(Matrix.CreateTranslation(x + Box, iconTop)))
                 {
-                    using (context.PushTransform(Matrix.CreateTranslation(x + Box, iconTop)))
+                    if (row.Node.IsDirectory)
                     {
-                        context.DrawGeometry(null, iconPen, icon);
+                        context.DrawGeometry(FolderBack, null, FolderBackShape);
+                        context.DrawGeometry(FolderFront, null, row.Node.IsExpanded ? FolderFrontOpenShape : FolderFrontShape);
+                    }
+                    else if (file is not null)
+                    {
+                        context.DrawGeometry(null, iconPen, file);
                     }
                 }
 
@@ -584,7 +593,8 @@ public sealed class FileTreeView : Control
 
         _hover?.Hover.Retarget(0);
         _hover = row;
-        _hover?.Hover.Retarget(1);
+        _hover?.Hover.Jump(1); // at once under the pointer; only leaving a row fades
+        InvalidateVisual();
         Tick();
     }
 
