@@ -107,13 +107,11 @@ public partial class SessionView : UserControl
         // Find in the chat (Ctrl+F).
         FindMarks.Source = Transcript;
         FindMarks.Scroller = Scroller;
-        FindMarks.Changed += UpdateFindCount;
         FindBox.TextChanged += (_, _) =>
         {
             if (IsFindOpen)
             {
-                FindMarks.Search(FindBox.Text ?? "");
-                ScrollToMatch();
+                RunFind(keep: false);
             }
         };
         FindBox.AddHandler(KeyDownEvent, OnFindKeyDown, RoutingStrategies.Tunnel);
@@ -128,11 +126,26 @@ public partial class SessionView : UserControl
         _findRefresh = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Background, (_, _) =>
         {
             _findRefresh!.Stop();
-            if (IsFindOpen)
+            if (IsFindOpen && _findItemsChanged)
             {
-                FindMarks.Search(FindBox.Text ?? "");
+                RunFind(keep: true);
             }
+            else if (IsFindOpen)
+            {
+                MarkCurrent(glide: false, scroll: false);
+            }
+
+            _findItemsChanged = false;
         });
+
+        // Items scrolled into view (the list is virtualized) get their marks.
+        Transcript.ContainerPrepared += (_, _) =>
+        {
+            if (IsFindOpen && !_findRefresh.IsEnabled)
+            {
+                _findRefresh.Start();
+            }
+        };
     }
 
     // Off while a session's items are first created (history, switching sessions): only new ones animate.
@@ -232,9 +245,13 @@ public partial class SessionView : UserControl
     private void OnContentChanged()
     {
         // Streamed text replaces its blocks: find the matches again once it settles a moment.
-        if (IsFindOpen && !_findRefresh.IsEnabled)
+        if (IsFindOpen)
         {
-            _findRefresh.Start();
+            _findItemsChanged = true;
+            if (!_findRefresh.IsEnabled)
+            {
+                _findRefresh.Start();
+            }
         }
 
         if (_follow)
@@ -301,6 +318,11 @@ public partial class SessionView : UserControl
     // ------------------------------------------------------------------ find in the chat (Ctrl+F)
 
     private readonly DispatcherTimer _findRefresh;
+    private bool _findItemsChanged;
+
+    /// <summary>Every match in the session's items (the n-th in an item's text), in order, and the current one.</summary>
+    private readonly List<(TranscriptItem Item, int Occurrence)> _findHits = [];
+    private int _findHit = -1;
 
     private bool IsFindOpen => FindBar.Classes.Contains("open");
 
@@ -335,8 +357,7 @@ public partial class SessionView : UserControl
         }
         else if (!wasOpen)
         {
-            FindMarks.Search(FindBox.Text ?? "");
-            ScrollToMatch();
+            RunFind(keep: false);
         }
 
         FindBox.Focus();
@@ -362,6 +383,8 @@ public partial class SessionView : UserControl
             if (!IsFindOpen)
             {
                 FindMarks.Clear();
+                _findHits.Clear();
+                _findHit = -1;
             }
         }, TimeSpan.FromMilliseconds(220));
         if (focusComposer)
@@ -398,16 +421,138 @@ public partial class SessionView : UserControl
 
     private void FindStep(int delta)
     {
-        FindMarks.Move(delta);
-        ScrollToMatch();
+        if (_findHits.Count == 0)
+        {
+            return;
+        }
+
+        _findHit = ((_findHit + delta) % _findHits.Count + _findHits.Count) % _findHits.Count;
+        UpdateFindCount();
+        MarkCurrent(glide: true, scroll: true);
     }
 
-    private void UpdateFindCount()
+    /// <summary>The text an item shows, as find searches it (thinking only when it is open and activity shows).</summary>
+    private static string? FindableText(TranscriptItem item, bool activity) => item switch
     {
-        var count = FindMarks.Matches.Count;
-        FindCount.Text = string.IsNullOrEmpty(FindBox.Text) ? "" : count == 0 ? "No results" : $"{FindMarks.Current + 1} of {count}";
+        UserMessageItem user => user.Text,
+        AssistantTextItem text => text.Text,
+        ThinkingItem { IsExpanded: true } thinking when activity => thinking.DisplayText,
+        ErrorItem error => error.Message,
+        NoticeItem notice => notice.Text,
+        SentFilesItem files => files.Caption,
+        PermissionItem permission => permission.Detail,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Finds the box's text in every item, not only those the virtualized list has made. A new search starts at the
+    /// first match from the top of the view down and glides to it; <paramref name="keep"/> (the text changed while
+    /// streaming) stays on the same match without scrolling.
+    /// </summary>
+    private void RunFind(bool keep)
+    {
+        var query = FindBox.Text ?? "";
+        var previous = _findHit >= 0 && _findHit < _findHits.Count ? _findHits[_findHit] : default;
+        var previousIndex = _findHit;
+        _findHits.Clear();
+        if (query.Length > 0 && Vm is { } vm)
+        {
+            foreach (var item in vm.Items)
+            {
+                if (FindableText(item, vm.ShowActivity) is { Length: > 0 } text)
+                {
+                    var count = Controls.FindHighlights.Count(text, query);
+                    for (var n = 0; n < count; n++)
+                    {
+                        _findHits.Add((item, n));
+                    }
+                }
+            }
+        }
+
+        if (_findHits.Count == 0)
+        {
+            _findHit = -1;
+        }
+        else if (keep && previous.Item is not null)
+        {
+            var same = _findHits.IndexOf(previous);
+            _findHit = same >= 0 ? same : Math.Clamp(previousIndex, 0, _findHits.Count - 1);
+        }
+        else
+        {
+            var first = FirstVisibleIndex();
+            var items = Vm!.Items;
+            _findHit = Math.Max(0, _findHits.FindIndex(h => items.IndexOf(h.Item) >= first));
+        }
+
+        UpdateFindCount();
+        MarkCurrent(glide: false, scroll: !keep);
     }
 
+    /// <summary>The index of the first item showing at the top of the view.</summary>
+    private int FirstVisibleIndex()
+    {
+        var first = int.MaxValue;
+        foreach (var container in Transcript.GetRealizedContainers())
+        {
+            if (container.TranslatePoint(new Point(0, container.Bounds.Height), Scroller) is { Y: > 0 })
+            {
+                first = Math.Min(first, Transcript.IndexFromContainer(container));
+            }
+        }
+
+        return first == int.MaxValue ? 0 : first;
+    }
+
+    /// <summary>
+    /// Marks the matches in the items there are now and the current one among them; with <paramref name="scroll"/> it
+    /// brings that one into view first if its item has not been made yet.
+    /// </summary>
+    private void MarkCurrent(bool glide, bool scroll)
+    {
+        var query = FindBox.Text ?? "";
+        FindMarks.Search(query);
+        if (_findHit < 0 || _findHit >= _findHits.Count || Vm is not { } vm)
+        {
+            return;
+        }
+
+        var (item, occurrence) = _findHits[_findHit];
+        var index = vm.Items.IndexOf(item);
+        if (index < 0)
+        {
+            return;
+        }
+
+        if (Transcript.ContainerFromIndex(index) is { } container && FindMarks.Pick(container, occurrence, glide))
+        {
+            if (scroll)
+            {
+                ScrollToMatch();
+            }
+
+            return;
+        }
+
+        if (!scroll)
+        {
+            return;
+        }
+
+        Transcript.ScrollIntoView(index);
+        Dispatcher.UIThread.Post(() =>
+        {
+            FindMarks.Search(query);
+            if (Transcript.ContainerFromIndex(index) is { } made && FindMarks.Pick(made, occurrence, glide: false))
+            {
+                ScrollToMatch();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    private void UpdateFindCount() =>
+        FindCount.Text = string.IsNullOrEmpty(FindBox.Text) ? "" : _findHits.Count == 0 ? "No results" : $"{_findHit + 1} of {_findHits.Count}";
     /// <summary>Glides the current match into view (and a tool's own scroller, if it is in one), near the middle.</summary>
     private void ScrollToMatch()
     {

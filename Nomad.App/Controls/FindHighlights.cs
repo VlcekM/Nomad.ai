@@ -6,7 +6,7 @@ using Avalonia.VisualTree;
 namespace Nomad.App.Controls;
 
 /// <summary>
-/// Find in the chat (Ctrl+F): searches the text the transcript shows and marks every match, drawn over the
+/// Find in the chat (Ctrl+F): marks every match in the text the transcript shows, drawn over the
 /// <see cref="Scroller"/> it sits on (hit-test invisible). The current match has a stronger mark that glides to
 /// the next one (180 ms, cubic ease-out), on render frames only while it moves.
 /// </summary>
@@ -18,7 +18,6 @@ public sealed class FindHighlights : Control
     private const double GlideMs = 180;
 
     private readonly List<Match> _matches = [];
-    private string _query = "";
     private Rect? _glideFrom;
     private TimeSpan? _glideStart;
     private double _glide = 1;
@@ -34,26 +33,32 @@ public sealed class FindHighlights : Control
 
     public int Current { get; private set; } = -1;
 
-    /// <summary>The matches or the current one changed.</summary>
-    public event Action? Changed;
-
     public FindHighlights()
     {
         IsHitTestVisible = false;
         ClipToBounds = true;
     }
 
+    /// <summary>Counts <paramref name="query"/> in <paramref name="text"/> the way the marks find it (case ignored).</summary>
+    public static int Count(string text, string query)
+    {
+        var count = 0;
+        for (var at = text.IndexOf(query, StringComparison.CurrentCultureIgnoreCase); at >= 0; at = text.IndexOf(query, at + query.Length, StringComparison.CurrentCultureIgnoreCase))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
     /// <summary>
-    /// Searches again for <paramref name="query"/>. A new query starts at the first match at or below the top of the
-    /// view; the same one (the text changed while streaming) keeps the current match, or the one now in its place.
+    /// Marks <paramref name="query"/> in the text blocks the source has now (a virtualized list has only those near
+    /// the view). No match is current until <see cref="Pick"/> chooses one.
     /// </summary>
     public void Search(string query)
     {
-        var sameQuery = string.Equals(query, _query, StringComparison.Ordinal);
-        var previous = Current >= 0 && Current < _matches.Count ? _matches[Current] : (Match?)null;
-        var previousIndex = Current;
-        _query = query;
         _matches.Clear();
+        Current = -1;
         if (query.Length > 0 && Source is not null)
         {
             foreach (var block in Source.GetVisualDescendants().OfType<TextBlock>())
@@ -70,45 +75,32 @@ public sealed class FindHighlights : Control
             }
         }
 
-        if (_matches.Count == 0)
-        {
-            Current = -1;
-        }
-        else if (sameQuery && previous is { } was)
-        {
-            var same = _matches.FindIndex(m => ReferenceEquals(m.Block, was.Block) && m.Start == was.Start);
-            Current = same >= 0 ? same : Math.Clamp(previousIndex, 0, _matches.Count - 1);
-        }
-        else
-        {
-            var top = Scroller is { } scroller ? scroller.TranslatePoint(default, this)?.Y ?? 0 : 0;
-            Current = _matches.FindIndex(m => RectOf(m) is { } rect && rect.Bottom >= top);
-            Current = Current < 0 ? 0 : Current;
-        }
-
-        Changed?.Invoke();
         InvalidateVisual();
     }
 
     public void Clear() => Search("");
 
-    /// <summary>Steps to the next (or, with -1, the previous) match, round the end.</summary>
-    public void Move(int delta)
+    /// <summary>
+    /// Makes the <paramref name="occurrence"/>-th match inside <paramref name="container"/> current (its last, if it
+    /// shows fewer); with <paramref name="glide"/> the mark glides there from the one before. False if it has none.
+    /// </summary>
+    public bool Pick(Visual container, int occurrence, bool glide)
     {
-        if (_matches.Count == 0)
+        var inside = Enumerable.Range(0, _matches.Count).Where(i => _matches[i].Block.GetVisualAncestors().Contains(container)).ToList();
+        var from = glide ? CurrentRect() : null;
+        var next = inside.Count == 0 ? -1 : inside[Math.Clamp(occurrence, 0, inside.Count - 1)];
+        if (from is not null && next >= 0 && next != Current)
         {
-            return;
+            _glideFrom = from;
+            _glideStart = null;
+            _glide = 0;
+            RequestFrame();
         }
 
-        _glideFrom = Current >= 0 && Current < _matches.Count ? CurrentRect() : null;
-        Current = ((Current + delta) % _matches.Count + _matches.Count) % _matches.Count;
-        _glideStart = null;
-        _glide = 0;
-        RequestFrame();
-        Changed?.Invoke();
+        Current = next;
         InvalidateVisual();
+        return next >= 0;
     }
-
     /// <summary>The current match's rectangle (its first line's) in this control's coordinates, or another visual's.</summary>
     public Rect? CurrentRect(Visual? relativeTo = null) =>
         Current >= 0 && Current < _matches.Count ? Rects(_matches[Current], relativeTo ?? this).Select(r => (Rect?)r).FirstOrDefault() : null;
@@ -127,9 +119,6 @@ public sealed class FindHighlights : Control
 
         return false;
     }
-
-    /// <summary>The match's box (its first line's, if it wraps) here, or null when it is not laid out.</summary>
-    private Rect? RectOf(Match match) => Rects(match, this).Select(r => (Rect?)r).FirstOrDefault();
 
     private static IEnumerable<Rect> Rects(Match match, Visual relativeTo)
     {
