@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.17.1
+
+- F1 to F4 pick the model only on the new session screen (F2 renames a started one again), and the model chips'
+  tooltips name them there.
+
 ## v1.17.0
 
 - Ctrl+F finds text in the chat: every match is marked, Enter / Shift+Enter (or F3 / Shift+F3) step through them and
