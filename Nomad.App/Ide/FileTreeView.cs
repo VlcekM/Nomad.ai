@@ -46,6 +46,7 @@ public sealed class FileTreeView : Control
     {
         FocusableProperty.OverrideDefaultValue<FileTreeView>(true);
         AffectsRender<FileTreeView>(TextElement.FontFamilyProperty, TextElement.FontSizeProperty);
+        AffectsMeasure<FileTreeView>(TextElement.FontSizeProperty);
     }
 
     public FileTree? Tree
@@ -148,11 +149,22 @@ public sealed class FileTreeView : Control
         }
 
         _restoreScroll = true;
+        ActualThemeVariantChanged += OnResourcesChanged;
+        if (Application.Current is { } app)
+        {
+            app.ResourcesChanged += OnResourcesChanged;
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        ActualThemeVariantChanged -= OnResourcesChanged;
+        if (Application.Current is { } app)
+        {
+            app.ResourcesChanged -= OnResourcesChanged;
+        }
+
         SaveScroll();
         if (_scroller is not null)
         {
@@ -177,7 +189,7 @@ public sealed class FileTreeView : Control
         }
 
         _tree = tree;
-        _rows.Clear();
+        DropRows(_rows);
         _hover = null;
         if (tree is not null)
         {
@@ -211,6 +223,9 @@ public sealed class FileTreeView : Control
     }
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e) => InvalidateVisual();
+
+    // A theme or color theme change: the brushes are looked up as the rows are drawn.
+    private void OnResourcesChanged(object? sender, EventArgs e) => InvalidateVisual();
 
     /// <summary>
     /// Brings the rows in line with the tree: rows for entries no longer shown fold away where they are, rows for new
@@ -320,7 +335,7 @@ public sealed class FileTreeView : Control
             row.Turn.Step(now, FoldMs);
         }
 
-        _rows.RemoveAll(r => r.Leaving && !r.Presence.Running);
+        DropRows(_rows.FindAll(r => r.Leaving && !r.Presence.Running));
         if (folding)
         {
             InvalidateMeasure();
@@ -328,6 +343,24 @@ public sealed class FileTreeView : Control
 
         InvalidateVisual();
         Tick();
+    }
+
+    private void DropRows(List<Row> rows)
+    {
+        foreach (var row in rows)
+        {
+            row.Text?.Dispose();
+            row.Text = null;
+        }
+
+        if (rows == _rows)
+        {
+            _rows.Clear();
+        }
+        else if (rows.Count > 0)
+        {
+            _rows.RemoveAll(rows.Contains);
+        }
     }
 
     // ------------------------------------------------------------------ layout and drawing

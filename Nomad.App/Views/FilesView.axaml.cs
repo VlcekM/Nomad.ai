@@ -61,6 +61,12 @@ public partial class FilesView : UserControl
         if (e.PropertyName == nameof(SessionViewModel.IsFilesView))
         {
             ApplyShown();
+
+            // Back to the chat: typing goes to its composer again, not to the tree fading out.
+            if (_session is { IsFilesView: false } && (Parent as Panel)?.Children.OfType<SessionView>().FirstOrDefault() is { } chat)
+            {
+                chat.FocusComposerSoon();
+            }
         }
         else if (e.PropertyName == nameof(SessionViewModel.FileTreeOnRight))
         {
