@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.16.2
+
+- An artifact Claude publishes shows as a card with a file icon, its name and description; a click opens it in the
+  browser, and right-click copies the link or opens the local file.
+
 ## v1.16.1
 
 - Text in a reply can be selected across paragraphs, list items and code blocks by dragging over them, as in a
