@@ -559,6 +559,11 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         FlushThemeSave();
         _theme = value.IsBuiltIn ? null : ColorThemeStore.Load(Themes.Folder, value.Id) ?? new CustomTheme { Name = value.Name };
+        if (_theme is not null)
+        {
+            value.Colors = _theme;
+        }
+
         ThemeName = _theme?.Name ?? "";
         Apply(s => s.ColorTheme = value.Id, appearance: true);
         RefreshThemeColors();
@@ -577,7 +582,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SaveTheme();
     }
 
-    /// <summary>A new theme with the selected one's colors (none of its own for the built-in one), selected.</summary>
+    /// <summary>A new theme with the selected one's colors (none of its own for Nomad), selected.</summary>
     [RelayCommand]
     private void DuplicateTheme()
     {
@@ -589,8 +594,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         AddTheme(new CustomTheme
         {
             Name = UniqueThemeName(source.Name + " copy"),
-            Dark = new Dictionary<string, string>(_theme?.Dark ?? []),
-            Light = new Dictionary<string, string>(_theme?.Light ?? []),
+            Dark = new Dictionary<string, string>(source.Colors?.Dark ?? []),
+            Light = new Dictionary<string, string>(source.Colors?.Light ?? []),
         });
     }
 
@@ -599,18 +604,30 @@ public sealed partial class SettingsViewModel : ObservableObject
     public partial string? ThemeFileProblem { get; set; }
 
     /// <summary>
-    /// The selected theme as JSON to export, with a file name for it. The built-in theme is written with all its
+    /// The selected theme as JSON to export, with a file name for it. A built-in theme is written with all its base
     /// colors (a starting point for a theme by hand); a custom one with the colors it sets.
     /// </summary>
     public (string FileName, string Json) ExportSelectedTheme()
     {
+        var choice = SelectedColorTheme ?? ColorThemes[0];
+        Dictionary<string, string> All(ThemeVariant variant, Dictionary<string, string>? own)
+        {
+            var colors = Themes.DefaultColors(variant);
+            foreach (var (key, value) in own ?? [])
+            {
+                colors[key] = value;
+            }
+
+            return colors;
+        }
+
         var theme = _theme ?? new CustomTheme
         {
-            Name = Themes.DefaultName,
-            Dark = Themes.DefaultColors(ThemeVariant.Dark),
-            Light = Themes.DefaultColors(ThemeVariant.Light),
+            Name = choice.Name,
+            Dark = All(ThemeVariant.Dark, choice.Colors?.Dark),
+            Light = All(ThemeVariant.Light, choice.Colors?.Light),
         };
-        var id = SelectedColorTheme is { IsBuiltIn: false } choice ? choice.Id : Themes.DefaultId;
+        var id = choice.Id;
         return (id + ".json", ColorThemeStore.ToJson(theme));
     }
 
@@ -643,7 +660,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private void AddTheme(CustomTheme theme)
     {
-        var id = ColorThemeStore.NewId(Themes.Folder, theme.Name, Themes.DefaultId);
+        var id = ColorThemeStore.NewId(Themes.Folder, theme.Name, [Themes.DefaultId, .. ThemePresets.All.Select(p => p.Id)]);
         try
         {
             ColorThemeStore.Save(Themes.Folder, id, theme);
@@ -655,7 +672,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         ThemeFileProblem = null;
-        var choice = new ThemeChoice(id, theme.Name);
+        var choice = new ThemeChoice(id, theme.Name, theme);
+        choice.Paint(CurrentVariant);
         ColorThemes.Add(choice);
         SelectedColorTheme = choice;
     }
@@ -706,19 +724,38 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         ColorThemes.Clear();
         ColorThemes.Add(new ThemeChoice(Themes.DefaultId, Themes.DefaultName));
+        foreach (var (id, theme) in ThemePresets.All)
+        {
+            ColorThemes.Add(new ThemeChoice(id, theme.Name, theme));
+        }
+
         foreach (var (id, theme) in ColorThemeStore.LoadAll(Themes.Folder))
         {
-            if (!string.Equals(id, Themes.DefaultId, StringComparison.OrdinalIgnoreCase))
+            if (!Themes.IsBuiltIn(id))
             {
-                ColorThemes.Add(new ThemeChoice(id, theme.Name));
+                ColorThemes.Add(new ThemeChoice(id, theme.Name, theme));
             }
         }
+
+        PaintThemeChoices();
 
         SelectedColorTheme = ColorThemes.FirstOrDefault(c => c.Id == selectedId) ?? ColorThemes[0];
     }
 
+    private static ThemeVariant CurrentVariant =>
+        Application.Current?.ActualThemeVariant == ThemeVariant.Light ? ThemeVariant.Light : ThemeVariant.Dark;
+
+    private void PaintThemeChoices()
+    {
+        foreach (var choice in ColorThemes)
+        {
+            choice.Paint(CurrentVariant);
+        }
+    }
+
     private void RefreshThemeColors()
     {
+        PaintThemeChoices();
         ThemeColorGroups.Clear();
         if (_theme is null)
         {
@@ -754,6 +791,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     // the theme's file written once the color settles.
     private void ThemeColorChanged()
     {
+        SelectedColorTheme?.Paint(CurrentVariant);
         if (!_restyleQueued)
         {
             _restyleQueued = true;
@@ -908,15 +946,34 @@ public sealed partial class PhoneFolderRow(string folder) : ObservableObject
     }
 }
 
-/// <summary>A color theme in the settings' picker.</summary>
-public sealed partial class ThemeChoice(string id, string name) : ObservableObject
+/// <summary>A color theme in the settings' picker, with dots of its background, accent and focus colors.</summary>
+public sealed partial class ThemeChoice(string id, string name, CustomTheme? colors = null) : ObservableObject
 {
     public string Id { get; } = id;
 
-    public bool IsBuiltIn => Id == Themes.DefaultId;
+    public bool IsBuiltIn => Themes.IsBuiltIn(Id);
 
     [ObservableProperty]
     public partial string Name { get; set; } = name;
+
+    /// <summary>The colors it sets over Nomad's (none for Nomad).</summary>
+    public CustomTheme? Colors { get; set; } = colors;
+
+    public SolidColorBrush Background { get; } = new();
+
+    public SolidColorBrush Accent { get; } = new();
+
+    public SolidColorBrush Focus { get; } = new();
+
+    /// <summary>Colors the dots as the theme looks in <paramref name="variant"/>.</summary>
+    public void Paint(ThemeVariant variant)
+    {
+        var own = variant == ThemeVariant.Light ? Colors?.Light : Colors?.Dark;
+        Color Of(string token) => Themes.TryParse(own?.GetValueOrDefault(token), out var c) ? c : Themes.DefaultColor(token, variant);
+        Background.Color = Of("BgMain");
+        Accent.Color = Of("Accent");
+        Focus.Color = Of("Ring");
+    }
 }
 
 /// <summary>A group of a theme's colors in the editor ("Surfaces", "Text").</summary>

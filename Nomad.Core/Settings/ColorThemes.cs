@@ -114,7 +114,7 @@ public static class ColorThemeStore
     public static string PathOf(string folder, string id) => Path.Combine(folder, id + ".json");
 
     /// <summary>A file name for a new theme called <paramref name="name"/>, not taken in the folder nor by <paramref name="reserved"/>.</summary>
-    public static string NewId(string folder, string name, string reserved)
+    public static string NewId(string folder, string name, params string[] reserved)
     {
         var invalid = Path.GetInvalidFileNameChars();
         var stem = new string(name.Trim().ToLowerInvariant().Select(c => invalid.Contains(c) || char.IsWhiteSpace(c) ? '-' : c).ToArray()).Trim('-', '.');
@@ -124,7 +124,7 @@ public static class ColorThemeStore
         }
 
         var id = stem;
-        for (var n = 2; string.Equals(id, reserved, StringComparison.OrdinalIgnoreCase) || File.Exists(PathOf(folder, id)); n++)
+        for (var n = 2; reserved.Contains(id, StringComparer.OrdinalIgnoreCase) || File.Exists(PathOf(folder, id)); n++)
         {
             id = $"{stem}-{n}";
         }

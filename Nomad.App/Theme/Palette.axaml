@@ -156,6 +156,10 @@
       <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#20201E" />
       <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#363636" />
       <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#A8A6A0" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#2B2B29" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#2B2B29" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#EEEDE8" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#EEEDE8" />
     </ResourceDictionary>
     <ResourceDictionary x:Key="Light">
       <!-- Surfaces -->
@@ -305,6 +309,10 @@
       <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FFFFFF" />
       <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#DEDCD3" />
       <SolidColorBrush x:Key="ComboBoxDropDownGlyphForeground" Color="#484743" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#E6E4DB" />
+      <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#E6E4DB" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelected" Color="#141413" />
+      <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver" Color="#141413" />
     </ResourceDictionary>
   </ResourceDictionary.ThemeDictionaries>
 

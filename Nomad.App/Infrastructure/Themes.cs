@@ -11,8 +11,8 @@ namespace Nomad.App.Infrastructure;
 public sealed record ThemeToken(string Key, string Group, string Label);
 
 /// <summary>
-/// Color themes. The built-in one, Nomad, is Theme/Palette.axaml itself and can be neither changed nor deleted. A
-/// custom theme is laid over it as one more merged dictionary, with the dark and light colors it sets; whatever it
+/// Color themes. The built-in one, Nomad, is Theme/Palette.axaml itself and can be neither changed nor deleted, nor
+/// can the presets (<see cref="ThemePresets"/>). A preset or custom theme is laid over it as one more merged dictionary, with the dark and light colors it sets; whatever it
 /// leaves out falls through to the palette.
 /// <para>
 /// A theme sets only a few base colors (<see cref="Tokens"/>); the palette's other tokens follow them. Each of those
@@ -33,7 +33,8 @@ public static class Themes
         ["BgPressed"] = ["ComboBoxBackgroundPressed"],
         ["BgMenu"] = ["ComboBoxDropDownBackground"],
         ["Border"] = ["ComboBoxDropDownBorderBrush"],
-        ["TextPrimary"] = ["ComboBoxForeground"],
+        ["BgSelected"] = ["ComboBoxItemBackgroundSelected", "ComboBoxItemBackgroundSelectedPointerOver"],
+        ["TextPrimary"] = ["ComboBoxForeground", "ComboBoxItemForegroundSelected", "ComboBoxItemForegroundSelectedPointerOver"],
         ["TextSecondary"] = ["ComboBoxDropDownGlyphForeground"],
     };
 
@@ -131,6 +132,9 @@ public static class Themes
     public static Dictionary<string, string> DefaultColors(ThemeVariant variant) =>
         Tokens.ToDictionary(t => t.Key, t => Hex(DefaultColor(t.Key, variant)));
 
+    /// <summary>Nomad or one of its presets: neither a file nor editable.</summary>
+    public static bool IsBuiltIn(string id) => id == DefaultId || ThemePresets.Find(id) is not null;
+
     /// <summary>The theme in use, by id (a missing file is the built-in theme).</summary>
     public static string AppliedId { get; private set; } = DefaultId;
 
@@ -143,7 +147,7 @@ public static class Themes
             return false;
         }
 
-        return Apply(id, id == DefaultId ? null : ColorThemeStore.Load(Folder, id));
+        return Apply(id, id == DefaultId ? null : ThemePresets.Find(id) ?? ColorThemeStore.Load(Folder, id));
     }
 
     /// <summary>Lays <paramref name="theme"/> over the palette (null: the built-in theme alone). False if nothing changed.</summary>
