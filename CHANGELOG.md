@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.13.2
+
+- "Send instantly" slides out of the send button as soon as Ctrl is pressed while Claude works, without a pause first.
+
 ## v1.13.1
 
 - Plan usage no longer says it needs a claude.ai sign-in while Claude Code's token has merely expired: the last limits
