@@ -1126,6 +1126,14 @@ public sealed partial class MainViewModel : ObservableObject
             vm.IsPhone = IsPhone(s.SessionId);
             vm.IsElsewhere = IsRunningElsewhere(s.SessionId);
             vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone || vm.IsElsewhere;
+            if (live is not null)
+            {
+                // A row made anew for an open session takes its mark from it.
+                vm.IsRunning = live.IsTurnRunning;
+                vm.IsWaiting = live.PendingPermission is not null;
+                vm.HasRunningSubagents = live.HasRunningSubagents;
+            }
+
             vm.IsArchived = archived.Contains(s.SessionId);
             vm.IsPinned = pinned.Contains(s.SessionId);
             merged.Add(vm);
@@ -2211,6 +2219,13 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public void OnTurnRunningChanged(SessionViewModel session)
     {
+        // Every start and end of a turn, also those the CLI begins itself (a queued prompt right after the last turn,
+        // a resumed one), keeps the row's mark in step.
+        if (session.SessionId is { } rowId && _all.FirstOrDefault(s => s.SessionId == rowId) is { } row)
+        {
+            row.IsRunning = session.IsTurnRunning;
+        }
+
         if (_shuttingDown || Dev.IsActive || session.SessionId is not { } id || session.IsPhoneSession)
         {
             return;
