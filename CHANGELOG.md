@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.14.0
+
+- Responses get a Copy button below them, fading in on hover; it copies the turn's final text as Markdown.
+- A text selection can start in the gap above, below or between paragraphs, and takes the paragraph the drag heads into.
+- Long commands Claude waits on no longer leave their command line as a notice in the transcript when they finish.
+
 ## v1.13.2
 
 - "Send instantly" slides out of the send button as soon as Ctrl is pressed while Claude works, without a pause first.
