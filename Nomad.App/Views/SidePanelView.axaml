@@ -267,7 +267,7 @@
                   </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
               </ItemsControl>
-              <TextBlock Text="Plan usage needs a claude.ai sign-in in Claude Code."
+              <TextBlock Text="{Binding Usage.UnavailableText}"
                          Classes="muted"
                          TextWrapping="Wrap"
                          FontSize="{DynamicResource UiFontSizeSmall}"

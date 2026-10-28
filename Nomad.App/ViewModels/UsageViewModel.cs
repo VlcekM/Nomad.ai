@@ -112,6 +112,12 @@ public sealed partial class UsageViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsUnavailable { get; set; }
 
+    /// <summary>What the popup says when <see cref="IsUnavailable"/>.</summary>
+    [ObservableProperty]
+    public partial string UnavailableText { get; set; } = NoSignInText;
+
+    private const string NoSignInText = "Plan usage needs a claude.ai sign-in in Claude Code.";
+
     /// <summary>The first read hasn't come back yet (the ring and the usage cards show placeholders).</summary>
     [ObservableProperty]
     public partial bool IsLoading { get; set; } = true;
@@ -130,6 +136,7 @@ public sealed partial class UsageViewModel : ObservableObject
             _fetchedUtc = DateTime.UtcNow;
             if (usage is null)
             {
+                UnavailableText = PlanUsageClient.IsSignInExpired() ? PlanUsageClient.ExpiredReason : NoSignInText;
                 IsUnavailable = !HasUsage;
                 return;
             }

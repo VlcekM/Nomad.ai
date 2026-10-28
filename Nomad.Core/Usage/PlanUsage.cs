@@ -69,7 +69,7 @@ public sealed record PlanUsage(string? PlanName, IReadOnlyList<PlanLimit> Limits
 /// Reads plan usage the way Claude Code's <c>/usage</c> does: one read-only GET to the account's usage
 /// endpoint with the CLI's stored claude.ai sign-in (<c>~/.claude/.credentials.json</c>). The token is
 /// never refreshed here (the CLI does that) and never written anywhere. Best effort: any failure,
-/// a missing or expired sign-in (API-key users), or a changed response gives null.
+/// a missing sign-in (API-key users), or a changed response gives null; an expired one gives the cached answer, stale.
 /// <para>
 /// The last answer is kept in <c>%APPDATA%\Nomad\usage-cache.json</c> (percentages and reset times only). Every
 /// Nomad window shares it, so a fresh one is used instead of asking again (the endpoint rate-limits hard), and an
@@ -109,14 +109,21 @@ public static partial class PlanUsageClient
 
             var credentials = JsonSerializer.Deserialize(
                 await File.ReadAllTextAsync(CredentialsPath, cancellationToken), UsageJsonContext.Default.CredentialsFile);
-            if (credentials?.ClaudeAiOauth is not { AccessToken: { Length: > 0 } token } oauth
-                || DateTimeOffset.FromUnixTimeMilliseconds(oauth.ExpiresAt) <= DateTimeOffset.UtcNow)
+            if (credentials?.ClaudeAiOauth is not { AccessToken: { Length: > 0 } token } oauth)
             {
                 return null;
             }
 
             var planName = PlanName(oauth.SubscriptionType, oauth.RateLimitTier);
             var cached = ReadCache();
+            if (DateTimeOffset.FromUnixTimeMilliseconds(oauth.ExpiresAt) <= DateTimeOffset.UtcNow)
+            {
+                // The token lasts hours and Claude Code renews it only when it next calls the API: the last
+                // limits read stand in meanwhile.
+                return Stale(cached, planName, ExpiredReason);
+            }
+
+
             if (cached is { } fresh && DateTimeOffset.UtcNow - fresh.At < CacheFresh)
             {
                 return Parse(fresh.Json, planName);
@@ -156,15 +163,37 @@ public static partial class PlanUsageClient
                 return usage;
             }
 
-            return cached is { } old && DateTimeOffset.UtcNow - old.At < CacheUsable
-                ? Parse(old.Json, planName) is { } stale ? stale with { StaleSince = old.At, StaleReason = reason } : null
-                : null;
+            return Stale(cached, planName, reason);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return null;
         }
     }
+
+    public const string ExpiredReason = "The claude.ai sign-in has expired; Claude Code renews it on its next turn.";
+
+    /// <summary>The stored claude.ai sign-in is there but its token has run out (Claude Code hasn't renewed it yet).</summary>
+    public static bool IsSignInExpired()
+    {
+        try
+        {
+            return File.Exists(CredentialsPath)
+                && JsonSerializer.Deserialize(File.ReadAllText(CredentialsPath), UsageJsonContext.Default.CredentialsFile)
+                    ?.ClaudeAiOauth is { AccessToken: { Length: > 0 } } oauth
+                && DateTimeOffset.FromUnixTimeMilliseconds(oauth.ExpiresAt) <= DateTimeOffset.UtcNow;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The cached answer, marked stale with why it couldn't be refreshed; null when there is none young enough.</summary>
+    private static PlanUsage? Stale((string Json, DateTimeOffset At)? cached, string? planName, string reason) =>
+        cached is { } old && DateTimeOffset.UtcNow - old.At < CacheUsable
+            ? Parse(old.Json, planName) is { } stale ? stale with { StaleSince = old.At, StaleReason = reason } : null
+            : null;
 
     /// <summary>Why the endpoint said no: "The usage endpoint is rate-limiting (HTTP 429), try again in 4 min."</summary>
     private static string Refusal(HttpResponseMessage response)
