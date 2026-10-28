@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.16.0
+
+- Alive's folder groups have a + that starts a new session in that folder. A folder can be pinned to Alive, from its
+  heading's right-click menu or the list options, and shows there even with no session running.
+- A compact model picker (Settings): the status row shows only the current model; the other models and the effort
+  slider are in its menu.
+- Unfolding Idle or Alive fades the rows in smoothly instead of showing them at once.
+
 ## v1.15.2
 
 - A right-click in the prompt box opens Cut, Copy, Paste and Select all; Paste attaches images like Ctrl+V.
