@@ -24,6 +24,44 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
+    <!-- The compact model picker (a setting): the other chips and the effort slider fold away. -->
+    <Style Selector="StackPanel.modelstrip Button.modelchip">
+      <Setter Property="MaxWidth" Value="160" />
+      <Setter Property="Margin" Value="0,0,2,0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="StackPanel.modelstrip.compact Button.modelchip:not(.selected)">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="StackPanel.effortstrip">
+      <Setter Property="MaxWidth" Value="260" />
+      <Setter Property="Margin" Value="10,0,4,0" />
+      <Setter Property="ClipToBounds" Value="True" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="StackPanel.modelstrip.compact StackPanel.effortstrip">
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+
     <!-- Buttons on the composer bar keep the arrow, not the bar's I-beam. -->
     <Style Selector="Border.composer Button">
       <Setter Property="Cursor" Value="Arrow" />
@@ -1609,11 +1647,11 @@
       </Button>
 
       <!-- One chip per model; clicking the current one opens the full picker. -->
-      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2">
+      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="0" Classes="modelstrip" Classes.compact="{Binding CompactModelPicker}">
         <ItemsControl ItemsSource="{Binding ModelOptions}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="2" />
+              <StackPanel Orientation="Horizontal" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -1630,7 +1668,7 @@
         </ItemsControl>
 
         <!-- Effort: a small slider, Low to Max. -->
-        <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0,4,0" ToolTip.Tip="Effort (Low to Max)">
+        <StackPanel Orientation="Horizontal" Spacing="8" Classes="effortstrip" ToolTip.Tip="Effort (Low to Max)">
           <c:FillSlider Name="EffortSlider"
                         Width="168" Height="24"
                         Thickness="16"
@@ -1664,6 +1702,24 @@
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <!-- The compact picker has no slider on the status row; it is here instead. -->
+                <StackPanel IsVisible="{Binding CompactModelPicker}">
+                  <Border Classes="rule" />
+                  <TextBlock Text="Effort" Classes="menuheader" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,2,8,4">
+                    <c:FillSlider Name="MenuEffortSlider"
+                                  Width="150" Height="24"
+                                  Thickness="16"
+                                  TickBrush="{DynamicResource SliderTickBrush}"
+                                  Maximum="4"
+                                  Value="{Binding EffortPosition}"
+                                  TrackBrush="{DynamicResource BarTrackBrush}"
+                                  FillBrush="{DynamicResource RingBrush}"
+                                  KnobBrush="White"
+                                  VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding EffortLabel}" Classes="status muted" VerticalAlignment="Center" />
+                  </StackPanel>
+                </StackPanel>
                 <Border Classes="rule" />
                 <TextBlock Text="Fast mode" Classes="menuheader" />
                 <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">

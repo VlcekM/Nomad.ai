@@ -947,6 +947,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void OnShowUsageRingChanged() => OnPropertyChanged(nameof(ShowUsageRing));
 
+    public bool CompactModelPicker => _main.CompactModelPicker;
+
+    public void OnCompactModelPickerChanged() => OnPropertyChanged(nameof(CompactModelPicker));
+
     [RelayCommand]
     private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
 

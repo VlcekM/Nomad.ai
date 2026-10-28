@@ -404,6 +404,20 @@
                   </Border>
                 </Button>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Compact model picker" Classes="rowlabel" />
+                  <TextBlock Text="The status row shows only the current model. The other models and the effort slider are in its menu."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleCompactModelPickerCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding CompactModelPicker}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
 
               <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
               <Grid Classes="row" ColumnDefinitions="*,Auto">

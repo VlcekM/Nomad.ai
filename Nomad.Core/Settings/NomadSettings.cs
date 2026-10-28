@@ -31,6 +31,9 @@ public sealed class NomadSettings
     /// <summary>The ring at the end of the status row (plan usage; spins while a turn runs, opens the usage limits).</summary>
     public bool ShowUsageRing { get; set; } = true;
 
+    /// <summary>The status row shows only the current model's chip; the other models and the effort slider move into its menu.</summary>
+    public bool CompactModelPicker { get; set; }
+
     /// <summary>After a turn, the CLI guesses the next prompt; it shows as ghost text in an empty composer.</summary>
     public bool PromptSuggestions { get; set; } = true;
 

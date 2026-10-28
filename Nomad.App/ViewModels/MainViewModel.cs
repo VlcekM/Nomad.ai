@@ -506,6 +506,25 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Only the current model's chip on the status row; the rest are in its menu.</summary>
+    public bool CompactModelPicker
+    {
+        get => Settings.CompactModelPicker;
+        set
+        {
+            if (Settings.CompactModelPicker != value)
+            {
+                Settings.CompactModelPicker = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnCompactModelPickerChanged();
+                }
+            }
+        }
+    }
+
     public void SetGrouping(string id)
     {
         Settings.SessionGrouping = id;

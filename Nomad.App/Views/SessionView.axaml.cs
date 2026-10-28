@@ -75,6 +75,7 @@ public partial class SessionView : UserControl
 
         // The effort thumb glides while dragged and settles on the nearest stop when let go.
         EffortSlider.Released += (_, _) => Vm?.SnapEffort();
+        MenuEffortSlider.Released += (_, _) => Vm?.SnapEffort();
 
         // New transcript items, attachments and queued prompts fade and slide in; activity lines carry a class
         // so "Show activity" can leave them out. The transcript is virtualized, so its containers are prepared again
