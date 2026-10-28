@@ -28,7 +28,7 @@ public sealed class FileTreeView : Control
     private const double FoldMs = 200;
     private const double HoverMs = 120;
     private const double Indent = 14;
-    private const double Inset = 6;
+    private const double Inset = 4;
     private const double PadTop = 6;
     private const double Box = 16;
     private const double Slide = 4;
@@ -420,6 +420,9 @@ public sealed class FileTreeView : Control
         var family = TextElement.GetFontFamily(this);
         var fontSize = FontSize;
         var selected = _tree?.Selected;
+
+        // Transparent but drawn: the pointer counts over the whole width, not only over the text and icons.
+        context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
 
         foreach (var (row, y, clip) in Place())
         {
