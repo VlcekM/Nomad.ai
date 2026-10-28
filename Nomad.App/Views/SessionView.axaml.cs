@@ -76,11 +76,13 @@ public partial class SessionView : UserControl
         EffortSlider.Released += (_, _) => Vm?.SnapEffort();
 
         // New transcript items, attachments and queued prompts fade and slide in; activity lines carry a class
-        // so "Show activity" can leave them out.
+        // so "Show activity" can leave them out. The transcript is virtualized, so its containers are prepared again
+        // whenever they scroll into view: only items added since the session was shown animate, once.
+        Transcript.ItemTemplate = new Controls.FreshTemplate(DataTemplates);
         Transcript.ContainerPrepared += (_, e) =>
         {
             e.Container.Classes.Set("activity", e.Container.DataContext is ThinkingItem or ToolGroupItem);
-            if (_animateNew && Vm is { IsLoadingHistory: false })
+            if (e.Container.DataContext is { } item && _fresh.Remove(item))
             {
                 Controls.Entrance.Play(e.Container);
             }
@@ -103,6 +105,9 @@ public partial class SessionView : UserControl
 
     // Off while a session's items are first created (history, switching sessions): only new ones animate.
     private bool _animateNew;
+
+    // Transcript items added since, not yet shown: their entrance plays when their container is first prepared.
+    private readonly HashSet<object> _fresh = [];
 
     private static void TrackOpen(Button chip, FlyoutBase? flyout)
     {
@@ -152,14 +157,40 @@ public partial class SessionView : UserControl
         if (_vm is not null)
         {
             _vm.ContentChanged -= OnContentChanged;
+            _vm.Items.CollectionChanged -= OnItemsChanged;
         }
 
         _vm = vm;
         _animateNew = false;
+        _fresh.Clear();
         if (_vm is not null)
         {
             _vm.ContentChanged += OnContentChanged;
+            _vm.Items.CollectionChanged += OnItemsChanged;
             Dispatcher.UIThread.Post(() => _animateNew = true, DispatcherPriority.Background);
+        }
+    }
+
+    private void OnItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+        {
+            _fresh.Clear();
+        }
+        else if (e.OldItems is { } old)
+        {
+            foreach (var item in old)
+            {
+                _fresh.Remove(item);
+            }
+        }
+
+        if (e.NewItems is { } added && _animateNew && Vm is { IsLoadingHistory: false })
+        {
+            foreach (var item in added)
+            {
+                _fresh.Add(item);
+            }
         }
     }
 
@@ -175,11 +206,21 @@ public partial class SessionView : UserControl
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        var atBottom = Scroller.Offset.Y >= Scroller.Extent.Height - Scroller.Viewport.Height - 24;
+        var atBottom = AtBottom();
         TopFade.Opacity = Scroller.Offset.Y > 4 ? 1 : 0;
-        if (Math.Abs(e.OffsetDelta.Y) > 0.5)
+        if (_seekingEnd)
         {
-            // The user (or ScrollToEnd) moved: follow again only once back at the bottom.
+            // On the way to the end: the items realized there are seldom as tall as the virtualized list guessed, so
+            // the end moves on as it is reached; keep after it until really there.
+            _seekingEnd = !atBottom;
+            if (_seekingEnd)
+            {
+                ScrollToEndSoon();
+            }
+        }
+        else if (Math.Abs(e.OffsetDelta.Y) > 0.5)
+        {
+            // The user moved: follow again only once back at the bottom.
             _follow = atBottom;
         }
         else if ((e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0) && _follow && !atBottom)
@@ -190,13 +231,25 @@ public partial class SessionView : UserControl
         ScrollDownButton.IsVisible = !_follow && !atBottom;
     }
 
+    // Set while ScrollToEnd chases an end that moves as the last items are realized (see OnScrollChanged).
+    private bool _seekingEnd;
+
     private void ScrollToEndSoon() =>
-        Dispatcher.UIThread.Post(() => Scroller.ScrollToEnd(), DispatcherPriority.Loaded);
+        Dispatcher.UIThread.Post(ScrollToEnd, DispatcherPriority.Loaded);
+
+    private void ScrollToEnd()
+    {
+        // Already there, nothing moves and no ScrollChanged would end the chase.
+        _seekingEnd = !AtBottom();
+        Scroller.ScrollToEnd();
+    }
+
+    private bool AtBottom() => Scroller.Offset.Y >= Scroller.Extent.Height - Scroller.Viewport.Height - 24;
 
     private void OnScrollDownClick(object? sender, RoutedEventArgs e)
     {
         _follow = true;
-        Scroller.ScrollToEnd();
+        ScrollToEnd();
         ScrollDownButton.IsVisible = false;
     }
 

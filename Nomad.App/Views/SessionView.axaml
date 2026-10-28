@@ -234,6 +234,11 @@
       <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
 
+    <!-- The gap between transcript items (see the list). -->
+    <Style Selector="ItemsControl#Transcript > ContentPresenter">
+      <Setter Property="Margin" Value="0,14,0,0" />
+    </Style>
+
     <!-- "Show activity" off: thinking and tool lines are left out (their containers carry the class). -->
     <Style Selector="ItemsControl.quiet > ContentPresenter.activity">
       <Setter Property="IsVisible" Value="False" />
@@ -877,13 +882,17 @@
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
         <StackPanel MaxWidth="{DynamicResource ColumnMaxWidth}" Margin="32,14,32,20">
+          <!-- Virtualized: only the items in and near view are built, so a long chat stays quick to resize. Each
+               item keeps 14 above it (a virtualizing panel has no spacing); the list's own margin takes back the
+               first one's. -->
           <ItemsControl Name="Transcript"
                         ItemsSource="{Binding Items}"
                         Classes.quiet="{Binding !ShowActivity}"
+                        Margin="0,-14,0,0"
                         Padding="14,0,10,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <StackPanel Spacing="14" />
+                <VirtualizingStackPanel CacheLength="1" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
           </ItemsControl>
