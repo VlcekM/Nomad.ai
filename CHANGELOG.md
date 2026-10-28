@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.17.0
+
+- Ctrl+F finds text in the chat: every match is marked, Enter / Shift+Enter (or F3 / Shift+F3) step through them and
+  scroll each into view, and Esc closes the bar.
+- Bare web addresses in replies (`http://localhost:4321`, `www.example.com`) are links: blue, and opened on a click.
+- F1 to F4 can switch the model, Fable to Haiku (off by default: Settings › Claude Code).
+
 ## v1.16.2
 
 - An artifact Claude publishes shows as a card with a file icon, its name and description; a click opens it in the
