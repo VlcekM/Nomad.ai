@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.17.2
+
+- A click on an image in the chat opens it again (and on a sent file, an artifact card or a subagent line), instead of
+  starting a text selection.
+
 ## v1.17.1
 
 - F1 to F4 pick the model only on the new session screen (F2 renames a started one again), and the model chips'
