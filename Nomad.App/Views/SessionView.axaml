@@ -1022,6 +1022,15 @@
         </StackPanel>
       </ScrollViewer>
 
+      <!-- Find in the chat (Ctrl+F): the matches, marked over the transcript. -->
+      <c:FindHighlights Name="FindMarks" Margin="0,0,10,0" Opacity="0">
+        <c:FindHighlights.Transitions>
+          <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          </Transitions>
+        </c:FindHighlights.Transitions>
+      </c:FindHighlights>
+
       <!-- Scrolled: the transcript fades out under the title bar instead of being cut off there. -->
       <Border Name="TopFade"
               Height="28"
@@ -1040,6 +1049,60 @@
             <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
           </Transitions>
         </Border.Transitions>
+      </Border>
+
+      <!-- Find in the chat (Ctrl+F): fades and slides down in at the top right; Enter / Shift+Enter (F3 / Shift+F3)
+           step through the matches, Esc closes it. -->
+      <Border Name="FindBar"
+              Classes="findbar"
+              HorizontalAlignment="Right"
+              VerticalAlignment="Top"
+              Margin="0,8,28,0"
+              Padding="10,0,4,0"
+              Height="36"
+              CornerRadius="8"
+              Background="{DynamicResource BgMainBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 6 20 0 #33000000">
+        <Border.Styles>
+          <Style Selector="Border.findbar">
+            <Setter Property="Opacity" Value="0" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+            <Setter Property="RenderTransform" Value="translateY(-6px)" />
+            <Setter Property="Transitions">
+              <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+              </Transitions>
+            </Setter>
+          </Style>
+          <Style Selector="Border.findbar.open">
+            <Setter Property="Opacity" Value="1" />
+            <Setter Property="IsHitTestVisible" Value="True" />
+            <Setter Property="RenderTransform" Value="translateY(0px)" />
+          </Style>
+        </Border.Styles>
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <TextBox Name="FindBox"
+                   Theme="{StaticResource BareTextBox}"
+                   Watermark="Find in chat"
+                   Width="200"
+                   IsEnabled="False"
+                   FontSize="{DynamicResource UiFontSize}"
+                   VerticalAlignment="Center" />
+          <TextBlock Name="FindCount" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" MinWidth="44" TextAlignment="Right" Margin="4,0,6,0" />
+          <Button Theme="{StaticResource IconButton}" Width="26" Height="26" Click="OnFindPreviousClick" Focusable="False" ToolTip.Tip="Previous (Shift+Enter)">
+            <c:Icon Size="13" Data="{StaticResource IconChevronDown}" RenderTransform="rotate(180deg)" />
+          </Button>
+          <Button Theme="{StaticResource IconButton}" Width="26" Height="26" Click="OnFindNextClick" Focusable="False" ToolTip.Tip="Next (Enter)">
+            <c:Icon Size="13" Data="{StaticResource IconChevronDown}" />
+          </Button>
+          <Button Theme="{StaticResource IconButton}" Width="26" Height="26" Click="OnFindCloseClick" Focusable="False" ToolTip.Tip="Close (Esc)">
+            <c:Icon Size="12" Data="{StaticResource IconClose}" />
+          </Button>
+        </StackPanel>
       </Border>
 
       <!-- New session: the latest projects as cards (click one to work there), then No folder / Open folder…. -->

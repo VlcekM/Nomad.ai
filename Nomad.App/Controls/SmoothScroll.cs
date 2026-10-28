@@ -77,8 +77,15 @@ public static class SmoothScroll
         }
 
         e.Handled = true;
-        glide.Target = target;
-        if (!running && TopLevel.GetTopLevel(viewer) is { } top)
+        GlideTo(viewer, target);
+    }
+
+    /// <summary>Eases the viewer to this offset (retargeting a glide already under way).</summary>
+    public static void GlideTo(ScrollViewer viewer, double y)
+    {
+        var glide = Glides.GetValue(viewer, _ => new Glide());
+        glide.Target = Math.Clamp(y, 0, Math.Max(0, viewer.Extent.Height - viewer.Viewport.Height));
+        if (!glide.IsRunning && TopLevel.GetTopLevel(viewer) is { } top)
         {
             glide.IsRunning = true;
             glide.LastFrame = null;

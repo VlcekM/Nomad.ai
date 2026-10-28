@@ -130,6 +130,9 @@
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
       <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
       <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
+      <!-- Find in the chat (Ctrl+F): every match, and the current one -->
+      <SolidColorBrush x:Key="FindMatchBrush" Color="#33D2784B" />
+      <SolidColorBrush x:Key="FindCurrentBrush" Color="#66D2784B" />
       <!-- GitHub states (sidebar pull request and issue icons) -->
       <SolidColorBrush x:Key="GhOpenBrush" Color="#3FB950" />
       <SolidColorBrush x:Key="GhMergedBrush" Color="#A371F7" />
@@ -283,6 +286,9 @@
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
       <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
       <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
+      <!-- Find in the chat (Ctrl+F): every match, and the current one -->
+      <SolidColorBrush x:Key="FindMatchBrush" Color="#2ED2784B" />
+      <SolidColorBrush x:Key="FindCurrentBrush" Color="#59D2784B" />
       <!-- GitHub states (sidebar pull request and issue icons) -->
       <SolidColorBrush x:Key="GhOpenBrush" Color="#1A7F37" />
       <SolidColorBrush x:Key="GhMergedBrush" Color="#8250DF" />

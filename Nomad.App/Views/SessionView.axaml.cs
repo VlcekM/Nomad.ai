@@ -103,6 +103,36 @@ public partial class SessionView : UserControl
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DragLeaveEvent, (_, _) => ShowDropHint(false));
         AddHandler(DragDrop.DropEvent, OnDrop);
+
+        // Find in the chat (Ctrl+F).
+        FindMarks.Source = Transcript;
+        FindMarks.Scroller = Scroller;
+        FindMarks.Changed += UpdateFindCount;
+        FindBox.TextChanged += (_, _) =>
+        {
+            if (IsFindOpen)
+            {
+                FindMarks.Search(FindBox.Text ?? "");
+                ScrollToMatch();
+            }
+        };
+        FindBox.AddHandler(KeyDownEvent, OnFindKeyDown, RoutingStrategies.Tunnel);
+        Scroller.ScrollChanged += (_, _) => FindMarks.InvalidateVisual();
+        Transcript.LayoutUpdated += (_, _) =>
+        {
+            if (IsFindOpen)
+            {
+                FindMarks.InvalidateVisual();
+            }
+        };
+        _findRefresh = new DispatcherTimer(TimeSpan.FromMilliseconds(120), DispatcherPriority.Background, (_, _) =>
+        {
+            _findRefresh!.Stop();
+            if (IsFindOpen)
+            {
+                FindMarks.Search(FindBox.Text ?? "");
+            }
+        });
     }
 
     // Off while a session's items are first created (history, switching sessions): only new ones animate.
@@ -129,6 +159,7 @@ public partial class SessionView : UserControl
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+        CloseFind(focusComposer: false);
         Attach(VisualRoot is not null ? Vm : null);
         _follow = true;
         ScrollDownButton.IsVisible = false;
@@ -200,6 +231,12 @@ public partial class SessionView : UserControl
 
     private void OnContentChanged()
     {
+        // Streamed text replaces its blocks: find the matches again once it settles a moment.
+        if (IsFindOpen && !_findRefresh.IsEnabled)
+        {
+            _findRefresh.Start();
+        }
+
         if (_follow)
         {
             ScrollToEndSoon();
@@ -260,6 +297,157 @@ public partial class SessionView : UserControl
 
     public void FocusComposerSoon() =>
         Dispatcher.UIThread.Post(() => Composer.Focus(), DispatcherPriority.Loaded);
+
+    // ------------------------------------------------------------------ find in the chat (Ctrl+F)
+
+    private readonly DispatcherTimer _findRefresh;
+
+    private bool IsFindOpen => FindBar.Classes.Contains("open");
+
+    /// <summary>The find bar's text (searched as it changes).</summary>
+    public string? FindText
+    {
+        get => FindBox.Text;
+        set => FindBox.Text = value;
+    }
+
+    /// <summary>
+    /// Opens the find bar (or, open, selects its text again), with the text selected in the transcript if there is a
+    /// short one. False when there is no conversation to search.
+    /// </summary>
+    public bool OpenFind()
+    {
+        if (Vm is not { IsNew: false, HasOpenSubagent: false })
+        {
+            return false;
+        }
+
+        var selected = Transcript.GetVisualDescendants().OfType<SelectableTextBlock>()
+            .Select(b => b.SelectedText)
+            .FirstOrDefault(t => t is { Length: > 0 and <= 100 } && !t.Contains('\n'));
+        var wasOpen = IsFindOpen;
+        FindBar.Classes.Add("open");
+        FindBox.IsEnabled = true;
+        FindMarks.Opacity = 1;
+        if (selected is not null && selected != FindBox.Text)
+        {
+            FindBox.Text = selected; // Searches.
+        }
+        else if (!wasOpen)
+        {
+            FindMarks.Search(FindBox.Text ?? "");
+            ScrollToMatch();
+        }
+
+        FindBox.Focus();
+        FindBox.SelectAll();
+        return true;
+    }
+
+    private void CloseFind(bool focusComposer = true)
+    {
+        if (!IsFindOpen)
+        {
+            return;
+        }
+
+        FindBar.Classes.Remove("open");
+        FindBox.IsEnabled = false;
+        FindMarks.Opacity = 0;
+        _findRefresh.Stop();
+
+        // The marks fade out with the bar, then go.
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (!IsFindOpen)
+            {
+                FindMarks.Clear();
+            }
+        }, TimeSpan.FromMilliseconds(220));
+        if (focusComposer)
+        {
+            FocusComposerSoon();
+        }
+    }
+
+    private void OnFindKeyDown(object? sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Escape:
+                CloseFind();
+                break;
+            case Key.Enter or Key.F3 when e.KeyModifiers == KeyModifiers.Shift:
+                FindStep(-1);
+                break;
+            case Key.Enter or Key.F3 when e.KeyModifiers == KeyModifiers.None:
+                FindStep(1);
+                break;
+            default:
+                return;
+        }
+
+        e.Handled = true;
+    }
+
+    private void OnFindPreviousClick(object? sender, RoutedEventArgs e) => FindStep(-1);
+
+    private void OnFindNextClick(object? sender, RoutedEventArgs e) => FindStep(1);
+
+    private void OnFindCloseClick(object? sender, RoutedEventArgs e) => CloseFind();
+
+    private void FindStep(int delta)
+    {
+        FindMarks.Move(delta);
+        ScrollToMatch();
+    }
+
+    private void UpdateFindCount()
+    {
+        var count = FindMarks.Matches.Count;
+        FindCount.Text = string.IsNullOrEmpty(FindBox.Text) ? "" : count == 0 ? "No results" : $"{FindMarks.Current + 1} of {count}";
+    }
+
+    /// <summary>Glides the current match into view (and a tool's own scroller, if it is in one), near the middle.</summary>
+    private void ScrollToMatch()
+    {
+        if (FindMarks.Matches.Count == 0 || FindMarks.Current < 0)
+        {
+            return;
+        }
+
+        var block = FindMarks.Matches[FindMarks.Current].Block;
+        var movedInner = false;
+        for (var visual = block.GetVisualParent(); visual is not null && !ReferenceEquals(visual, Scroller); visual = visual.GetVisualParent())
+        {
+            if (visual is ScrollViewer inner && FindMarks.CurrentRect(inner) is { } within
+                && (within.Top < 0 || within.Bottom > inner.Viewport.Height || within.Left < 0 || within.Right > inner.Viewport.Width))
+            {
+                inner.Offset = new Vector(
+                    Math.Max(0, inner.Offset.X + within.Left - 16),
+                    Math.Max(0, inner.Offset.Y + within.Center.Y - (inner.Viewport.Height / 2)));
+                movedInner = true;
+            }
+        }
+
+        if (movedInner)
+        {
+            Dispatcher.UIThread.Post(ScrollOuterToMatch, DispatcherPriority.Loaded);
+        }
+        else
+        {
+            ScrollOuterToMatch();
+        }
+    }
+
+    private void ScrollOuterToMatch()
+    {
+        // Clear of the find bar and the fade at the top, and of the bottom edge.
+        if (FindMarks.CurrentRect(Scroller) is { } rect && (rect.Top < 56 || rect.Bottom > Scroller.Viewport.Height - 24))
+        {
+            Controls.SmoothScroll.GlideTo(Scroller, Scroller.Offset.Y + rect.Center.Y - (Scroller.Viewport.Height / 2));
+        }
+    }
 
     // ------------------------------------------------------------------ keyboard
 

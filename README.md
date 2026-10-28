@@ -183,6 +183,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | F1 … F4 | Switch model, Fable to Haiku (off by default: Settings › Claude Code; F2 then no longer renames) |
 | Ctrl+N | New session |
 | Ctrl+T | Search sessions: chat titles and conversations, alive, idle and archived (↑↓, Enter opens, Esc closes) |
+| Ctrl+F | Find in the chat: marks every match (Enter / Shift+Enter or F3 / Shift+F3 step through them, Esc closes) |
 | Ctrl+B | Show or hide the sidebar |
 | F2 | Rename the current session (also a double-click or right-click on its row) |
 | Ctrl+Shift+B | Show or hide the side panel (or click the strip on the window's right edge) |
@@ -262,6 +263,7 @@ read should be a free 304 from the ETag cache).
 | `--dev-drag-ctrl` | Hold Ctrl during `--dev-drag` (for Nomad's thread only, never the real keyboard); in a screenshot run, Show in Explorer only logs the path |
 | `--dev-compose "<text>"` | Put text in the composer (`\n` for new lines) |
 | `--dev-search "<query>"` | Open the session search (Ctrl+T) with this query |
+| `--dev-find "<text>"` | Open the find bar (Ctrl+F) with this text |
 | `--dev-paste-image <file>` | Attach an image (or any file, as a chip) to the composer, as a paste would; repeatable |
 | `--dev-log <file>` | Append every line to and from the CLI to a file (`> ` sent, `< ` received) |
 | `--dev-cli-debug <file>` | Have the CLI write its debug log to a file (`--debug-file`) |

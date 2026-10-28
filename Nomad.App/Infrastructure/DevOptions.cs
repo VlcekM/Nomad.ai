@@ -30,6 +30,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
 /// --dev-sandbox composer        only the composer, in a window of its own (Enter renders what was typed)
 /// --dev-search "&lt;query&gt;"     open the session search (Ctrl+T) with this query after start
+/// --dev-find "&lt;text&gt;"        open the find bar (Ctrl+F) with this text after start
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
 /// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
 /// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
@@ -86,6 +87,9 @@ public sealed class DevOptions
 
     /// <summary><c>--dev-search "query"</c>: the session search is open with this query.</summary>
     public string? Search { get; private set; }
+
+    /// <summary><c>--dev-find "text"</c>: the find bar (Ctrl+F) is open with this text.</summary>
+    public string? Find { get; private set; }
     public string? UpdateSource { get; private set; }
     public double? UpdateCheckAfterSeconds { get; private set; }
     public string? ReleasesRepository { get; private set; }
@@ -179,6 +183,7 @@ public sealed class DevOptions
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
                 case "--dev-sandbox": o.Sandbox = Next(); break;
                 case "--dev-search": o.Search = Next(); break;
+                case "--dev-find": o.Find = Next(); break;
                 case "--dev-paste-image": o.PasteImages.Add(Path.GetFullPath(Next())); break;
                 case "--dev-stop-after":
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var stop))

@@ -106,6 +106,13 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Ctrl+F: find in the chat.
+            if (e.Key == Key.F && e.KeyModifiers == KeyModifiers.Control && !vm.Search.IsOpen && !vm.IsSettingsOpen)
+            {
+                e.Handled = this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault()?.OpenFind() == true;
+                return;
+            }
+
             if (vm.Search.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
             {
                 switch (e.Key)
@@ -1115,6 +1122,17 @@ public partial class MainWindow : Window
         if (dev.Search is { } search)
         {
             DispatcherTimer.RunOnce(() => _vm.Search.Open(search), TimeSpan.FromSeconds(1.5));
+        }
+
+        if (dev.Find is { } find)
+        {
+            DispatcherTimer.RunOnce(() =>
+            {
+                if (this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault() is { } view && view.OpenFind())
+                {
+                    view.FindText = find;
+                }
+            }, TimeSpan.FromSeconds(2));
         }
 
         if (dev.Compose is { } compose)
