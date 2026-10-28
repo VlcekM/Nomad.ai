@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Threading;
-using Nomad.App.Infrastructure;
 
 namespace Nomad.App.Controls;
 
@@ -11,7 +10,7 @@ public enum SessionMark
 {
     None,
 
-    /// <summary>A turn runs: the pixel spinner.</summary>
+    /// <summary>A turn runs: a spinning circle.</summary>
     Working,
 
     /// <summary>Subagents are at work: three dots circling.</summary>
@@ -25,7 +24,7 @@ public enum SessionMark
 }
 
 /// <summary>
-/// A sidebar row's state on its right: the working spinner, circling dots for subagents, or a dot. A change
+/// A sidebar row's state on its right: a spinning circle while working, circling dots for subagents, or a dot. A change
 /// crossfades (200 ms, cubic ease-out, retargeting mid-flight); the timer runs only while fading or animating.
 /// </summary>
 public sealed class StatusMark : Control
@@ -43,12 +42,13 @@ public sealed class StatusMark : Control
         AvaloniaProperty.Register<StatusMark, IBrush?>(nameof(UnreadBrush));
 
     private static readonly TimeSpan Fade = TimeSpan.FromMilliseconds(200);
-    private static readonly TimeSpan SpinPeriod = TimeSpan.FromMilliseconds(1100);
+    private static readonly TimeSpan SpinPeriod = TimeSpan.FromMilliseconds(900);
     private static readonly TimeSpan OrbitPeriod = TimeSpan.FromMilliseconds(1600);
     private const double DotSize = 6;
+    private const double SpinnerSize = 10;
+    private const double SpinnerStroke = 1.6;
 
     private readonly DateTime _start = DateTime.UtcNow;
-    private ClayPlayer? _clay;
     private DispatcherTimer? _timer;
 
     // The mark fading out, and how far the one fading in had come when the change came.
@@ -80,10 +80,6 @@ public sealed class StatusMark : Control
         set => SetValue(UnreadBrushProperty, value);
     }
 
-    public StatusMark()
-    {
-        RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
-    }
 
     protected override Size MeasureOverride(Size availableSize) => new(12, 12);
 
@@ -120,10 +116,6 @@ public sealed class StatusMark : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == MarkProperty && Mark == SessionMark.Working)
-        {
-            _clay = null; // Working again: its mark comes in from the start.
-        }
 
         if (change.Property == MarkProperty)
         {
@@ -159,7 +151,7 @@ public sealed class StatusMark : Control
         var moving = IsVisible && VisualRoot is not null && (Mark is SessionMark.Working or SessionMark.Subagents || Progress() < 1);
         if (moving)
         {
-            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) =>
+            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
             {
                 InvalidateVisual();
                 Update();
@@ -192,15 +184,8 @@ public sealed class StatusMark : Control
 
         switch (mark)
         {
-            case SessionMark.Working when WorkingMarkSheets.Current is { } sheets:
-                // The desktop app's working mark, its plain loop; 2 px larger than the dots so it reads as alive.
-                var now = (DateTime.UtcNow - _start).TotalMilliseconds;
-                _clay ??= new ClayPlayer(sheets, "default", now);
-                _clay.Advance(now);
-                _clay.Draw(context, new Rect(-2, -2, Bounds.Width + 4, Bounds.Height + 4), now, opacity);
-                break;
             case SessionMark.Working when WorkingBrush is ISolidColorBrush brush:
-                PixelSpinner.Draw(context, Bounds.Size, brush.Color, (DateTime.UtcNow - _start) / SpinPeriod % 1, opacity);
+                DrawSpinner(context, brush.Color, (DateTime.UtcNow - _start) / SpinPeriod % 1, opacity);
                 break;
             case SessionMark.Subagents when WorkingBrush is ISolidColorBrush brush:
                 DrawOrbit(context, brush.Color, (DateTime.UtcNow - _start) / OrbitPeriod % 1, opacity);
@@ -212,6 +197,32 @@ public sealed class StatusMark : Control
                 DrawDot(context, brush.Color, opacity);
                 break;
         }
+    }
+
+    /// <summary>A faint ring with a quarter-and-a-bit arc running round it.</summary>
+    private void DrawSpinner(DrawingContext context, Color color, double phase, double opacity)
+    {
+        var center = new Point(Bounds.Width / 2, Bounds.Height / 2);
+        var radius = (SpinnerSize - SpinnerStroke) / 2;
+        context.DrawEllipse(null, new Pen(new ImmutableSolidColorBrush(color, 0.2 * opacity), SpinnerStroke), center, radius, radius);
+
+        const double sweep = 100;
+        var start = 360 * phase - 90;
+        var geometry = new StreamGeometry();
+        using (var g = geometry.Open())
+        {
+            g.BeginFigure(PointOnCircle(center, radius, start), false);
+            g.ArcTo(PointOnCircle(center, radius, start + sweep), new Size(radius, radius), 0, false, SweepDirection.Clockwise);
+            g.EndFigure(false);
+        }
+
+        context.DrawGeometry(null, new Pen(new ImmutableSolidColorBrush(color, opacity), SpinnerStroke, lineCap: PenLineCap.Round), geometry);
+    }
+
+    private static Point PointOnCircle(Point center, double radius, double degrees)
+    {
+        var rad = degrees * Math.PI / 180;
+        return new Point(center.X + radius * Math.Cos(rad), center.Y + radius * Math.Sin(rad));
     }
 
     /// <summary>Three dots circling the centre, each brightening in turn as it passes the top.</summary>
