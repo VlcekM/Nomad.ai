@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.15.1
+
+- The Claude app's fonts are found again with Claude 4.29 and later, which packs its web bundle into an archive.
+- A session's sidebar row shows it working while a turn runs, also one Claude Code starts by itself (a queued prompt,
+  a resumed session); the working mark is a spinning circle.
+- Long chats stay quick to resize and scroll: only the part of the transcript in view is built.
+
 ## v1.15.0
 
 - Color themes come down to 14 base colors; every other shade (hovers, chips, buttons, lines, secondary text) follows
