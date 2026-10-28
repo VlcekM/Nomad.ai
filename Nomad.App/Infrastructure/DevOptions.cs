@@ -13,7 +13,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
-/// --dev-menu model|mode|folder|branch|plus|usage|remote|update|list|alivelist|row|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's context menu) before the screenshot
+/// --dev-menu model|mode|folder|branch|plus|usage|remote|update|list|alivelist|row|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's or folder heading's context menu) before the screenshot
 /// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills

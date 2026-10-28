@@ -103,6 +103,9 @@ public sealed class NomadSettings
     /// <summary>Alive rows show their project's name on a second line.</summary>
     public bool AliveShowProject { get; set; }
 
+    /// <summary>Folders pinned in the Alive list (grouped by folder): their group shows, with its +, even with no alive session.</summary>
+    public List<string> AliveFolders { get; set; } = [];
+
     /// <summary>Session ids archived from the sidebar: hidden from the list, their transcripts kept.</summary>
     public List<string> ArchivedSessions { get; set; } = [];
 

@@ -204,4 +204,18 @@ public sealed partial class SessionGroupHeader(string key, string title) : Obser
     /// <summary>How many sessions it holds: shown while it is collapsed.</summary>
     [ObservableProperty]
     public partial int Count { get; set; }
+
+    /// <summary>An Alive folder group: its + opens the new-session page on <see cref="Folder"/>.</summary>
+    [ObservableProperty]
+    public partial bool CanStartNew { get; set; }
+
+    /// <summary>The group's folder (pinned, or its newest session's), or null for "No folder".</summary>
+    public string? Folder { get; set; }
+
+    /// <summary>A folder group (not "No folder"): its menu pins the folder to the Alive list, or unpins it.</summary>
+    public bool CanPin { get; set; }
+
+    /// <summary>Pinned to the Alive list: listed there even with no alive session.</summary>
+    [ObservableProperty]
+    public partial bool IsFolderPinned { get; set; }
 }

@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Nomad.App.ViewModels;
@@ -761,6 +762,20 @@ public partial class MainWindow : Window
         {
             PrepareSessionMenu(menu, item);
         }
+        else if ((e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Button>().FirstOrDefault(b => b.Classes.Contains("groupheader"))
+            is { DataContext: SessionGroupHeader header, ContextMenu: { } groupMenu })
+        {
+            if (header is not { CanPin: true, Folder: { } folder })
+            {
+                e.Handled = true; // Date, Pinned and "No folder" groups have no menu.
+                return;
+            }
+
+            foreach (var entry in groupMenu.Items.OfType<MenuItem>())
+            {
+                entry.Header = _vm.IsAliveFolder(folder) ? "Unpin from Alive" : "Pin to Alive";
+            }
+        }
     }
 
     private void PrepareSessionMenu(ContextMenu menu, SessionListItemViewModel item)
@@ -819,6 +834,37 @@ public partial class MainWindow : Window
         if (sender is Control { DataContext: SessionGroupHeader header })
         {
             _ = _vm.ToggleGroupAsync(header);
+        }
+    }
+
+    private void OnGroupNewClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionGroupHeader header })
+        {
+            _vm.NewSessionIn(header.Folder);
+        }
+    }
+
+    private void OnPinFolderClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionGroupHeader { Folder: { } folder } })
+        {
+            _vm.ToggleAliveFolder(folder);
+        }
+    }
+
+    private async void OnPinAliveFolderClick(object? sender, RoutedEventArgs e)
+    {
+        AliveOptionsButton.Flyout?.Hide();
+        var result = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Pin a folder to Alive",
+            AllowMultiple = false,
+        });
+
+        if (result.Count > 0 && result[0].TryGetLocalPath() is { } path && !_vm.IsAliveFolder(path))
+        {
+            _vm.ToggleAliveFolder(path);
         }
     }
 
@@ -1223,6 +1269,18 @@ public partial class MainWindow : Window
         else if (dev.Menu == "alivelist")
         {
             AliveOptionsButton.Flyout?.ShowAt(AliveOptionsButton);
+        }
+        else if (dev.Menu == "group")
+        {
+            // The first folder heading's context menu (Pin to Alive / Unpin from Alive).
+            if (this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionGroupHeader { CanPin: true }) is { } groupButton)
+            {
+                groupButton.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent, Source = groupButton });
+                if (groupButton.ContextMenu is { IsOpen: false } groupMenu)
+                {
+                    groupMenu.Open();
+                }
+            }
         }
         else if (dev.Menu == "row")
         {

@@ -450,37 +450,58 @@
                 </Grid>
               </Button>
             </DataTemplate>
-            <!-- A click folds the group's rows away; collapsed, it shows how many it holds. -->
+            <!-- A click folds the group's rows away; collapsed, it shows how many it holds. An Alive folder group has a + for a new session there. -->
             <DataTemplate x:DataType="vm:SessionGroupHeader">
-              <Button Theme="{StaticResource RowButton}"
-                      Classes="groupheader"
-                      Classes.collapsed="{Binding IsCollapsed}"
-                      Height="24"
-                      Margin="8,8,11,1"
-                      Padding="10,0,8,0"
-                      Click="OnGroupHeaderClick">
-                <Grid ColumnDefinitions="Auto,Auto,*">
-                  <TextBlock Text="{Binding Title}"
-                             FontSize="{DynamicResource UiFontSizeSmall}"
-                             Foreground="{DynamicResource TextMutedBrush}"
-                             TextTrimming="CharacterEllipsis"
-                             VerticalAlignment="Center" />
-                  <c:Icon Grid.Column="1"
-                          Classes="sectionchev"
-                          Size="11"
-                          Margin="5,0,0,0"
-                          Data="{StaticResource IconChevronDown}"
-                          Stroke="{DynamicResource TextMutedBrush}"
-                          VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2"
-                             Classes="groupcount"
-                             Text="{Binding Count}"
-                             HorizontalAlignment="Right"
-                             FontSize="{DynamicResource UiFontSizeSmall}"
-                             Foreground="{DynamicResource TextMutedBrush}"
-                             VerticalAlignment="Center" />
-                </Grid>
-              </Button>
+              <Grid ColumnDefinitions="*,Auto" Margin="8,8,11,1">
+                <Button Theme="{StaticResource RowButton}"
+                        Classes="groupheader"
+                        Classes.collapsed="{Binding IsCollapsed}"
+                        Height="24"
+                        Padding="10,0,8,0"
+                        Click="OnGroupHeaderClick">
+                  <!-- Only a folder group's: its header is set as it is asked for. -->
+                  <Button.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Tag="pinfolder" Click="OnPinFolderClick" />
+                    </ContextMenu>
+                  </Button.ContextMenu>
+                  <Grid ColumnDefinitions="Auto,Auto,Auto,*">
+                    <Border Classes="pinmark" Classes.shown="{Binding IsFolderPinned}" Background="Transparent"
+                            ToolTip.Tip="Pinned to Alive">
+                      <c:Icon Size="11" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                    </Border>
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding Title}"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" />
+                    <c:Icon Grid.Column="2"
+                            Classes="sectionchev"
+                            Size="11"
+                            Margin="5,0,0,0"
+                            Data="{StaticResource IconChevronDown}"
+                            Stroke="{DynamicResource TextMutedBrush}"
+                            VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="3"
+                               Classes="groupcount"
+                               Text="{Binding Count}"
+                               HorizontalAlignment="Right"
+                               FontSize="{DynamicResource UiFontSizeSmall}"
+                               Foreground="{DynamicResource TextMutedBrush}"
+                               VerticalAlignment="Center" />
+                  </Grid>
+                </Button>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource IconButton}"
+                        Width="24" Height="24"
+                        Foreground="{DynamicResource TextMutedBrush}"
+                        IsVisible="{Binding CanStartNew}"
+                        ToolTip.Tip="{Binding Title, StringFormat='New session in {0}'}"
+                        Click="OnGroupNewClick">
+                  <c:Icon Size="13" Data="{StaticResource IconPlus}" />
+                </Button>
+              </Grid>
             </DataTemplate>
           </Grid.DataTemplates>
 
@@ -642,6 +663,11 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <Border Classes="rule" />
+                    <Button Theme="{StaticResource MenuItemButton}" Click="OnPinAliveFolderClick"
+                            ToolTip.Tip="Its group shows, with a + for a new session, even with no alive session in it">
+                      <TextBlock Text="Pin a folder…" />
+                    </Button>
                     <Border Classes="rule" />
                     <Button Theme="{StaticResource MenuItemButton}" Click="OnShowAliveProjectClick">
                       <Grid ColumnDefinitions="*,Auto">

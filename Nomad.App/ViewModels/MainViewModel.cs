@@ -809,6 +809,40 @@ public sealed partial class MainViewModel : ObservableObject
         Current = _draft is { IsNew: true } draft ? draft : new SessionViewModel(this, Settings.LastFolder);
     }
 
+    /// <summary>Pins a folder to the Alive list (grouping it by folder, where pinned folders show) or unpins it.</summary>
+    public void ToggleAliveFolder(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        bool Same(string f) => string.Equals(f.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase);
+        if (Settings.AliveFolders.RemoveAll(Same) == 0)
+        {
+            Settings.AliveFolders.Add(folder);
+            if (Settings.AliveGrouping != "Folder")
+            {
+                Settings.AliveGrouping = "Folder";
+                UpdateGroupingOptions();
+            }
+
+            if (IsAliveCollapsed)
+            {
+                ToggleAliveSection();
+            }
+        }
+
+        SaveSettings();
+        ApplyFilter();
+    }
+
+    public bool IsAliveFolder(string folder) =>
+        Settings.AliveFolders.Any(f => string.Equals(f.TrimEnd('\\', '/'), folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>An Alive folder group's +: the new-session page, with that project picked (null for no folder).</summary>
+    public void NewSessionIn(string? folder)
+    {
+        NewSession();
+        Current.SetFolder(folder);
+    }
+
     /// <summary>The default mode changed in the settings: the new-session page follows, unless a mode was picked there.</summary>
     public void OnDefaultModeChanged()
     {
@@ -1331,7 +1365,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         SyncList(Alive, Group(alive, [], Settings.AliveGrouping, "Alive:"));
         SyncList(Recents, Group(list.Where(s => !s.IsAlive && !s.IsArchived).ToList(), list.Where(s => !s.IsAlive && s.IsArchived).ToList(), Settings.SessionGrouping, ""));
-        HasAlive = alive.Count > 0;
+        HasAlive = Alive.Count > 0;
         AliveCount = alive.Count;
         HasNoSessions = _all.Count == 0 && !IsLoadingSessions;
         ShowSessionsSkeleton = _all.Count == 0 && IsLoadingSessions;
@@ -1349,6 +1383,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         header.IsCollapsed = Settings.CollapsedGroups.Contains(key);
+        header.CanStartNew = false;
+        header.CanPin = false;
+        header.IsFolderPinned = false;
+        header.Folder = null;
         return header;
     }
 
@@ -1397,10 +1435,40 @@ public sealed partial class MainViewModel : ObservableObject
                 AddGroup(Header(prefix + "Pinned", "Pinned"), pinned);
             }
 
-            // Groups in the order of their newest session; within a group, newest first.
-            foreach (var group in sessions.GroupBy(key))
+            // Groups in the order of their newest session; within a group, newest first. Grouped by folder, the
+            // Alive list starts with its pinned folders (in pin order), shown even with no session in them.
+            var groups = sessions.GroupBy(key).ToList();
+            var alive = prefix == "Alive:";
+            if (alive && grouping == "Folder")
             {
-                AddGroup(Header(prefix + grouping + ":" + group.Key, group.Key), group.ToList());
+                foreach (var folder in Settings.AliveFolders)
+                {
+                    var name = ProjectName(folder);
+                    var rows = groups.FirstOrDefault(g => g.Key == name)?.ToList() ?? [];
+                    groups.RemoveAll(g => g.Key == name);
+                    if (rows.Count == 0 && searching)
+                    {
+                        continue;
+                    }
+
+                    var header = Header(prefix + grouping + ":" + name, name);
+                    header.Folder = folder;
+                    header.CanStartNew = header.CanPin = header.IsFolderPinned = true;
+                    AddGroup(header, rows);
+                }
+            }
+
+            foreach (var group in groups)
+            {
+                var header = Header(prefix + grouping + ":" + group.Key, group.Key);
+                if (grouping == "Folder" && group.First().WorkingDirectory is { } folder && !IsScratch(folder))
+                {
+                    header.Folder = GitInfo.WorktreeOwner(folder) ?? folder;
+                    header.CanPin = true;
+                }
+
+                header.CanStartNew = alive && grouping == "Folder";
+                AddGroup(header, group.ToList());
             }
         }
 
