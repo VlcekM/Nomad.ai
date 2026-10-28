@@ -552,7 +552,7 @@
           <!-- Title bar part over the sidebar: drags the window. -->
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
             <c:HazardStripes IsVisible="{x:Static app:Program.IsDebugRun}" />
-            <!-- A debug run says so, over the search box's right end. -->
+            <!-- A debug run says so, at the right end of the bar, level with the buttons. -->
             <TextBlock Text="(DEBUG)"
                        IsVisible="{x:Static app:Program.IsDebugRun}"
                        IsHitTestVisible="False"
@@ -561,8 +561,8 @@
                        LetterSpacing="0.5"
                        Foreground="#F2C12E"
                        HorizontalAlignment="Right"
-                       VerticalAlignment="Bottom"
-                       Margin="0,0,15,-6" />
+                       VerticalAlignment="Center"
+                       Margin="0,0,15,0" />
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center">
               <Button Theme="{StaticResource IconButton}" ToolTip.Tip="Menu" Name="AppMenuButton" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconMenu}" />

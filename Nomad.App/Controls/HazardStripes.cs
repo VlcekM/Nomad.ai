@@ -13,7 +13,7 @@ public sealed class HazardStripes : Control
     private const double Stripe = 9;
     private const double Gap = 13;
 
-    private static readonly IBrush Yellow = new SolidColorBrush(Color.FromArgb(0x38, 0xF2, 0xC1, 0x2E));
+    private static readonly IBrush Yellow = new SolidColorBrush(Color.FromArgb(0x16, 0xF2, 0xC1, 0x2E));
 
     public HazardStripes()
     {
