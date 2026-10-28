@@ -495,6 +495,63 @@ public sealed class SentFilesItem : TranscriptItem
     public bool IsEmpty => !HasImages && !HasFiles;
 }
 
+/// <summary>
+/// An artifact Claude published (the Artifact tool): a card with the file's name and description that opens the
+/// claude.ai page in the browser on a click.
+/// </summary>
+public sealed partial class ArtifactItem : TranscriptItem
+{
+    private ArtifactItem(string url, string? path, string? description, string? version)
+    {
+        Url = url;
+        Path = path;
+        Title = path is { Length: > 0 } ? System.IO.Path.GetFileNameWithoutExtension(path) : "Artifact";
+        Subtitle = description is { Length: > 0 } ? description : "claude.ai artifact";
+        Version = version;
+    }
+
+    public string Url { get; }
+
+    public string? Path { get; }
+
+    public string Title { get; }
+
+    public string Subtitle { get; }
+
+    public string? Version { get; }
+
+    public string ToolTip => Version is null ? Url : $"{Url}\nVersion {Version}";
+
+    public bool HasPath => Path is not null;
+
+    /// <summary>The card for a successful publish ("Published … at https://claude.ai/artifact/…"), or null.</summary>
+    public static ArtifactItem? From(JsonElement input, string? cwd, string result)
+    {
+        if (ArtifactUrl().Match(result) is not { Success: true } url)
+        {
+            return null;
+        }
+
+        string? Str(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var value) &&
+            value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+
+        var path = Str("file_path");
+        if (path is { Length: > 0 } && !System.IO.Path.IsPathRooted(path) && cwd is not null)
+        {
+            path = System.IO.Path.GetFullPath(System.IO.Path.Combine(cwd, path));
+        }
+
+        var version = VersionNumber().Match(result) is { Success: true } v ? v.Groups[1].Value : null;
+        return new ArtifactItem(url.Value, path is { Length: > 0 } ? path : null, Str("description")?.Trim(), version);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"https://claude\.ai/artifact/[A-Za-z0-9_-]+")]
+    private static partial System.Text.RegularExpressions.Regex ArtifactUrl();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\(Version (\d+)")]
+    private static partial System.Text.RegularExpressions.Regex VersionNumber();
+}
+
 public sealed class ErrorItem(string message) : TranscriptItem
 {
     public string Message { get; } = message;

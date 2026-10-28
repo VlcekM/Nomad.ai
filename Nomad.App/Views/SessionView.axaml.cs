@@ -873,6 +873,47 @@ public partial class SessionView : UserControl
         }
     }
 
+    // An artifact Claude published: a click opens its claude.ai page in the browser.
+    private void OnArtifactTapped(object? sender, TappedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ArtifactItem artifact)
+        {
+            Markdown.LinkSupport.Open(artifact.Url);
+            e.Handled = true;
+        }
+    }
+
+    private void OnArtifactOpenClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ArtifactItem artifact)
+        {
+            Markdown.LinkSupport.Open(artifact.Url);
+        }
+    }
+
+    private async void OnArtifactCopyLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ArtifactItem artifact && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(artifact.Url);
+        }
+    }
+
+    private void OnArtifactOpenFileClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is ArtifactItem { Path: { } path })
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                // Gone, or nothing is registered to open it.
+            }
+        }
+    }
+
     private void OpenPreview(List<(Avalonia.Media.Imaging.Bitmap, string)> images, int index)
     {
         if (images.Count == 0)

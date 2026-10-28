@@ -8,6 +8,18 @@
              x:DataType="vm:SessionViewModel">
 
   <UserControl.Styles>
+    <!-- Published artifact cards brighten their border on hover. -->
+    <Style Selector="Border.artifact">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.artifact:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+    </Style>
     <!-- +21 / −1 pills -->
     <!-- Status row labels: a size below the interface text, medium weight. -->
     <Style Selector="TextBlock.status">
@@ -587,6 +599,30 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
+    </DataTemplate>
+
+    <!-- An artifact Claude published: a card that opens it in the browser; right-click copies the link or opens the file. -->
+    <DataTemplate DataType="{x:Type vm:ArtifactItem}" x:DataType="vm:ArtifactItem">
+      <Border Classes="artifact" Margin="0,10,0,4" MinHeight="44" MaxWidth="460" Padding="10,7,14,7" CornerRadius="8"
+              HorizontalAlignment="Left"
+              Background="{DynamicResource BgInputBrush}" BorderThickness="1"
+              Cursor="Hand" Tapped="OnArtifactTapped"
+              ToolTip.Tip="{Binding ToolTip}">
+        <Border.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Open in browser" Click="OnArtifactOpenClick" />
+            <MenuItem Header="Copy link" Click="OnArtifactCopyLinkClick" />
+            <MenuItem Header="Open file" Click="OnArtifactOpenFileClick" IsVisible="{Binding HasPath}" />
+          </ContextMenu>
+        </Border.ContextMenu>
+        <Grid ColumnDefinitions="Auto,*">
+          <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,9,0" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="{Binding Subtitle}" Classes="muted" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeTiny}" />
+          </StackPanel>
+        </Grid>
+      </Border>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:AssistantTextItem}" x:DataType="vm:AssistantTextItem">

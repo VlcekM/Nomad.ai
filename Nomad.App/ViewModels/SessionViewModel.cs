@@ -2598,6 +2598,11 @@ public sealed partial class SessionViewModel : ObservableObject
             CloseGroup();
             Items.Add(sent);
         }
+        else if (call.Name == "Artifact" && !isError && ArtifactItem.From(call.Input, call.Cwd, text) is { } artifact)
+        {
+            CloseGroup();
+            Items.Add(artifact);
+        }
     }
 
     private void FinishOpenCalls()
