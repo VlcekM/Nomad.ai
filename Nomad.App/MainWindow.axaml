@@ -4,6 +4,7 @@
         xmlns:views="using:Nomad.App.Views"
         xmlns:c="using:Nomad.App.Controls"
         xmlns:md="using:Nomad.App.Markdown"
+        xmlns:app="using:Nomad.App"
         x:Class="Nomad.App.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Nomad.ai"
@@ -507,6 +508,18 @@
 
           <!-- Title bar part over the sidebar: drags the window. -->
           <Panel Grid.Row="0" Background="Transparent" PointerPressed="OnTitleBarPointerPressed">
+            <c:HazardStripes IsVisible="{x:Static app:Program.IsDebugRun}" />
+            <!-- A debug run says so, over the search box's right end. -->
+            <TextBlock Text="(DEBUG)"
+                       IsVisible="{x:Static app:Program.IsDebugRun}"
+                       IsHitTestVisible="False"
+                       FontSize="10"
+                       FontWeight="SemiBold"
+                       LetterSpacing="0.5"
+                       Foreground="#F2C12E"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom"
+                       Margin="0,0,15,-6" />
             <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center">
               <Button Theme="{StaticResource IconButton}" ToolTip.Tip="Menu" Name="AppMenuButton" Foreground="{DynamicResource TextPrimaryBrush}">
                 <c:Icon Data="{StaticResource IconMenu}" />
@@ -910,6 +923,7 @@
               ColumnDefinitions="Auto,*,Auto"
               Background="Transparent"
               PointerPressed="OnTitleBarPointerPressed">
+          <c:HazardStripes Grid.ColumnSpan="3" IsVisible="{x:Static app:Program.IsDebugRun}" />
           <!-- Sidebar collapsed: its buttons move here. -->
           <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
                       IsVisible="{Binding !IsSidebarOpen}">
