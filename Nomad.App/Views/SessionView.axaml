@@ -29,8 +29,8 @@
       <Setter Property="Cursor" Value="Arrow" />
     </Style>
 
-    <!-- Prompt actions: hidden until the prompt is hovered, then a quick fade. -->
-    <Style Selector="Grid.usermsg StackPanel.msgactions">
+    <!-- Prompt and response actions: hidden until the message is hovered, then a quick fade. -->
+    <Style Selector="Grid.usermsg StackPanel.msgactions, Grid.response StackPanel.msgactions">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
@@ -38,7 +38,7 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="Grid.usermsg:pointerover StackPanel.msgactions">
+    <Style Selector="Grid.usermsg:pointerover StackPanel.msgactions, Grid.response:pointerover StackPanel.msgactions">
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="c|Icon.tick">
@@ -547,7 +547,15 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:AssistantTextItem}" x:DataType="vm:AssistantTextItem">
-      <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" />
+      <!-- The turn's last text gets a Copy button below it, fading in on hover. -->
+      <Grid Classes="response" RowDefinitions="Auto,Auto" Background="Transparent">
+        <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" />
+        <StackPanel Grid.Row="1" Classes="msgactions" Orientation="Horizontal" Margin="-5,2,0,0" IsVisible="{Binding EndsResponse}">
+          <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnCopyResponseClick" ToolTip.Tip="Copy">
+            <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+          </Button>
+        </StackPanel>
+      </Grid>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ThinkingItem}" x:DataType="vm:ThinkingItem">

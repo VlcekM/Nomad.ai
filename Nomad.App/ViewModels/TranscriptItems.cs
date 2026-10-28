@@ -127,6 +127,10 @@ public sealed partial class AssistantTextItem : TranscriptItem
 
     [ObservableProperty]
     public partial bool IsStreaming { get; set; }
+
+    /// <summary>The last text of a finished turn: the response, with a Copy button below it.</summary>
+    [ObservableProperty]
+    public partial bool EndsResponse { get; set; }
 }
 
 /// <summary>One collapsed "Thinking" line that expands to the thinking text.</summary>

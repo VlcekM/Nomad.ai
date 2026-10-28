@@ -1895,6 +1895,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         CloseGroup();
+        MarkResponseEnds();
         ContentChanged?.Invoke();
     }
 
@@ -2606,6 +2607,35 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private void CloseGroup() => _openGroup = null;
 
+    /// <summary>Marks each finished turn's last text as its response (the one with a Copy button).</summary>
+    private void MarkResponseEnds()
+    {
+        AssistantTextItem? last = null;
+        foreach (var item in Items)
+        {
+            switch (item)
+            {
+                case AssistantTextItem text:
+                    if (last is not null)
+                    {
+                        last.EndsResponse = false;
+                    }
+
+                    last = text;
+                    break;
+                case UserMessageItem when last is not null:
+                    last.EndsResponse = true;
+                    last = null;
+                    break;
+            }
+        }
+
+        if (last is not null)
+        {
+            last.EndsResponse = !IsTurnRunning;
+        }
+    }
+
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
@@ -2638,6 +2668,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         PendingPermission = null;
+        MarkResponseEnds();
 
         if (result.Interrupted)
         {

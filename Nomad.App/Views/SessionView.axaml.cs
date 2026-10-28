@@ -1070,6 +1070,14 @@ public partial class SessionView : UserControl
         }
     }
 
+    private async void OnCopyResponseClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: AssistantTextItem response } && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(response.Text);
+        }
+    }
+
     private void OnRewindClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: UserMessageItem message } && Vm is { } vm)
