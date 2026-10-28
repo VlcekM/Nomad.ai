@@ -376,7 +376,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>Stops listening to the app (the dialog closed).</summary>
-    public void Detach() => _main.PhoneServerChanged -= OnPhoneServerChanged;
+    public void Detach()
+    {
+        _main.PhoneServerChanged -= OnPhoneServerChanged;
+        FlushThemeSave();
+    }
 
     private void UpdateCliStatus()
     {
@@ -553,6 +557,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
+        FlushThemeSave();
         _theme = value.IsBuiltIn ? null : ColorThemeStore.Load(Themes.Folder, value.Id) ?? new CustomTheme { Name = value.Name };
         ThemeName = _theme?.Name ?? "";
         Apply(s => s.ColorTheme = value.Id, appearance: true);
@@ -676,6 +681,10 @@ public sealed partial class SettingsViewModel : ObservableObject
             return;
         }
 
+        // A color change not yet written would bring the file back.
+        _saveDelay?.Stop();
+        _pendingSave = null;
+
         var path = ColorThemeStore.PathOf(Themes.Folder, choice.Id);
         if (!RecycleBin.Delete([path]))
         {
@@ -735,13 +744,63 @@ public sealed partial class SettingsViewModel : ObservableObject
                     colors[row.Key] = row.Override;
                 }
 
-                SaveTheme();
-                Themes.Apply(SelectedColorTheme!.Id, _theme);
-                App.RestyleMarkdown();
+                ThemeColorChanged();
             }));
             ThemeColorGroups.Add(new ThemeColorGroup(group.Key, rows.ToList()));
         }
     }
+
+    // A drag in the color picker changes a color many times a second: the app is recolored at most once a frame, and
+    // the theme's file written once the color settles.
+    private void ThemeColorChanged()
+    {
+        if (!_restyleQueued)
+        {
+            _restyleQueued = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                _restyleQueued = false;
+                if (_theme is not null && SelectedColorTheme is { IsBuiltIn: false } choice)
+                {
+                    Themes.Apply(choice.Id, _theme);
+                    App.RestyleMarkdown();
+                }
+            }, Avalonia.Threading.DispatcherPriority.Background);
+        }
+
+        if (_theme is null || SelectedColorTheme is not { IsBuiltIn: false } current)
+        {
+            return;
+        }
+
+        _pendingSave = (current.Id, _theme);
+        _saveDelay ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(400), Avalonia.Threading.DispatcherPriority.Background, (_, _) => FlushThemeSave());
+        _saveDelay.Stop();
+        _saveDelay.Start();
+    }
+
+    private void FlushThemeSave()
+    {
+        _saveDelay?.Stop();
+        if (_pendingSave is not var (id, theme))
+        {
+            return;
+        }
+
+        _pendingSave = null;
+        try
+        {
+            ColorThemeStore.Save(Themes.Folder, id, theme);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Kept in memory; the next change tries again.
+        }
+    }
+
+    private bool _restyleQueued;
+    private (string Id, CustomTheme Theme)? _pendingSave;
+    private Avalonia.Threading.DispatcherTimer? _saveDelay;
 
     private void SaveTheme()
     {
@@ -863,7 +922,7 @@ public sealed partial class ThemeChoice(string id, string name) : ObservableObje
 /// <summary>A group of a theme's colors in the editor ("Surfaces", "Text").</summary>
 public sealed record ThemeColorGroup(string Title, IReadOnlyList<ThemeColorRow> Colors);
 
-/// <summary>One color of a custom theme in the editor: a swatch and its hex value, which can be typed.</summary>
+/// <summary>One color of a custom theme in the editor: a swatch that opens a picker, and its hex value, which can be typed.</summary>
 public sealed partial class ThemeColorRow : ObservableObject
 {
     private readonly Color _default;
@@ -882,6 +941,7 @@ public sealed partial class ThemeColorRow : ObservableObject
         Swatch = new SolidColorBrush(color);
         _quiet = true;
         Hex = Themes.Hex(color);
+        Color = color;
         _quiet = false;
         IsChanged = own && color != @default;
     }
@@ -898,6 +958,10 @@ public sealed partial class ThemeColorRow : ObservableObject
     [ObservableProperty]
     public partial string Hex { get; set; }
 
+    /// <summary>The color, as the picker sets it.</summary>
+    [ObservableProperty]
+    public partial Color Color { get; set; }
+
     /// <summary>It differs from the built-in theme (and can be reset).</summary>
     [ObservableProperty]
     public partial bool IsChanged { get; set; }
@@ -912,7 +976,18 @@ public sealed partial class ThemeColorRow : ObservableObject
         Swatch.Color = color;
         Override = Themes.Hex(color);
         IsChanged = color != _default;
+        _quiet = true;
+        Color = color;
+        _quiet = false;
         _changed(this);
+    }
+
+    partial void OnColorChanged(Color value)
+    {
+        if (!_quiet)
+        {
+            Hex = Themes.Hex(value);
+        }
     }
 
     [RelayCommand]
@@ -922,6 +997,7 @@ public sealed partial class ThemeColorRow : ObservableObject
         Swatch.Color = _default;
         _quiet = true;
         Hex = Themes.Hex(_default);
+        Color = _default;
         _quiet = false;
         IsChanged = false;
         _changed(this);

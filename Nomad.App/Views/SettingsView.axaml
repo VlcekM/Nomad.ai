@@ -78,6 +78,15 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="Margin" Value="0,0,10,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.swatch:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}" />
     </Style>
     <Style Selector="Button.reset">
       <Setter Property="Opacity" Value="0" />
@@ -285,7 +294,13 @@
                           <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ThemeColorRow">
                               <Grid ColumnDefinitions="Auto,*,Auto,26" Margin="0,3,16,3">
-                                <Border Classes="swatch" Background="{Binding Swatch}" />
+                                <Border Classes="swatch" Background="{Binding Swatch}" PointerPressed="OnSwatchPressed" ToolTip.Tip="Pick a color">
+                                  <FlyoutBase.AttachedFlyout>
+                                    <Flyout Placement="BottomEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+                                      <c:ColorPad Color="{Binding Color}" Margin="5" />
+                                    </Flyout>
+                                  </FlyoutBase.AttachedFlyout>
+                                </Border>
                                 <TextBlock Grid.Column="1" Text="{Binding Label}" Classes="colorlabel" />
                                 <Border Grid.Column="2" Classes="field" Width="96" Height="26" Padding="8,0">
                                   <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hex}" MaxLength="9" FontSize="{DynamicResource UiFontSizeSmall}" />

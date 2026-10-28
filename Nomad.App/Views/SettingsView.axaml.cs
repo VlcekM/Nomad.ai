@@ -16,6 +16,16 @@ public partial class SettingsView : UserControl
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 
+    // A theme color's swatch: opens its picker.
+    private void OnSwatchPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Control swatch && e.GetCurrentPoint(swatch).Properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+            Avalonia.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(swatch);
+        }
+    }
+
     private async void OnAddPhoneFolderClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)
