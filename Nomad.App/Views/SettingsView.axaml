@@ -544,6 +544,24 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
+                  <TextBlock Text="F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku, besides Ctrl+Shift+1…4. F2 then no longer renames the session."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleModelFunctionKeysCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding ModelFunctionKeys}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Suggest the next prompt" Classes="rowlabel" />
                   <TextBlock Text="After a turn, Claude Code guesses what you'll ask next; it shows as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
                              Classes="rowhint" />

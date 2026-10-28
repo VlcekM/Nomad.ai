@@ -126,6 +126,19 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // F1…F4: the model, when turned on in the settings (F2 renames otherwise).
+            if (vm.Settings.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4)
+            {
+                var index = e.Key - Key.F1;
+                if (index < vm.Current.ModelOptions.Count)
+                {
+                    vm.Current.SelectModelCommand.Execute(vm.Current.ModelOptions[index].Id);
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
             {
                 BeginRename(row);

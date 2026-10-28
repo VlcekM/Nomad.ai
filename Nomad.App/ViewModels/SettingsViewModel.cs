@@ -68,6 +68,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         RemoteControlByDefault = s.RemoteControlByDefault;
         PromptSuggestions = s.PromptSuggestions;
         ConfirmModelSwitch = s.ConfirmModelSwitch;
+        ModelFunctionKeys = s.ModelFunctionKeys;
         LoadColorThemes(s.ColorTheme);
         RefreshPhoneFolders();
         main.PhoneServerChanged += OnPhoneServerChanged;
@@ -262,6 +263,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ToggleConfirmModelSwitch() => ConfirmModelSwitch = !ConfirmModelSwitch;
 
     partial void OnConfirmModelSwitchChanged(bool value) => Apply(s => s.ConfirmModelSwitch = value, appearance: false);
+
+    [ObservableProperty]
+    public partial bool ModelFunctionKeys { get; set; }
+
+    [RelayCommand]
+    private void ToggleModelFunctionKeys() => ModelFunctionKeys = !ModelFunctionKeys;
+
+    partial void OnModelFunctionKeysChanged(bool value) => Apply(s => s.ModelFunctionKeys = value, appearance: false);
 
     [ObservableProperty]
     public partial bool CloseToTray { get; set; }

@@ -40,6 +40,9 @@ public sealed class NomadSettings
     /// <summary>Ask before switching the model of a conversation that has history (its cache does not carry over).</summary>
     public bool ConfirmModelSwitch { get; set; } = true;
 
+    /// <summary>F1…F4 switch the current session's model, Fable to Haiku (F2 then no longer renames the session).</summary>
+    public bool ModelFunctionKeys { get; set; }
+
     /// <summary>Closing the window hides it to the notification area instead; the tray icon's menu (or the app menu) exits.</summary>
     public bool CloseToTray { get; set; }
 
