@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.16.1
+
+- Text in a reply can be selected across paragraphs, list items and code blocks by dragging over them, as in a
+  browser; copying it copies all of it, with a blank line between paragraphs.
+
 ## v1.16.0
 
 - Alive's folder groups have a + that starts a new session in that folder. A folder can be pinned to Alive, from its
