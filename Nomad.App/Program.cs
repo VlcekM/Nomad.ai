@@ -21,6 +21,9 @@ internal static class Program
     /// <summary>The session a clicked notification asks for (it opens once the sessions are loaded).</summary>
     public static string? LaunchSessionId { get; private set; }
 
+    /// <summary>A debug run, started with <c>--dev-*</c> options: construction stripes behind the title bar mark it.</summary>
+    public static bool IsDebugRun { get; private set; }
+
     [STAThread]
     public static int Main(string[] args)
     {
@@ -30,7 +33,8 @@ internal static class Program
 
         // A notification clicked names its session. Already running: that window comes to the front instead (on it).
         LaunchSessionId = WindowsToast.SessionFromLaunch(args);
-        if (!args.Any(a => a.StartsWith("--dev-", StringComparison.Ordinal)))
+        IsDebugRun = args.Any(a => a.StartsWith("--dev-", StringComparison.Ordinal));
+        if (!IsDebugRun)
         {
             Instance = SingleInstance.Claim(LaunchSessionId);
             if (Instance is null)
