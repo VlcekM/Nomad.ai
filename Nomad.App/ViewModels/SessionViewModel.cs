@@ -469,6 +469,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string BackendName => AgentBackends.Name(Backend);
 
+    /// <summary>The models narrate in their reasoning, so it shows as text (<see cref="ThinkingItem.IsNarration"/>).</summary>
+    private bool NarratesInThinking => !IsClaudeCode;
+
     /// <summary>The agent menu: every backend, the current one checked.</summary>
     public IReadOnlyList<MenuOption> BackendOptions { get; } =
         [.. AgentBackends.All.Select(b => new MenuOption(b.Id, b.Name, b.Description))];
@@ -2458,7 +2461,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     Items.Add(new AssistantTextItem(a.MessageId, -1, a.Text, streaming: false));
                     break;
                 case HistoryThinking t:
-                    AddThinking(new ThinkingItem("", -1, t.Text, streaming: false));
+                    AddThinking(new ThinkingItem("", -1, t.Text, streaming: false, NarratesInThinking));
                     break;
                 case HistoryToolCall c:
                     var call = AddCall(c.ToolUseId, c.Name);
@@ -2930,6 +2933,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (GetOrCreateBlock(t.MessageId, t.Index, AgentBlockKind.Thinking) is ThinkingItem thinking)
                 {
                     thinking.Text += t.Text;
+                    if (thinking.IsNarration)
+                    {
+                        ContentChanged?.Invoke();
+                    }
                 }
 
                 break;
@@ -3076,7 +3083,7 @@ public sealed partial class SessionViewModel : ObservableObject
         TranscriptItem item;
         if (kind == AgentBlockKind.Thinking)
         {
-            item = new ThinkingItem(messageId, index, "", streaming: true);
+            item = new ThinkingItem(messageId, index, "", streaming: true, NarratesInThinking);
             AddThinking((ThinkingItem)item);
         }
         else
@@ -3097,7 +3104,13 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private void AddThinking(ThinkingItem thinking)
     {
-        if (_openGroup is not null && Items.Contains(_openGroup))
+        if (thinking.IsNarration)
+        {
+            // Written out like text, so like text it ends the group.
+            CloseGroup();
+            Items.Add(thinking);
+        }
+        else if (_openGroup is not null && Items.Contains(_openGroup))
         {
             _openGroup.AddThinking(thinking);
         }
@@ -3172,7 +3185,7 @@ public sealed partial class SessionViewModel : ObservableObject
             // The thinking lines just before it become part of the group.
             _openGroup = new ToolGroupItem();
             var thoughts = new List<ThinkingItem>();
-            while (Items.Count > 0 && Items[^1] is ThinkingItem thinking)
+            while (Items.Count > 0 && Items[^1] is ThinkingItem { IsNarration: false } thinking)
             {
                 thoughts.Insert(0, thinking);
                 Items.RemoveAt(Items.Count - 1);

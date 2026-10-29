@@ -133,23 +133,39 @@ public sealed partial class AssistantTextItem : TranscriptItem
     public partial bool EndsResponse { get; set; }
 }
 
-/// <summary>One collapsed "Thinking" line that expands to the thinking text.</summary>
+/// <summary>
+/// One collapsed "Thinking" line that expands to the thinking text; or, as <see cref="IsNarration"/>, the thinking
+/// written out in the transcript as it streams.
+/// </summary>
 public sealed partial class ThinkingItem : TranscriptItem
 {
-    public ThinkingItem(string messageId, int blockIndex, string text, bool streaming)
+    public ThinkingItem(string messageId, int blockIndex, string text, bool streaming, bool narration = false)
     {
         MessageId = messageId;
         BlockIndex = blockIndex;
         Text = text;
         IsStreaming = streaming;
+        IsNarration = narration;
     }
 
     public string MessageId { get; }
 
     public int BlockIndex { get; }
 
+    /// <summary>
+    /// The agent's models narrate their work in their reasoning (OpenCode's, Codex's), as Claude does in text between
+    /// tool calls: shown as text in the transcript, not folded into a line or an activity group.
+    /// </summary>
+    public bool IsNarration { get; }
+
+    /// <summary>The collapsed line: Claude's thinking, once it is done.</summary>
+    public bool ShowLine => !IsNarration && !IsStreaming;
+
+    /// <summary>The written-out text: narration, once it has any.</summary>
+    public bool ShowNarration => IsNarration && HasText;
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasText), nameof(DisplayText), nameof(FirstLine))]
+    [NotifyPropertyChangedFor(nameof(HasText), nameof(DisplayText), nameof(FirstLine), nameof(ShowNarration))]
     public partial string Text { get; set; }
 
     /// <summary>The text without the trailing blank lines summarized thinking ends with.</summary>
@@ -159,7 +175,7 @@ public sealed partial class ThinkingItem : TranscriptItem
     public string FirstLine => DisplayText.ReplaceLineEndings("\n").Split('\n', 2)[0].Trim('*', ' ');
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Label))]
+    [NotifyPropertyChangedFor(nameof(Label), nameof(ShowLine))]
     public partial bool IsStreaming { get; set; }
 
     [ObservableProperty]

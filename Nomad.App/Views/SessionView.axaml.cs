@@ -464,6 +464,7 @@ public partial class SessionView : UserControl
     {
         UserMessageItem user => user.Text,
         AssistantTextItem text => text.Text,
+        ThinkingItem { IsNarration: true } thinking when activity => thinking.Text,
         ThinkingItem { IsExpanded: true } thinking when activity => thinking.DisplayText,
         ErrorItem error => error.Message,
         NoticeItem notice => notice.Text,

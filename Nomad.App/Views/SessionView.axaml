@@ -706,31 +706,35 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ThinkingItem}" x:DataType="vm:ThinkingItem">
-      <!-- While it streams, the working row below the transcript says "Thinking"; this line appears once it is done. -->
-      <StackPanel Spacing="6" IsVisible="{Binding !IsStreaming}">
-        <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <c:PixelSpinner IsVisible="{Binding IsStreaming}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
-            <c:Icon Classes="chev"
-                  Classes.open="{Binding IsExpanded}"
-                  Data="{StaticResource IconChevronRight}"
-                  IsVisible="{Binding !IsStreaming}" />
-          </StackPanel>
-        </Button>
-        <Border c:Fold.IsOpen="{Binding IsExpanded}"
-                IsVisible="False"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="2,0,0,0"
-                Padding="12,0,0,0"
-                Margin="1,0,0,4">
-          <SelectableTextBlock Text="{Binding DisplayText}"
-                               TextWrapping="Wrap"
-                               FontSize="{DynamicResource UiFontSize}"
-                               LineHeight="20"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
-        </Border>
-      </StackPanel>
+      <Panel>
+        <!-- OpenCode's and Codex's reasoning: written out like a reply as it streams. -->
+        <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" IsVisible="{Binding ShowNarration}" />
+        <!-- While it streams, the working row below the transcript says "Thinking"; this line appears once it is done. -->
+        <StackPanel Spacing="6" IsVisible="{Binding ShowLine}">
+          <Button Theme="{StaticResource LineButton}" Command="{Binding ToggleCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <c:PixelSpinner IsVisible="{Binding IsStreaming}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" />
+              <c:Icon Classes="chev"
+                    Classes.open="{Binding IsExpanded}"
+                    Data="{StaticResource IconChevronRight}"
+                    IsVisible="{Binding !IsStreaming}" />
+            </StackPanel>
+          </Button>
+          <Border c:Fold.IsOpen="{Binding IsExpanded}"
+                  IsVisible="False"
+                  BorderBrush="{DynamicResource BorderBrush}"
+                  BorderThickness="2,0,0,0"
+                  Padding="12,0,0,0"
+                  Margin="1,0,0,4">
+            <SelectableTextBlock Text="{Binding DisplayText}"
+                                 TextWrapping="Wrap"
+                                 FontSize="{DynamicResource UiFontSize}"
+                                 LineHeight="20"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+          </Border>
+        </StackPanel>
+      </Panel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:ToolGroupItem}" x:DataType="vm:ToolGroupItem">
