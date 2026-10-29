@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:views="using:Nomad.App.Views"
+             xmlns:ide="using:Nomad.App.Ide"
+             x:Class="Nomad.App.Views.FilesView"
+             x:DataType="vm:SessionViewModel">
+
+  <!-- A chat's Files view (the title bar's switch), laid out like Visual Studio: the open files in tabs over a card
+       (one group, or two side by side), and the folder's tree beside them on the window's own background (right by
+       default, a setting swaps the sides). The tree's inner edge drags its width. -->
+  <Grid Name="Layout" ColumnDefinitions="Auto,*,Auto">
+
+    <ItemsControl Name="Documents" Grid.Column="1" ItemsSource="{Binding Files.Groups}" Margin="8,6,4,12">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <UniformGrid Rows="1" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:EditorGroup">
+          <views:EditorGroupView Margin="4,0" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- The tree: no card, as Visual Studio's Solution Explorer. -->
+    <DockPanel Name="TreePane"
+               Grid.Column="2"
+               Width="{Binding $parent[Window].((vm:MainViewModel)DataContext).FileTreeWidth}"
+               Margin="0,8,8,12">
+      <TextBlock DockPanel.Dock="Top"
+                 Text="{Binding FolderName}"
+                 ToolTip.Tip="{Binding Folder}"
+                 Foreground="{DynamicResource TextChromeBrush}"
+                 FontSize="{DynamicResource UiFontSizeSmall}"
+                 FontWeight="Medium"
+                 TextTrimming="CharacterEllipsis"
+                 Margin="10,4,10,8" />
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ide:FileTreeView Name="Tree"
+                          Tree="{Binding Files.Tree}"
+                          TextElement.FontSize="{DynamicResource UiFontSize}"
+                          TextElement.FontFamily="{DynamicResource UiFont}" />
+      </ScrollViewer>
+    </DockPanel>
+
+    <!-- The tree's inner edge: drag to resize it, double-click for the default width. -->
+    <Border Name="TreeGrip"
+            Grid.Column="2"
+            Classes="resizegrip"
+            Margin="-4,8,0,12"
+            HorizontalAlignment="Left"
+            PointerPressed="OnGripPressed"
+            PointerMoved="OnGripMoved"
+            PointerReleased="OnGripReleased"
+            PointerCaptureLost="OnGripCaptureLost">
+      <Border Name="TreeGripLine" HorizontalAlignment="Left" Margin="3,0,0,0" />
+    </Border>
+  </Grid>
+</UserControl>

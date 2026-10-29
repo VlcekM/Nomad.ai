@@ -58,6 +58,49 @@
     <Style Selector="Border.resizegrip:pointerover > Border, Border.resizegrip.dragging > Border">
       <Setter Property="Opacity" Value="1" />
     </Style>
+    <!-- The title bar's Chat / Files switch: two icon segments over a thumb that slides to the one picked. -->
+    <Style Selector="Border.viewswitch">
+      <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.viewswitch Border.thumb">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{DynamicResource BgSegmentCheckedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="RenderTransform" Value="translateX(0px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.viewswitch.files Border.thumb">
+      <Setter Property="RenderTransform" Value="translateX(34px)" />
+    </Style>
+    <Style Selector="Border.viewswitch Button">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Foreground" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.viewswitch Button:pointerover">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
+    </Style>
+    <Style Selector="Border.viewswitch:not(.files) Button.chat, Border.viewswitch.files Button.files">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
   </Window.Styles>
 
   <Panel>
@@ -921,129 +964,133 @@
       <Grid Grid.Column="1" RowDefinitions="36,*">
         <Grid Grid.Row="0"
               Name="TitleBar"
-              ColumnDefinitions="Auto,*,Auto"
+              ColumnDefinitions="*,Auto"
               Background="Transparent"
               PointerPressed="OnTitleBarPointerPressed">
-          <c:HazardStripes Grid.ColumnSpan="3" IsVisible="{x:Static app:Program.IsDebugRun}" />
-          <!-- Sidebar collapsed: its buttons move here. -->
-          <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
-                      IsVisible="{Binding !IsSidebarOpen}">
-            <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Show sidebar (Ctrl+B)">
-              <Panel>
-                <c:Icon Classes="panefill" Classes.on="{Binding IsSidebarOpen}" Data="{StaticResource IconSidebarFill}" />
-                <c:Icon Data="{StaticResource IconSidebar}" />
-              </Panel>
-            </Button>
-            <Button Theme="{StaticResource IconButton}" Command="{Binding NewSessionCommand}" ToolTip.Tip="New session (Ctrl+N)">
-              <c:Icon Data="{StaticResource IconPlus}" />
-            </Button>
-          </StackPanel>
-
-          <!-- The title (a click renames the session in place) and, for a session in a git repository, its branch
-               and worktree. -->
-          <StackPanel Grid.Column="1"
-                      Orientation="Horizontal"
-                      Spacing="2"
-                      Margin="17,0,12,0"
-                      VerticalAlignment="Center">
-            <Button Theme="{StaticResource FlatButton}"
-                    Padding="6,3"
-                    MaxWidth="560"
-                    IsVisible="{Binding Current.HasTitle}"
-                    Click="OnTitleClick"
-                    ToolTip.Tip="Rename (F2)"
-                    ToolTip.ShowDelay="700">
-              <Panel>
-                <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
-                           FontWeight="Medium"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           TextTrimming="CharacterEllipsis"
-                           IsVisible="{Binding !IsTitleRenaming}"
-                           VerticalAlignment="Center" />
-                <TextBox Name="TitleRenameBox"
-                         Theme="{StaticResource BareTextBox}"
-                         FontWeight="Medium"
-                         MinWidth="120"
-                         MaxLength="200"
-                         IsVisible="{Binding IsTitleRenaming}"
-                         Text="{Binding TitleRenameText}"
-                         LostFocus="OnTitleRenameLostFocus" />
-              </Panel>
-            </Button>
-            <TextBlock Text="New session"
-                       Classes="muted"
-                       Margin="6,0,0,0"
-                       IsVisible="{Binding !Current.HasTitle}"
-                       VerticalAlignment="Center" />
-            <!-- The project's name, then "|" before the branch. -->
-            <StackPanel Orientation="Horizontal"
-                        Spacing="6"
-                        Margin="6,0,0,0"
-                        Background="Transparent"
-                        IsVisible="{Binding Current.ShowTitleGit}"
-                        TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
-                        ToolTip.Tip="{Binding Current.FolderToolTip}">
-              <TextBlock Text="{Binding Current.FolderName}"
-                         Classes="muted"
-                         MaxWidth="220"
-                         TextTrimming="CharacterEllipsis"
-                         VerticalAlignment="Center" />
-              <TextBlock Text="|" Classes="muted" VerticalAlignment="Center" />
+          <c:HazardStripes Grid.ColumnSpan="2" IsVisible="{x:Static app:Program.IsDebugRun}" />
+          <!-- Cut off before the Chat / Files switch (its MaxWidth follows the switch, see UpdateTitleArea). -->
+          <Grid Name="TitleArea" ColumnDefinitions="Auto,*" ClipToBounds="True" HorizontalAlignment="Left">
+            <!-- Sidebar collapsed: its buttons move here. -->
+            <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
+                        IsVisible="{Binding !IsSidebarOpen}">
+              <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Show sidebar (Ctrl+B)">
+                <Panel>
+                  <c:Icon Classes="panefill" Classes.on="{Binding IsSidebarOpen}" Data="{StaticResource IconSidebarFill}" />
+                  <c:Icon Data="{StaticResource IconSidebar}" />
+                </Panel>
+              </Button>
+              <Button Theme="{StaticResource IconButton}" Command="{Binding NewSessionCommand}" ToolTip.Tip="New session (Ctrl+N)">
+                <c:Icon Data="{StaticResource IconPlus}" />
+              </Button>
             </StackPanel>
-            <StackPanel Name="TitleBranch"
+
+            <!-- The title (a click renames the session in place) and, for a session in a git repository, its branch
+                 and worktree. -->
+            <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
-                        Spacing="6"
-                        Margin="6,0,0,0"
-                        Background="Transparent"
-                        IsVisible="{Binding Current.ShowTitleGit}"
-                        ToolTip.Tip="{Binding Current.GitChipToolTip}">
-              <c:Icon Size="13" Data="{StaticResource IconGitBranch}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding Current.GitBranch}"
+                        Spacing="2"
+                        Margin="17,0,12,0"
+                        VerticalAlignment="Center">
+              <Button Theme="{StaticResource FlatButton}"
+                      Padding="6,3"
+                      MaxWidth="560"
+                      IsVisible="{Binding Current.HasTitle}"
+                      Click="OnTitleClick"
+                      ToolTip.Tip="Rename (F2)"
+                      ToolTip.ShowDelay="700">
+                <Panel>
+                  <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
+                             FontWeight="Medium"
+                             Foreground="{DynamicResource TextPrimaryBrush}"
+                             TextTrimming="CharacterEllipsis"
+                             IsVisible="{Binding !IsTitleRenaming}"
+                             VerticalAlignment="Center" />
+                  <TextBox Name="TitleRenameBox"
+                           Theme="{StaticResource BareTextBox}"
+                           FontWeight="Medium"
+                           MinWidth="120"
+                           MaxLength="200"
+                           IsVisible="{Binding IsTitleRenaming}"
+                           Text="{Binding TitleRenameText}"
+                           LostFocus="OnTitleRenameLostFocus" />
+                </Panel>
+              </Button>
+              <TextBlock Text="New session"
                          Classes="muted"
-                         FontSize="{DynamicResource UiFontSizeSmall}"
-                         MaxWidth="220"
-                         TextTrimming="CharacterEllipsis"
+                         Margin="6,0,0,0"
+                         IsVisible="{Binding !Current.HasTitle}"
                          VerticalAlignment="Center" />
-              <!-- Unpushed commits: "| ↑ N", the count bold white; its tooltip shows at once. -->
-              <StackPanel Classes="ahead"
-                          Classes.on="{Binding Current.HasGitAhead}"
-                          IsVisible="{Binding Current.HasGitAhead}"
-                          Orientation="Horizontal"
-                          Spacing="3"
+              <!-- The project's name, then "|" before the branch. -->
+              <StackPanel Orientation="Horizontal"
+                          Spacing="6"
+                          Margin="6,0,0,0"
                           Background="Transparent"
+                          IsVisible="{Binding Current.ShowTitleGit}"
                           TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
-                          ToolTip.Tip="{Binding Current.GitAheadToolTip}"
-                          ToolTip.ShowDelay="0">
-                <TextBlock Text="|" Classes="muted" Margin="0,0,3,0" VerticalAlignment="Center" />
-                <TextBlock Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Current.GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                          ToolTip.Tip="{Binding Current.FolderToolTip}">
+                <TextBlock Text="{Binding Current.FolderName}"
+                           Classes="muted"
+                           MaxWidth="220"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+                <TextBlock Text="|" Classes="muted" VerticalAlignment="Center" />
               </StackPanel>
-              <!-- Uncommitted changes in the checkout: "| N changed", as on the project cards. -->
-              <StackPanel Classes="ahead"
-                          Classes.on="{Binding Current.HasGitChanges}"
-                          IsVisible="{Binding Current.HasGitChanges}"
+              <StackPanel Name="TitleBranch"
                           Orientation="Horizontal"
+                          Spacing="6"
+                          Margin="6,0,0,0"
                           Background="Transparent"
-                          TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
-                          ToolTip.Tip="{Binding Current.GitChangesToolTip}"
-                          ToolTip.ShowDelay="0">
-                <TextBlock Text="|" Classes="muted" Margin="0,0,6,0" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Current.GitChangesText}" FontWeight="Bold" Foreground="{DynamicResource WaitingBrush}" VerticalAlignment="Center" />
+                          IsVisible="{Binding Current.ShowTitleGit}"
+                          ToolTip.Tip="{Binding Current.GitChipToolTip}">
+                <c:Icon Size="13" Data="{StaticResource IconGitBranch}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Current.GitBranch}"
+                           Classes="muted"
+                           FontSize="{DynamicResource UiFontSizeSmall}"
+                           MaxWidth="220"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+                <!-- Unpushed commits: "| ↑ N", the count bold white; its tooltip shows at once. -->
+                <StackPanel Classes="ahead"
+                            Classes.on="{Binding Current.HasGitAhead}"
+                            IsVisible="{Binding Current.HasGitAhead}"
+                            Orientation="Horizontal"
+                            Spacing="3"
+                            Background="Transparent"
+                            TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
+                            ToolTip.Tip="{Binding Current.GitAheadToolTip}"
+                            ToolTip.ShowDelay="0">
+                  <TextBlock Text="|" Classes="muted" Margin="0,0,3,0" VerticalAlignment="Center" />
+                  <TextBlock Text="↑" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Current.GitAhead}" FontWeight="Bold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- Uncommitted changes in the checkout: "| N changed", as on the project cards. -->
+                <StackPanel Classes="ahead"
+                            Classes.on="{Binding Current.HasGitChanges}"
+                            IsVisible="{Binding Current.HasGitChanges}"
+                            Orientation="Horizontal"
+                            Background="Transparent"
+                            TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
+                            ToolTip.Tip="{Binding Current.GitChangesToolTip}"
+                            ToolTip.ShowDelay="0">
+                  <TextBlock Text="|" Classes="muted" Margin="0,0,6,0" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding Current.GitChangesText}" FontWeight="Bold" Foreground="{DynamicResource WaitingBrush}" VerticalAlignment="Center" />
+                </StackPanel>
               </StackPanel>
+              <Border Name="TitleWorktree"
+                      Background="Transparent"
+                      Margin="8,0,0,0"
+                      IsVisible="{Binding Current.IsWorktreeSession}"
+                      ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
+                <c:Icon Size="13" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" VerticalAlignment="Center" />
+              </Border>
             </StackPanel>
-            <Border Name="TitleWorktree"
-                    Background="Transparent"
-                    Margin="8,0,0,0"
-                    IsVisible="{Binding Current.IsWorktreeSession}"
-                    ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
-              <c:Icon Size="13" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" VerticalAlignment="Center" />
-            </Border>
-          </StackPanel>
+          </Grid>
 
-          <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <StackPanel Grid.Column="1" Orientation="Horizontal">
             <Button Theme="{StaticResource IconButton}"
                     Classes.on="{Binding IsSidePanelOpen}"
                     IsVisible="{Binding !Current.IsNew}"
+                    IsEnabled="{Binding !Current.IsFilesView}"
                     Command="{Binding ToggleSidePanelCommand}"
                     VerticalAlignment="Center"
                     Margin="0,0,10,0"
@@ -1069,7 +1116,11 @@
           <ContentControl Content="{Binding Current}">
             <ContentControl.ContentTemplate>
               <DataTemplate x:DataType="vm:SessionViewModel">
-                <views:SessionView />
+                <!-- The chat and its Files view take turns, each sliding in from its side of the title bar's switch. -->
+                <Panel>
+                  <views:SessionView c:Crossfade.IsShown="{Binding !IsFilesView}" c:Crossfade.Slide="-8" />
+                  <views:FilesView c:Crossfade.IsShown="{Binding IsFilesView}" c:Crossfade.Slide="8" />
+                </Panel>
               </DataTemplate>
             </ContentControl.ContentTemplate>
           </ContentControl>
@@ -1114,6 +1165,27 @@
       </Grid>
     </Grid>
 
+    <!-- Chat or Files (Tab by default), for a started session with a folder: in the middle of the window's top edge,
+         its thumb sliding to the side picked. -->
+    <Border Name="ViewSwitch"
+            Classes="viewswitch"
+            Classes.files="{Binding Current.IsFilesView}"
+            IsVisible="{Binding Current.CanShowFiles}"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Margin="0,4,0,0">
+      <Panel>
+        <Border Classes="thumb" />
+        <StackPanel Orientation="Horizontal">
+          <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
+            <c:Icon Size="15" Data="{StaticResource IconChat}" />
+          </Button>
+          <Button Theme="{StaticResource FlatButton}" Classes="files" Command="{Binding Current.ShowFilesCommand}" ToolTip.Tip="{Binding Current.FilesToolTip}">
+            <c:Icon Size="15" Data="{StaticResource IconFolder}" />
+          </Button>
+        </StackPanel>
+      </Panel>
+    </Border>
 
     <!-- ============================================================ settings -->
     <!-- The dim fades in while the dialog grows a little into place, and back out. -->

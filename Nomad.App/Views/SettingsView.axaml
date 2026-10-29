@@ -408,6 +408,49 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Folder tree on the right" Classes="rowlabel" />
+                  <TextBlock Text="In a chat's Files view, the folder tree is on the right and the open file on the left. Off: the other way round."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFileTreeOnRightCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding FileTreeOnRight}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Chat / Files key" Classes="rowlabel" />
+                  <TextBlock Text="Switches a chat between its conversation and its Files view. Click, then press the key to use (Esc keeps the current one). In the composer, Tab still completes a / command or takes a suggestion first."
+                             Classes="rowhint" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                  <Button Theme="{StaticResource FlatButton}"
+                          Padding="4"
+                          IsVisible="{Binding IsFilesViewKeyChanged}"
+                          Command="{Binding ResetFilesKeyCommand}"
+                          ToolTip.Tip="Back to Tab">
+                    <c:Icon Size="13" Data="{StaticResource IconRewind}" />
+                  </Button>
+                  <Button Theme="{StaticResource FlatButton}"
+                          MinWidth="96"
+                          Padding="12,5"
+                          HorizontalContentAlignment="Center"
+                          Background="{DynamicResource BgButtonBrush}"
+                          BorderBrush="{DynamicResource BorderInputBrush}"
+                          BorderThickness="1"
+                          Classes.capturing="{Binding IsCapturingFilesKey}"
+                          Command="{Binding CaptureFilesKeyCommand}">
+                    <TextBlock Text="{Binding FilesViewKeyText}" FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeSmall}" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Compact model picker" Classes="rowlabel" />
                   <TextBlock Text="The status row shows only the current model. The other models and the effort slider are in its menu."
                              Classes="rowhint" />

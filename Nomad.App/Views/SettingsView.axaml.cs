@@ -118,6 +118,22 @@ public partial class SettingsView : UserControl
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        // Rebinding the Chat / Files key: the next key pressed (with its modifiers) is the new one; Esc keeps the old.
+        if (DataContext is SettingsViewModel { IsCapturingFilesKey: true } vm)
+        {
+            e.Handled = true;
+            if (e.Key == Key.Escape)
+            {
+                vm.IsCapturingFilesKey = false;
+            }
+            else if (e.Key is not (Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin))
+            {
+                vm.SetFilesViewKey(new KeyGesture(e.Key, e.KeyModifiers).ToString());
+            }
+
+            return;
+        }
+
         if (e.Key == Key.Escape)
         {
             Close();

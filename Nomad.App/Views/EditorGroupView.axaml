@@ -1,0 +1,192 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:c="using:Nomad.App.Controls"
+             xmlns:ide="using:Nomad.App.Ide"
+             x:Class="Nomad.App.Views.EditorGroupView"
+             x:DataType="vm:EditorGroup">
+
+  <!-- One group of the Files view, as in Visual Studio: a row of tabs over a card holding the file. The active tab is
+       joined to the card (TabShape); pinned tabs come first, a preview tab's name is in italics. -->
+  <UserControl.Styles>
+    <Style Selector="Panel.tab">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Panel.tab TextBlock.tabname">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Foreground" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.tab:pointerover TextBlock.tabname, Panel.tab.active TextBlock.tabname">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Panel.tab.preview TextBlock.tabname">
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
+    <Style Selector="Panel.tab c|Icon.tabicon">
+      <Setter Property="Stroke" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+
+    <!-- Hover on an inactive tab: a soft rounded wash; the active one is drawn by its shape. -->
+    <Style Selector="Panel.tab Border.wash">
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
+      <Setter Property="CornerRadius" Value="7,7,0,0" />
+      <Setter Property="Margin" Value="0,3,0,1" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.12" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.tab:pointerover:not(.active) Border.wash">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="Panel.tab ide|TabShape">
+      <Setter Property="Fill" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="Stroke" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.tab.active ide|TabShape">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Panel.tab ide|TabShape.focused">
+      <Setter Property="Accent" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Pin and close: shown on the active tab and on hover; a pinned tab keeps its pin and has no close. -->
+    <Style Selector="Panel.tab Button.tabaction">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.12" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.tab:pointerover Button.tabaction, Panel.tab.active Button.tabclose, Panel.tab.pinned Button.tabpin">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Panel.tab.pinned Button.tabclose">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Panel.tab.pinned Button.tabpin">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*">
+    <!-- The tabs, one pixel over the card so the active one covers its border. -->
+    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,-1" ZIndex="1">
+      <ItemsControl ItemsSource="{Binding Tabs}" ClipToBounds="True">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,0" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:FileTab">
+            <Panel Classes="tab"
+                   Classes.active="{Binding IsActive}"
+                   Classes.pinned="{Binding IsPinned}"
+                   Classes.preview="{Binding IsPreview}"
+                   ToolTip.Tip="{Binding Path}"
+                   ToolTip.ShowDelay="700"
+                   PointerPressed="OnTabPressed"
+                   Loaded="OnTabLoaded">
+              <Panel.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="{Binding PinText}" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Open to the side" Command="{Binding Group.OpenToSideCommand}" CommandParameter="{Binding}" />
+                  <Separator />
+                  <MenuItem Header="Close" InputGesture="Ctrl+W" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Close others" Command="{Binding Group.CloseOthersCommand}" CommandParameter="{Binding}" />
+                </ContextMenu>
+              </Panel.ContextMenu>
+              <Border Classes="wash" />
+              <ide:TabShape Classes.focused="{Binding IsFocused}" FlushLeft="{Binding IsFirst}" />
+              <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,1,6,0" VerticalAlignment="Center">
+                <c:Icon Classes="tabicon" Size="13" Data="{StaticResource IconFile}" />
+                <TextBlock Classes="tabname" Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="1" Margin="2,0,0,0">
+                  <Button Theme="{StaticResource IconButton}" Classes="tabaction tabpin" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding PinText}">
+                    <c:Icon Size="11" Data="{StaticResource IconPin}" />
+                  </Button>
+                  <Button Theme="{StaticResource IconButton}" Classes="tabaction tabclose" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" ToolTip.Tip="Close (Ctrl+W)">
+                    <c:Icon Size="10" Data="{StaticResource IconClose}" />
+                  </Button>
+                </StackPanel>
+              </StackPanel>
+            </Panel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- The file shown here, also in a second group beside this one. -->
+      <Button Grid.Column="1"
+              Theme="{StaticResource IconButton}"
+              Width="26"
+              Height="26"
+              Margin="0,0,4,2"
+              VerticalAlignment="Center"
+              IsVisible="{Binding CanSplit}"
+              IsEnabled="{Binding HasTabs}"
+              Command="{Binding OpenToSideCommand}"
+              CommandParameter="{Binding ActiveTab}"
+              ToolTip.Tip="Open to the side">
+        <c:Icon Size="14" Data="{StaticResource IconPanelRight}" />
+      </Button>
+    </Grid>
+
+    <!-- The file's card; its top-left corner is square, under the first tab. -->
+    <Border Grid.Row="1"
+            Name="Card"
+            Background="{DynamicResource BgSidebarBrush}"
+            BorderBrush="{DynamicResource BorderCardBrush}"
+            BorderThickness="1"
+            CornerRadius="0,10,10,10"
+            ClipToBounds="True">
+      <Panel>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsVisible="{Binding !HasTabs}">
+          <c:Icon Size="22" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" />
+          <TextBlock Text="Pick a file in the tree" Classes="muted" HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <DockPanel Name="Document" IsVisible="{Binding HasTabs}">
+          <!-- Where the file is, as Visual Studio's navigation bar sits over the code. -->
+          <Border DockPanel.Dock="Top" Height="28" Padding="14,0" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" TextElement.FontSize="{DynamicResource UiFontSizeSmall}">
+              <TextBlock Text="{Binding ActiveTab.RelativeFolder}" Classes="muted" MaxWidth="420" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding ActiveTab.HasRelativeFolder}" VerticalAlignment="Center" />
+              <TextBlock Text="/" Classes="muted" IsVisible="{Binding ActiveTab.HasRelativeFolder}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ActiveTab.Name}" Foreground="{DynamicResource TextChromeBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <SelectableTextBlock Text="{Binding ActiveTab.Text}"
+                                 FontFamily="{DynamicResource MonoFont}"
+                                 FontSize="{DynamicResource CodeFontSize}"
+                                 Foreground="{DynamicResource TextPrimaryBrush}"
+                                 SelectionBrush="{DynamicResource TextSelectionBrush}"
+                                 LineHeight="20"
+                                 Margin="18,12,18,24" />
+          </ScrollViewer>
+        </DockPanel>
+      </Panel>
+    </Border>
+  </Grid>
+</UserControl>
