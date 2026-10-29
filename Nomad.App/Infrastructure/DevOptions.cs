@@ -7,7 +7,8 @@ namespace Nomad.App.Infrastructure;
 /// <code>
 /// --dev-cwd &lt;folder&gt;          folder of the initial new session
 /// --dev-prompt "&lt;text&gt;"        send this prompt on start
-/// --dev-model &lt;id&gt;             model for the initial session (tests use claude-haiku-5-5)
+/// --dev-model &lt;id&gt;             model for the initial session (tests use claude-haiku-5-5; OpenCode: opencode/big-pickle)
+/// --dev-backend claude-code|opencode  agent of the initial session
 /// --dev-session &lt;id&gt;           open this stored session on start
 /// --dev-screenshot &lt;png&gt;       render the window to a PNG and exit (off-screen, unfocused) …
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
@@ -46,6 +47,7 @@ public sealed class DevOptions
     public string? Cwd { get; private set; }
     public string? Prompt { get; private set; }
     public string? Model { get; private set; }
+    public string? Backend { get; private set; }
     public string? SessionId { get; private set; }
     public string? ScreenshotPath { get; private set; }
     public double AfterSeconds { get; private set; } = 5;
@@ -123,6 +125,7 @@ public sealed class DevOptions
                 case "--dev-cwd": o.Cwd = Next(); break;
                 case "--dev-prompt": o.Prompt = Next(); break;
                 case "--dev-model": o.Model = Next(); break;
+                case "--dev-backend": o.Backend = Next(); break;
                 case "--dev-session": o.SessionId = Next(); break;
                 case "--dev-screenshot": o.ScreenshotPath = Next(); break;
                 case "--dev-after":

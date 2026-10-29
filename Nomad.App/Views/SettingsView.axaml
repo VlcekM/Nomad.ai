@@ -3,6 +3,7 @@
              xmlns:vm="using:Nomad.App.ViewModels"
              xmlns:inf="using:Nomad.App.Infrastructure"
              xmlns:c="using:Nomad.App.Controls"
+             xmlns:agents="using:Nomad.Core.Agents"
              xmlns:md="using:Nomad.App.Markdown"
              x:Class="Nomad.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel"
@@ -564,6 +565,33 @@
                 <Border Grid.Column="1" Classes="field" Width="360">
                   <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CliPath}" Watermark="claude" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
                 </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="OpenCode path" Classes="rowlabel" />
+                  <TextBlock Text="The opencode executable, for sessions on OpenCode (the agent chip by the model). Its providers and models are OpenCode's own: opencode auth login." Classes="rowhint" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding OpenCodeStatus}" Classes="rowhint" Classes.ok="{Binding OpenCodeFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="field" Width="360">
+                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding OpenCodePath}" Watermark="opencode" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
+                </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Main agent" Classes="rowlabel" />
+                  <TextBlock Text="Its sessions show no logo in the sidebar; the other agents' sessions do. None: every session shows its logo." Classes="rowhint" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding MainBackends}" SelectedItem="{Binding MainBackend}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="agents:AgentBackendInfo">
+                      <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </Grid>
               <Border Classes="rowline" />
 

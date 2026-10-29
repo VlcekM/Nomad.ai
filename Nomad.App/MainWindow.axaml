@@ -242,6 +242,28 @@
                 </Transitions>
               </Setter>
             </Style>
+            <!-- The agent's logo fades and folds in and out (the main agent changed, or the project line came or went). -->
+            <Style Selector="Border.agentlogo">
+              <Setter Property="MaxWidth" Value="0" />
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Margin" Value="0" />
+              <Setter Property="VerticalAlignment" Value="Center" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Border.agentlogo.shown">
+              <Setter Property="MaxWidth" Value="18" />
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="Margin" Value="6,0,0,0" />
+            </Style>
+            <Style Selector="Border.agentlogo.bottom.shown">
+              <Setter Property="Margin" Value="6,-5,0,0" />
+            </Style>
             <Style Selector="Border.merged.shown, Border.pinmark.shown, Border.workflowmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
@@ -396,7 +418,7 @@
                   </ContextMenu>
                 </Button.ContextMenu>
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
-                <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="26,Auto">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" RowDefinitions="26,Auto">
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <!-- A workflow runs (maybe long after the turn): a spinner folds in, and out once the last one ends. -->
                     <Border Classes="workflowmark" Classes.shown="{Binding HasRunningWorkflows}" Background="Transparent"
@@ -444,7 +466,7 @@
                            MaxLength="200"
                            LostFocus="OnRenameLostFocus" />
                   <!-- The Alive list's "Show project": the session's project under its title. -->
-                  <c:EdgeFade Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Classes="project" Margin="0,-5,0,0">
+                  <c:EdgeFade Grid.Row="1" Grid.Column="1" Classes="project" Margin="0,-5,0,0">
                     <TextBlock Text="{Binding ProjectName}"
                                FontSize="{DynamicResource UiFontSizeSmall}"
                                FontWeight="Normal"
@@ -452,7 +474,17 @@
                   </c:EdgeFade>
                   <!-- GitHub: the branch's pull request and the issue the session works on, in their state's colour;
                        a click opens them in the browser. -->
-                  <StackPanel Grid.Column="2" Classes="ghlinks" Orientation="Horizontal" Margin="4,0,0,0" VerticalAlignment="Center">
+                  <!-- The agent's logo (not for the main agent's sessions): on the title line, or after the project on the
+                       second line when that shows; in the same column either way, so the logos line up. -->
+                  <Border Grid.Column="2" Classes="agentlogo" Classes.shown="{Binding ShowLogoTop}" Background="Transparent"
+                          ToolTip.Tip="{Binding BackendName}">
+                    <c:AgentLogo Size="15" Backend="{Binding Backend}" />
+                  </Border>
+                  <Border Grid.Row="1" Grid.Column="2" Classes="agentlogo bottom" Classes.shown="{Binding ShowLogoBottom}" Background="Transparent"
+                          ToolTip.Tip="{Binding BackendName}">
+                    <c:AgentLogo Size="15" Backend="{Binding Backend}" />
+                  </Border>
+                  <StackPanel Grid.Column="3" Classes="ghlinks" Orientation="Horizontal" Margin="4,0,0,0" VerticalAlignment="Center">
                     <Border Background="Transparent" Classes.shown="{Binding HasIssue}" Cursor="Hand"
                             PointerPressed="OnIssueIconPressed" ToolTip.Tip="{Binding IssueToolTip}">
                       <Panel>
@@ -472,7 +504,7 @@
                     </Border>
                   </StackPanel>
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
-                  <c:StatusMark Grid.Column="3"
+                  <c:StatusMark Grid.Column="4"
                                 Margin="9,0,0,0"
                                 VerticalAlignment="Center"
                                 Mark="{Binding Mark}"
@@ -480,7 +512,7 @@
                                 WaitingBrush="{DynamicResource WaitingBrush}"
                                 UnreadBrush="{DynamicResource UnreadBrush}" />
                   <!-- Ctrl held: the row's Ctrl+number, over its mark. -->
-                  <Border Grid.Column="3"
+                  <Border Grid.Column="4"
                           Classes="shortcut"
                           Classes.on="{Binding ShowShortcut}"
                           HorizontalAlignment="Right"

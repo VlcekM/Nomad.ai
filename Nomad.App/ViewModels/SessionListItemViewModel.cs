@@ -14,7 +14,38 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     public string SessionId { get; }
 
+    /// <summary>The Claude Code transcript; null for an OpenCode session (OpenCode keeps its own store).</summary>
     public string? FilePath { get; set; }
+
+    /// <summary>The agent the session runs on (Nomad.Core.Agents.AgentBackends).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOpenCode), nameof(ShowLogo), nameof(ShowLogoTop), nameof(ShowLogoBottom))]
+    public partial string Backend { get; set; } = Nomad.Core.Agents.AgentBackends.ClaudeCode;
+
+    public bool IsOpenCode => Backend == Nomad.Core.Agents.AgentBackends.OpenCode;
+
+    public string BackendName => Nomad.Core.Agents.AgentBackends.Name(Backend);
+
+    /// <summary>The main agent (a setting): its rows show no logo. Null: every row shows one.</summary>
+    public static string? MainBackend { get; set; }
+
+    /// <summary>The row shows its agent's logo: on the title line, or beside the project on the second line.</summary>
+    public bool ShowLogo => Backend != MainBackend;
+
+    public bool ShowLogoTop => ShowLogo && !ShowProject;
+
+    public bool ShowLogoBottom => ShowLogo && ShowProject;
+
+    /// <summary>The main agent changed: the logo shows or hides.</summary>
+    public void RefreshLogo()
+    {
+        OnPropertyChanged(nameof(ShowLogo));
+        OnPropertyChanged(nameof(ShowLogoTop));
+        OnPropertyChanged(nameof(ShowLogoBottom));
+    }
+
+    /// <summary>There is something to open: a transcript, or a session in OpenCode's store.</summary>
+    public bool IsStored => FilePath is not null || IsOpenCode;
 
     [ObservableProperty]
     public partial string Title { get; set; } = "";
@@ -36,6 +67,7 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     /// <summary>The row shows <see cref="ProjectName"/> on a second line (the Alive list's "Show project").</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLogoTop), nameof(ShowLogoBottom))]
     public partial bool ShowProject { get; set; }
 
     /// <summary>Its folder's project ("No folder" for a scratch one): set while <see cref="ShowProject"/> is on.</summary>
@@ -191,7 +223,7 @@ public sealed partial class SessionListItemViewModel : ObservableObject
         ? $"Issue #{issue.Number} · {issue.State switch { Nomad.Core.Git.IssueState.Completed => "Closed", Nomad.Core.Git.IssueState.NotPlanned => "Closed as not planned", _ => "Open" }}\n{issue.Title}"
         : "";
 
-    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
+    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsOpenCode ? "\nOpenCode" : "") + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
 /// <summary>A group heading in the sidebar's Alive or Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>

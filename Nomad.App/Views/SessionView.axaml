@@ -1868,6 +1868,7 @@
       <Button Name="RemoteChip"
               Grid.Column="2"
               Theme="{StaticResource ChipButton}"
+              IsVisible="{Binding IsClaudeCode}"
               Classes="remote"
               Classes.on="{Binding IsRemoteControl}"
               Classes.connected="{Binding IsRemoteConnected}"
@@ -1916,7 +1917,44 @@
 
       <!-- One chip per model; clicking the current one opens the full picker. -->
       <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="0" Classes="modelstrip" Classes.compact="{Binding CompactModelPicker}">
-        <ItemsControl ItemsSource="{Binding ModelOptions}">
+        <!-- The agent the session runs on: Claude Code or OpenCode. Switchable until the first prompt. -->
+        <Button Name="BackendChip"
+                Theme="{StaticResource ChipButton}"
+                Classes="backendchip"
+                IsEnabled="{Binding CanSwitchBackend}"
+                Margin="0,0,6,0"
+                ToolTip.Tip="{Binding BackendToolTip}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <c:Icon Size="13" Data="{StaticResource IconAgent}" />
+            <TextBlock Classes="status branchtext" Text="{Binding BackendName}" VerticalAlignment="Center" />
+          </StackPanel>
+          <Button.Flyout>
+            <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
+              <StackPanel Width="300">
+                <TextBlock Text="Agent · this session" Classes="menuheader" />
+                <ItemsControl ItemsSource="{Binding BackendOptions}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MenuOption">
+                      <Button Theme="{StaticResource MenuItemButton}" Click="OnBackendOptionClick" Padding="8,3">
+                        <Grid ColumnDefinitions="*,Auto">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Label}" />
+                            <TextBlock Text="{Binding Description}" Classes="muted" TextWrapping="Wrap"
+                                       FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Normal" Margin="0,1,0,0" />
+                          </StackPanel>
+                          <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}"
+                                  IsVisible="{Binding IsSelected}" VerticalAlignment="Top" Margin="8,1,0,0" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <ItemsControl ItemsSource="{Binding ChipModelOptions}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Orientation="Horizontal" />
@@ -1956,23 +1994,35 @@
           <c:Icon Size="12" Data="{StaticResource IconChevronDown}" />
           <Button.Flyout>
             <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="menu">
-              <StackPanel Width="250">
+              <StackPanel Width="{Binding ModelMenuWidth}">
                 <TextBlock Text="Model · this session" Classes="menuheader" />
-                <ItemsControl ItemsSource="{Binding ModelOptions}">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MenuOption">
-                      <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
-                        <Grid ColumnDefinitions="*,Auto">
-                          <TextBlock Text="{Binding Label}" />
-                          <c:Icon Grid.Column="1" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" />
-                          <TextBlock Grid.Column="1" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
-                        </Grid>
-                      </Button>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- OpenCode: its connected providers' models, which may be hundreds, so they can be searched. -->
+                <TextBox Name="ModelFilterBox"
+                         IsVisible="{Binding IsOpenCode}"
+                         Text="{Binding ModelFilter}"
+                         Watermark="Search models"
+                         Margin="6,2,6,4" />
+                <TextBlock Text="{Binding NoModelsText}" IsVisible="{Binding HasNoModels}" Classes="muted" TextWrapping="Wrap"
+                           FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,2,8,6" />
+                <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding ModelOptions}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:MenuOption">
+                        <Button Theme="{StaticResource MenuItemButton}" Click="OnModelOptionClick">
+                          <Grid ColumnDefinitions="*,Auto,Auto">
+                            <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Text="{Binding Description}" IsVisible="{Binding HasDescription}" Classes="muted"
+                                       FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="10,0,0,0" />
+                            <c:Icon Grid.Column="2" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="6,0,0,0" />
+                            <TextBlock Grid.Column="2" Text="{Binding ShortcutText}" Classes="hint" IsVisible="{Binding ShowShortcut}" Margin="0,0,3,0" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
                 <!-- The compact picker has no slider on the status row; it is here instead. -->
-                <StackPanel IsVisible="{Binding CompactModelPicker}">
+                <StackPanel IsVisible="{Binding ShowMenuEffort}">
                   <Border Classes="rule" />
                   <TextBlock Text="Effort" Classes="menuheader" />
                   <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,2,8,4">
@@ -1989,16 +2039,18 @@
                     <TextBlock Text="{Binding EffortLabel}" Classes="status muted" VerticalAlignment="Center" />
                   </StackPanel>
                 </StackPanel>
-                <Border Classes="rule" />
-                <TextBlock Text="Fast mode" Classes="menuheader" />
-                <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Text="Enable fast mode" />
-                    <Border Grid.Column="1" Classes="switch" Classes.on="{Binding FastMode}" VerticalAlignment="Center">
-                      <Ellipse />
-                    </Border>
-                  </Grid>
-                </Button>
+                <StackPanel IsVisible="{Binding IsClaudeCode}">
+                  <Border Classes="rule" />
+                  <TextBlock Text="Fast mode" Classes="menuheader" />
+                  <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleFastModeCommand}">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="Enable fast mode" />
+                      <Border Grid.Column="1" Classes="switch" Classes.on="{Binding FastMode}" VerticalAlignment="Center">
+                        <Ellipse />
+                      </Border>
+                    </Grid>
+                  </Button>
+                </StackPanel>
                 <!-- Workflows: offered only when the account may run them (the CLI says so once a process runs). -->
                 <StackPanel IsVisible="{Binding UltracodeAvailable}">
                   <Border Classes="rule" />

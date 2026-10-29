@@ -62,7 +62,11 @@ public partial class App : Application
             var window = new MainWindow(vm);
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
-            desktop.Exit += (_, _) => ClaudeCliProcess.KillAllOwned();
+            desktop.Exit += (_, _) =>
+            {
+                ClaudeCliProcess.KillAllOwned();
+                Nomad.Core.OpenCode.OpenCodeServer.KillShared();
+            };
 
             // Launched again: show this window (from the tray too) rather than a second Nomad.ai.
             if (Program.Instance is { } instance)

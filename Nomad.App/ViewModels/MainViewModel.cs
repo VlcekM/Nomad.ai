@@ -7,6 +7,7 @@ using Nomad.App.Infrastructure;
 using Nomad.App.Updates;
 using Nomad.Core.Agents;
 using Nomad.Core.Git;
+using Nomad.Core.OpenCode;
 using Nomad.Core.Remote;
 using Nomad.Core.Sessions;
 using Nomad.Core.Settings;
@@ -47,8 +48,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         ApplyDisplayName();
         UpdateGroupingOptions();
+        OpenCodeServer.CliPath = settings.OpenCodePath;
+        SessionListItemViewModel.MainBackend = settings.MainBackend;
 
-        Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder);
+        Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder, dev.Backend is null ? null : AgentBackends.Normalize(dev.Backend));
         if (!dev.IsActive && !string.IsNullOrEmpty(settings.NewSessionDraft))
         {
             Current.ComposerText = settings.NewSessionDraft;
@@ -59,6 +62,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Current.Model = dev.Model;
             Current.Effort = EffortFor(dev.Model);
+        }
+
+        if (Current.IsOpenCode)
+        {
+            _ = LoadOpenCodeCatalogAsync();
         }
 
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
@@ -957,7 +965,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (item.FilePath is null)
+        if (!item.IsStored)
         {
             return;
         }
@@ -988,7 +996,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (session is null)
         {
-            if (item.FilePath is null)
+            if (!item.IsStored)
             {
                 return;
             }
@@ -1026,7 +1034,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         var end = next is null ? source.Items.Count : source.Items.IndexOf(next);
-        var fork = new SessionViewModel(this, source.Folder)
+        var fork = new SessionViewModel(this, source.Folder, source.Backend)
         {
             Title = $"{source.Title} (fork)",
             IsNew = false,
@@ -1056,17 +1064,24 @@ public sealed partial class MainViewModel : ObservableObject
 
     private SessionViewModel CreateStoredSession(SessionListItemViewModel item)
     {
-        var session = new SessionViewModel(this, item.WorkingDirectory) { IsLoadingHistory = true, Title = item.Title, IsNew = false, SessionId = item.SessionId };
+        var session = new SessionViewModel(this, item.WorkingDirectory, item.Backend) { IsLoadingHistory = true, Title = item.Title, IsNew = false, SessionId = item.SessionId };
+        if (item.IsOpenCode)
+        {
+            _ = LoadOpenCodeCatalogAsync();
+        }
+
         _open[item.SessionId] = session;
         return session;
     }
 
     private static async Task LoadHistoryAsync(SessionViewModel session, SessionListItemViewModel item)
     {
-        var summary = new SessionSummary(item.SessionId, item.FilePath!, item.WorkingDirectory, item.Title, item.LastActivityUtc, 0);
+        var summary = new SessionSummary(item.SessionId, item.FilePath ?? "", item.WorkingDirectory, item.Title, item.LastActivityUtc, 0, Backend: item.Backend);
         try
         {
-            var history = await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
+            var history = item.IsOpenCode
+                ? await LoadOpenCodeHistoryAsync(item)
+                : await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
             session.LoadHistory(summary, history);
         }
         catch (Exception ex)
@@ -1079,9 +1094,17 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    private static async Task<SessionHistory> LoadOpenCodeHistoryAsync(SessionListItemViewModel item)
+    {
+        var server = await OpenCodeServer.GetAsync();
+        using var messages = await OpenCodeClient.GetMessagesAsync(server, item.WorkingDirectory, item.SessionId);
+        return OpenCodeHistory.FromMessages(messages.RootElement, item.SessionId, item.WorkingDirectory);
+    }
+
     /// <summary>Opens a stored session by id (dev hook <c>--dev-session</c>).</summary>
     public async Task OpenSessionByIdAsync(string sessionId)
     {
+        await AwaitOpenCodeSessionsAsync([sessionId]);
         if (FindItem(sessionId) is { } item)
         {
             await OpenSessionAsync(item);
@@ -1210,12 +1233,115 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         IsLoadingSessions = false;
-        MergeSummaries(summaries);
+        _claudeSummaries = summaries;
+        MergeSummaries([.. summaries, .. _openCodeSummaries]);
+        _ = RefreshOpenCodeSessionsAsync();
         await AutoArchiveSessionsAsync(fold: false);
         OnPropertyChanged(nameof(RecentFolders));
         Current.RefreshFolders();
         _ = LoadGitHubLinksAsync();
         _ = LoadWorktreeMergesAsync();
+    }
+
+    // What the last scan of each store found: either one's rescan merges with the other's last list.
+    private IReadOnlyList<SessionSummary> _claudeSummaries = [];
+    private IReadOnlyList<SessionSummary> _openCodeSummaries = [];
+    private bool _openCodeScanning;
+
+    /// <summary>
+    /// Lists OpenCode's sessions (from its server, started for it) and merges them into the list. Only once OpenCode
+    /// has been used here, so no server starts for people who never did.
+    /// </summary>
+    private async Task RefreshOpenCodeSessionsAsync()
+    {
+        if (_openCodeScanning || (OpenCodeServer.Current is null && !(OpenCodeServer.HasData && OpenCodeServer.IsInstalled)))
+        {
+            return;
+        }
+
+        _openCodeScanning = true;
+        try
+        {
+            var server = await OpenCodeServer.GetAsync();
+            var sessions = await OpenCodeClient.ListSessionsAsync(server);
+            _openCodeSummaries = [.. sessions.Select(s => new SessionSummary(
+                s.Id, "", s.Directory, s.Title.Length > 0 ? s.Title : UntitledOpenCode, s.UpdatedUtc, 0, Backend: AgentBackends.OpenCode))];
+            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries]);
+            OnPropertyChanged(nameof(RecentFolders));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
+        {
+            // OpenCode is not there or not answering: its sessions are left out until it is.
+        }
+        finally
+        {
+            _openCodeScanning = false;
+        }
+    }
+
+    private const string UntitledOpenCode = "Untitled OpenCode session";
+
+    /// <summary>The main agent setting changed: the rows' logos follow.</summary>
+    public void ApplyMainBackend()
+    {
+        SessionListItemViewModel.MainBackend = Settings.MainBackend;
+        foreach (var item in _all)
+        {
+            item.RefreshLogo();
+        }
+    }
+
+    /// <summary>OpenCode's list comes after the transcripts' scan: wait for it when one of these ids is OpenCode's and not listed yet.</summary>
+    private async Task AwaitOpenCodeSessionsAsync(IEnumerable<string> ids)
+    {
+        if (ids.Any(id => id.StartsWith("ses_", StringComparison.Ordinal) && FindItem(id) is null))
+        {
+            while (_openCodeScanning)
+            {
+                await Task.Delay(100);
+            }
+
+            await RefreshOpenCodeSessionsAsync();
+        }
+    }
+
+    /// <summary>Why OpenCode lists no models (not installed, failed to start), shown in the model menu; null when fine.</summary>
+    [ObservableProperty]
+    public partial string? OpenCodeError { get; set; }
+
+    private Task? _openCodeCatalog;
+
+    /// <summary>Loads OpenCode's models (starting its server); once per run unless it failed.</summary>
+    public Task LoadOpenCodeCatalogAsync()
+    {
+        if (_openCodeCatalog is { IsCompleted: false } || (_openCodeCatalog is { IsCompletedSuccessfully: true } && OpenCodeError is null))
+        {
+            return _openCodeCatalog;
+        }
+
+        return _openCodeCatalog = LoadAsync();
+
+        async Task LoadAsync()
+        {
+            try
+            {
+                var server = await OpenCodeServer.GetAsync();
+                var (models, fallback) = await OpenCodeClient.ListModelsAsync(server);
+                OpenCodeCatalog.Set(models, fallback);
+                OpenCodeError = models.Count == 0 ? "OpenCode has no provider connected. Run “opencode auth login” in a terminal." : null;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
+            {
+                OpenCodeError = ex.Message;
+            }
+
+            foreach (var session in _open.Values.Append(Current).Append(_draft).OfType<SessionViewModel>().Distinct())
+            {
+                session.OnOpenCodeCatalogChanged();
+            }
+
+            _ = RefreshOpenCodeSessionsAsync();
+        }
     }
 
     /// <summary>
@@ -1248,7 +1374,8 @@ public sealed partial class MainViewModel : ObservableObject
                 vm = new SessionListItemViewModel(s.SessionId);
             }
 
-            vm.FilePath = s.FilePath;
+            vm.FilePath = s.Backend == AgentBackends.OpenCode ? null : s.FilePath;
+            vm.Backend = s.Backend;
             vm.WorkingDirectory = s.WorkingDirectory;
             vm.GitBranch = s.GitBranch;
             vm.PullRequestUrl = s.PullRequestUrl;
@@ -1974,7 +2101,21 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
 
-        var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
+        if (item.IsOpenCode)
+        {
+            try
+            {
+                await OpenCodeClient.DeleteSessionAsync(await OpenCodeServer.GetAsync(), item.WorkingDirectory, item.SessionId);
+                _openCodeSummaries = [.. _openCodeSummaries.Where(s => s.SessionId != item.SessionId)];
+            }
+            catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+            {
+                item.IsLeaving = false;
+                return;
+            }
+        }
+
+        var file = item.IsOpenCode ? null : item.FilePath ?? Store.FindTranscript(item.SessionId);
         if (file is not null)
         {
             var folder = Path.Combine(Path.GetDirectoryName(file)!, item.SessionId);
@@ -2115,19 +2256,26 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
-        if (file is null)
+        if (item.IsOpenCode)
         {
-            return;
+            _ = RenameOpenCodeAsync(item.WorkingDirectory, item.SessionId, title);
         }
+        else
+        {
+            var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
+            if (file is null)
+            {
+                return;
+            }
 
-        try
-        {
-            SessionStore.AppendCustomTitle(file, item.SessionId, title);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return;
+            try
+            {
+                SessionStore.AppendCustomTitle(file, item.SessionId, title);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return;
+            }
         }
 
         item.Title = SessionTitles.Shorten(title);
@@ -2135,6 +2283,18 @@ public sealed partial class MainViewModel : ObservableObject
         {
             session.Title = item.Title;
             session.RenamedTitle = title;
+        }
+    }
+
+    private static async Task RenameOpenCodeAsync(string? directory, string sessionId, string title)
+    {
+        try
+        {
+            await OpenCodeClient.UpdateSessionAsync(await OpenCodeServer.GetAsync(), directory ?? "", sessionId, title, null);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
+        {
+            // The sidebar shows the name until the next scan brings OpenCode's back.
         }
     }
 
@@ -2455,10 +2615,11 @@ public sealed partial class MainViewModel : ObservableObject
         var ids = Settings.InterruptedSessions.ToList();
         Settings.InterruptedSessions.Clear();
         SaveSettings();
+        await AwaitOpenCodeSessionsAsync(ids);
         foreach (var id in ids)
         {
             var item = FindItem(id);
-            if (item?.FilePath is null || !item.CanManage || IsRunningElsewhere(id))
+            if (item is not { IsStored: true } || !item.CanManage || IsRunningElsewhere(id))
             {
                 continue;
             }

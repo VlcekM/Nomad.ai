@@ -776,7 +776,7 @@ public partial class SessionView : UserControl
                 break;
 
             // Ctrl+Shift+1…4: the model (Ctrl+1…9 alone opens a session from the sidebar).
-            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift):
+            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) && vm.IsClaudeCode:
                 var index = e.Key - Key.D1;
                 if (index < vm.ModelOptions.Count)
                 {
@@ -1095,6 +1095,16 @@ public partial class SessionView : UserControl
         if (sender is Control { DataContext: MenuOption option })
         {
             Vm?.SelectModeCommand.Execute(option.Id);
+        }
+
+        HideMenus();
+    }
+
+    private void OnBackendOptionClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option })
+        {
+            Vm?.SelectBackendCommand.Execute(option.Id);
         }
 
         HideMenus();

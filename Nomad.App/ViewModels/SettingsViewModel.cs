@@ -52,6 +52,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         TranscriptWidth = s.TranscriptWidth;
         Theme = s.Theme;
         CliPath = s.CliPath;
+        OpenCodePath = s.OpenCodePath;
+        MainBackend = MainBackends.FirstOrDefault(b => b.Id == (s.MainBackend ?? "")) ?? MainBackends[0];
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
@@ -240,6 +242,39 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         Apply(s => s.CliPath = string.IsNullOrWhiteSpace(value) ? "claude" : value.Trim(), appearance: false);
         UpdateCliStatus();
+    }
+
+    [ObservableProperty]
+    public partial string OpenCodePath { get; set; }
+
+    /// <summary>"None" (every row shows its agent's logo), then each agent.</summary>
+    public IReadOnlyList<Nomad.Core.Agents.AgentBackendInfo> MainBackends { get; } =
+        [new("", "None", ""), .. Nomad.Core.Agents.AgentBackends.All];
+
+    [ObservableProperty]
+    public partial Nomad.Core.Agents.AgentBackendInfo MainBackend { get; set; }
+
+    partial void OnMainBackendChanged(Nomad.Core.Agents.AgentBackendInfo value)
+    {
+        var id = string.IsNullOrEmpty(value?.Id) ? null : value.Id;
+        Apply(s => s.MainBackend = id, appearance: false);
+        _main.ApplyMainBackend();
+    }
+
+    [ObservableProperty]
+    public partial string OpenCodeStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool OpenCodeFound { get; set; }
+
+    partial void OnOpenCodePathChanged(string value)
+    {
+        var path = string.IsNullOrWhiteSpace(value) ? "opencode" : value.Trim();
+        Apply(s => s.OpenCodePath = path, appearance: false);
+        Nomad.Core.OpenCode.OpenCodeServer.CliPath = path;
+        var resolved = Nomad.Core.OpenCode.OpenCodeServer.ResolveExecutable(path);
+        OpenCodeFound = resolved is not null;
+        OpenCodeStatus = resolved is not null ? "Found: " + resolved : "Not found. Install it with npm i -g opencode-ai";
     }
 
     partial void OnDefaultModelChanged(ModelOption value) => Apply(s => s.DefaultModel = value.Id, appearance: false);

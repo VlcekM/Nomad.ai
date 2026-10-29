@@ -47,6 +47,12 @@ public static class Catalog
             return "Default model";
         }
 
+        // OpenCode's "provider/model": its name in OpenCode's catalogue, else the model part.
+        if (Nomad.Core.OpenCode.OpenCodeClient.SplitModel(id) is var (_, model))
+        {
+            return OpenCodeCatalog.Find(id)?.Name ?? model;
+        }
+
         foreach (var m in Models)
         {
             if (string.Equals(m.Id, id, StringComparison.OrdinalIgnoreCase))
@@ -79,9 +85,20 @@ public static class Catalog
     public static int ContextWindow(string? model) => model switch
     {
         null => 200_000,
+        _ when OpenCodeCatalog.Find(model) is { ContextWindow: > 0 } m => m.ContextWindow,
         _ when model.Contains("[1m]", StringComparison.OrdinalIgnoreCase) => 1_000_000,
         _ when model.StartsWith("claude-opus-5", StringComparison.OrdinalIgnoreCase) => 500_000,
         _ => 200_000,
+    };
+
+    /// <summary>What a mode does in an OpenCode session, where it differs from Claude Code's wording.</summary>
+    public static string? OpenCodeModeDescription(string id) => id switch
+    {
+        "default" => "Ask before edits, commands and web fetches",
+        "acceptEdits" => "Edit files without asking; ask before commands",
+        "plan" => "Plans without editing (OpenCode's plan agent)",
+        "bypassPermissions" => "Allow everything without asking",
+        _ => null,
     };
 
     public static string ModeName(string? id)

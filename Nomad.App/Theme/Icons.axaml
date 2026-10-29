@@ -58,4 +58,10 @@
   <StreamGeometry x:Key="IconCaptionMax">M3.5,3.5 L12.5,3.5 L12.5,12.5 L3.5,12.5 Z</StreamGeometry>
   <StreamGeometry x:Key="IconCaptionRestore">M3.5,5.5 L10.5,5.5 L10.5,12.5 L3.5,12.5 Z M5.5,5.5 L5.5,3.5 L12.5,3.5 L12.5,10.5 L10.5,10.5</StreamGeometry>
   <StreamGeometry x:Key="IconCaptionClose">M3.5,3.5 L12.5,12.5 M12.5,3.5 L3.5,12.5</StreamGeometry>
+
+  <!-- Agent logos (Controls/AgentLogo), filled. Claude's spark; OpenCode's mark from its favicon (512 px grid / 32). -->
+  <StreamGeometry x:Key="IconClaude">F1 M8.62,8.07 L9.11,2.33 L8.86,0.85 L8.27,2.23 L7.38,7.93 Z M8.5,8.37 L11.22,4.41 L11.6,3.2 L10.54,3.91 L7.5,7.63 Z M8.24,8.57 L13.24,6.22 L14.35,5.29 L12.91,5.45 L7.76,7.43 Z M7.93,8.62 L12.4,8.95 L13.56,8.67 L12.5,8.12 L8.07,7.38 Z M7.63,8.5 L12.29,11.74 L13.68,12.26 L12.8,11.07 L8.37,7.5 Z M7.43,8.24 L9.56,12.73 L10.43,13.7 L10.33,12.4 L8.57,7.76 Z M7.38,7.93 L6.93,13.35 L7.19,14.75 L7.77,13.45 L8.62,8.07 Z M7.5,7.63 L4.93,11.4 L4.58,12.56 L5.6,11.9 L8.5,8.37 Z M7.76,7.43 L2.54,9.88 L1.38,10.83 L2.87,10.65 L8.24,8.57 Z M8.07,7.38 L3.21,7 L1.94,7.27 L3.1,7.83 L7.93,8.62 Z M8.37,7.5 L4.03,4.5 L2.72,4.04 L3.52,5.17 L7.63,8.5 Z M8.57,7.76 L6.56,3.57 L5.72,2.67 L5.79,3.9 L7.43,8.24 Z M8,6.6 A1.4,1.4 0 1 1 7.99,6.6 Z</StreamGeometry>
+  <StreamGeometry x:Key="IconOpenCodeFrame">F0 M4,3 L12,3 L12,13 L4,13 Z M6,5 L6,11 L10,11 L10,5 Z</StreamGeometry>
+  <StreamGeometry x:Key="IconOpenCodeBlock">M6,7 L10,7 L10,11 L6,11 Z</StreamGeometry>
+  <SolidColorBrush x:Key="ClaudeBrandBrush" Color="#D97757" />
 </ResourceDictionary>

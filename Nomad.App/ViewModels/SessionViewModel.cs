@@ -42,28 +42,90 @@ public sealed partial class SessionViewModel : ObservableObject
     private bool _suppressModeSync;
     private int _turnToolCount;
 
-    public SessionViewModel(MainViewModel main, string? folder)
+    public SessionViewModel(MainViewModel main, string? folder, string? backend = null)
     {
         _main = main;
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
-        Model = main.DefaultModel;
+        Backend = backend ?? AgentBackends.Normalize(main.Settings.DefaultBackend);
+        Model = DefaultModelFor(Backend);
         PermissionMode = main.Settings.DefaultPermissionMode;
         Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
         Files.SetFolder(Folder);
-
-        foreach (var m in Catalog.Models)
+        RebuildOptions();
+        RefreshFolders();
+        if (IsOpenCode)
         {
-            ModelOptions.Add(new MenuOption(m.Id, m.DisplayName, shortcut: m.Shortcut));
+            _ = main.LoadOpenCodeCatalogAsync();
+        }
+    }
+
+    /// <summary>The model a new session on <paramref name="backend"/> starts with.</summary>
+    private string DefaultModelFor(string backend) => backend == AgentBackends.OpenCode
+        ? _main.Settings.OpenCodeModel ?? OpenCodeCatalog.DefaultModel ?? ""
+        : _main.DefaultModel;
+
+    /// <summary>Fills the model and mode menus for the session's agent (OpenCode's models filtered by <see cref="ModelFilter"/>).</summary>
+    public void RebuildOptions()
+    {
+        ModelOptions.Clear();
+        if (IsOpenCode)
+        {
+            var query = ModelFilter.Trim();
+            foreach (var m in OpenCodeCatalog.Models)
+            {
+                if (query.Length == 0 || m.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                    || m.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || m.ProviderName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    ModelOptions.Add(new MenuOption(m.Id, m.Name, m.ProviderName));
+                }
+            }
+        }
+        else
+        {
+            foreach (var m in Catalog.Models)
+            {
+                ModelOptions.Add(new MenuOption(m.Id, m.DisplayName, shortcut: m.Shortcut));
+            }
         }
 
+        ModeOptions.Clear();
         foreach (var m in Catalog.Modes)
         {
-            ModeOptions.Add(new MenuOption(m.Id, m.DisplayName, m.Description, m.Shortcut) { IsDanger = m.Id == "bypassPermissions" });
+            // OpenCode has no classifier to decide for the user ("auto").
+            if (!(IsOpenCode && m.Id == "auto"))
+            {
+                ModeOptions.Add(new MenuOption(m.Id, m.DisplayName, IsOpenCode ? Catalog.OpenCodeModeDescription(m.Id) ?? m.Description : m.Description, m.Shortcut)
+                {
+                    IsDanger = m.Id == "bypassPermissions",
+                });
+            }
         }
 
+        FillChips();
         SyncOptions();
-        RefreshFolders();
+        OnPropertyChanged(nameof(HasNoModels));
+        OnPropertyChanged(nameof(NoModelsText));
+    }
+
+    /// <summary>The status row's chips: Claude's four models, or only OpenCode's current one (it may have hundreds).</summary>
+    private void FillChips()
+    {
+        ChipModelOptions.Clear();
+        if (IsOpenCode)
+        {
+            if (!string.IsNullOrEmpty(Model))
+            {
+                ChipModelOptions.Add(new MenuOption(Model, Catalog.ModelName(Model)) { IsSelected = true });
+            }
+
+            return;
+        }
+
+        foreach (var o in ModelOptions)
+        {
+            ChipModelOptions.Add(o);
+        }
     }
 
     public ObservableCollection<TranscriptItem> Items { get; } = [];
@@ -94,6 +156,7 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
     [NotifyPropertyChangedFor(nameof(IsWorktreeSession))]
     [NotifyPropertyChangedFor(nameof(CanShowFiles))]
+    [NotifyPropertyChangedFor(nameof(CanSwitchBackend), nameof(BackendToolTip))]
     public partial bool IsNew { get; set; } = true;
 
     [ObservableProperty]
@@ -114,7 +177,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial bool IsGitFolder { get; set; }
 
     /// <summary>F1…F4 pick the model: only on the new-session screen, and only with the setting on.</summary>
-    public bool ModelFunctionKeys => IsNew && _main.Settings.ModelFunctionKeys;
+    public bool ModelFunctionKeys => IsNew && _main.Settings.ModelFunctionKeys && IsClaudeCode;
 
     public bool ShowWorktreeToggle => IsNew && IsGitFolder;
 
@@ -313,6 +376,115 @@ public sealed partial class SessionViewModel : ObservableObject
 
     // ------------------------------------------------------------------ configuration
 
+    /// <summary>The agent this session runs on (AgentBackends): chosen on the new-session screen, then kept.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOpenCode), nameof(IsClaudeCode), nameof(BackendName), nameof(CompactModelPicker), nameof(UltracodeAvailable))]
+    [NotifyPropertyChangedFor(nameof(ShowMenuEffort), nameof(ModelMenuWidth), nameof(BackendToolTip))]
+    public partial string Backend { get; set; }
+
+    public bool IsOpenCode => Backend == AgentBackends.OpenCode;
+
+    /// <summary>Claude Code's own features show only then: effort, fast mode, Ultracode, Remote Control, plan usage.</summary>
+    public bool IsClaudeCode => !IsOpenCode;
+
+    public string BackendName => AgentBackends.Name(Backend);
+
+    /// <summary>The agent menu: every backend, the current one checked.</summary>
+    public IReadOnlyList<MenuOption> BackendOptions { get; } =
+        [.. AgentBackends.All.Select(b => new MenuOption(b.Id, b.Name, b.Description))];
+
+    /// <summary>The agent can be switched only before the first prompt; a session keeps the one it started on.</summary>
+    public bool CanSwitchBackend => IsNew;
+
+    public string BackendToolTip => IsNew ? "Agent: the session runs on this" : $"This session runs on {BackendName}";
+
+    /// <summary>OpenCode's model names are longer and come with their provider's.</summary>
+    public double ModelMenuWidth => IsOpenCode ? 340 : 250;
+
+    /// <summary>The model menu's effort slider: in the compact picker, and only for Claude Code.</summary>
+    public bool ShowMenuEffort => CompactModelPicker && IsClaudeCode;
+
+    /// <summary>Why the model list is empty.</summary>
+    public string NoModelsText =>
+        _main.OpenCodeError is { } error ? error
+        : OpenCodeCatalog.Models.Count == 0 ? "Loading OpenCode's models…"
+        : "No model matches.";
+
+    partial void OnBackendChanged(string oldValue, string newValue)
+    {
+        foreach (var o in BackendOptions)
+        {
+            o.IsSelected = o.Id == newValue;
+        }
+
+        if (oldValue is null)
+        {
+            return; // The constructor's first value: it sets up the rest itself.
+        }
+
+        ModelFilter = "";
+        Model = DefaultModelFor(newValue);
+        if (IsOpenCode && PermissionMode == "auto")
+        {
+            PermissionMode = "default";
+        }
+
+        RebuildOptions();
+        if (IsOpenCode)
+        {
+            _ = _main.LoadOpenCodeCatalogAsync();
+        }
+    }
+
+    [RelayCommand]
+    private void SelectBackend(string id)
+    {
+        id = AgentBackends.Normalize(id);
+        if (!IsNew || Backend == id)
+        {
+            return;
+        }
+
+        Backend = id;
+        _main.Settings.DefaultBackend = id;
+        _main.SaveSettings();
+    }
+
+    /// <summary>Narrows OpenCode's model list (connected providers may offer hundreds).</summary>
+    [ObservableProperty]
+    public partial string ModelFilter { get; set; } = "";
+
+    partial void OnModelFilterChanged(string value)
+    {
+        if (IsOpenCode)
+        {
+            RebuildOptions();
+        }
+    }
+
+    /// <summary>The models shown as chips on the status row.</summary>
+    public ObservableCollection<MenuOption> ChipModelOptions { get; } = [];
+
+    /// <summary>OpenCode lists no model (still loading, not installed, nothing connected, or nothing matches the filter).</summary>
+    public bool HasNoModels => IsOpenCode && ModelOptions.Count == 0;
+
+    /// <summary>OpenCode's catalogue arrived or changed: the menus follow, and a session without a model takes the default.</summary>
+    public void OnOpenCodeCatalogChanged()
+    {
+        if (!IsOpenCode)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Model) && IsNew)
+        {
+            Model = DefaultModelFor(Backend);
+        }
+
+        RebuildOptions();
+        OnPropertyChanged(nameof(ModelName));
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModelName))]
     [NotifyPropertyChangedFor(nameof(AgentMetaLine))]
@@ -337,7 +509,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial bool Ultracode { get; set; }
 
     /// <summary>The account may run workflows (the CLI says so once a process runs): only then is Ultracode offered.</summary>
-    public bool UltracodeAvailable => _main.UltracodeAvailable;
+    public bool UltracodeAvailable => _main.UltracodeAvailable && IsClaudeCode;
 
     public void OnUltracodeAvailableChanged() => OnPropertyChanged(nameof(UltracodeAvailable));
 
@@ -447,7 +619,15 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsNoFolder => Folder is null;
 
-    partial void OnModelChanged(string value) => SyncOptions();
+    partial void OnModelChanged(string value)
+    {
+        if (IsOpenCode)
+        {
+            FillChips();
+        }
+
+        SyncOptions();
+    }
 
     partial void OnPermissionModeChanged(string value) => SyncOptions();
 
@@ -1154,9 +1334,14 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void OnFileTreeSideChanged() => OnPropertyChanged(nameof(FileTreeOnRight));
 
-    public bool CompactModelPicker => _main.CompactModelPicker;
+    /// <summary>Only the current model's chip, the effort slider in the menu: a setting, and always so for OpenCode.</summary>
+    public bool CompactModelPicker => _main.CompactModelPicker || IsOpenCode;
 
-    public void OnCompactModelPickerChanged() => OnPropertyChanged(nameof(CompactModelPicker));
+    public void OnCompactModelPickerChanged()
+    {
+        OnPropertyChanged(nameof(CompactModelPicker));
+        OnPropertyChanged(nameof(ShowMenuEffort));
+    }
 
     [RelayCommand]
     private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
@@ -1326,7 +1511,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void UpdateCommandMenu()
     {
         var text = ComposerText;
-        if (!text.StartsWith('/') || text.Any(char.IsWhiteSpace) || IsPhoneSession)
+        if (!text.StartsWith('/') || text.Any(char.IsWhiteSpace) || IsPhoneSession || IsOpenCode)
         {
             _commandMenuDismissed = false;
             IsCommandMenuOpen = false;
@@ -1396,7 +1581,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     // While Claude works: Enter queues the prompt, Ctrl+Enter stops Claude and sends it at once.
     public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
-        : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : "Type / for commands";
+        : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : IsOpenCode ? "Ask a follow-up" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
 
@@ -1823,6 +2008,15 @@ public sealed partial class SessionViewModel : ObservableObject
             _restartRequired = true;
         }
 
+        if (IsOpenCode)
+        {
+            // The next OpenCode session starts on it too; OpenCode has no effort levels.
+            ModelFilter = "";
+            _main.Settings.OpenCodeModel = id;
+            _main.SaveSettings();
+            return;
+        }
+
         // Each model comes back at the effort last chosen with it.
         await ApplyEffortAsync(_main.EffortFor(id));
     }
@@ -1879,7 +2073,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task ApplyEffortAsync(string id)
     {
-        if (Effort == id)
+        if (Effort == id || IsOpenCode)
         {
             return;
         }
@@ -1946,7 +2140,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Brings the running process's bridge in line with <see cref="IsRemoteControl"/>.</summary>
     private async Task SyncRemoteControlAsync()
     {
-        if (_remoteSyncing || _backend is not { IsProcessRunning: true } backend || ReferenceEquals(backend, _remoteFailedBackend))
+        if (IsOpenCode || _remoteSyncing || _backend is not { IsProcessRunning: true } backend || ReferenceEquals(backend, _remoteFailedBackend))
         {
             return;
         }
@@ -2314,10 +2508,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
         _restartRequired = false;
         Folder ??= _main.CreateScratchFolder();
-        var backend = new ClaudeCodeBackend();
-        if (_main.Dev.LogPath is { } log)
+        var backend = AgentBackends.Create(Backend);
+        if (_main.Dev.LogPath is { } log && backend is ClaudeCodeBackend claude)
         {
-            backend.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
+            claude.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
         }
         backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
         await backend.StartAsync(new AgentStartOptions

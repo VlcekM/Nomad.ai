@@ -54,6 +54,7 @@ internal static class Program
         {
             // Every claude process this app started dies with it (the job object would also do this).
             ClaudeCliProcess.KillAllOwned();
+            Nomad.Core.OpenCode.OpenCodeServer.KillShared();
             Instance?.Dispose();
         }
     }
