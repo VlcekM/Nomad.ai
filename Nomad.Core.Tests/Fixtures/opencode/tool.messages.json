@@ -1,0 +1,397 @@
+[
+ {
+  "info": {
+   "id": "msg_186e6a405001spAZMox52Rh7iB",
+   "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+   "role": "user",
+   "time": {
+    "created": 1793264624645
+   },
+   "summary": {
+    "diffs": []
+   },
+   "agent": "build",
+   "model": {
+    "providerID": "opencode",
+    "modelID": "flint-40b-free"
+   }
+  },
+  "parts": [
+   {
+    "id": "prt_186e6a40c001wB4iFhDFcif5LY",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6a405001spAZMox52Rh7iB",
+    "type": "text",
+    "text": "Create a file hello.txt containing the word hi, then read it back and tell me what it says. Be brief."
+   }
+  ]
+ },
+ {
+  "info": {
+   "id": "msg_186e6a649001ZjZ28u1djyPejx",
+   "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+   "role": "assistant",
+   "time": {
+    "created": 1793264625225,
+    "completed": 1793264629951
+   },
+   "parentID": "msg_186e6a405001spAZMox52Rh7iB",
+   "modelID": "flint-40b-free",
+   "providerID": "opencode",
+   "mode": "build",
+   "agent": "build",
+   "path": {
+    "cwd": "R:\\Mato\\scratch\\oc\\work",
+    "root": "/"
+   },
+   "cost": 0,
+   "tokens": {
+    "total": 12014,
+    "input": 11819,
+    "output": 195,
+    "reasoning": 0,
+    "cache": {
+     "read": 0,
+     "write": 0
+    }
+   },
+   "finish": "tool-calls"
+  },
+  "parts": [
+   {
+    "id": "prt_186e6ac07001u3SJpD04F3sexL",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6a649001ZjZ28u1djyPejx",
+    "type": "step-start"
+   },
+   {
+    "id": "prt_186e6ac0c001b6pbZ9EB9rG2GZ",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6a649001ZjZ28u1djyPejx",
+    "type": "reasoning",
+    "text": "The user wants me to:\n1. Create a file hello.txt containing the word \"hi\"\n2. Read it back\n3. Tell them what it says\n\nThis is a simple task. Let me create the file and read it back. I should be brief.\n\nWorking directory is R:\\Mato\\scratch\\oc\\work\n\nLet me create the file first, then read it back. I can do these as parallel calls since creating and reading... actually, no, I should create first, then read, since reading before creating would read the old file (or fail). Let me do it sequentially or just do create then read.\n\nActually, I could just do both: write the file, then read it. They should be sequential since read depends on write. Let me do write first, then read.",
+    "time": {
+     "start": 1793264626700,
+     "end": 1793264629571
+    }
+   },
+   {
+    "id": "prt_186e6b747001vFSsj9DfwCSm0d",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6a649001ZjZ28u1djyPejx",
+    "type": "tool",
+    "callID": "call_955b35ab2ba744a7a3cdb02a",
+    "tool": "write",
+    "state": {
+     "status": "error",
+     "input": {
+      "content": "hi\n",
+      "path": "R:\\Mato\\scratch\\oc\\work\\hello.txt"
+     },
+     "error": "The write tool was called with invalid arguments: SchemaError(Missing key\n  at [\"filePath\"]).\nPlease rewrite the input so it satisfies the expected schema.",
+     "time": {
+      "start": 1793264629929,
+      "end": 1793264629932
+     }
+    }
+   },
+   {
+    "id": "prt_186e6b8b9001ynTLBiQ9IoNaHp",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6a649001ZjZ28u1djyPejx",
+    "type": "step-finish",
+    "reason": "tool-calls",
+    "cost": 0,
+    "tokens": {
+     "total": 12014,
+     "input": 11819,
+     "output": 195,
+     "reasoning": 0,
+     "cache": {
+      "read": 0,
+      "write": 0
+     }
+    }
+   }
+  ]
+ },
+ {
+  "info": {
+   "id": "msg_186e6b8c2001xSA9YBs06rFAzz",
+   "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+   "role": "assistant",
+   "time": {
+    "created": 1793264629954,
+    "completed": 1793264633296
+   },
+   "parentID": "msg_186e6a405001spAZMox52Rh7iB",
+   "modelID": "flint-40b-free",
+   "providerID": "opencode",
+   "mode": "build",
+   "agent": "build",
+   "path": {
+    "cwd": "R:\\Mato\\scratch\\oc\\work",
+    "root": "/"
+   },
+   "cost": 0,
+   "tokens": {
+    "total": 12212,
+    "input": 146,
+    "output": 162,
+    "reasoning": 0,
+    "cache": {
+     "read": 11904,
+     "write": 0
+    }
+   },
+   "finish": "tool-calls"
+  },
+  "parts": [
+   {
+    "id": "prt_186e6bad1001BhJXzboB9cR09D",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6b8c2001xSA9YBs06rFAzz",
+    "type": "step-start"
+   },
+   {
+    "id": "prt_186e6badd0013c2nHimabXvhbi",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6b8c2001xSA9YBs06rFAzz",
+    "type": "reasoning",
+    "text": "The write tool seems to have an issue with the path format. Let me try a different format or check. Maybe the filePath needs to be relative or different. Let me try again with just the filename perhaps, or check the error. The error says \"Missing key at [\"filePath\"]\" - maybe it expects a relative path or the path needs a different format.\n\nLet me try with a relative path like \"hello.txt\" or the full path again. Perhaps the issue is the backslash on Windows. Let me try `R:/Mato/scratch/oc/work/hello.txt` or just `hello.txt`.\n\nActually, let me just try writing to a relative path first to see if it works.",
+    "time": {
+     "start": 1793264630493,
+     "end": 1793264633229
+    }
+   },
+   {
+    "id": "prt_186e6c593001FCWp8eP54ILSR8",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6b8c2001xSA9YBs06rFAzz",
+    "type": "tool",
+    "callID": "call_b9277129afc14d78a95a4acb",
+    "tool": "write",
+    "state": {
+     "status": "completed",
+     "input": {
+      "content": "hi\n",
+      "filePath": "hello.txt"
+     },
+     "output": "Wrote file successfully.",
+     "title": "Mato\\scratch\\oc\\work\\hello.txt",
+     "metadata": {
+      "diagnostics": {},
+      "filepath": "R:\\Mato\\scratch\\oc\\work\\hello.txt",
+      "exists": false,
+      "truncated": false
+     },
+     "time": {
+      "start": 1793264633247,
+      "end": 1793264633286
+     }
+    }
+   },
+   {
+    "id": "prt_186e6c5ca001jW1CKePZ1W1pH0",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6b8c2001xSA9YBs06rFAzz",
+    "type": "step-finish",
+    "reason": "tool-calls",
+    "cost": 0,
+    "tokens": {
+     "total": 12212,
+     "input": 146,
+     "output": 162,
+     "reasoning": 0,
+     "cache": {
+      "read": 11904,
+      "write": 0
+     }
+    }
+   }
+  ]
+ },
+ {
+  "info": {
+   "id": "msg_186e6c5d4001l7ldmq5AkuUZVE",
+   "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+   "role": "assistant",
+   "time": {
+    "created": 1793264633300,
+    "completed": 1793264634557
+   },
+   "parentID": "msg_186e6a405001spAZMox52Rh7iB",
+   "modelID": "flint-40b-free",
+   "providerID": "opencode",
+   "mode": "build",
+   "agent": "build",
+   "path": {
+    "cwd": "R:\\Mato\\scratch\\oc\\work",
+    "root": "/"
+   },
+   "cost": 0,
+   "tokens": {
+    "total": 12249,
+    "input": 60,
+    "output": 29,
+    "reasoning": 0,
+    "cache": {
+     "read": 12160,
+     "write": 0
+    }
+   },
+   "finish": "tool-calls"
+  },
+  "parts": [
+   {
+    "id": "prt_186e6c895001s395HpLPL6oE7a",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6c5d4001l7ldmq5AkuUZVE",
+    "type": "step-start"
+   },
+   {
+    "id": "prt_186e6c8c4001YFTWem3zgeRVBv",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6c5d4001l7ldmq5AkuUZVE",
+    "type": "reasoning",
+    "text": "The write succeeded with the relative path. Now let me read it back.",
+    "time": {
+     "start": 1793264634052,
+     "end": 1793264634438
+    }
+   },
+   {
+    "id": "prt_186e6ca490014Any2L7KNZMFxo",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6c5d4001l7ldmq5AkuUZVE",
+    "type": "tool",
+    "callID": "call_7617f993ed5741df8bdaaf62",
+    "tool": "read",
+    "state": {
+     "status": "completed",
+     "input": {
+      "filePath": "hello.txt"
+     },
+     "output": "<path>R:\\Mato\\scratch\\oc\\work\\hello.txt</path>\n<type>file</type>\n<content>\n1: hi\n\n(End of file - total 1 lines)\n</content>",
+     "title": "Mato\\scratch\\oc\\work\\hello.txt",
+     "metadata": {
+      "preview": "hi",
+      "truncated": false,
+      "loaded": [],
+      "display": {
+       "type": "file",
+       "path": "R:\\Mato\\scratch\\oc\\work\\hello.txt",
+       "text": "hi",
+       "lineStart": 1,
+       "lineEnd": 1,
+       "totalLines": 1,
+       "truncated": false
+      }
+     },
+     "time": {
+      "start": 1793264634534,
+      "end": 1793264634550
+     }
+    }
+   },
+   {
+    "id": "prt_186e6cab8001byCCMhUCfydit6",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6c5d4001l7ldmq5AkuUZVE",
+    "type": "step-finish",
+    "reason": "tool-calls",
+    "cost": 0,
+    "tokens": {
+     "total": 12249,
+     "input": 60,
+     "output": 29,
+     "reasoning": 0,
+     "cache": {
+      "read": 12160,
+      "write": 0
+     }
+    }
+   }
+  ]
+ },
+ {
+  "info": {
+   "id": "msg_186e6cac0001usIBIBi5HTQ62U",
+   "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+   "role": "assistant",
+   "time": {
+    "created": 1793264634560,
+    "completed": 1793264639025
+   },
+   "parentID": "msg_186e6a405001spAZMox52Rh7iB",
+   "modelID": "flint-40b-free",
+   "providerID": "opencode",
+   "mode": "build",
+   "agent": "build",
+   "path": {
+    "cwd": "R:\\Mato\\scratch\\oc\\work",
+    "root": "/"
+   },
+   "cost": 0,
+   "tokens": {
+    "total": 12337,
+    "input": 135,
+    "output": 42,
+    "reasoning": 0,
+    "cache": {
+     "read": 12160,
+     "write": 0
+    }
+   },
+   "finish": "stop"
+  },
+  "parts": [
+   {
+    "id": "prt_186e6cc84001W1WS569YZ1Tiop",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6cac0001usIBIBi5HTQ62U",
+    "type": "step-start"
+   },
+   {
+    "id": "prt_186e6cc91001CArLMgyZTsEhXh",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6cac0001usIBIBi5HTQ62U",
+    "type": "reasoning",
+    "text": "The file was created and read back successfully. It says \"hi\". Let me tell the user briefly.",
+    "time": {
+     "start": 1793264635025,
+     "end": 1793264635687
+    }
+   },
+   {
+    "id": "prt_186e6cf2a001GmmNd6Yto3HnhI",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6cac0001usIBIBi5HTQ62U",
+    "type": "text",
+    "text": "It says **hi**. The file `hello.txt` was created and read back successfully.",
+    "time": {
+     "start": 1793264635690,
+     "end": 1793264639007
+    }
+   },
+   {
+    "id": "prt_186e6dc2b001lFOnTPa0C8Bizs",
+    "sessionID": "ses_e79195c32ffeeuJ5D8eeOVbh6R",
+    "messageID": "msg_186e6cac0001usIBIBi5HTQ62U",
+    "type": "step-finish",
+    "reason": "stop",
+    "cost": 0,
+    "tokens": {
+     "total": 12337,
+     "input": 135,
+     "output": 42,
+     "reasoning": 0,
+     "cache": {
+      "read": 12160,
+      "write": 0
+     }
+    }
+   }
+  ]
+ }
+]

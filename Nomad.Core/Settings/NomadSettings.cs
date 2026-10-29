@@ -71,6 +71,19 @@ public sealed class NomadSettings
     /// <summary>The effort last chosen with each model (model id → effort); a model without one starts at high.</summary>
     public Dictionary<string, string> EffortByModel { get; set; } = [];
 
+    // Agents
+    /// <summary>The agent a new session runs on: claude-code | opencode (Agents.AgentBackends).</summary>
+    public string DefaultBackend { get; set; } = Agents.AgentBackends.ClaudeCode;
+
+    /// <summary>The agent mostly used: its sessions show no logo in the sidebar, only the others' do. Null: every row shows its logo.</summary>
+    public string? MainBackend { get; set; }
+
+    // OpenCode
+    public string OpenCodePath { get; set; } = "opencode";
+
+    /// <summary>The OpenCode model last picked ("provider/model"); null: OpenCode's own default.</summary>
+    public string? OpenCodeModel { get; set; }
+
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
     public bool RemoteControlByDefault { get; set; } = true;

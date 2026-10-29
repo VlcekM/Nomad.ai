@@ -15,7 +15,8 @@ public sealed record SessionSummary(
     long SizeBytes,
     string? GitBranch = null,
     string? PullRequestUrl = null,
-    string? IssueUrl = null);
+    string? IssueUrl = null,
+    string Backend = Agents.AgentBackends.ClaudeCode);
 
 /// <summary>
 /// Lists and loads Claude Code sessions from <c>~/.claude/projects</c>. Summaries are read from the
