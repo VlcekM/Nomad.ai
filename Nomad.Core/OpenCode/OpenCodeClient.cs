@@ -6,8 +6,11 @@ using Nomad.Core.Protocol;
 
 namespace Nomad.Core.OpenCode;
 
-/// <summary>A model OpenCode can run: one of a connected provider's (OpenRouter, Anthropic, OpenCode Zen, …).</summary>
-public sealed record OpenCodeModel(string ProviderId, string ProviderName, string ModelId, string Name, int ContextWindow, bool Reasoning)
+/// <summary>
+/// A model OpenCode can run: one of a connected provider's (OpenRouter, Anthropic, OpenCode Zen, …). Its variants are
+/// its effort levels as OpenCode names them ("low", "high", "max", …), lowest first; none when it has no such choice.
+/// </summary>
+public sealed record OpenCodeModel(string ProviderId, string ProviderName, string ModelId, string Name, int ContextWindow, bool Reasoning, IReadOnlyList<string> Variants)
 {
     /// <summary>"provider/model", the id Nomad keeps for an OpenCode session's model.</summary>
     public string Id => $"{ProviderId}/{ModelId}";
@@ -98,7 +101,7 @@ public static class OpenCodeClient
     /// <summary>Sends a prompt; the turn runs in the background and reports over the event stream.</summary>
     public static async Task PromptAsync(
         OpenCodeServer server, string directory, string sessionId, string text, IReadOnlyList<PromptImage>? images,
-        string? model, string? agent, string? messageId, CancellationToken ct = default)
+        string? model, string? agent, string? messageId, string? variant = null, CancellationToken ct = default)
     {
         var parts = new JsonArray((JsonNode)new JsonObject { ["type"] = "text", ["text"] = text });
         foreach (var image in images ?? [])
@@ -125,6 +128,12 @@ public static class OpenCodeClient
         if (!string.IsNullOrEmpty(agent))
         {
             body["agent"] = agent;
+        }
+
+        // The model's effort level (one of its variants); without one, OpenCode uses the model's default.
+        if (!string.IsNullOrEmpty(variant))
+        {
+            body["variant"] = variant;
         }
 
         using var _ = await SendAsync(server, HttpMethod.Post, Url($"session/{sessionId}/prompt_async", directory), body, ct).ConfigureAwait(false);
@@ -246,7 +255,11 @@ public static class OpenCodeClient
                     var context = OpenCodeJson.Long(OpenCodeJson.Obj(m, "limit"), "context") ?? 0;
                     var reasoning = OpenCodeJson.Obj(m, "capabilities") is { ValueKind: JsonValueKind.Object } caps
                         && caps.TryGetProperty("reasoning", out var r) && r.ValueKind == JsonValueKind.True;
-                    models.Add(new OpenCodeModel(providerId, providerName, OpenCodeJson.Str(m, "id") ?? entry.Name, OpenCodeJson.Str(m, "name") ?? entry.Name, (int)Math.Min(context, int.MaxValue), reasoning));
+                    // Variants come in OpenCode's order, which is lowest effort first.
+                    var variants = m.TryGetProperty("variants", out var vs) && vs.ValueKind == JsonValueKind.Object
+                        ? vs.EnumerateObject().Select(v => v.Name).ToList()
+                        : [];
+                    models.Add(new OpenCodeModel(providerId, providerName, OpenCodeJson.Str(m, "id") ?? entry.Name, OpenCodeJson.Str(m, "name") ?? entry.Name, (int)Math.Min(context, int.MaxValue), reasoning, variants));
                 }
             }
         }

@@ -18,6 +18,7 @@ public sealed class OpenCodeBackend : IAgentBackend
     private Task? _events;
     private string _directory = "";
     private string? _model;
+    private volatile string? _variant;
     private string _mode = "default";
     private volatile bool _listening;
     private bool _stopping;
@@ -50,6 +51,7 @@ public sealed class OpenCodeBackend : IAgentBackend
 
         _directory = options.WorkingDirectory;
         _model = IsOpenCodeModel(options.Model) ? options.Model : null;
+        _variant = string.IsNullOrEmpty(options.Effort) ? null : options.Effort;
         _mode = options.PermissionMode ?? "default";
         var server = await OpenCodeServer.GetAsync(cancellationToken).ConfigureAwait(false);
         _server = server;
@@ -99,7 +101,7 @@ public sealed class OpenCodeBackend : IAgentBackend
         Raise(new TurnStartedEvent(text));
         try
         {
-            await OpenCodeClient.PromptAsync(server, _directory, id, text, images, _model, AgentFor(_mode), null, cancellationToken).ConfigureAwait(false);
+            await OpenCodeClient.PromptAsync(server, _directory, id, text, images, _model, AgentFor(_mode), null, _variant, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -187,7 +189,12 @@ public sealed class OpenCodeBackend : IAgentBackend
         return true;
     }
 
-    public Task<bool> SetEffortAsync(string? effort, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    /// <summary>The next prompt runs at this effort: one of the model's variants, or null / empty for its default.</summary>
+    public Task<bool> SetEffortAsync(string? effort, CancellationToken cancellationToken = default)
+    {
+        _variant = string.IsNullOrEmpty(effort) ? null : effort;
+        return Task.FromResult(true);
+    }
 
     public Task<bool> SetFastModeAsync(bool enabled, CancellationToken cancellationToken = default) => Task.FromResult(false);
 
