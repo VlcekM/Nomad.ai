@@ -332,6 +332,18 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool FastMode { get; set; }
 
+    /// <summary>Ultracode: Claude may start workflows (multi-agent runs) without being asked to in the prompt.</summary>
+    [ObservableProperty]
+    public partial bool Ultracode { get; set; }
+
+    /// <summary>The account may run workflows (the CLI says so once a process runs): only then is Ultracode offered.</summary>
+    public bool UltracodeAvailable => _main.UltracodeAvailable;
+
+    public void OnUltracodeAvailableChanged() => OnPropertyChanged(nameof(UltracodeAvailable));
+
+    /// <summary>The size Claude's workflows aim for (an app setting): small | medium | large | unrestricted.</summary>
+    public string WorkflowSize => _main.Settings.WorkflowSize ?? "medium";
+
     /// <summary>Remote Control is wanted: the running process is reachable from claude.ai and the phone.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RemoteControlText))]
@@ -1828,6 +1840,25 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    public async Task ToggleUltracodeAsync()
+    {
+        Ultracode = !Ultracode;
+        if (_backend is { IsProcessRunning: true } backend && !await backend.SetWorkflowSettingsAsync(Ultracode, null))
+        {
+            _restartRequired = true;
+        }
+    }
+
+    /// <summary>The workflow size setting changed: the running process takes it.</summary>
+    public async Task ApplyWorkflowSizeAsync()
+    {
+        if (_backend is { IsProcessRunning: true } backend)
+        {
+            await backend.SetWorkflowSettingsAsync(null, WorkflowSize);
+        }
+    }
+
     /// <summary>
     /// Remote Control on or off. Turning it on for a stored session without a process starts one
     /// (resuming the session), since only a running process can be reached from the phone.
@@ -2235,6 +2266,8 @@ public sealed partial class SessionViewModel : ObservableObject
             ThinkingDisplay = "summarized",
             PromptSuggestions = _main.Settings.PromptSuggestions,
             FastMode = FastMode,
+            Ultracode = Ultracode,
+            WorkflowSize = _main.Settings.WorkflowSize,
             ResumeSessionId = SessionId ?? _forkFrom,
             ResumeSessionAt = _resumeAt,
             ForkSession = SessionId is null && _forkFrom is not null,
@@ -2398,6 +2431,11 @@ public sealed partial class SessionViewModel : ObservableObject
                     SetConnectors(servers.OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase));
                 }
 
+                break;
+
+            case WorkflowSettingsEvent workflows:
+                _main.UltracodeAvailable = workflows.UltracodeAvailable;
+                Ultracode |= workflows.Ultracode;
                 break;
 
             case AccountInfoEvent a:

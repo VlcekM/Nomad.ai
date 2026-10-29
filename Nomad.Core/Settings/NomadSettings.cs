@@ -34,6 +34,9 @@ public sealed class NomadSettings
     /// <summary>The status row shows only the current model's chip; the other models and the effort slider move into its menu.</summary>
     public bool CompactModelPicker { get; set; }
 
+    /// <summary>The size Claude's workflows aim for: small | medium | large | unrestricted; null for the CLI's default (medium).</summary>
+    public string? WorkflowSize { get; set; }
+
     /// <summary>After a turn, the CLI guesses the next prompt; it shows as ghost text in an empty composer.</summary>
     public bool PromptSuggestions { get; set; } = true;
 

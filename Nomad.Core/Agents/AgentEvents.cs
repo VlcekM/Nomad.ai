@@ -53,6 +53,9 @@ public sealed record WorkflowProgressEvent(
     int ToolUses,
     long DurationMs) : AgentEvent;
 
+/// <summary>Whether the account may run workflows (the Ultracode switch is offered only then), and whether Ultracode is on.</summary>
+public sealed record WorkflowSettingsEvent(bool UltracodeAvailable, bool Ultracode) : AgentEvent;
+
 /// <summary>A background task's status changed (a workflow's "completed", "failed", "killed").</summary>
 public sealed record TaskUpdatedEvent(string TaskId, string Status) : AgentEvent;
 
@@ -191,6 +194,12 @@ public sealed record AgentStartOptions
     /// <summary>Ask the CLI for a guess at the next prompt after each turn.</summary>
     public bool PromptSuggestions { get; init; }
     public bool FastMode { get; init; }
+
+    /// <summary>Claude may start workflows (multi-agent runs) without being asked to.</summary>
+    public bool Ultracode { get; init; }
+
+    /// <summary>The size workflows aim for: small | medium | large | unrestricted; null for the CLI's default.</summary>
+    public string? WorkflowSize { get; init; }
     public string? ResumeSessionId { get; init; }
 
     /// <summary>Resume only up to and including this transcript record (rewind, fork from a message).</summary>

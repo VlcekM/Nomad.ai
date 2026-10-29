@@ -166,6 +166,31 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool IsUiTextLarge { get => InterfaceTextSize == "Large"; set => SetIf(value, () => InterfaceTextSize = "Large"); }
 
+    /// <summary>The size Claude's workflows aim for: small | medium | large | unrestricted.</summary>
+    public string WorkflowSize => _main.Settings.WorkflowSize ?? "medium";
+
+    public bool IsWorkflowSmall { get => WorkflowSize == "small"; set => SetIf(value, () => SetWorkflowSize("small")); }
+
+    public bool IsWorkflowMedium { get => WorkflowSize == "medium"; set => SetIf(value, () => SetWorkflowSize("medium")); }
+
+    public bool IsWorkflowLarge { get => WorkflowSize == "large"; set => SetIf(value, () => SetWorkflowSize("large")); }
+
+    public bool IsWorkflowUnrestricted { get => WorkflowSize == "unrestricted"; set => SetIf(value, () => SetWorkflowSize("unrestricted")); }
+
+    private void SetWorkflowSize(string size)
+    {
+        if (size == WorkflowSize)
+        {
+            return;
+        }
+
+        _main.SetWorkflowSize(size);
+        OnPropertyChanged(nameof(IsWorkflowSmall));
+        OnPropertyChanged(nameof(IsWorkflowMedium));
+        OnPropertyChanged(nameof(IsWorkflowLarge));
+        OnPropertyChanged(nameof(IsWorkflowUnrestricted));
+    }
+
     public bool IsWidthNarrow { get => TranscriptWidth == "Narrow"; set => SetIf(value, () => TranscriptWidth = "Narrow"); }
 
     public bool IsWidthMedium { get => TranscriptWidth == "Medium"; set => SetIf(value, () => TranscriptWidth = "Medium"); }

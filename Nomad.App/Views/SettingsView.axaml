@@ -623,6 +623,23 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Workflow size" Classes="rowlabel" />
+                  <TextBlock Text="How many agents Claude's workflows aim to stay under: Small fewer than 5, Medium fewer than 10, Large fewer than 50. Running sessions take it at once."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="segments">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowSmall}" Content="Small" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowMedium}" Content="Medium" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowLarge}" Content="Large" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowUnrestricted}" Content="No limit" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Default model" Classes="rowlabel" />
                   <TextBlock Text="Model of new sessions; each session can switch from the status row." Classes="rowhint" />
                 </StackPanel>

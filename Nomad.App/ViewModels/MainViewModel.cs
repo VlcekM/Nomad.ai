@@ -2251,6 +2251,36 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>A subagent started or ended: the row's subagent mark.</summary>
+    /// <summary>The account may run workflows: the CLI said so (sessions offer the Ultracode switch then).</summary>
+    public bool UltracodeAvailable
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            foreach (var session in LiveSessions)
+            {
+                session.OnUltracodeAvailableChanged();
+            }
+        }
+    }
+
+    /// <summary>The size Claude's workflows aim for, for every session; running ones take it at once.</summary>
+    public void SetWorkflowSize(string size)
+    {
+        Settings.WorkflowSize = size == "medium" ? null : size;
+        SaveSettings();
+        foreach (var session in LiveSessions)
+        {
+            _ = session.ApplyWorkflowSizeAsync();
+        }
+    }
+
     public void OnSubagentsChanged(SessionViewModel session)
     {
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)

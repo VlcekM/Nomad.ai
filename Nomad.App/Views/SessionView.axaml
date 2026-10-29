@@ -1957,6 +1957,20 @@
                     </Border>
                   </Grid>
                 </Button>
+                <!-- Workflows: offered only when the account may run them (the CLI says so once a process runs). -->
+                <StackPanel IsVisible="{Binding UltracodeAvailable}">
+                  <Border Classes="rule" />
+                  <TextBlock Text="Workflows" Classes="menuheader" />
+                  <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleUltracodeCommand}"
+                          ToolTip.Tip="Claude may start multi-agent workflows without being asked to in the prompt">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="Ultracode" />
+                      <Border Grid.Column="1" Classes="switch" Classes.on="{Binding Ultracode}" VerticalAlignment="Center">
+                        <Ellipse />
+                      </Border>
+                    </Grid>
+                  </Button>
+                </StackPanel>
                 <Border Classes="rule" />
                 <!-- Permission mode: the current one, with the list in a menu of its own beside this one. -->
                 <Button Name="ModeRow" Theme="{StaticResource MenuItemButton}" Click="OnModeRowClick">

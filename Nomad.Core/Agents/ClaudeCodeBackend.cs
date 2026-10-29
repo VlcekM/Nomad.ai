@@ -83,7 +83,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         cli.Start();
 
         // The SDK always opens with initialize; it also gives us the account and model catalogue.
-        _ = InitializeAsync(options.FastMode, options.PromptSuggestions);
+        _ = InitializeAsync(options);
         return Task.CompletedTask;
     }
 
@@ -264,6 +264,18 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return response?.Subtype == "success";
     }
 
+    public async Task<bool> SetWorkflowSettingsAsync(bool? ultracode, string? size, CancellationToken cancellationToken = default)
+    {
+        if (_cli is not { IsRunning: true } || (ultracode is null && size is null))
+        {
+            return false;
+        }
+
+        var settings = new FlagSettings { Ultracode = ultracode, WorkflowSizeGuideline = size };
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "apply_flag_settings", Settings = settings }, cancellationToken).ConfigureAwait(false);
+        return response?.Subtype == "success";
+    }
+
     public async Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default)
     {
         var payload = new OutgoingControlPayload { Subtype = "generate_session_title", Description = description, Persist = persist };
@@ -327,9 +339,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     // ---------------------------------------------------------------- outgoing
 
-    private async Task InitializeAsync(bool fastMode, bool promptSuggestions)
+    private async Task InitializeAsync(AgentStartOptions options)
     {
-        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "initialize", PromptSuggestions = promptSuggestions ? true : null }, CancellationToken.None).ConfigureAwait(false);
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "initialize", PromptSuggestions = options.PromptSuggestions ? true : null }, CancellationToken.None).ConfigureAwait(false);
         if (response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object })
         {
             try
@@ -350,9 +362,24 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             }
         }
 
-        if (fastMode)
+        if (options.FastMode)
         {
             await SetFastModeAsync(true).ConfigureAwait(false);
+        }
+
+        if (options.Ultracode || options.WorkflowSize is not null)
+        {
+            await SetWorkflowSettingsAsync(options.Ultracode ? true : null, options.WorkflowSize).ConfigureAwait(false);
+        }
+
+        // Whether this account may run workflows: hosts offer the Ultracode switch only then.
+        var settings = await SendControlAsync(new OutgoingControlPayload { Subtype = "get_settings" }, CancellationToken.None).ConfigureAwait(false);
+        if (settings is { Subtype: "success", Response.ValueKind: JsonValueKind.Object } &&
+            settings.Response.TryGetProperty("applied", out var applied) && applied.ValueKind == JsonValueKind.Object)
+        {
+            Raise(new WorkflowSettingsEvent(
+                applied.TryGetProperty("ultracodeAvailable", out var available) && available.ValueKind == JsonValueKind.True,
+                applied.TryGetProperty("ultracode", out var on) && on.ValueKind == JsonValueKind.True));
         }
     }
 
