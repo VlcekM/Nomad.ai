@@ -48,6 +48,10 @@ public sealed partial class FileTab : ObservableObject
     [ObservableProperty]
     public partial bool IsActive { get; set; }
 
+    /// <summary>The leftmost tab, flush with the card's edge.</summary>
+    [ObservableProperty]
+    public partial bool IsFirst { get; set; }
+
     /// <summary>Active in the group that has the focus: its tab carries the accent line.</summary>
     [ObservableProperty]
     public partial bool IsFocused { get; set; }
@@ -100,8 +104,22 @@ public sealed partial class FileTab : ObservableObject
 /// A row of tabs over one file, as in Visual Studio: pinned tabs first, then the rest in the order opened. The Files
 /// view has one group, or two side by side.
 /// </summary>
-public sealed partial class EditorGroup(FilesViewModel owner) : ObservableObject
+public sealed partial class EditorGroup : ObservableObject
 {
+    private readonly FilesViewModel owner;
+
+    public EditorGroup(FilesViewModel owner)
+    {
+        this.owner = owner;
+        Tabs.CollectionChanged += (_, _) =>
+        {
+            for (var i = 0; i < Tabs.Count; i++)
+            {
+                Tabs[i].IsFirst = i == 0;
+            }
+        };
+    }
+
     public ObservableCollection<FileTab> Tabs { get; } = [];
 
     [ObservableProperty]

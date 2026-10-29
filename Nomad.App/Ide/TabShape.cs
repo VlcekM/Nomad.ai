@@ -21,12 +21,16 @@ public sealed class TabShape : Control
     public static readonly StyledProperty<IBrush?> AccentProperty =
         AvaloniaProperty.Register<TabShape, IBrush?>(nameof(Accent));
 
+    /// <summary>The first tab: its left side runs straight down into the card's left border instead of curving out.</summary>
+    public static readonly StyledProperty<bool> FlushLeftProperty =
+        AvaloniaProperty.Register<TabShape, bool>(nameof(FlushLeft));
+
     private const double Radius = 7;
     private const double Flare = 6;
 
     static TabShape()
     {
-        AffectsRender<TabShape>(FillProperty, StrokeProperty, AccentProperty);
+        AffectsRender<TabShape>(FillProperty, StrokeProperty, AccentProperty, FlushLeftProperty);
         IsHitTestVisibleProperty.OverrideDefaultValue<TabShape>(false);
     }
 
@@ -40,6 +44,12 @@ public sealed class TabShape : Control
     {
         get => GetValue(StrokeProperty);
         set => SetValue(StrokeProperty, value);
+    }
+
+    public bool FlushLeft
+    {
+        get => GetValue(FlushLeftProperty);
+        set => SetValue(FlushLeftProperty, value);
     }
 
     public IBrush? Accent
@@ -66,8 +76,18 @@ public sealed class TabShape : Control
         {
             var geometry = new StreamGeometry();
             using var g = geometry.Open();
-            g.BeginFigure(new Point(left - Flare, b), isFilled: closed);
-            g.ArcTo(new Point(left, b - Flare), new Size(Flare, Flare), 0, false, SweepDirection.CounterClockwise);
+            var start = FlushLeft ? 0 : left - Flare;
+            if (FlushLeft)
+            {
+                // Down to the card's top edge and one pixel over it, to meet the card's own left border.
+                g.BeginFigure(new Point(left, h + 0.5), isFilled: closed);
+            }
+            else
+            {
+                g.BeginFigure(new Point(left - Flare, b), isFilled: closed);
+                g.ArcTo(new Point(left, b - Flare), new Size(Flare, Flare), 0, false, SweepDirection.CounterClockwise);
+            }
+
             g.LineTo(new Point(left, top + Radius));
             g.ArcTo(new Point(left + Radius, top), new Size(Radius, Radius), 0, false, SweepDirection.Clockwise);
             g.LineTo(new Point(right - Radius, top));
@@ -78,7 +98,7 @@ public sealed class TabShape : Control
             {
                 // Down over the card's border line, so it doesn't show under the tab.
                 g.LineTo(new Point(right + Flare, h + 0.5));
-                g.LineTo(new Point(left - Flare, h + 0.5));
+                g.LineTo(new Point(start, h + 0.5));
             }
 
             g.EndFigure(closed);

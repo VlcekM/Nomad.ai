@@ -91,10 +91,10 @@
   <Grid RowDefinitions="Auto,*">
     <!-- The tabs, one pixel over the card so the active one covers its border. -->
     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,-1" ZIndex="1">
-      <ItemsControl ItemsSource="{Binding Tabs}" ClipToBounds="True" Margin="4,0,0,0">
+      <ItemsControl ItemsSource="{Binding Tabs}" ClipToBounds="True">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal" Spacing="2" Margin="12,0,8,0" />
+            <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,0" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
@@ -117,7 +117,7 @@
                 </ContextMenu>
               </Panel.ContextMenu>
               <Border Classes="wash" />
-              <ide:TabShape Classes.focused="{Binding IsFocused}" />
+              <ide:TabShape Classes.focused="{Binding IsFocused}" FlushLeft="{Binding IsFirst}" />
               <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,1,6,0" VerticalAlignment="Center">
                 <c:Icon Classes="tabicon" Size="13" Data="{StaticResource IconFile}" />
                 <TextBlock Classes="tabname" Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
@@ -151,13 +151,13 @@
       </Button>
     </Grid>
 
-    <!-- The file's card. -->
+    <!-- The file's card; its top-left corner is square, under the first tab. -->
     <Border Grid.Row="1"
             Name="Card"
             Background="{DynamicResource BgSidebarBrush}"
             BorderBrush="{DynamicResource BorderCardBrush}"
             BorderThickness="1"
-            CornerRadius="10"
+            CornerRadius="0,10,10,10"
             ClipToBounds="True">
       <Panel>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsVisible="{Binding !HasTabs}">
