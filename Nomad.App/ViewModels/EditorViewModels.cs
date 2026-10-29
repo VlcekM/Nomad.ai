@@ -101,8 +101,9 @@ public sealed partial class FileTab : ObservableObject
 }
 
 /// <summary>
-/// A row of tabs over one file, as in Visual Studio: pinned tabs first, then the rest in the order opened. The Files
-/// view has one group, or two side by side.
+/// A row of tabs over one file, as in Visual Studio: pinned tabs first, then the rest in the order opened, and at the
+/// right end of the row the preview tab (a single click in the tree), which the next preview replaces. The Files view
+/// has one group, or two side by side.
 /// </summary>
 public sealed partial class EditorGroup : ObservableObject
 {
@@ -120,7 +121,15 @@ public sealed partial class EditorGroup : ObservableObject
         };
     }
 
+    /// <summary>The kept tabs, pinned ones first.</summary>
     public ObservableCollection<FileTab> Tabs { get; } = [];
+
+    /// <summary>The preview tab, on its own at the right end of the row.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPreview))]
+    public partial FileTab? PreviewTab { get; private set; }
+
+    public bool HasPreview => PreviewTab is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTabs))]
@@ -160,32 +169,43 @@ public sealed partial class EditorGroup : ObservableObject
         }
     }
 
-    /// <summary>Shows a file: its tab if it has one, else a new one (taking the preview tab's place for a preview).</summary>
+    /// <summary>
+    /// Shows a file: its tab if it has one; else, to keep, a new tab at the end of the row, or as a preview, in the
+    /// preview slot (replacing the one there).
+    /// </summary>
     public void Open(string path, bool keep)
     {
-        if (Tabs.FirstOrDefault(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase)) is { } open)
+        if (Tabs.FirstOrDefault(t => SamePath(t, path)) is { } open)
         {
-            if (keep)
-            {
-                open.IsPreview = false;
-            }
-
             ActiveTab = open;
             return;
         }
 
-        var tab = new FileTab(path, owner.Folder) { IsPreview = !keep, Group = this };
-        if (!keep && Tabs.FirstOrDefault(t => t.IsPreview) is { } preview)
+        if (PreviewTab is { } preview && SamePath(preview, path))
         {
-            Tabs[Tabs.IndexOf(preview)] = tab;
+            if (keep)
+            {
+                Keep(preview);
+            }
+
+            ActiveTab = preview;
+            return;
+        }
+
+        var tab = new FileTab(path, owner.Folder) { IsPreview = !keep, Group = this };
+        if (keep)
+        {
+            Tabs.Add(tab);
         }
         else
         {
-            Tabs.Add(tab);
+            PreviewTab = tab;
         }
 
         ActiveTab = tab;
     }
+
+    private static bool SamePath(FileTab tab, string path) => string.Equals(tab.Path, path, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A click in the group: files from the tree open here now.</summary>
     public void TakeFocus() => owner.Focus(this);
@@ -197,26 +217,48 @@ public sealed partial class EditorGroup : ObservableObject
         owner.Focus(this);
     }
 
-    /// <summary>Keeps a preview tab (a double-click on it).</summary>
+    /// <summary>Keeps the preview tab (a double-click on it, or pinning it): it joins the row's end.</summary>
     [RelayCommand]
-    private void Keep(FileTab tab) => tab.IsPreview = false;
-
-    [RelayCommand]
-    private void Close(FileTab tab)
+    private void Keep(FileTab tab)
     {
-        var index = Tabs.IndexOf(tab);
-        if (index < 0)
+        if (tab != PreviewTab)
         {
             return;
         }
 
-        Tabs.RemoveAt(index);
-        if (ActiveTab == tab)
+        PreviewTab = null;
+        tab.IsPreview = false;
+        Tabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    [RelayCommand]
+    private void Close(FileTab tab)
+    {
+        if (tab == PreviewTab)
         {
-            ActiveTab = Tabs.Count == 0 ? null : Tabs[Math.Min(index, Tabs.Count - 1)];
+            PreviewTab = null;
+            if (ActiveTab == tab)
+            {
+                ActiveTab = Tabs.LastOrDefault();
+            }
+        }
+        else
+        {
+            var index = Tabs.IndexOf(tab);
+            if (index < 0)
+            {
+                return;
+            }
+
+            Tabs.RemoveAt(index);
+            if (ActiveTab == tab)
+            {
+                ActiveTab = Tabs.Count > 0 ? Tabs[Math.Min(index, Tabs.Count - 1)] : PreviewTab;
+            }
         }
 
-        if (Tabs.Count == 0)
+        if (Tabs.Count == 0 && PreviewTab is null)
         {
             owner.OnGroupEmptied(this);
         }
@@ -230,6 +272,11 @@ public sealed partial class EditorGroup : ObservableObject
             Tabs.Remove(other);
         }
 
+        if (PreviewTab is { } preview && preview != tab)
+        {
+            PreviewTab = null;
+        }
+
         ActiveTab = tab;
     }
 
@@ -237,17 +284,17 @@ public sealed partial class EditorGroup : ObservableObject
     [RelayCommand]
     private void TogglePin(FileTab tab)
     {
+        Keep(tab);
         tab.IsPinned = !tab.IsPinned;
-        tab.IsPreview = false;
         var pinned = Tabs.Count(t => t.IsPinned && t != tab);
         var from = Tabs.IndexOf(tab);
-        var to = tab.IsPinned ? pinned : Math.Max(pinned, 0);
-        if (from >= 0 && from != to)
+        if (from >= 0 && from != pinned)
         {
-            Tabs.Move(from, to);
+            Tabs.Move(from, pinned);
         }
     }
 
+    /// <summary>Moves the file to the group beside this one (made if needed); its tab here closes.</summary>
     [RelayCommand]
     private void OpenToSide(FileTab tab) => owner.OpenToSide(this, tab);
 }

@@ -91,7 +91,7 @@ public sealed partial class FilesViewModel : ObservableObject
         group.IsFocused = true;
     }
 
-    /// <summary>The file in a second group beside this one (made if there is only one), which takes the focus.</summary>
+    /// <summary>Moves a file to the group beside this one (made if there is only one), which takes the focus.</summary>
     public void OpenToSide(EditorGroup from, FileTab tab)
     {
         var other = Groups.FirstOrDefault(g => g != from);
@@ -104,6 +104,9 @@ public sealed partial class FilesViewModel : ObservableObject
 
         other.Open(tab.Path, keep: true);
         Focus(other);
+
+        // Moved, not copied: its tab here closes (and this group with it, if that was its last).
+        from.CloseCommand.Execute(tab);
     }
 
     /// <summary>A group's last tab closed: the second group goes away (the first stays, empty).</summary>

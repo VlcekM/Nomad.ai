@@ -7,7 +7,45 @@
              x:DataType="vm:EditorGroup">
 
   <!-- One group of the Files view, as in Visual Studio: a row of tabs over a card holding the file. The active tab is
-       joined to the card (TabShape); pinned tabs come first, a preview tab's name is in italics. -->
+       joined to the card (TabShape); pinned tabs come first, and the preview tab (in italics) sits at the right end. -->
+  <UserControl.Resources>
+    <!-- A tab: the row's and the preview slot's. -->
+    <DataTemplate x:Key="TabTemplate" x:DataType="vm:FileTab">
+      <Panel Classes="tab"
+             Classes.active="{Binding IsActive}"
+             Classes.pinned="{Binding IsPinned}"
+             Classes.preview="{Binding IsPreview}"
+             ToolTip.Tip="{Binding Path}"
+             ToolTip.ShowDelay="700"
+             PointerPressed="OnTabPressed"
+             Loaded="OnTabLoaded">
+        <Panel.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="{Binding PinText}" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="Move to the side" Command="{Binding Group.OpenToSideCommand}" CommandParameter="{Binding}" />
+            <Separator />
+            <MenuItem Header="Close" InputGesture="Ctrl+W" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" />
+            <MenuItem Header="Close others" Command="{Binding Group.CloseOthersCommand}" CommandParameter="{Binding}" />
+          </ContextMenu>
+        </Panel.ContextMenu>
+        <Border Classes="wash" />
+        <ide:TabShape Classes.focused="{Binding IsFocused}" FlushLeft="{Binding IsFirst}" />
+        <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,1,6,0" VerticalAlignment="Center">
+          <c:Icon Classes="tabicon" Size="13" Data="{StaticResource IconFile}" />
+          <TextBlock Classes="tabname" Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          <StackPanel Orientation="Horizontal" Spacing="1" Margin="2,0,0,0">
+            <Button Theme="{StaticResource IconButton}" Classes="tabaction tabpin" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding PinText}">
+              <c:Icon Size="11" Data="{StaticResource IconPin}" />
+            </Button>
+            <Button Theme="{StaticResource IconButton}" Classes="tabaction tabclose" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" ToolTip.Tip="Close (Ctrl+W)">
+              <c:Icon Size="10" Data="{StaticResource IconClose}" />
+            </Button>
+          </StackPanel>
+        </StackPanel>
+      </Panel>
+    </DataTemplate>
+  </UserControl.Resources>
+
   <UserControl.Styles>
     <Style Selector="Panel.tab">
       <Setter Property="Height" Value="32" />
@@ -90,53 +128,20 @@
 
   <Grid RowDefinitions="Auto,*">
     <!-- The tabs, one pixel over the card so the active one covers its border. -->
-    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,-1" ZIndex="1">
-      <ItemsControl ItemsSource="{Binding Tabs}" ClipToBounds="True">
+    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,-1" ZIndex="1">
+      <ItemsControl ItemsSource="{Binding Tabs}" ClipToBounds="True" ItemTemplate="{StaticResource TabTemplate}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,0,8,0" />
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:FileTab">
-            <Panel Classes="tab"
-                   Classes.active="{Binding IsActive}"
-                   Classes.pinned="{Binding IsPinned}"
-                   Classes.preview="{Binding IsPreview}"
-                   ToolTip.Tip="{Binding Path}"
-                   ToolTip.ShowDelay="700"
-                   PointerPressed="OnTabPressed"
-                   Loaded="OnTabLoaded">
-              <Panel.ContextMenu>
-                <ContextMenu>
-                  <MenuItem Header="{Binding PinText}" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Open to the side" Command="{Binding Group.OpenToSideCommand}" CommandParameter="{Binding}" />
-                  <Separator />
-                  <MenuItem Header="Close" InputGesture="Ctrl+W" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" />
-                  <MenuItem Header="Close others" Command="{Binding Group.CloseOthersCommand}" CommandParameter="{Binding}" />
-                </ContextMenu>
-              </Panel.ContextMenu>
-              <Border Classes="wash" />
-              <ide:TabShape Classes.focused="{Binding IsFocused}" FlushLeft="{Binding IsFirst}" />
-              <StackPanel Orientation="Horizontal" Spacing="6" Margin="12,1,6,0" VerticalAlignment="Center">
-                <c:Icon Classes="tabicon" Size="13" Data="{StaticResource IconFile}" />
-                <TextBlock Classes="tabname" Text="{Binding Name}" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                <StackPanel Orientation="Horizontal" Spacing="1" Margin="2,0,0,0">
-                  <Button Theme="{StaticResource IconButton}" Classes="tabaction tabpin" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding PinText}">
-                    <c:Icon Size="11" Data="{StaticResource IconPin}" />
-                  </Button>
-                  <Button Theme="{StaticResource IconButton}" Classes="tabaction tabclose" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" ToolTip.Tip="Close (Ctrl+W)">
-                    <c:Icon Size="10" Data="{StaticResource IconClose}" />
-                  </Button>
-                </StackPanel>
-              </StackPanel>
-            </Panel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <!-- The file shown here, also in a second group beside this one. -->
-      <Button Grid.Column="1"
+      <!-- The preview tab, on its own at the right end of the row, as in Visual Studio. -->
+      <ContentControl Grid.Column="1" Content="{Binding PreviewTab}" ContentTemplate="{StaticResource TabTemplate}" IsVisible="{Binding HasPreview}" Margin="8,0,6,0" />
+
+      <!-- The file shown here moves to a second group beside this one. -->
+      <Button Grid.Column="2"
               Theme="{StaticResource IconButton}"
               Width="26"
               Height="26"
@@ -146,7 +151,7 @@
               IsEnabled="{Binding HasTabs}"
               Command="{Binding OpenToSideCommand}"
               CommandParameter="{Binding ActiveTab}"
-              ToolTip.Tip="Open to the side">
+              ToolTip.Tip="Move to the side">
         <c:Icon Size="14" Data="{StaticResource IconPanelRight}" />
       </Button>
     </Grid>
