@@ -4,6 +4,7 @@
              xmlns:md="using:Nomad.App.Markdown"
              xmlns:c="using:Nomad.App.Controls"
              xmlns:inf="using:Nomad.App.Infrastructure"
+             xmlns:core="using:Nomad.Core.Agents"
              x:Class="Nomad.App.Views.SessionView"
              x:DataType="vm:SessionViewModel">
 
@@ -1614,6 +1615,37 @@
                       <c:Icon Size="13" Data="{StaticResource IconFile}" />
                       <TextBlock Text="Attach files…" VerticalAlignment="Center" />
                     </StackPanel>
+                  </Button>
+                  <!-- Saved workflows (.claude/workflows, the project's and the user's): a click asks Claude to run one. -->
+                  <Button Name="WorkflowRow" Theme="{StaticResource MenuItemButton}" Click="OnWorkflowRowClick" IsVisible="{Binding HasSavedWorkflows}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <c:Icon Size="13" Data="{StaticResource IconAgent}" Margin="0,0,8,0" />
+                      <TextBlock Grid.Column="1" Text="Run a workflow" VerticalAlignment="Center" />
+                      <c:Icon Grid.Column="2" Size="12" Data="{StaticResource IconChevronRight}" Margin="12,0,0,0" />
+                    </Grid>
+                    <FlyoutBase.AttachedFlyout>
+                      <Flyout Placement="RightEdgeAlignedBottom" FlyoutPresenterClasses="menu">
+                        <StackPanel Width="320">
+                          <TextBlock Text="Saved workflows" Classes="menuheader" />
+                          <ItemsControl ItemsSource="{Binding SavedWorkflows}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="core:SavedWorkflow">
+                                <Button Theme="{StaticResource MenuItemButton}" Click="OnSavedWorkflowClick" ToolTip.Tip="{Binding Path}">
+                                  <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Spacing="1">
+                                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                      <TextBlock Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                                 TextTrimming="CharacterEllipsis" IsVisible="{Binding Description, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="User" Classes="hint" IsVisible="{Binding IsUser}" VerticalAlignment="Center" Margin="10,0,3,0" />
+                                  </Grid>
+                                </Button>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </Flyout>
+                    </FlyoutBase.AttachedFlyout>
                   </Button>
                   <Button Theme="{StaticResource MenuItemButton}" Click="OnSettingsClick">
                     <StackPanel Orientation="Horizontal" Spacing="8">

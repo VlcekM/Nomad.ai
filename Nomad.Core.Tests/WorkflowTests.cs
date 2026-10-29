@@ -88,6 +88,32 @@ public class WorkflowTests
     }
 
     [Fact]
+    public void SavedWorkflowsComeFromTheNearestProjectAndTheUser()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "nomad-saved-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var project = Directory.CreateDirectory(Path.Combine(root, "repo", ".claude", "workflows")).FullName;
+            var user = Directory.CreateDirectory(Path.Combine(root, "home", "workflows")).FullName;
+            var cwd = Directory.CreateDirectory(Path.Combine(root, "repo", "src")).FullName;
+            File.WriteAllText(Path.Combine(project, "review.js"), "export const meta = { name: 'review', description: 'Reviews the diff' }\n");
+            File.WriteAllText(Path.Combine(user, "review.js"), "export const meta = { name: 'review' }\n");
+            File.WriteAllText(Path.Combine(user, "triage.js"), "export const meta = { name: 'triage' }\n");
+
+            var saved = SavedWorkflow.List(cwd, user);
+
+            Assert.Equal(["review", "triage"], saved.Select(s => s.Name));
+            Assert.False(saved[0].IsUser);
+            Assert.Equal("Reviews the diff", saved[0].Description);
+            Assert.True(saved[1].IsUser);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ScriptMetaGivesNameAndPhases()
     {
         var (name, description, phases) = WorkflowScript.ReadMeta(

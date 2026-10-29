@@ -416,7 +416,8 @@ public sealed partial class WorkflowAgentItem(int index) : ObservableObject
             : state.LastToolName is { Length: > 0 } name
             ? state.LastToolSummary is { Length: > 0 } about ? $"{name}: {FirstLine(about)}" : name
             : null;
-        ActivityText = IsQueued ? "Queued" : tool ?? (IsRunning ? "Starting" : IsFailed ? "Failed" : "Done");
+        ActivityText = IsQueued ? "Queued"
+            : tool ?? (IsRunning ? "Starting" : IsFailed ? "Failed" : state.ResultPreview is { Length: > 0 } result ? FirstLine(result) : "Done");
 
         var parts = new List<string>();
         if (state.Tokens > 0)

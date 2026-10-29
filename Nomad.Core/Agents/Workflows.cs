@@ -255,3 +255,73 @@ public static partial class WorkflowScript
     [GeneratedRegex(@"\btitle\s*:\s*(['""`])((?:\\.|(?!\1).)*)\1", RegexOptions.Singleline)]
     private static partial Regex TitleField();
 }
+
+/// <summary>A saved workflow: a script in a <c>.claude/workflows</c> folder, the project's or the user's.</summary>
+public sealed record SavedWorkflow(string Name, string? Description, string Path, bool IsUser)
+{
+    /// <summary>
+    /// The saved workflows Claude can run by name: the nearest project folder's (the working directory's, or a
+    /// parent's) first, then the user's (<c>~/.claude/workflows</c>); a project one hides a user one of its name.
+    /// </summary>
+    public static IReadOnlyList<SavedWorkflow> List(string? cwd, string? userFolder = null)
+    {
+        var result = new List<SavedWorkflow>();
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        userFolder ??= System.IO.Path.Combine(home, ".claude", "workflows");
+
+        for (var dir = cwd is null ? null : new DirectoryInfo(cwd); dir is not null; dir = dir.Parent)
+        {
+            var folder = System.IO.Path.Combine(dir.FullName, ".claude", "workflows");
+            if (string.Equals(System.IO.Path.GetFullPath(folder), System.IO.Path.GetFullPath(userFolder), StringComparison.OrdinalIgnoreCase))
+            {
+                break; // Home's own .claude is the user's.
+            }
+
+            if (Directory.Exists(folder))
+            {
+                Add(folder, isUser: false);
+                break;
+            }
+        }
+
+        Add(userFolder, isUser: true);
+        return result;
+
+        void Add(string folder, bool isUser)
+        {
+            string[] files;
+            try
+            {
+                files = Directory.Exists(folder) ? Directory.GetFiles(folder, "*.js") : [];
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                return;
+            }
+
+            foreach (var file in files.Order(StringComparer.OrdinalIgnoreCase))
+            {
+                var name = System.IO.Path.GetFileNameWithoutExtension(file);
+                if (!names.Add(name))
+                {
+                    continue;
+                }
+
+                string? description = null;
+                try
+                {
+                    using var reader = new StreamReader(file);
+                    var head = new char[4096];
+                    var read = reader.ReadBlock(head, 0, head.Length);
+                    description = WorkflowScript.ReadMeta(new string(head, 0, read)).Description;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+
+                result.Add(new SavedWorkflow(name, description, file, isUser));
+            }
+        }
+    }
+}

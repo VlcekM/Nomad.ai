@@ -1576,6 +1576,40 @@ public sealed partial class SessionViewModel : ObservableObject
         await SendPromptAsync(text, images);
     }
 
+    /// <summary>The saved workflows Claude can run here (the + menu's "Run a workflow"), listed as the menu opens.</summary>
+    public ObservableCollection<SavedWorkflow> SavedWorkflows { get; } = [];
+
+    public bool HasSavedWorkflows => SavedWorkflows.Count > 0;
+
+    public void RefreshSavedWorkflows()
+    {
+        var found = SavedWorkflow.List(Folder);
+        if (!found.SequenceEqual(SavedWorkflows))
+        {
+            SavedWorkflows.Clear();
+            foreach (var workflow in found)
+            {
+                SavedWorkflows.Add(workflow);
+            }
+
+            OnPropertyChanged(nameof(HasSavedWorkflows));
+        }
+    }
+
+    /// <summary>Asks Claude to run a saved workflow (asking by name is the opt-in it needs); while it works, the ask waits its turn.</summary>
+    [RelayCommand]
+    private async Task RunSavedWorkflowAsync(SavedWorkflow workflow)
+    {
+        var text = $"Run the saved workflow \"{workflow.Name}\".";
+        if (IsTurnRunning)
+        {
+            Queue(text, []);
+            return;
+        }
+
+        await SendPromptAsync(text);
+    }
+
     public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
     {
         attachments ??= [];

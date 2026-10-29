@@ -90,6 +90,11 @@ public partial class SessionView : UserControl
             }
         };
         AttachmentList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
+        if (PlusButton.Flyout is PopupFlyoutBase plus)
+        {
+            plus.Opening += (_, _) => Vm?.RefreshSavedWorkflows(); // Saved workflows are listed as the menu opens.
+        }
+
         QueueList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
 
         // The "/" menu is as wide as the composer.
@@ -845,6 +850,10 @@ public partial class SessionView : UserControl
             case "plus":
                 PlusButton.Flyout?.ShowAt(PlusButton);
                 break;
+            case "workflows":
+                PlusButton.Flyout?.ShowAt(PlusButton);
+                Dispatcher.UIThread.Post(() => FlyoutBase.ShowAttachedFlyout(WorkflowRow), DispatcherPriority.Loaded);
+                break;
             case "usage":
                 UsageChip.Flyout?.ShowAt(UsageChip);
                 break;
@@ -861,6 +870,7 @@ public partial class SessionView : UserControl
     {
         ModelChip.Flyout?.Hide();
         FlyoutBase.GetAttachedFlyout(ModeRow)?.Hide();
+        FlyoutBase.GetAttachedFlyout(WorkflowRow)?.Hide();
         PlusButton.Flyout?.Hide();
         UsageChip.Flyout?.Hide();
         RemoteChip.Flyout?.Hide();
@@ -1053,6 +1063,18 @@ public partial class SessionView : UserControl
 
     /// <summary>The model menu's Mode row: the modes open in a menu of their own beside it.</summary>
     private void OnModeRowClick(object? sender, RoutedEventArgs e) => FlyoutBase.ShowAttachedFlyout(ModeRow);
+
+    private void OnWorkflowRowClick(object? sender, RoutedEventArgs e) => FlyoutBase.ShowAttachedFlyout(WorkflowRow);
+
+    private void OnSavedWorkflowClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: Nomad.Core.Agents.SavedWorkflow workflow })
+        {
+            Vm?.RunSavedWorkflowCommand.Execute(workflow);
+        }
+
+        HideMenus();
+    }
 
     private void OnModeOptionClick(object? sender, RoutedEventArgs e)
     {
