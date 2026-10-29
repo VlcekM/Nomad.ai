@@ -9,6 +9,17 @@
   <!-- One group of the Files view, as in Visual Studio: a row of tabs over a card holding the file. The active tab is
        joined to the card (TabShape); pinned tabs come first, and the preview tab (in italics) sits at the right end. -->
   <UserControl.Resources>
+    <ResourceDictionary>
+      <!-- The code's background, as in Visual Studio's editor. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="CodeCardBrush" Color="#1E1E1E" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="CodeCardBrush" Color="#FFFFFF" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
     <!-- A tab: the row's and the preview slot's. -->
     <DataTemplate x:Key="TabTemplate" x:DataType="vm:FileTab">
       <Panel Classes="tab"
@@ -44,6 +55,7 @@
         </StackPanel>
       </Panel>
     </DataTemplate>
+    </ResourceDictionary>
   </UserControl.Resources>
 
   <UserControl.Styles>
@@ -87,7 +99,7 @@
     </Style>
 
     <Style Selector="Panel.tab ide|TabShape">
-      <Setter Property="Fill" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource CodeCardBrush}" />
       <Setter Property="Stroke" Value="{DynamicResource BorderCardBrush}" />
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
@@ -124,6 +136,9 @@
     <Style Selector="Panel.tab.pinned Button.tabpin">
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
+    <Style Selector="Border#Card.flush">
+      <Setter Property="CornerRadius" Value="0,10,10,10" />
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*">
@@ -156,13 +171,14 @@
       </Button>
     </Grid>
 
-    <!-- The file's card; its top-left corner is square, under the first tab. -->
+    <!-- The file's card; its top-left corner squares off while the first tab, joined to it there, is the active one. -->
     <Border Grid.Row="1"
             Name="Card"
-            Background="{DynamicResource BgSidebarBrush}"
+            Classes.flush="{Binding IsFirstActive}"
+            Background="{DynamicResource CodeCardBrush}"
             BorderBrush="{DynamicResource BorderCardBrush}"
             BorderThickness="1"
-            CornerRadius="0,10,10,10"
+            CornerRadius="10"
             ClipToBounds="True">
       <Panel>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsVisible="{Binding !HasTabs}">
@@ -181,13 +197,14 @@
               <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
             </StackPanel>
           </Border>
+          <!-- Visual Studio's editor size: 10 pt (13.33 px) on 17 px lines. -->
           <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
             <SelectableTextBlock Text="{Binding ActiveTab.Text}"
                                  FontFamily="{DynamicResource MonoFont}"
-                                 FontSize="{DynamicResource CodeFontSize}"
+                                 FontSize="13.333"
                                  Foreground="{DynamicResource TextPrimaryBrush}"
                                  SelectionBrush="{DynamicResource TextSelectionBrush}"
-                                 LineHeight="20"
+                                 LineHeight="17"
                                  Margin="18,12,18,24" />
           </ScrollViewer>
         </DockPanel>

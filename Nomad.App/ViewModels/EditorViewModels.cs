@@ -118,6 +118,8 @@ public sealed partial class EditorGroup : ObservableObject
             {
                 Tabs[i].IsFirst = i == 0;
             }
+
+            OnPropertyChanged(nameof(IsFirstActive));
         };
     }
 
@@ -133,9 +135,13 @@ public sealed partial class EditorGroup : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasTabs))]
+    [NotifyPropertyChangedFor(nameof(IsFirstActive))]
     public partial FileTab? ActiveTab { get; set; }
 
     public bool HasTabs => ActiveTab is not null;
+
+    /// <summary>The first tab of the row is the one shown: it is joined to the card's top-left corner, which squares off.</summary>
+    public bool IsFirstActive => ActiveTab is not null && Tabs.Count > 0 && Tabs[0] == ActiveTab;
 
     /// <summary>The group files from the tree open in (the last one clicked).</summary>
     [ObservableProperty]
