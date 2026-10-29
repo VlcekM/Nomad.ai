@@ -3,6 +3,18 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.18.0
+
+- A Files view for each chat (Tab, or the Chat / Files switch in the title bar): the folder tree, and files opened in
+  tabs as in Visual Studio. A click previews a file, a double-click keeps it; tabs can be pinned, closed with Ctrl+W or
+  the middle button, and a file moved to a second group beside the first. Long files open and scroll at once.
+- Workflows: each run shows as a live card in the chat, with its phases, every agent's state, model, tokens and
+  result; a spinner on the session's sidebar row while one runs, and a Workflows list in the side panel with Stop.
+- An Ultracode switch in the model menu (when your account has workflows) lets Claude start workflows unasked, and
+  Settings › Claude Code sets how big they may get.
+- The + menu runs a saved workflow (`.claude/workflows`, the project's or yours).
+- Middle-click autoscroll is twice as fast.
+
 ## v1.17.2
 
 - A click on an image in the chat opens it again (and on a sent file, an artifact card or a subagent line), instead of
