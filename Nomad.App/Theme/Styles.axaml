@@ -36,6 +36,10 @@
   <Style Selector=":is(Control).usage:pointerover TextBlock.resets">
     <Setter Property="Opacity" Value="1" />
   </Style>
+  <!-- A usage row's detail (an OpenCode model's tokens) unfolds under it while that row is hovered. -->
+  <Style Selector="StackPanel.usagerow.hasdetail:pointerover TextBlock.usagedetail">
+    <Setter Property="c:Fold.IsOpen" Value="True" />
+  </Style>
   <!-- The usage card's retry button while it reads again. -->
   <Style Selector="c|Icon.spin">
     <Style.Animations>

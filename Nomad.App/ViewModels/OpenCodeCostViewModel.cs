@@ -95,13 +95,13 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
         const int shown = 5;
         foreach (var line in report.Lines.Take(report.Lines.Count > shown ? shown - 1 : shown))
         {
-            Rows.Add(new UsageRow(Catalog.ModelName(line.Model), "", Money(line.Usd), total > 0 ? (double)(line.Usd / total) : 0, false));
+            Rows.Add(ModelRow(Catalog.ModelName(line.Model), line.Usage, total));
         }
 
         if (report.Lines.Count > shown)
         {
-            var rest = report.Lines.Skip(shown - 1).Sum(l => l.Usd);
-            Rows.Add(new UsageRow($"{report.Lines.Count - shown + 1} more models", "", Money(rest), total > 0 ? (double)(rest / total) : 0, false));
+            var rest = report.Lines.Skip(shown - 1).Aggregate(ModelUsage.Zero, (sum, l) => sum + l.Usage);
+            Rows.Add(ModelRow($"{report.Lines.Count - shown + 1} more models", rest, total));
         }
 
         ChipText = Money(total);
@@ -109,6 +109,37 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
         WeeklyResetsText = forecast is { } g ? $"About {Money(g)} by the end of {month}" : "";
         HasUsage = true;
         IsUnavailable = false;
+    }
+
+    /// <summary>A model's row: its cost and share, and its tokens to unfold on hover.</summary>
+    private static UsageRow ModelRow(string label, ModelUsage usage, decimal total) =>
+        new(label, "", Money(usage.Usd), total > 0 ? (double)(usage.Usd / total) : 0, false, DetailText: Tokens(usage));
+
+    /// <summary>
+    /// Two lines, so they don't wrap at odd places: "300 in · 69k out · 22k thinking", then
+    /// "23.8M cache read · 865k cache write" (only the parts there are).
+    /// </summary>
+    public static string Tokens(ModelUsage u)
+    {
+        var io = new List<string> { $"{Format.Tokens(u.Input)} in", $"{Format.Tokens(u.Output)} out" };
+        if (u.Reasoning > 0)
+        {
+            io.Add($"{Format.Tokens(u.Reasoning)} thinking");
+        }
+
+        var cache = new List<string>();
+        if (u.CacheRead > 0)
+        {
+            cache.Add($"{Format.Tokens(u.CacheRead)} cache read");
+        }
+
+        if (u.CacheWrite > 0)
+        {
+            cache.Add($"{Format.Tokens(u.CacheWrite)} cache write");
+        }
+
+        var text = string.Join(" · ", io);
+        return cache.Count == 0 ? text : text + "\n" + string.Join(" · ", cache);
     }
 
     /// <summary>"$12.34"; large sums drop the cents ("$1,234").</summary>

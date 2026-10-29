@@ -19,9 +19,13 @@ public sealed record UsageRow(
     double PaceFraction = -1,
     string PaceToolTip = "",
     string ForecastText = "",
-    bool IsForecastShort = false)
+    bool IsForecastShort = false,
+    string DetailText = "")
 {
     public bool HasForecast => ForecastText.Length > 0;
+
+    /// <summary>A line that unfolds under the bar while the row is hovered (an OpenCode model's tokens).</summary>
+    public bool HasDetail => DetailText.Length > 0;
 
     public bool HasPace => PaceFraction >= 0;
 }

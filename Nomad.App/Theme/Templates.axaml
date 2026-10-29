@@ -7,7 +7,7 @@
        fill behind: where using the week up evenly, 24/7, would be by now) and a forecast. The usage popup and the
        side panel both use it. -->
   <DataTemplate x:Key="UsageRowTemplate" x:DataType="vm:UsageRow">
-    <StackPanel Spacing="5">
+    <StackPanel Spacing="5" Classes="usagerow" Classes.hasdetail="{Binding HasDetail}" Background="Transparent">
       <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Text="{Binding Label}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" />
         <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted resets" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" Margin="8,0,0,0" />
@@ -29,6 +29,12 @@
                  IsVisible="{Binding HasForecast}"
                  Classes="muted"
                  Classes.warn="{Binding IsForecastShort}"
+                 TextWrapping="Wrap"
+                 FontSize="{DynamicResource UiFontSizeTiny}" />
+      <!-- An OpenCode model's tokens: folded away until the pointer is over its row (Theme/Styles.axaml). -->
+      <TextBlock Text="{Binding DetailText}"
+                 Classes="muted usagedetail"
+                 IsVisible="False"
                  TextWrapping="Wrap"
                  FontSize="{DynamicResource UiFontSizeTiny}" />
     </StackPanel>

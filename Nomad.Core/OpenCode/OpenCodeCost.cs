@@ -4,16 +4,31 @@ using System.Text.Json.Nodes;
 
 namespace Nomad.Core.OpenCode;
 
-/// <summary>What one model ("provider/model") cost this month, in US dollars.</summary>
-public sealed record CostLine(string Model, decimal Usd);
+/// <summary>
+/// One model's use: what it cost (US dollars) and its tokens as OpenCode counts them: input not from the cache,
+/// output, reasoning (thinking), and input read from / written to the prompt cache.
+/// </summary>
+public sealed record ModelUsage(decimal Usd, long Input = 0, long Output = 0, long Reasoning = 0, long CacheRead = 0, long CacheWrite = 0)
+{
+    public static readonly ModelUsage Zero = new(0);
+
+    public static ModelUsage operator +(ModelUsage a, ModelUsage b) => new(
+        a.Usd + b.Usd, a.Input + b.Input, a.Output + b.Output, a.Reasoning + b.Reasoning, a.CacheRead + b.CacheRead, a.CacheWrite + b.CacheWrite);
+}
+
+/// <summary>What one model ("provider/model") cost this month, with its tokens.</summary>
+public sealed record CostLine(string Model, ModelUsage Usage)
+{
+    public decimal Usd => Usage.Usd;
+}
 
 /// <summary>OpenCode's spending from the start of the month (local time) until now, by model, biggest first.</summary>
 public sealed record CostReport(decimal TotalUsd, IReadOnlyList<CostLine> Lines, DateTimeOffset MonthStart, DateTimeOffset MonthEnd, DateTimeOffset At);
 
 /// <summary>
 /// Adds up what OpenCode spent this month from its own records: each assistant message carries the cost OpenCode
-/// worked out for it (from the provider's token prices), so this needs no key. It counts every session on this PC,
-/// subagents' too, and only OpenCode's use, not other use of the same API key.
+/// worked out for it (from the provider's token prices) and its tokens, so this needs no key. It counts every session
+/// on this PC, subagents' too, and only OpenCode's use, not other use of the same API key.
 /// <para>
 /// Reading every session's messages is slow, so each session's sums are cached (<see cref="CachePath"/>) with the
 /// time it was last updated: a refresh reads again only the sessions that changed since.
@@ -23,6 +38,9 @@ public static class OpenCodeCost
 {
     public static string CachePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Nomad", "opencode-cost-cache.json");
+
+    /// <summary>Bumped when what is cached changes: an older cache is read again from OpenCode.</summary>
+    private const int CacheVersion = 2;
 
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
@@ -90,10 +108,10 @@ public static class OpenCodeCost
         }
     }
 
-    /// <summary>A session's message list (<c>[{ info, parts }]</c>): its assistant messages' costs from <paramref name="since"/> on, by model.</summary>
-    public static Dictionary<string, decimal> SumMessages(JsonElement messages, long since)
+    /// <summary>A session's message list (<c>[{ info, parts }]</c>): its paid assistant messages from <paramref name="since"/> on, by model.</summary>
+    public static Dictionary<string, ModelUsage> SumMessages(JsonElement messages, long since)
     {
-        var sums = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var sums = new Dictionary<string, ModelUsage>(StringComparer.Ordinal);
         if (messages.ValueKind != JsonValueKind.Array)
         {
             return sums;
@@ -109,31 +127,40 @@ public static class OpenCodeCost
                 continue;
             }
 
+            var tokens = OpenCodeJson.Obj(info, "tokens");
+            var cache = OpenCodeJson.Obj(tokens, "cache");
+            var usage = new ModelUsage(
+                (decimal)cost,
+                OpenCodeJson.Long(tokens, "input") ?? 0,
+                OpenCodeJson.Long(tokens, "output") ?? 0,
+                OpenCodeJson.Long(tokens, "reasoning") ?? 0,
+                OpenCodeJson.Long(cache, "read") ?? 0,
+                OpenCodeJson.Long(cache, "write") ?? 0);
             var model = $"{OpenCodeJson.Str(info, "providerID") ?? "unknown"}/{OpenCodeJson.Str(info, "modelID") ?? "unknown"}";
-            sums[model] = sums.GetValueOrDefault(model) + (decimal)cost;
+            sums[model] = sums.GetValueOrDefault(model, ModelUsage.Zero) + usage;
         }
 
         return sums;
     }
 
-    public static CostReport Report(IEnumerable<IReadOnlyDictionary<string, decimal>> sessions, DateTimeOffset monthStart, DateTimeOffset now)
+    public static CostReport Report(IEnumerable<IReadOnlyDictionary<string, ModelUsage>> sessions, DateTimeOffset monthStart, DateTimeOffset now)
     {
-        var byModel = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var byModel = new Dictionary<string, ModelUsage>(StringComparer.Ordinal);
         foreach (var session in sessions)
         {
-            foreach (var (model, usd) in session)
+            foreach (var (model, usage) in session)
             {
-                byModel[model] = byModel.GetValueOrDefault(model) + usd;
+                byModel[model] = byModel.GetValueOrDefault(model, ModelUsage.Zero) + usage;
             }
         }
 
-        var lines = byModel.Where(p => p.Value > 0).Select(p => new CostLine(p.Key, p.Value)).OrderByDescending(l => l.Usd).ToList();
+        var lines = byModel.Where(p => p.Value.Usd > 0).Select(p => new CostLine(p.Key, p.Value)).OrderByDescending(l => l.Usd).ToList();
         return new CostReport(lines.Sum(l => l.Usd), lines, monthStart, monthStart.AddMonths(1), now);
     }
 
-    private sealed record SessionCost(long Updated, IReadOnlyDictionary<string, decimal> ByModel);
+    private sealed record SessionCost(long Updated, IReadOnlyDictionary<string, ModelUsage> ByModel);
 
-    /// <summary>The cached sums for this month; empty when there are none or they are another month's.</summary>
+    /// <summary>The cached sums for this month; empty when there are none, they are another month's, or an older kind.</summary>
     private static Dictionary<string, SessionCost> ReadCache(long since)
     {
         var result = new Dictionary<string, SessionCost>(StringComparer.Ordinal);
@@ -145,23 +172,30 @@ public static class OpenCodeCost
             }
 
             using var doc = JsonDocument.Parse(File.ReadAllText(CachePath));
-            if (OpenCodeJson.Long(doc.RootElement, "since") != since || !doc.RootElement.TryGetProperty("sessions", out var sessions)
-                || sessions.ValueKind != JsonValueKind.Object)
+            var root = doc.RootElement;
+            if (OpenCodeJson.Long(root, "version") != CacheVersion || OpenCodeJson.Long(root, "since") != since
+                || !root.TryGetProperty("sessions", out var sessions) || sessions.ValueKind != JsonValueKind.Object)
             {
                 return result;
             }
 
             foreach (var s in sessions.EnumerateObject())
             {
-                var byModel = new Dictionary<string, decimal>(StringComparer.Ordinal);
+                var byModel = new Dictionary<string, ModelUsage>(StringComparer.Ordinal);
                 if (s.Value.TryGetProperty("models", out var models) && models.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var m in models.EnumerateObject())
                     {
-                        if (m.Value.ValueKind == JsonValueKind.String
-                            && decimal.TryParse(m.Value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var usd))
+                        if (OpenCodeJson.Str(m.Value, "usd") is { } text
+                            && decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var usd))
                         {
-                            byModel[m.Name] = usd;
+                            byModel[m.Name] = new ModelUsage(
+                                usd,
+                                OpenCodeJson.Long(m.Value, "input") ?? 0,
+                                OpenCodeJson.Long(m.Value, "output") ?? 0,
+                                OpenCodeJson.Long(m.Value, "reasoning") ?? 0,
+                                OpenCodeJson.Long(m.Value, "cacheRead") ?? 0,
+                                OpenCodeJson.Long(m.Value, "cacheWrite") ?? 0);
                         }
                     }
                 }
@@ -181,14 +215,22 @@ public static class OpenCodeCost
     {
         try
         {
-            var root = new JsonObject { ["since"] = since };
+            var root = new JsonObject { ["version"] = CacheVersion, ["since"] = since };
             var all = new JsonObject();
             foreach (var (id, cost) in sessions)
             {
                 var models = new JsonObject();
-                foreach (var (model, usd) in cost.ByModel)
+                foreach (var (model, u) in cost.ByModel)
                 {
-                    models[model] = usd.ToString(CultureInfo.InvariantCulture);
+                    models[model] = new JsonObject
+                    {
+                        ["usd"] = u.Usd.ToString(CultureInfo.InvariantCulture),
+                        ["input"] = u.Input,
+                        ["output"] = u.Output,
+                        ["reasoning"] = u.Reasoning,
+                        ["cacheRead"] = u.CacheRead,
+                        ["cacheWrite"] = u.CacheWrite,
+                    };
                 }
 
                 all[id] = new JsonObject { ["updated"] = cost.Updated, ["models"] = models };
