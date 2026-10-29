@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.19.0
+
+- Sessions can run on OpenCode as well as Claude Code: pick the agent with the new chip beside the model, before the
+  first prompt. OpenCode's models are those of the providers it is connected to (OpenRouter, Anthropic, OpenCode Zen,
+  …), searchable in the model menu; the modes ask before edits and commands as they do for Claude.
+- OpenCode's own sessions are listed in the sidebar too, and open with their history, to continue, rename or delete.
+- Each sidebar row shows its agent's logo (beside the project when that line shows); Settings › Claude Code › Main agent
+  leaves it off the sessions of the agent you use most. OpenCode's path is set there as well.
+
 ## v1.18.0
 
 - A Files view for each chat (Tab, or the Chat / Files switch in the title bar): the folder tree, and files opened in
