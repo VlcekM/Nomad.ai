@@ -197,15 +197,15 @@
               <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
             </StackPanel>
           </Border>
-          <!-- Visual Studio's editor size: 10 pt (13.33 px) on 17 px lines. -->
+          <!-- Visual Studio's editor size: 10 pt (13.33 px) on 17 px lines; only the lines in view are drawn. -->
           <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <SelectableTextBlock Text="{Binding ActiveTab.Text}"
-                                 FontFamily="{DynamicResource MonoFont}"
-                                 FontSize="13.333"
-                                 Foreground="{DynamicResource TextPrimaryBrush}"
-                                 SelectionBrush="{DynamicResource TextSelectionBrush}"
-                                 LineHeight="17"
-                                 Margin="18,12,18,24" />
+            <ide:CodeView Text="{Binding ActiveTab.Text}"
+                          FontFamily="{DynamicResource MonoFont}"
+                          FontSize="13.333"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          SelectionBrush="{DynamicResource TextSelectionBrush}"
+                          LineHeight="17"
+                          Padding="18,12,18,24" />
           </ScrollViewer>
         </DockPanel>
       </Panel>
