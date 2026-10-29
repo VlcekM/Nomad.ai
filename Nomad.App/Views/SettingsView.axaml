@@ -616,7 +616,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
-                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku, besides Ctrl+Shift+1…4."
+                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1"

@@ -129,6 +129,7 @@ public static class Catalog
             }
         }
 
-        return id ?? "";
+        // OpenCode's other variant names ("none", "minimal", "thinking"…).
+        return Format.Capitalize(id ?? "");
     }
 }

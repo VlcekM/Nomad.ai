@@ -61,7 +61,7 @@ public sealed class FillSlider : Control
 
     static FillSlider()
     {
-        AffectsRender<FillSlider>(PaceValueProperty, PaceBrushProperty, TrackBrushProperty, FillBrushProperty, KnobBrushProperty, TickBrushProperty, ThicknessProperty);
+        AffectsRender<FillSlider>(MaximumProperty, PaceValueProperty, PaceBrushProperty, TrackBrushProperty, FillBrushProperty, KnobBrushProperty, TickBrushProperty, ThicknessProperty);
         FocusableProperty.OverrideDefaultValue<FillSlider>(false);
         CursorProperty.OverrideDefaultValue<FillSlider>(new Cursor(StandardCursorType.Hand));
     }

@@ -43,7 +43,7 @@ public sealed class NomadSettings
     /// <summary>Ask before switching the model of a conversation that has history (its cache does not carry over).</summary>
     public bool ConfirmModelSwitch { get; set; } = true;
 
-    /// <summary>On the new-session screen, F1…F4 pick the model, Fable to Haiku.</summary>
+    /// <summary>On the new-session screen, F1…F4 pick the model: Fable to Haiku, or OpenCode's first four favorites.</summary>
     public bool ModelFunctionKeys { get; set; }
 
     /// <summary>Closing the window hides it to the notification area instead; the tray icon's menu (or the app menu) exits.</summary>
@@ -83,6 +83,12 @@ public sealed class NomadSettings
 
     /// <summary>The OpenCode model last picked ("provider/model"); null: OpenCode's own default.</summary>
     public string? OpenCodeModel { get; set; }
+
+    /// <summary>
+    /// OpenCode models starred in the model menu ("provider/model"), in the order starred: the first four are the
+    /// status row's chips and Ctrl+Shift+1…4 (and F1…F4), as Claude's four models are.
+    /// </summary>
+    public List<string> OpenCodeFavorites { get; set; } = [];
 
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>

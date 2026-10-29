@@ -145,15 +145,10 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // F1…F4: the model of a new session, when turned on in the settings.
+            // F1…F4: the model of a new session (OpenCode: a favorite), when turned on in the settings.
             if (vm.Current.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4)
             {
-                var index = e.Key - Key.F1;
-                if (index < vm.Current.ModelOptions.Count)
-                {
-                    vm.Current.SelectModelCommand.Execute(vm.Current.ModelOptions[index].Id);
-                }
-
+                vm.Current.SelectShortcutModel(e.Key - Key.F1);
                 e.Handled = true;
                 return;
             }

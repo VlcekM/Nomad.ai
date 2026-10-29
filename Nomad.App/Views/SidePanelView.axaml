@@ -159,11 +159,12 @@
             <Grid ColumnDefinitions="*,Auto">
               <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Usage" Click="OnHeaderClick">
                 <StackPanel Orientation="Horizontal" Spacing="4">
-                  <TextBlock Text="Plan usage" />
+                  <TextBlock Text="{Binding Usage.CardTitle}" />
                   <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
                 </StackPanel>
               </Button>
-              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" ToolTip.Tip="Usage on claude.ai">
+              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnUsagePageClick" ToolTip.Tip="{Binding Usage.PageToolTip}"
+                      IsVisible="{Binding Usage.HasPage}">
                 <c:Icon Size="12" Data="{StaticResource IconArrowRight}" />
               </Button>
             </Grid>

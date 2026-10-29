@@ -27,22 +27,34 @@ public sealed record UsageRow(
 }
 
 /// <summary>
-/// Plan usage limits for the status-row ring's popup. Fetched at start, after every turn, when the
-/// popup opens and every five minutes, at most once a minute.
+/// What the usage ring, its popup and the side panel's usage card show: Claude's plan limits
+/// (<see cref="UsageViewModel"/>) or, in OpenCode sessions, what OpenCode spent this month (<see cref="OpenCodeCostViewModel"/>).
 /// </summary>
-public sealed partial class UsageViewModel : ObservableObject
+public abstract partial class UsageSource : ObservableObject
 {
-    public const string UsagePageUrl = "https://claude.ai/settings/usage";
-
-    private static readonly TimeSpan MinInterval = TimeSpan.FromMinutes(1);
-
-    private DateTime _fetchedUtc = DateTime.MinValue;
-    private bool _fetching;
-
     public ObservableCollection<UsageRow> Rows { get; } = [];
 
+    /// <summary>The side panel card's heading.</summary>
+    public abstract string CardTitle { get; }
+
+    /// <summary>Where "See all" and the card's arrow go, and what their tooltip says; null: there is no page, and no link.</summary>
+    public abstract string? PageUrl { get; }
+
+    public bool HasPage => PageUrl is not null;
+
+    public abstract string PageToolTip { get; }
+
+    public abstract Task RefreshAsync(bool force = false);
+
     [ObservableProperty]
-    public partial string Title { get; set; } = "Plan usage limits";
+    public partial string Title { get; set; } = "";
+
+    /// <summary>Shown on the status row instead of the ring ("$12.34"); empty: the ring.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChipText))]
+    public partial string ChipText { get; set; } = "";
+
+    public bool HasChipText => ChipText.Length > 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsUnavailable))]
@@ -114,15 +126,41 @@ public sealed partial class UsageViewModel : ObservableObject
 
     /// <summary>What the popup says when <see cref="IsUnavailable"/>.</summary>
     [ObservableProperty]
-    public partial string UnavailableText { get; set; } = NoSignInText;
-
-    private const string NoSignInText = "Plan usage needs a claude.ai sign-in in Claude Code.";
+    public partial string UnavailableText { get; set; } = "";
 
     /// <summary>The first read hasn't come back yet (the ring and the usage cards show placeholders).</summary>
     [ObservableProperty]
     public partial bool IsLoading { get; set; } = true;
+}
 
-    public async Task RefreshAsync(bool force = false)
+/// <summary>
+/// Plan usage limits for the status-row ring's popup. Fetched at start, after every turn, when the
+/// popup opens and every five minutes, at most once a minute.
+/// </summary>
+public sealed partial class UsageViewModel : UsageSource
+{
+    public const string UsagePageUrl = "https://claude.ai/settings/usage";
+
+    private static readonly TimeSpan MinInterval = TimeSpan.FromMinutes(1);
+
+    private DateTime _fetchedUtc = DateTime.MinValue;
+    private bool _fetching;
+
+    public UsageViewModel()
+    {
+        Title = "Plan usage limits";
+        UnavailableText = NoSignInText;
+    }
+
+    public override string CardTitle => "Plan usage";
+
+    public override string? PageUrl => UsagePageUrl;
+
+    public override string PageToolTip => "Usage on claude.ai";
+
+    private const string NoSignInText = "Plan usage needs a claude.ai sign-in in Claude Code.";
+
+    public override async Task RefreshAsync(bool force = false)
     {
         if (_fetching || (!force && DateTime.UtcNow - _fetchedUtc < MinInterval))
         {

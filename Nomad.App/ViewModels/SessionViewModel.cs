@@ -71,14 +71,19 @@ public sealed partial class SessionViewModel : ObservableObject
         ModelOptions.Clear();
         if (IsOpenCode)
         {
+            // The favorites first, in the order starred (the first four with their keys), then the rest by provider.
             var query = ModelFilter.Trim();
-            foreach (var m in OpenCodeCatalog.Models)
+            var favorites = Favorites;
+            var matches = OpenCodeCatalog.Models.Where(m => query.Length == 0 || m.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                || m.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || m.ProviderName.Contains(query, StringComparison.OrdinalIgnoreCase));
+            foreach (var m in matches.OrderBy(m => FavoriteRank(favorites, m.Id)))
             {
-                if (query.Length == 0 || m.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
-                    || m.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || m.ProviderName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                var rank = FavoriteRank(favorites, m.Id);
+                ModelOptions.Add(new MenuOption(m.Id, m.Name, m.ProviderName, rank < 4 ? rank + 1 : 0)
                 {
-                    ModelOptions.Add(new MenuOption(m.Id, m.Name, m.ProviderName));
-                }
+                    CanFavorite = true,
+                    IsFavorite = rank < favorites.Count,
+                });
             }
         }
         else
@@ -104,28 +109,103 @@ public sealed partial class SessionViewModel : ObservableObject
 
         FillChips();
         SyncOptions();
+        RefreshEffortStops();
         OnPropertyChanged(nameof(HasNoModels));
         OnPropertyChanged(nameof(NoModelsText));
     }
 
-    /// <summary>The status row's chips: Claude's four models, or only OpenCode's current one (it may have hundreds).</summary>
+    /// <summary>
+    /// The status row's chips: Claude's four models, or OpenCode's first four favorites (it may have hundreds of
+    /// models) and the current model if it is none of them.
+    /// </summary>
     private void FillChips()
     {
-        ChipModelOptions.Clear();
-        if (IsOpenCode)
+        if (!IsOpenCode)
         {
-            if (!string.IsNullOrEmpty(Model))
+            ChipModelOptions.Clear();
+            foreach (var o in ModelOptions)
             {
-                ChipModelOptions.Add(new MenuOption(Model, Catalog.ModelName(Model)) { IsSelected = true });
+                ChipModelOptions.Add(o);
             }
 
             return;
         }
 
+        var ids = ShortcutModels.ToList();
+        if (!string.IsNullOrEmpty(Model) && !ids.Contains(Model, StringComparer.OrdinalIgnoreCase))
+        {
+            ids.Add(Model);
+        }
+
+        // The same chips (a model switch among them): only the selection moves, so the chips animate as Claude's do.
+        if (ids.SequenceEqual(ChipModelOptions.Select(o => o.Id), StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var o in ChipModelOptions)
+            {
+                o.IsSelected = string.Equals(o.Id, Model, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return;
+        }
+
+        ChipModelOptions.Clear();
+        for (var i = 0; i < ids.Count; i++)
+        {
+            ChipModelOptions.Add(new MenuOption(ids[i], Catalog.ModelName(ids[i]), OpenCodeCatalog.Find(ids[i])?.ProviderName, i < 4 && i < ShortcutModels.Count ? i + 1 : 0)
+            {
+                IsSelected = string.Equals(ids[i], Model, StringComparison.OrdinalIgnoreCase),
+            });
+        }
+    }
+
+    /// <summary>The starred OpenCode models, in the order starred.</summary>
+    private List<string> Favorites => _main.Settings.OpenCodeFavorites;
+
+    /// <summary>Where a model sits among the favorites, or past them all when it is not one.</summary>
+    private static int FavoriteRank(List<string> favorites, string id)
+    {
+        var index = favorites.FindIndex(f => string.Equals(f, id, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : int.MaxValue;
+    }
+
+    /// <summary>The models Ctrl+Shift+1…4 and F1…F4 pick: Claude's four, or OpenCode's first four favorites.</summary>
+    public IReadOnlyList<string> ShortcutModels => IsOpenCode ? [.. Favorites.Take(4)] : [.. Catalog.Models.Select(m => m.Id)];
+
+    /// <summary>Ctrl+Shift+N / FN: the model it picks, if there is one.</summary>
+    public void SelectShortcutModel(int index)
+    {
+        if (ShortcutModels is var models && index >= 0 && index < models.Count)
+        {
+            SelectModelCommand.Execute(models[index]);
+        }
+    }
+
+    /// <summary>The star on an OpenCode model's row.</summary>
+    [RelayCommand]
+    private void ToggleFavorite(string id) => _main.ToggleOpenCodeFavorite(id);
+
+    /// <summary>
+    /// A model was starred or unstarred (here or in another session): the stars and key hints change in place, so the
+    /// open menu doesn't reorder under the pointer; the order follows the next time the list is built.
+    /// </summary>
+    public void OnOpenCodeFavoritesChanged()
+    {
+        if (!IsOpenCode)
+        {
+            return;
+        }
+
+        var favorites = Favorites;
         foreach (var o in ModelOptions)
         {
-            ChipModelOptions.Add(o);
+            var rank = FavoriteRank(favorites, o.Id);
+            o.IsFavorite = rank < favorites.Count;
+            o.ShortcutText = MenuOption.ShortcutFor(rank < 4 ? rank + 1 : 0);
         }
+
+        FillChips();
+        OnPropertyChanged(nameof(CompactModelPicker));
+        OnPropertyChanged(nameof(ShowMenuEffort));
     }
 
     public ObservableCollection<TranscriptItem> Items { get; } = [];
@@ -176,8 +256,8 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowTitleGit))]
     public partial bool IsGitFolder { get; set; }
 
-    /// <summary>F1…F4 pick the model: only on the new-session screen, and only with the setting on.</summary>
-    public bool ModelFunctionKeys => IsNew && _main.Settings.ModelFunctionKeys && IsClaudeCode;
+    /// <summary>F1…F4 pick the model (OpenCode: a favorite): only on the new-session screen, and only with the setting on.</summary>
+    public bool ModelFunctionKeys => IsNew && _main.Settings.ModelFunctionKeys && ShortcutModels.Count > 0;
 
     public bool ShowWorktreeToggle => IsNew && IsGitFolder;
 
@@ -379,7 +459,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The agent this session runs on (AgentBackends): chosen on the new-session screen, then kept.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOpenCode), nameof(IsClaudeCode), nameof(BackendName), nameof(CompactModelPicker), nameof(UltracodeAvailable))]
-    [NotifyPropertyChangedFor(nameof(ShowMenuEffort), nameof(ModelMenuWidth), nameof(BackendToolTip))]
+    [NotifyPropertyChangedFor(nameof(ShowMenuEffort), nameof(ModelMenuWidth), nameof(BackendToolTip), nameof(Usage))]
     public partial string Backend { get; set; }
 
     public bool IsOpenCode => Backend == AgentBackends.OpenCode;
@@ -401,8 +481,8 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>OpenCode's model names are longer and come with their provider's.</summary>
     public double ModelMenuWidth => IsOpenCode ? 340 : 250;
 
-    /// <summary>The model menu's effort slider: in the compact picker, and only for Claude Code.</summary>
-    public bool ShowMenuEffort => CompactModelPicker && IsClaudeCode;
+    /// <summary>The model menu's effort slider: in the compact picker, when the model has levels to choose from.</summary>
+    public bool ShowMenuEffort => CompactModelPicker && HasEffortLevels;
 
     /// <summary>Why the model list is empty.</summary>
     public string NoModelsText =>
@@ -424,6 +504,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
         ModelFilter = "";
         Model = DefaultModelFor(newValue);
+        Effort = _main.EffortFor(Model);
         if (IsOpenCode && PermissionMode == "auto")
         {
             PermissionMode = "default";
@@ -434,6 +515,8 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             _ = _main.LoadOpenCodeCatalogAsync();
         }
+
+        _ = Usage.RefreshAsync();
     }
 
     [RelayCommand]
@@ -481,8 +564,16 @@ public sealed partial class SessionViewModel : ObservableObject
             Model = DefaultModelFor(Backend);
         }
 
+        ChipModelOptions.Clear(); // Their names are known now.
         RebuildOptions();
         OnPropertyChanged(nameof(ModelName));
+
+        // The model's variants are known now: a new session takes the one last used with it, and none keeps one the
+        // model doesn't have.
+        if (IsNew || (Effort.Length > 0 && !EffortStops.Any(s => s.Id == Effort)))
+        {
+            _ = ApplyEffortAsync(_main.EffortFor(Model));
+        }
     }
 
     [ObservableProperty]
@@ -573,7 +664,8 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>
     /// The effort slider's thumb, 0 (Low) to 4 (Max). It moves freely while dragged; the nearest stop
     /// becomes the effort, and <see cref="SnapEffort"/> settles the thumb on it when released.
-    /// "Default" (no effort flag) sits at High, which is what the CLI picks.
+    /// "Default" (no effort flag) sits at High, which is what the CLI picks. On OpenCode the stops are Default (no
+    /// variant: the model's own default) and then the model's variants.
     /// </summary>
     public double EffortPosition
     {
@@ -582,7 +674,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             if (SetProperty(ref _effortPosition, value))
             {
-                var id = Catalog.EffortLevels[Math.Clamp((int)Math.Round(value), 0, Catalog.EffortLevels.Count - 1)].Id;
+                var id = _effortStops[Math.Clamp((int)Math.Round(value), 0, _effortStops.Count - 1)].Id;
                 if (id != Effort)
                 {
                     SelectEffortCommand.Execute(id);
@@ -595,10 +687,45 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void SnapEffort() => EffortPosition = Math.Round(EffortPosition);
 
-    private static double EffortIndex(string? id)
+    private IReadOnlyList<EffortOption> _effortStops = Catalog.EffortLevels;
+
+    /// <summary>The effort slider's stops, left to right: Claude's five levels, or Default and the OpenCode model's variants.</summary>
+    public IReadOnlyList<EffortOption> EffortStops => _effortStops;
+
+    /// <summary>The slider's last stop.</summary>
+    public double EffortMaximum => Math.Max(1, _effortStops.Count - 1);
+
+    /// <summary>There is an effort to choose: always on Claude Code; on OpenCode when the model has variants.</summary>
+    public bool HasEffortLevels => _effortStops.Count > 1;
+
+    public string EffortToolTip => IsOpenCode ? "Effort (this model's variants in OpenCode)" : "Effort (Low to Max)";
+
+    /// <summary>The stops follow the agent and, on OpenCode, the model; the thumb goes to the current effort among them.</summary>
+    private void RefreshEffortStops()
     {
-        var index = Catalog.EffortLevels.ToList().FindIndex(e => e.Id == id);
-        return index >= 0 ? index : Catalog.EffortLevels.ToList().FindIndex(e => e.Id == "high");
+        IReadOnlyList<EffortOption> stops = IsOpenCode
+            ? [Catalog.Efforts[0], .. (OpenCodeCatalog.Find(Model)?.Variants ?? []).Select(v => new EffortOption(v, Catalog.EffortName(v)))]
+            : Catalog.EffortLevels;
+        if (stops.Select(s => s.Id).SequenceEqual(_effortStops.Select(s => s.Id)))
+        {
+            return;
+        }
+
+        _effortStops = stops;
+        OnPropertyChanged(nameof(EffortStops));
+        OnPropertyChanged(nameof(EffortMaximum));
+        OnPropertyChanged(nameof(HasEffortLevels));
+        OnPropertyChanged(nameof(ShowMenuEffort));
+        OnPropertyChanged(nameof(EffortToolTip));
+        _effortPosition = EffortIndex(Effort);
+        OnPropertyChanged(nameof(EffortPosition));
+    }
+
+    private double EffortIndex(string? id)
+    {
+        var ids = _effortStops.Select(e => e.Id).ToList();
+        var index = ids.IndexOf(id ?? "");
+        return index >= 0 ? index : Math.Max(0, ids.IndexOf("high"));
     }
 
     /// <summary>Recent folders for the new-session card (up to five).</summary>
@@ -627,6 +754,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         SyncOptions();
+        RefreshEffortStops();
     }
 
     partial void OnPermissionModeChanged(string value) => SyncOptions();
@@ -673,8 +801,9 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         foreach (var o in ModelOptions)
         {
+            // Claude's ids may carry a suffix ("[1m]", a date); OpenCode's must match whole ("opus-5" is not "opus-5-5").
             o.IsSelected = string.Equals(o.Id, Model, StringComparison.OrdinalIgnoreCase)
-                || (Model?.StartsWith(o.Id, StringComparison.OrdinalIgnoreCase) ?? false);
+                || (IsClaudeCode && (Model?.StartsWith(o.Id, StringComparison.OrdinalIgnoreCase) ?? false));
         }
 
         foreach (var o in ModeOptions)
@@ -1334,8 +1463,8 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void OnFileTreeSideChanged() => OnPropertyChanged(nameof(FileTreeOnRight));
 
-    /// <summary>Only the current model's chip, the effort slider in the menu: a setting, and always so for OpenCode.</summary>
-    public bool CompactModelPicker => _main.CompactModelPicker || IsOpenCode;
+    /// <summary>Only the current model's chip, the effort slider in the menu: a setting, and so for OpenCode until a model is starred.</summary>
+    public bool CompactModelPicker => _main.CompactModelPicker || (IsOpenCode && Favorites.Count == 0);
 
     public void OnCompactModelPickerChanged()
     {
@@ -1734,8 +1863,8 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
-    /// <summary>The app's plan usage, for the ring's popup.</summary>
-    public UsageViewModel Usage => _main.Usage;
+    /// <summary>The ring's popup and the usage card: Claude's plan limits, or on OpenCode the month's Anthropic API cost.</summary>
+    public UsageSource Usage => IsOpenCode ? _main.OpenCodeCost : _main.Usage;
 
     /// <summary>When the CLI process last started or sent anything; drives the idle timeout.</summary>
     public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
@@ -2010,11 +2139,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (IsOpenCode)
         {
-            // The next OpenCode session starts on it too; OpenCode has no effort levels.
+            // The next OpenCode session starts on it too.
             ModelFilter = "";
             _main.Settings.OpenCodeModel = id;
             _main.SaveSettings();
-            return;
         }
 
         // Each model comes back at the effort last chosen with it.
@@ -2073,13 +2201,15 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task ApplyEffortAsync(string id)
     {
-        if (Effort == id || IsOpenCode)
+        if (Effort == id)
         {
             return;
         }
 
+        // Claude Code has no flag that clears the effort: back to Default needs a restart. OpenCode takes a variant
+        // (or none) with each prompt.
         Effort = id;
-        if (_backend is { IsProcessRunning: true } backend && (string.IsNullOrEmpty(id) || !await backend.SetEffortAsync(id)))
+        if (_backend is { IsProcessRunning: true } backend && ((string.IsNullOrEmpty(id) && IsClaudeCode) || !await backend.SetEffortAsync(id)))
         {
             _restartRequired = true;
         }

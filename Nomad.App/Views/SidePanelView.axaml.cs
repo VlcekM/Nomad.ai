@@ -204,7 +204,7 @@ public partial class SidePanelView : UserControl
     }
 
     private void OnUsagePageClick(object? sender, RoutedEventArgs e) =>
-        Start(new ProcessStartInfo(UsageViewModel.UsagePageUrl) { UseShellExecute = true });
+        Start(new ProcessStartInfo(Vm?.Usage.PageUrl ?? UsageViewModel.UsagePageUrl) { UseShellExecute = true });
 
     private static bool Start(ProcessStartInfo start)
     {

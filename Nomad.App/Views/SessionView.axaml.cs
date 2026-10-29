@@ -55,6 +55,15 @@ public partial class SessionView : UserControl
         if (ModelChip.Flyout is { } models)
         {
             models.Closed += (_, _) => FlyoutBase.GetAttachedFlyout(ModeRow)?.Hide();
+
+            // Models starred or unstarred since it was last open move to (or from) the top now, not under the pointer.
+            ((PopupFlyoutBase)models).Opening += (_, _) =>
+            {
+                if (Vm is { IsOpenCode: true } vm)
+                {
+                    vm.RebuildOptions();
+                }
+            };
         }
 
         // A click anywhere on the page puts the caret in the composer, unless it went to a control
@@ -775,14 +784,9 @@ public partial class SessionView : UserControl
                 e.Handled = true;
                 break;
 
-            // Ctrl+Shift+1…4: the model (Ctrl+1…9 alone opens a session from the sidebar).
-            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) && vm.IsClaudeCode:
-                var index = e.Key - Key.D1;
-                if (index < vm.ModelOptions.Count)
-                {
-                    vm.SelectModelCommand.Execute(vm.ModelOptions[index].Id);
-                }
-
+            // Ctrl+Shift+1…4: the model, on OpenCode a favorite (Ctrl+1…9 alone opens a session from the sidebar).
+            case >= Key.D1 and <= Key.D4 when e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) && vm.ShortcutModels.Count > 0:
+                vm.SelectShortcutModel(e.Key - Key.D1);
                 e.Handled = true;
                 break;
         }
@@ -1120,6 +1124,17 @@ public partial class SessionView : UserControl
         HideMenus();
     }
 
+    /// <summary>The star on an OpenCode model's row: (un)favorites it, and the menu stays open.</summary>
+    private void OnFavoriteClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: MenuOption option })
+        {
+            Vm?.ToggleFavoriteCommand.Execute(option.Id);
+        }
+
+        e.Handled = true;
+    }
+
     /// <summary>A status-row model chip: picks that model, or opens the full picker when it is already the one.</summary>
     private void OnModelChipClick(object? sender, RoutedEventArgs e)
     {
@@ -1141,6 +1156,13 @@ public partial class SessionView : UserControl
     {
         if (sender is Control { DataContext: MenuOption option } chip)
         {
+            // OpenCode's current model when it is not a favorite: no key, so its name and provider instead.
+            if (option.ShortcutText.Length == 0)
+            {
+                ToolTip.SetTip(chip, option.HasDescription ? $"{option.Label} · {option.Description}" : option.Label);
+                return;
+            }
+
             ToolTip.SetTip(chip, Vm?.ModelFunctionKeys == true
                 ? $"Ctrl+Shift+{option.ShortcutText} or F{option.ShortcutText}"
                 : $"Ctrl+Shift+{option.ShortcutText}");
@@ -1677,7 +1699,7 @@ public partial class SessionView : UserControl
         HideMenus();
         try
         {
-            Process.Start(new ProcessStartInfo(UsageViewModel.UsagePageUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(Vm?.Usage.PageUrl ?? UsageViewModel.UsagePageUrl) { UseShellExecute = true });
         }
         catch (Exception)
         {

@@ -35,7 +35,7 @@
   </DataTemplate>
 
   <!-- "Couldn't refresh · as of 22:42" with a retry button; after a retry that fails too, why unfolds beneath. -->
-  <DataTemplate x:Key="UsageStaleTemplate" x:DataType="vm:UsageViewModel">
+  <DataTemplate x:Key="UsageStaleTemplate" x:DataType="vm:UsageSource">
     <StackPanel>
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Text="{Binding StaleText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />

@@ -30,6 +30,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Plan usage limits (the status-row ring's popup).</summary>
     public UsageViewModel Usage { get; } = new();
 
+    /// <summary>What OpenCode spent this month (OpenCode sessions' usage), from its own records.</summary>
+    public OpenCodeCostViewModel OpenCodeCost { get; } = new();
+
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
 
@@ -80,9 +83,20 @@ public sealed partial class MainViewModel : ObservableObject
         _idleTimer.Start();
 
         _usageTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
-        _usageTimer.Tick += (_, _) => _ = Usage.RefreshAsync();
+        _usageTimer.Tick += (_, _) =>
+        {
+            _ = Usage.RefreshAsync();
+            if (Current.IsOpenCode)
+            {
+                _ = OpenCodeCost.RefreshAsync();
+            }
+        };
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
+        if (Current.IsOpenCode)
+        {
+            _ = OpenCodeCost.RefreshAsync(force: true);
+        }
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _phoneTimer.Tick += (_, _) => _ = ScanPhoneSessionsAsync();
@@ -594,10 +608,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// The effort a session starts with on a model: the one last chosen with it, else high, except Opus 5.5, which
-    /// starts at the Default effort setting.
+    /// starts at the Default effort setting. An OpenCode model starts at its last one while it still has that variant,
+    /// else at OpenCode's default for it.
     /// </summary>
     public string EffortFor(string model) =>
-        Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
+        Nomad.Core.OpenCode.OpenCodeBackend.IsOpenCodeModel(model)
+            ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var variant)
+                && (OpenCodeCatalog.Find(model) is not { } m || m.Variants.Contains(variant)) ? variant : ""
+        : Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
         : model.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase) ? Settings.DefaultEffort
         : "high";
 
@@ -728,7 +746,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (value)
         {
             Current.RefreshPanel();
-            _ = Usage.RefreshAsync();
+            _ = Current.Usage.RefreshAsync();
         }
 
         if (Settings.SidePanelOpen != value && !Dev.IsActive)
@@ -822,6 +840,11 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
         newValue?.ApplyDefaultMode();
+        if (newValue is { IsOpenCode: true })
+        {
+            _ = OpenCodeCost.RefreshAsync();
+        }
+
         if (oldValue is not null)
         {
             oldValue.PropertyChanged -= OnCurrentPropertyChanged;
@@ -1310,6 +1333,27 @@ public sealed partial class MainViewModel : ObservableObject
     public partial string? OpenCodeError { get; set; }
 
     private Task? _openCodeCatalog;
+
+    /// <summary>Stars or unstars an OpenCode model; every open session's chips and shortcuts follow.</summary>
+    public void ToggleOpenCodeFavorite(string model)
+    {
+        var favorites = Settings.OpenCodeFavorites;
+        var index = favorites.FindIndex(f => string.Equals(f, model, StringComparison.OrdinalIgnoreCase));
+        if (index >= 0)
+        {
+            favorites.RemoveAt(index);
+        }
+        else
+        {
+            favorites.Add(model);
+        }
+
+        SaveSettings();
+        foreach (var session in _open.Values.Append(Current).Append(_draft).OfType<SessionViewModel>().Distinct())
+        {
+            session.OnOpenCodeFavoritesChanged();
+        }
+    }
 
     /// <summary>Loads OpenCode's models (starting its server); once per run unless it failed.</summary>
     public Task LoadOpenCodeCatalogAsync()
@@ -2398,7 +2442,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         TurnCompleted?.Invoke(session);
         _ = RefreshSessionsAsync();
-        _ = Usage.RefreshAsync();
+        _ = session.Usage.RefreshAsync();
     }
 
     /// <summary>A permission or question is pending, or was answered: the row's yellow dot.</summary>
