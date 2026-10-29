@@ -8,6 +8,29 @@
              x:DataType="vm:SessionViewModel">
 
   <UserControl.Styles>
+    <!-- A workflow run's card; its phase dots: muted while pending, the accent while running, filled when done. -->
+    <Style Selector="Border.workflow">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Ellipse.phasedot">
+      <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="Opacity" Value="0.5" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <BrushTransition Property="Fill" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Ellipse.phasedot.running">
+      <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Ellipse.phasedot.done">
+      <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
     <!-- Published artifact cards brighten their border on hover. -->
     <Style Selector="Border.artifact">
       <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
@@ -937,6 +960,110 @@
               CornerRadius="4"
               Padding="12,8">
         <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" />
+      </Border>
+    </DataTemplate>
+
+    <!-- A workflow run: its name and totals, then its phases with their agents (state, model, last tool, tokens), live
+         while it runs; its result once it ends. A click on the header folds the phases, on an agent shows its prompt
+         and result. -->
+    <DataTemplate DataType="{x:Type vm:WorkflowRunItem}" x:DataType="vm:WorkflowRunItem">
+      <Border Classes="workflow" Margin="0,10,0,4" CornerRadius="10" Background="{DynamicResource BgInputBrush}" BorderThickness="1" ClipToBounds="True">
+        <StackPanel>
+          <Button Theme="{StaticResource FlatButton}" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                  Padding="12,9,12,9" CornerRadius="10" ToolTip.Tip="{Binding Description}">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+              <Panel Width="16" Height="16" VerticalAlignment="Center" Margin="0,0,10,0">
+                <c:Ring Width="13" Height="13" StrokeWidth="1.5" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                        TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                <c:Icon Data="{StaticResource IconCheck}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                <c:Icon Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                <c:Icon Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsStopped}" />
+              </Panel>
+              <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"
+                         FontSize="{DynamicResource UiFontSize}" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Grid.Column="2" Text="{Binding Description}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="3" Text="{Binding ProgressText}" FontSize="{DynamicResource UiFontSizeSmall}"
+                         Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+              <c:Icon Grid.Column="4" Classes="chev" Classes.open="{Binding IsExpanded}" Data="{StaticResource IconChevronRight}" Margin="8,0,0,0" />
+            </Grid>
+          </Button>
+
+          <StackPanel c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False">
+            <Border Height="1" Background="{DynamicResource BorderBrush}" />
+            <ItemsControl ItemsSource="{Binding Phases}" Margin="0,6,0,4">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:WorkflowPhaseItem">
+                  <StackPanel Margin="0,2,0,4">
+                    <!-- The phase: its title and how many of its agents are done. -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="14,4,14,2" Height="22">
+                      <Ellipse Classes="phasedot" Classes.running="{Binding IsRunning}" Classes.done="{Binding IsDone}" Width="7" Height="7" VerticalAlignment="Center" Margin="4,0,13,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding Title}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}"
+                                 Foreground="{DynamicResource TextChromeBrush}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Agents}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:WorkflowAgentItem">
+                          <StackPanel Loaded="OnWorkflowAgentLoaded">
+                            <Button Theme="{StaticResource FlatButton}" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    Padding="8,0" Height="28" Margin="6,0" Foreground="{DynamicResource TextChromeBrush}">
+                              <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto">
+                                <Panel Width="16" Height="16" Margin="14,0,8,0" VerticalAlignment="Center">
+                                  <c:Ring Width="11" Height="11" StrokeWidth="1.5" IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                          TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                                  <Ellipse Width="8" Height="8" Stroke="{DynamicResource TextMutedBrush}" StrokeThickness="1.2" IsVisible="{Binding IsQueued}" />
+                                  <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsDone}" />
+                                  <c:Icon Size="12" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                                </Panel>
+                                <TextBlock Grid.Column="1" Text="{Binding Label}" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Medium"
+                                           MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Grid.Column="2" Text="{Binding ModelName}" IsVisible="{Binding HasModel}" Classes="muted"
+                                           FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Grid.Column="3" Text="{Binding ActivityText}" FontSize="{DynamicResource UiFontSizeSmall}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="{Binding StatsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                              </Grid>
+                            </Button>
+                            <Border c:Fold.IsOpen="{Binding IsExpanded}" IsVisible="False" Margin="52,2,14,6"
+                                    Background="{DynamicResource BgCodeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                              <ScrollViewer MaxHeight="260" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12,10" Spacing="8">
+                                  <SelectableTextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" />
+                                  <Border Height="1" Background="{DynamicResource BorderBrush}" IsVisible="{Binding HasResult}" />
+                                  <SelectableTextBlock Text="{Binding Result}" Classes="mono" IsVisible="{Binding HasResult}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                              </ScrollViewer>
+                            </Border>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Totals, and the run's result once it ends. -->
+            <Border Height="1" Background="{DynamicResource BorderBrush}" />
+            <Grid ColumnDefinitions="*,Auto" Margin="14,0,8,0" Height="34">
+              <TextBlock Text="{Binding TotalsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Theme="{StaticResource LineButton}" Command="{Binding ToggleResultCommand}" IsVisible="{Binding HasResult}" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="Result" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                  <c:Icon Classes="chev" Classes.open="{Binding IsResultOpen}" Data="{StaticResource IconChevronRight}" />
+                </StackPanel>
+              </Button>
+            </Grid>
+            <Border c:Fold.IsOpen="{Binding IsResultOpen}" IsVisible="False" Margin="12,0,12,12"
+                    Background="{DynamicResource BgCodeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+              <ScrollViewer MaxHeight="360" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <SelectableTextBlock Text="{Binding Result}" Classes="mono" Margin="12,10" Foreground="{DynamicResource TextPrimaryBrush}" />
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </StackPanel>
       </Border>
     </DataTemplate>
 

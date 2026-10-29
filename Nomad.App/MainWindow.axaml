@@ -229,7 +229,7 @@
               <Setter Property="Margin" Value="4,0,0,0" />
               <Setter Property="IsHitTestVisible" Value="True" />
             </Style>
-            <Style Selector="Border.merged, Border.pinmark">
+            <Style Selector="Border.merged, Border.pinmark, Border.workflowmark">
               <Setter Property="MaxWidth" Value="0" />
               <Setter Property="Opacity" Value="0" />
               <Setter Property="Margin" Value="0" />
@@ -242,7 +242,7 @@
                 </Transitions>
               </Setter>
             </Style>
-            <Style Selector="Border.merged.shown, Border.pinmark.shown">
+            <Style Selector="Border.merged.shown, Border.pinmark.shown, Border.workflowmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
               <Setter Property="Margin" Value="0,0,6,0" />
@@ -398,6 +398,12 @@
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto" RowDefinitions="26,Auto">
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- A workflow runs (maybe long after the turn): a spinner folds in, and out once the last one ends. -->
+                    <Border Classes="workflowmark" Classes.shown="{Binding HasRunningWorkflows}" Background="Transparent"
+                            ToolTip.Tip="Workflow running">
+                      <c:Ring Width="11" Height="11" StrokeWidth="1.5" IsSpinning="{Binding HasRunningWorkflows}"
+                              TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                    </Border>
                     <!-- Pinned: kept alive and out of auto-archive; folds in and out with the pin. -->
                     <Border Classes="pinmark" Classes.shown="{Binding IsPinned}" Background="Transparent"
                             ToolTip.Tip="Pinned">

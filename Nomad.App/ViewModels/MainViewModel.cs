@@ -1265,6 +1265,7 @@ public sealed partial class MainViewModel : ObservableObject
                 vm.IsRunning = live.IsTurnRunning;
                 vm.IsWaiting = live.PendingPermission is not null;
                 vm.HasRunningSubagents = live.HasRunningSubagents;
+                vm.HasRunningWorkflows = live.HasRunningWorkflows;
             }
 
             vm.IsArchived = archived.Contains(s.SessionId);
@@ -2071,6 +2072,7 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsRunning = session.IsTurnRunning;
         vm.IsWaiting = session.PendingPermission is not null;
         vm.HasRunningSubagents = session.HasRunningSubagents;
+        vm.HasRunningWorkflows = session.HasRunningWorkflows;
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
@@ -2254,6 +2256,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {
             vm.HasRunningSubagents = session.HasRunningSubagents;
+            vm.HasRunningWorkflows = session.HasRunningWorkflows;
         }
     }
 

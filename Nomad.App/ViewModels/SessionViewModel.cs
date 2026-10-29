@@ -721,6 +721,117 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    // ------------------------------------------------------------------ workflows
+
+    /// <summary>The session's workflow runs (Workflow calls), newest first: the side panel lists them.</summary>
+    public ObservableCollection<WorkflowRunItem> Workflows { get; } = [];
+
+    public bool HasWorkflows => Workflows.Count > 0;
+
+    /// <summary>A workflow runs: the spinner on the sidebar row.</summary>
+    public bool HasRunningWorkflows => Workflows.Any(w => w.IsRunning);
+
+    private readonly Dictionary<string, WorkflowRunItem> _workflowByCall = new(StringComparer.Ordinal);
+    private DispatcherTimer? _workflowTimer;
+
+    /// <summary>The card for a Workflow call, made (and placed after its call) the first time it is asked for.</summary>
+    private WorkflowRunItem WorkflowFor(string toolUseId)
+    {
+        if (_workflowByCall.TryGetValue(toolUseId, out var run))
+        {
+            return run;
+        }
+
+        run = new WorkflowRunItem(toolUseId);
+        _workflowByCall[toolUseId] = run;
+        if (_calls.TryGetValue(toolUseId, out var call))
+        {
+            run.SetInput(call.Input);
+        }
+
+        CloseGroup();
+        Items.Add(run);
+        Workflows.Insert(0, run);
+        OnPropertyChanged(nameof(HasWorkflows));
+        run.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(WorkflowRunItem.IsRunning))
+            {
+                OnWorkflowsRunningChanged();
+            }
+        };
+        OnWorkflowsRunningChanged();
+        ContentChanged?.Invoke();
+        return run;
+    }
+
+    private WorkflowRunItem? WorkflowOf(string? taskId, string? toolUseId) =>
+        toolUseId is not null && _workflowByCall.TryGetValue(toolUseId, out var byCall) ? byCall
+        : taskId is not null ? Workflows.FirstOrDefault(w => w.TaskId == taskId) : null;
+
+    private void OnWorkflowsRunningChanged()
+    {
+        OnPropertyChanged(nameof(HasRunningWorkflows));
+        _main.OnSubagentsChanged(this);
+
+        // Elapsed times tick once a second, only while one runs.
+        if (HasRunningWorkflows)
+        {
+            _workflowTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickWorkflows());
+            _workflowTimer.Start();
+        }
+    }
+
+    private void TickWorkflows()
+    {
+        var running = false;
+        foreach (var run in Workflows.Where(w => w.IsRunning))
+        {
+            run.Tick();
+            running = true;
+        }
+
+        if (!running)
+        {
+            _workflowTimer?.Stop();
+        }
+    }
+
+    /// <summary>A run ended: its result is in the file the CLI writes as it ends (maybe a moment after saying so).</summary>
+    private async Task FinishWorkflowAsync(WorkflowRunItem run, string? status)
+    {
+        run.Finish(status);
+        for (var attempt = 0; attempt < 5 && !run.HasResult; attempt++)
+        {
+            if (await run.LoadRunFileAsync())
+            {
+                return;
+            }
+
+            await Task.Delay(400 * (attempt + 1));
+        }
+    }
+
+    /// <summary>A reopened chat's runs: finished ones from their files; one without a file was stopped with its process.</summary>
+    private async Task LoadWorkflowRunsAsync(IEnumerable<WorkflowRunItem> runs, bool live)
+    {
+        foreach (var run in runs.Where(r => r.IsRunning).ToList())
+        {
+            if (!await run.LoadRunFileAsync() && !live)
+            {
+                run.Finish("stopped");
+            }
+        }
+    }
+
+    private void FinishWorkflows()
+    {
+        foreach (var run in Workflows.Where(w => w.IsRunning).ToList())
+        {
+            _ = FinishWorkflowAsync(run, "stopped");
+        }
+    }
+
     // ------------------------------------------------------------------ background tasks
 
     /// <summary>Commands started with <c>run_in_background</c>, newest first: the side panel lists them.</summary>
@@ -780,6 +891,16 @@ public sealed partial class SessionViewModel : ObservableObject
         if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
         {
             agent.Finish(failed: status == "failed", result: null);
+            return;
+        }
+
+        if (WorkflowOf(taskId, toolUseId) is { } run)
+        {
+            if (run.IsRunning)
+            {
+                _ = FinishWorkflowAsync(run, status);
+            }
+
             return;
         }
 
@@ -1396,7 +1517,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
 
     /// <summary>A subagent or background command is still at work, so the idle timeout leaves the process alone.</summary>
-    public bool HasBackgroundWork => BackgroundTasks.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning);
+    public bool HasBackgroundWork => BackgroundTasks.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning) || HasRunningWorkflows;
 
     /// <summary>Raised after items were added or grew, so the view can follow the bottom.</summary>
     public event Action? ContentChanged;
@@ -1945,6 +2066,9 @@ public sealed partial class SessionViewModel : ObservableObject
             FinishOpenCalls();
         }
 
+        // Its workflow runs, finished from their files.
+        _ = LoadWorkflowRunsAsync(Workflows, live: IsPhoneSession);
+
         CloseGroup();
         MarkResponseEnds();
         ContentChanged?.Invoke();
@@ -2340,6 +2464,24 @@ public sealed partial class SessionViewModel : ObservableObject
                 RemoteControlState = bridge.State;
                 break;
 
+            case WorkflowStartedEvent started:
+                var startedRun = started.ToolUseId is { } startedCall ? WorkflowFor(startedCall) : null;
+                if (startedRun is not null)
+                {
+                    startedRun.TaskId = started.TaskId;
+                    startedRun.SetScript(started.Script, started.Name, started.Description);
+                }
+
+                break;
+
+            case WorkflowProgressEvent progress when WorkflowOf(progress.TaskId, progress.ToolUseId) is { IsRunning: true } progressed:
+                progressed.Apply(progress.Progress, progress.Tokens, progress.ToolUses, progress.DurationMs);
+                break;
+
+            case TaskUpdatedEvent { Status: not ("running" or "pending") } updated when WorkflowOf(updated.TaskId, null) is { IsRunning: true } endedRun:
+                _ = FinishWorkflowAsync(endedRun, updated.Status);
+                break;
+
             case TaskNotificationEvent ended:
                 CloseGroup();
                 FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary ?? "Background task finished");
@@ -2473,6 +2615,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 ForgetBridgeProcess();
                 FinishSubagents(includingBackground: true);
                 FinishBackgroundTasks();
+                FinishWorkflows();
                 _main.OnAliveChanged(this);
                 _main.ReassertTitle(this);
                 break;
@@ -2649,6 +2792,10 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             CloseGroup();
             Items.Add(artifact);
+        }
+        else if (call.Name == "Workflow" && !isError && WorkflowLaunch.Parse(text) is { } launch)
+        {
+            WorkflowFor(toolUseId).SetLaunch(launch);
         }
     }
 

@@ -1218,6 +1218,16 @@ public partial class SessionView : UserControl
     }
 
     // An artifact Claude published: a click opens its claude.ai page in the browser.
+    /// <summary>A workflow's agent joins its phase: its row fades and slides in (once, not each time it scrolls into view).</summary>
+    private void OnWorkflowAgentLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: WorkflowAgentItem { IsFresh: true } agent } row)
+        {
+            agent.IsFresh = false;
+            Controls.Entrance.Play(row);
+        }
+    }
+
     private void OnArtifactTapped(object? sender, TappedEventArgs e)
     {
         if ((sender as Control)?.DataContext is ArtifactItem artifact)
