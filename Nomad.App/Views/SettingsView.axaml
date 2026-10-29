@@ -582,6 +582,18 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Codex path" Classes="rowlabel" />
+                  <TextBlock Text="The codex executable, for sessions on Codex (the agent chip by the model). It signs in with your ChatGPT plan or an API key: codex login." Classes="rowhint" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding CodexStatus}" Classes="rowhint" Classes.ok="{Binding CodexFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="field" Width="360">
+                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CodexPath}" Watermark="codex" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
+                </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Main agent" Classes="rowlabel" />
                   <TextBlock Text="Its sessions show no logo in the sidebar; the other agents' sessions do. None: every session shows its logo." Classes="rowhint" TextWrapping="Wrap" />
                 </StackPanel>
@@ -616,7 +628,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
-                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
+                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on Codex, its first four models; on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1"

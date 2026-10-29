@@ -53,6 +53,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         Theme = s.Theme;
         CliPath = s.CliPath;
         OpenCodePath = s.OpenCodePath;
+        CodexPath = s.CodexPath;
         MainBackend = MainBackends.FirstOrDefault(b => b.Id == (s.MainBackend ?? "")) ?? MainBackends[0];
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
@@ -275,6 +276,25 @@ public sealed partial class SettingsViewModel : ObservableObject
         var resolved = Nomad.Core.OpenCode.OpenCodeServer.ResolveExecutable(path);
         OpenCodeFound = resolved is not null;
         OpenCodeStatus = resolved is not null ? "Found: " + resolved : "Not found. Install it with npm i -g opencode-ai";
+    }
+
+    [ObservableProperty]
+    public partial string CodexPath { get; set; }
+
+    [ObservableProperty]
+    public partial string CodexStatus { get; set; } = "";
+
+    [ObservableProperty]
+    public partial bool CodexFound { get; set; }
+
+    partial void OnCodexPathChanged(string value)
+    {
+        var path = string.IsNullOrWhiteSpace(value) ? "codex" : value.Trim();
+        Apply(s => s.CodexPath = path, appearance: false);
+        Nomad.Core.Codex.CodexServer.CliPath = path;
+        var resolved = Nomad.Core.Codex.CodexServer.ResolveExecutable(path);
+        CodexFound = resolved is not null;
+        CodexStatus = resolved is not null ? "Found: " + resolved : "Not found. Install it with npm i -g @openai/codex";
     }
 
     partial void OnDefaultModelChanged(ModelOption value) => Apply(s => s.DefaultModel = value.Id, appearance: false);

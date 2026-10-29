@@ -1965,7 +1965,7 @@
 
       <!-- One chip per model; clicking the current one opens the full picker. -->
       <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="0" Classes="modelstrip" Classes.compact="{Binding CompactModelPicker}">
-        <!-- The agent the session runs on: Claude Code or OpenCode. Switchable until the first prompt. -->
+        <!-- The agent the session runs on: Claude Code, Codex or OpenCode. Switchable until the first prompt. -->
         <Button Name="BackendChip"
                 Theme="{StaticResource ChipButton}"
                 Classes="backendchip"

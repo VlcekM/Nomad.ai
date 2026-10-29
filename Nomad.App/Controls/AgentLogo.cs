@@ -7,7 +7,8 @@ namespace Nomad.App.Controls;
 
 /// <summary>
 /// The logo of the agent a session runs on (<see cref="AgentBackends"/>), from the 16×16 geometries in
-/// Theme/Icons.axaml: Claude's spark in its orange, OpenCode's framed block in the text colours (so it follows the theme).
+/// Theme/Icons.axaml: Claude's spark in its orange, OpenCode's framed block and Codex's terminal prompt in the text
+/// colours (so they follow the theme).
 /// </summary>
 public sealed class AgentLogo : Control
 {
@@ -53,10 +54,16 @@ public sealed class AgentLogo : Control
         var offset = new Point((Bounds.Width - Size) / 2, (Bounds.Height - Size) / 2);
         using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(offset.X, offset.Y)))
         {
-            if (AgentBackends.Normalize(Backend) == AgentBackends.OpenCode)
+            var backend = AgentBackends.Normalize(Backend);
+            if (backend == AgentBackends.OpenCode)
             {
                 Fill(context, "IconOpenCodeBlock", "TextMutedBrush");
                 Fill(context, "IconOpenCodeFrame", "TextPrimaryBrush");
+            }
+            else if (backend == AgentBackends.Codex)
+            {
+                Fill(context, "IconCodexFrame", "TextMutedBrush");
+                Fill(context, "IconCodexPrompt", "TextPrimaryBrush");
             }
             else
             {

@@ -53,6 +53,14 @@ public static class Catalog
             return OpenCodeCatalog.Find(id)?.Name ?? model;
         }
 
+        // Codex's: its name in Codex's catalogue, else "GPT-6.1-Sol" from "gpt-6.1-sol".
+        if (CodexCatalog.IsCodexModel(id))
+        {
+            return CodexCatalog.Find(id)?.Name ?? (id.StartsWith("gpt", StringComparison.OrdinalIgnoreCase)
+                ? "GPT" + string.Join("-", id[3..].Split('-').Select(p => p.Length > 0 && char.IsLetter(p[0]) ? Format.Capitalize(p) : p))
+                : id);
+        }
+
         foreach (var m in Models)
         {
             if (string.Equals(m.Id, id, StringComparison.OrdinalIgnoreCase))
@@ -86,6 +94,8 @@ public static class Catalog
     {
         null => 200_000,
         _ when OpenCodeCatalog.Find(model) is { ContextWindow: > 0 } m => m.ContextWindow,
+        _ when Nomad.Core.Codex.CodexServer.ContextWindows.TryGetValue(model, out var window) => (int)window,
+        _ when CodexCatalog.IsCodexModel(model) => 272_000,
         _ when model.Contains("[1m]", StringComparison.OrdinalIgnoreCase) => 1_000_000,
         _ when model.StartsWith("claude-opus-5", StringComparison.OrdinalIgnoreCase) => 500_000,
         _ => 200_000,
@@ -98,6 +108,17 @@ public static class Catalog
         "acceptEdits" => "Edit files without asking; ask before commands",
         "plan" => "Plans without editing (OpenCode's plan agent)",
         "bypassPermissions" => "Allow everything without asking",
+        _ => null,
+    };
+
+    /// <summary>What a mode does in a Codex session (its approval policy and sandbox, CodexBackend.Policy).</summary>
+    public static string? CodexModeDescription(string id) => id switch
+    {
+        "auto" => "Codex's reviewer decides what it asks for",
+        "default" => "Read freely; ask before any change",
+        "acceptEdits" => "Edits and commands in the folder without asking",
+        "plan" => "Plans without editing (Codex's plan mode)",
+        "bypassPermissions" => "Run anything, unsandboxed, without asking",
         _ => null,
     };
 

@@ -72,7 +72,7 @@ public sealed class NomadSettings
     public Dictionary<string, string> EffortByModel { get; set; } = [];
 
     // Agents
-    /// <summary>The agent a new session runs on: claude-code | opencode (Agents.AgentBackends).</summary>
+    /// <summary>The agent a new session runs on: claude-code | codex | opencode (Agents.AgentBackends).</summary>
     public string DefaultBackend { get; set; } = Agents.AgentBackends.ClaudeCode;
 
     /// <summary>The agent mostly used: its sessions show no logo in the sidebar, only the others' do. Null: every row shows its logo.</summary>
@@ -89,6 +89,13 @@ public sealed class NomadSettings
     /// status row's chips and Ctrl+Shift+1…4 (and F1…F4), as Claude's four models are.
     /// </summary>
     public List<string> OpenCodeFavorites { get; set; } = [];
+
+    // Codex
+    /// <summary>The codex executable (or command name); "codex" finds it on PATH or where its installer put it.</summary>
+    public string CodexPath { get; set; } = "codex";
+
+    /// <summary>The Codex model last picked; null: Codex's own default.</summary>
+    public string? CodexModel { get; set; }
 
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>

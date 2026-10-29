@@ -1,3 +1,4 @@
+using Nomad.Core.Codex;
 using Nomad.Core.OpenCode;
 
 namespace Nomad.Core.Agents;
@@ -10,10 +11,12 @@ public static class AgentBackends
 {
     public const string ClaudeCode = "claude-code";
     public const string OpenCode = "opencode";
+    public const string Codex = "codex";
 
     public static readonly IReadOnlyList<AgentBackendInfo> All =
     [
         new(ClaudeCode, "Claude Code", "Anthropic's agent, on your Claude plan or API key"),
+        new(Codex, "Codex", "OpenAI's agent, on your ChatGPT plan or API key"),
         new(OpenCode, "OpenCode", "Any provider OpenCode is connected to: OpenRouter, Anthropic, OpenCode Zen, …"),
     ];
 
@@ -25,6 +28,7 @@ public static class AgentBackends
     public static IAgentBackend Create(string? id) => Normalize(id) switch
     {
         OpenCode => new OpenCodeBackend(),
+        Codex => new CodexBackend(),
         _ => new ClaudeCodeBackend(),
     };
 }

@@ -66,6 +66,7 @@ public partial class App : Application
             {
                 ClaudeCliProcess.KillAllOwned();
                 Nomad.Core.OpenCode.OpenCodeServer.KillShared();
+                Nomad.Core.Codex.CodexServer.KillShared();
             };
 
             // Launched again: show this window (from the tray too) rather than a second Nomad.ai.

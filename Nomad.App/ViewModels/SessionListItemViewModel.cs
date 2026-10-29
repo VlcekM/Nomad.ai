@@ -14,15 +14,19 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     public string SessionId { get; }
 
-    /// <summary>The Claude Code transcript; null for an OpenCode session (OpenCode keeps its own store).</summary>
+    /// <summary>The Claude Code transcript; null for an OpenCode or Codex session (each keeps its own store).</summary>
     public string? FilePath { get; set; }
 
     /// <summary>The agent the session runs on (Nomad.Core.Agents.AgentBackends).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOpenCode), nameof(ShowLogo), nameof(ShowLogoTop), nameof(ShowLogoBottom))]
+    [NotifyPropertyChangedFor(nameof(IsOpenCode), nameof(IsCodex), nameof(IsClaudeCode), nameof(ShowLogo), nameof(ShowLogoTop), nameof(ShowLogoBottom))]
     public partial string Backend { get; set; } = Nomad.Core.Agents.AgentBackends.ClaudeCode;
 
     public bool IsOpenCode => Backend == Nomad.Core.Agents.AgentBackends.OpenCode;
+
+    public bool IsCodex => Backend == Nomad.Core.Agents.AgentBackends.Codex;
+
+    public bool IsClaudeCode => Backend == Nomad.Core.Agents.AgentBackends.ClaudeCode;
 
     public string BackendName => Nomad.Core.Agents.AgentBackends.Name(Backend);
 
@@ -44,8 +48,8 @@ public sealed partial class SessionListItemViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowLogoBottom));
     }
 
-    /// <summary>There is something to open: a transcript, or a session in OpenCode's store.</summary>
-    public bool IsStored => FilePath is not null || IsOpenCode;
+    /// <summary>There is something to open: a transcript, or a session in OpenCode's or Codex's store.</summary>
+    public bool IsStored => FilePath is not null || !IsClaudeCode;
 
     [ObservableProperty]
     public partial string Title { get; set; } = "";
@@ -223,7 +227,7 @@ public sealed partial class SessionListItemViewModel : ObservableObject
         ? $"Issue #{issue.Number} · {issue.State switch { Nomad.Core.Git.IssueState.Completed => "Closed", Nomad.Core.Git.IssueState.NotPlanned => "Closed as not planned", _ => "Open" }}\n{issue.Title}"
         : "";
 
-    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsOpenCode ? "\nOpenCode" : "") + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
+    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsClaudeCode ? "" : "\n" + BackendName) + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
 /// <summary>A group heading in the sidebar's Alive or Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>

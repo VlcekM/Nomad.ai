@@ -33,6 +33,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>What OpenCode spent this month (OpenCode sessions' usage), from its own records.</summary>
     public OpenCodeCostViewModel OpenCodeCost { get; } = new();
 
+    /// <summary>The ChatGPT plan's Codex limits (Codex sessions' usage).</summary>
+    public CodexUsageViewModel CodexUsage { get; } = new();
+
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
 
@@ -52,6 +55,11 @@ public sealed partial class MainViewModel : ObservableObject
         ApplyDisplayName();
         UpdateGroupingOptions();
         OpenCodeServer.CliPath = settings.OpenCodePath;
+        Nomad.Core.Codex.CodexServer.CliPath = settings.CodexPath;
+        if (dev.LogPath is { } log)
+        {
+            Nomad.Core.Codex.CodexServer.RawLine = (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
+        }
         SessionListItemViewModel.MainBackend = settings.MainBackend;
 
         Current = new SessionViewModel(this, dev.Cwd ?? settings.LastFolder, dev.Backend is null ? null : AgentBackends.Normalize(dev.Backend));
@@ -71,6 +79,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _ = LoadOpenCodeCatalogAsync();
         }
+        else if (Current.IsCodex)
+        {
+            _ = LoadCodexCatalogAsync();
+        }
 
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _idleTimer.Tick += (_, _) =>
@@ -86,16 +98,16 @@ public sealed partial class MainViewModel : ObservableObject
         _usageTimer.Tick += (_, _) =>
         {
             _ = Usage.RefreshAsync();
-            if (Current.IsOpenCode)
+            if (!Current.IsClaudeCode)
             {
-                _ = OpenCodeCost.RefreshAsync();
+                _ = Current.Usage.RefreshAsync();
             }
         };
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
-        if (Current.IsOpenCode)
+        if (!Current.IsClaudeCode)
         {
-            _ = OpenCodeCost.RefreshAsync(force: true);
+            _ = Current.Usage.RefreshAsync(force: true);
         }
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
@@ -609,12 +621,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// The effort a session starts with on a model: the one last chosen with it, else high, except Opus 5.5, which
     /// starts at the Default effort setting. An OpenCode model starts at its last one while it still has that variant,
-    /// else at OpenCode's default for it.
+    /// else at OpenCode's default for it; a Codex model likewise with its reasoning efforts.
     /// </summary>
     public string EffortFor(string model) =>
         Nomad.Core.OpenCode.OpenCodeBackend.IsOpenCodeModel(model)
             ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var variant)
                 && (OpenCodeCatalog.Find(model) is not { } m || m.Variants.Contains(variant)) ? variant : ""
+        : CodexCatalog.IsCodexModel(model)
+            ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var level)
+                && (CodexCatalog.Find(model) is not { } c || c.Efforts.Contains(level)) ? level : ""
         : Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
         : model.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase) ? Settings.DefaultEffort
         : "high";
@@ -840,9 +855,9 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
         newValue?.ApplyDefaultMode();
-        if (newValue is { IsOpenCode: true })
+        if (newValue is { IsClaudeCode: false })
         {
-            _ = OpenCodeCost.RefreshAsync();
+            _ = newValue.Usage.RefreshAsync();
         }
 
         if (oldValue is not null)
@@ -1092,6 +1107,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _ = LoadOpenCodeCatalogAsync();
         }
+        else if (item.IsCodex)
+        {
+            _ = LoadCodexCatalogAsync();
+        }
 
         _open[item.SessionId] = session;
         return session;
@@ -1102,8 +1121,8 @@ public sealed partial class MainViewModel : ObservableObject
         var summary = new SessionSummary(item.SessionId, item.FilePath ?? "", item.WorkingDirectory, item.Title, item.LastActivityUtc, 0, Backend: item.Backend);
         try
         {
-            var history = item.IsOpenCode
-                ? await LoadOpenCodeHistoryAsync(item)
+            var history = item.IsOpenCode ? await LoadOpenCodeHistoryAsync(item)
+                : item.IsCodex ? await LoadCodexHistoryAsync(item)
                 : await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
             session.LoadHistory(summary, history);
         }
@@ -1122,6 +1141,13 @@ public sealed partial class MainViewModel : ObservableObject
         var server = await OpenCodeServer.GetAsync();
         using var messages = await OpenCodeClient.GetMessagesAsync(server, item.WorkingDirectory, item.SessionId);
         return OpenCodeHistory.FromMessages(messages.RootElement, item.SessionId, item.WorkingDirectory);
+    }
+
+    private static async Task<SessionHistory> LoadCodexHistoryAsync(SessionListItemViewModel item)
+    {
+        var server = await Nomad.Core.Codex.CodexServer.GetAsync();
+        var result = await Nomad.Core.Codex.CodexClient.ReadThreadAsync(server, item.SessionId);
+        return Nomad.Core.Codex.CodexHistory.FromThread(result.GetProperty("thread"), item.SessionId, item.WorkingDirectory);
     }
 
     /// <summary>Opens a stored session by id (dev hook <c>--dev-session</c>).</summary>
@@ -1257,8 +1283,9 @@ public sealed partial class MainViewModel : ObservableObject
 
         IsLoadingSessions = false;
         _claudeSummaries = summaries;
-        MergeSummaries([.. summaries, .. _openCodeSummaries]);
+        MergeSummaries([.. summaries, .. _openCodeSummaries, .. _codexSummaries]);
         _ = RefreshOpenCodeSessionsAsync();
+        _ = RefreshCodexSessionsAsync();
         await AutoArchiveSessionsAsync(fold: false);
         OnPropertyChanged(nameof(RecentFolders));
         Current.RefreshFolders();
@@ -1269,7 +1296,9 @@ public sealed partial class MainViewModel : ObservableObject
     // What the last scan of each store found: either one's rescan merges with the other's last list.
     private IReadOnlyList<SessionSummary> _claudeSummaries = [];
     private IReadOnlyList<SessionSummary> _openCodeSummaries = [];
+    private IReadOnlyList<SessionSummary> _codexSummaries = [];
     private bool _openCodeScanning;
+    private bool _codexScanning;
 
     /// <summary>
     /// Lists OpenCode's sessions (from its server, started for it) and merges them into the list. Only once OpenCode
@@ -1289,7 +1318,7 @@ public sealed partial class MainViewModel : ObservableObject
             var sessions = await OpenCodeClient.ListSessionsAsync(server);
             _openCodeSummaries = [.. sessions.Select(s => new SessionSummary(
                 s.Id, "", s.Directory, s.Title.Length > 0 ? s.Title : UntitledOpenCode, s.UpdatedUtc, 0, Backend: AgentBackends.OpenCode))];
-            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries]);
+            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries]);
             OnPropertyChanged(nameof(RecentFolders));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
@@ -1303,6 +1332,37 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private const string UntitledOpenCode = "Untitled OpenCode session";
+
+    /// <summary>
+    /// Lists Codex's threads (from its app-server, started for it) and merges them into the list. Only once Codex
+    /// has been used here, so no server starts for people who never did.
+    /// </summary>
+    private async Task RefreshCodexSessionsAsync()
+    {
+        if (_codexScanning || (Nomad.Core.Codex.CodexServer.Current is null && !(Nomad.Core.Codex.CodexServer.HasData && Nomad.Core.Codex.CodexServer.IsInstalled)))
+        {
+            return;
+        }
+
+        _codexScanning = true;
+        try
+        {
+            var server = await Nomad.Core.Codex.CodexServer.GetAsync();
+            var threads = await Nomad.Core.Codex.CodexClient.ListThreadsAsync(server);
+            _codexSummaries = [.. threads.Select(t => new SessionSummary(
+                t.Id, "", t.Directory, t.Title.Length > 0 ? t.Title : "Untitled Codex session", t.UpdatedUtc, 0, Backend: AgentBackends.Codex))];
+            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries]);
+            OnPropertyChanged(nameof(RecentFolders));
+        }
+        catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
+        {
+            // Codex is not there or not answering: its sessions are left out until it is.
+        }
+        finally
+        {
+            _codexScanning = false;
+        }
+    }
 
     /// <summary>The main agent setting changed: the rows' logos follow.</summary>
     public void ApplyMainBackend()
@@ -1325,6 +1385,16 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             await RefreshOpenCodeSessionsAsync();
+        }
+
+        if (ids.Any(id => FindItem(id) is null))
+        {
+            while (_codexScanning)
+            {
+                await Task.Delay(100);
+            }
+
+            await RefreshCodexSessionsAsync();
         }
     }
 
@@ -1388,6 +1458,45 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Why Codex lists no models (not installed, signed out, failed to start), shown in the model menu; null when fine.</summary>
+    [ObservableProperty]
+    public partial string? CodexError { get; set; }
+
+    private Task? _codexCatalog;
+
+    /// <summary>Loads Codex's models (starting its server); once per run unless it failed.</summary>
+    public Task LoadCodexCatalogAsync()
+    {
+        if (_codexCatalog is { IsCompleted: false } || (_codexCatalog is { IsCompletedSuccessfully: true } && CodexError is null))
+        {
+            return _codexCatalog;
+        }
+
+        return _codexCatalog = LoadAsync();
+
+        async Task LoadAsync()
+        {
+            try
+            {
+                var server = await Nomad.Core.Codex.CodexServer.GetAsync();
+                var models = await Nomad.Core.Codex.CodexClient.ListModelsAsync(server);
+                CodexCatalog.Set(models);
+                CodexError = models.Count == 0 ? "Codex lists no models. Sign in with “codex login” in a terminal." : null;
+            }
+            catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
+            {
+                CodexError = ex.Message;
+            }
+
+            foreach (var session in _open.Values.Append(Current).Append(_draft).OfType<SessionViewModel>().Distinct())
+            {
+                session.OnCodexCatalogChanged();
+            }
+
+            _ = RefreshCodexSessionsAsync();
+        }
+    }
+
     /// <summary>
     /// The first scan hasn't finished: the list shows what the last run saw, or placeholder rows when there is
     /// nothing saved (the first start).
@@ -1418,7 +1527,7 @@ public sealed partial class MainViewModel : ObservableObject
                 vm = new SessionListItemViewModel(s.SessionId);
             }
 
-            vm.FilePath = s.Backend == AgentBackends.OpenCode ? null : s.FilePath;
+            vm.FilePath = s.Backend == AgentBackends.ClaudeCode ? s.FilePath : null;
             vm.Backend = s.Backend;
             vm.WorkingDirectory = s.WorkingDirectory;
             vm.GitBranch = s.GitBranch;
@@ -2158,8 +2267,22 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
         }
+        else if (item.IsCodex)
+        {
+            // Into Codex's own archive rather than gone, as a transcript goes to the Recycle Bin.
+            try
+            {
+                await Nomad.Core.Codex.CodexClient.ArchiveAsync(await Nomad.Core.Codex.CodexServer.GetAsync(), item.SessionId);
+                _codexSummaries = [.. _codexSummaries.Where(s => s.SessionId != item.SessionId)];
+            }
+            catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or TimeoutException)
+            {
+                item.IsLeaving = false;
+                return;
+            }
+        }
 
-        var file = item.IsOpenCode ? null : item.FilePath ?? Store.FindTranscript(item.SessionId);
+        var file = !item.IsClaudeCode ? null : item.FilePath ?? Store.FindTranscript(item.SessionId);
         if (file is not null)
         {
             var folder = Path.Combine(Path.GetDirectoryName(file)!, item.SessionId);
@@ -2304,6 +2427,10 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _ = RenameOpenCodeAsync(item.WorkingDirectory, item.SessionId, title);
         }
+        else if (item.IsCodex)
+        {
+            _ = RenameCodexAsync(item.SessionId, title);
+        }
         else
         {
             var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
@@ -2339,6 +2466,18 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException)
         {
             // The sidebar shows the name until the next scan brings OpenCode's back.
+        }
+    }
+
+    private static async Task RenameCodexAsync(string threadId, string title)
+    {
+        try
+        {
+            await Nomad.Core.Codex.CodexClient.SetNameAsync(await Nomad.Core.Codex.CodexServer.GetAsync(), threadId, title);
+        }
+        catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or TimeoutException)
+        {
+            // The sidebar shows the name until the next scan brings Codex's back.
         }
     }
 

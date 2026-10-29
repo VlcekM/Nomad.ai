@@ -36,7 +36,8 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
   after `--dev-after`, so to catch an animation press the key about that long after it.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a
   real turn on the cheapest model before the shot. `--dev-backend opencode --dev-model opencode/big-pickle` runs it on
-  OpenCode instead, on a free OpenCode Zen model (no key needed). `--dev-lean` leaves out the Workflow tool: for a workflow, drop it
+  OpenCode instead, on a free OpenCode Zen model (no key needed); `--dev-backend codex --dev-model gpt-6-luna` on Codex
+  (the user's ChatGPT plan, so keep it short; `--dev-log` records its JSON-RPC lines). `--dev-lean` leaves out the Workflow tool: for a workflow, drop it
   and add `--dev-answer allow` (the turn ends at launch, so time the shot with `--dev-after`).
 - `--dev-settings <copy of %APPDATA%\Nomad\settings.json>` tries settings without touching the user's.
 - `--dev-cwd <scratch folder>` keeps test sessions out of real projects.
