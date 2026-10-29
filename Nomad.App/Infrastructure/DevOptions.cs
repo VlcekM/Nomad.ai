@@ -31,7 +31,8 @@ namespace Nomad.App.Infrastructure;
 /// --dev-sandbox composer        only the composer, in a window of its own (Enter renders what was typed)
 /// --dev-search "&lt;query&gt;"     open the session search (Ctrl+T) with this query after start
 /// --dev-find "&lt;text&gt;"        open the find bar (Ctrl+F) with this text after start
-/// --dev-files [&lt;path&gt;]        show the session's Files view after start, with this file (relative to its folder) open
+/// --dev-files [&lt;path&gt;|…]      show the session's Files view after start, with these files (relative to its folder) open
+/// --dev-files-split             … and the last of them opened to the side as well
 /// --dev-log &lt;file&gt;           append the lines to and from the CLI to this file
 /// --dev-cli-debug &lt;file&gt;     the CLI writes its debug log to this file
 /// --dev-paste-image &lt;file&gt;   attach this image (or any file, as a chip) to the composer, as a paste would; repeatable
@@ -62,6 +63,7 @@ public sealed class DevOptions
     /// <summary><c>--dev-files [path]</c>: the session's Files view is shown, with this file (relative to its folder) open.</summary>
     public bool Files { get; private set; }
     public string? FilesOpen { get; private set; }
+    public bool FilesSplit { get; private set; }
     public bool SettingsClaudePage { get; private set; }
     public bool SettingsUpdatesPage { get; private set; }
     public string? SettingsPath { get; private set; }
@@ -141,6 +143,7 @@ public sealed class DevOptions
                     break;
                 case "--dev-menu": o.Menu = Next(); break;
                 case "--dev-side-panel": o.SidePanel = true; break;
+                case "--dev-files-split": o.FilesSplit = true; break;
                 case "--dev-files":
                     o.Files = true;
                     if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))

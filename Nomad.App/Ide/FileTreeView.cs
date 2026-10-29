@@ -15,15 +15,13 @@ namespace Nomad.App.Ide;
 /// a chevron and an icon. Rows that come and go (a folder expanding or collapsing, files appearing or vanishing on
 /// disk) fold their height and fade, and a folder's chevron turns (200 ms, cubic ease-out); a change mid-flight
 /// retargets from where it is. Meant to sit in a <see cref="ScrollViewer"/>: only the rows in view are drawn.
-/// Clicking a file (or moving to it with the arrow keys) sets <see cref="OpenFile"/>.
+/// Clicking a file (or moving to it with the arrow keys) raises <see cref="FileOpened"/> to preview it; a double-click or Enter keeps it.
 /// </summary>
 public sealed class FileTreeView : Control
 {
     public static readonly StyledProperty<FileTree?> TreeProperty =
         AvaloniaProperty.Register<FileTreeView, FileTree?>(nameof(Tree));
 
-    public static readonly StyledProperty<string?> OpenFileProperty =
-        AvaloniaProperty.Register<FileTreeView, string?>(nameof(OpenFile), defaultBindingMode: BindingMode.TwoWay);
 
     private const double FoldMs = 200;
     private const double HoverMs = 120;
@@ -64,11 +62,8 @@ public sealed class FileTreeView : Control
         set => SetValue(TreeProperty, value);
     }
 
-    public string? OpenFile
-    {
-        get => GetValue(OpenFileProperty);
-        set => SetValue(OpenFileProperty, value);
-    }
+    /// <summary>A file to show: its full path, and whether to keep it (a double-click, Enter) or only preview it.</summary>
+    public event Action<string, bool>? FileOpened;
 
     private double FontSize => TextElement.GetFontSize(this);
 
@@ -613,6 +608,19 @@ public sealed class FileTreeView : Control
         }
 
         Focus(NavigationMethod.Pointer);
+
+        // The second click of a double-click: a file is kept in its tab; a folder, already toggled once, stays.
+        if (e.ClickCount >= 2)
+        {
+            if (!row.Node.IsDirectory)
+            {
+                FileOpened?.Invoke(row.Node.FullPath, true);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         Select(row);
         if (row.Node.IsDirectory)
         {
@@ -691,7 +699,7 @@ public sealed class FileTreeView : Control
                 }
                 else
                 {
-                    OpenFile = current.Node.FullPath;
+                    FileOpened?.Invoke(current.Node.FullPath, true);
                 }
 
                 break;
@@ -713,7 +721,7 @@ public sealed class FileTreeView : Control
         _tree.Selected = _scrolledTo = row.Node;
         if (!row.Node.IsDirectory)
         {
-            OpenFile = row.Node.FullPath;
+            FileOpened?.Invoke(row.Node.FullPath, false);
         }
 
         InvalidateVisual();

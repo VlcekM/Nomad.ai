@@ -17,6 +17,7 @@ public partial class FilesView : UserControl
     public FilesView()
     {
         InitializeComponent();
+        Tree.FileOpened += (path, keep) => _session?.Files.Open(path, keep);
     }
 
     private MainViewModel? Main => TopLevel.GetTopLevel(this)?.DataContext as MainViewModel;
@@ -27,7 +28,6 @@ public partial class FilesView : UserControl
         if (_session is not null)
         {
             _session.PropertyChanged -= OnSessionChanged;
-            _session.Files.PropertyChanged -= OnFilesChanged;
             _session.Files.Show(false);
         }
 
@@ -35,7 +35,6 @@ public partial class FilesView : UserControl
         if (_session is not null)
         {
             _session.PropertyChanged += OnSessionChanged;
-            _session.Files.PropertyChanged += OnFilesChanged;
         }
 
         ApplySide();
@@ -74,13 +73,14 @@ public partial class FilesView : UserControl
         }
     }
 
-    // A file picked in the tree: its text fades in.
-    private void OnFilesChanged(object? sender, PropertyChangedEventArgs e)
+    // Ctrl+W closes the tab shown in the focused group.
+    protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (e.PropertyName == nameof(FilesViewModel.PreviewText))
+        base.OnKeyDown(e);
+        if (e.Key == Key.W && e.KeyModifiers == KeyModifiers.Control && _session?.Files.ActiveGroup is { ActiveTab: { } tab } group)
         {
-            FileScroller.Offset = default;
-            Entrance.Fade(FilePane);
+            group.CloseCommand.Execute(tab);
+            e.Handled = true;
         }
     }
 
@@ -98,16 +98,17 @@ public partial class FilesView : UserControl
         }
     }
 
-    /// <summary>The tree's card on the right (its grip on the card's left edge) or on the left (the grip on its right).</summary>
+    /// <summary>The tree on the right (its grip on its left edge) or on the left (the grip on its right).</summary>
     private void ApplySide()
     {
         var right = _session?.FileTreeOnRight ?? true;
         var column = right ? 2 : 0;
         Grid.SetColumn(TreePane, column);
         Grid.SetColumn(TreeGrip, column);
-        TreePane.Margin = right ? new Thickness(6, 4, 12, 12) : new Thickness(12, 4, 6, 12);
+        TreePane.Margin = right ? new Thickness(0, 8, 8, 12) : new Thickness(8, 8, 0, 12);
+        Documents.Margin = right ? new Thickness(8, 6, 4, 12) : new Thickness(4, 6, 8, 12);
         TreeGrip.HorizontalAlignment = right ? HorizontalAlignment.Left : HorizontalAlignment.Right;
-        TreeGrip.Margin = right ? new Thickness(2, 4, 0, 12) : new Thickness(0, 4, 2, 12);
+        TreeGrip.Margin = right ? new Thickness(-4, 8, 0, 12) : new Thickness(0, 8, -4, 12);
         TreeGripLine.HorizontalAlignment = right ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         TreeGripLine.Margin = right ? new Thickness(3, 0, 0, 0) : new Thickness(0, 0, 3, 0);
     }

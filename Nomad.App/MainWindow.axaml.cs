@@ -1195,7 +1195,20 @@ public partial class MainWindow : Window
                 session.IsFilesView = session.HasFolder;
                 if (dev.FilesOpen is { } open && session.Folder is { } folder)
                 {
-                    _ = session.Files.RevealAsync(Path.GetFullPath(Path.Combine(folder, open)));
+                    _ = OpenAsync();
+
+                    async Task OpenAsync()
+                    {
+                        foreach (var file in open.Split('|', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            await session.Files.RevealAsync(Path.GetFullPath(Path.Combine(folder, file)));
+                        }
+
+                        if (dev.FilesSplit && session.Files.ActiveGroup is { ActiveTab: { } last } group)
+                        {
+                            session.Files.OpenToSide(group, last);
+                        }
+                    }
                 }
             }, TimeSpan.FromSeconds(1.5));
         }
