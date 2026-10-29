@@ -239,6 +239,60 @@
         </Border>
         </Panel>
 
+        <!-- ============================================================ workflows -->
+        <Panel IsVisible="{Binding HasWorkflows}">
+        <Border Classes="card">
+          <StackPanel>
+            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Workflows" Click="OnHeaderClick">
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <TextBlock Text="Workflows" />
+                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+              </StackPanel>
+            </Button>
+            <ItemsControl ItemsSource="{Binding Workflows}" Margin="-6,2,-6,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:WorkflowRunItem">
+                  <!-- A click shows its card in the chat; a running one has Stop. -->
+                  <Grid ColumnDefinitions="*,Auto">
+                    <Button Theme="{StaticResource FlatButton}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Padding="6,5"
+                            Click="OnWorkflowClick"
+                            ToolTip.Tip="Show it in the chat">
+                      <!-- Its name; then how far it got; then its totals. -->
+                      <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                        <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                          <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                                  IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                  TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                          <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                          <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                          <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsStopped}" />
+                        </Panel>
+                        <c:EdgeFade Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </c:EdgeFade>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProgressText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TotalsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                      </Grid>
+                    </Button>
+                    <Button Grid.Column="1" Theme="{StaticResource IconButton}" Width="24" Height="24" VerticalAlignment="Top" Margin="2,4,0,0"
+                            IsVisible="{Binding IsRunning}"
+                            Command="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).StopWorkflowCommand}" CommandParameter="{Binding}"
+                            ToolTip.Tip="Stop">
+                      <c:Icon Size="11" Data="{StaticResource IconStopFilled}" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+        </Panel>
+
         <!-- ============================================================ background tasks -->
         <Panel IsVisible="{Binding HasBackgroundTasks}">
         <Border Classes="card">

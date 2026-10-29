@@ -276,6 +276,12 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return response?.Subtype == "success";
     }
 
+    public async Task<bool> StopTaskAsync(string taskId, CancellationToken cancellationToken = default)
+    {
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "stop_task", TaskId = taskId }, cancellationToken).ConfigureAwait(false);
+        return response?.Subtype == "success";
+    }
+
     public async Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default)
     {
         var payload = new OutgoingControlPayload { Subtype = "generate_session_title", Description = description, Persist = persist };

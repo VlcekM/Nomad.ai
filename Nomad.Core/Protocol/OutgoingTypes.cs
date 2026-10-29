@@ -59,6 +59,9 @@ public sealed class OutgoingControlPayload
     [JsonPropertyName("model")] public string? Model { get; set; }
     [JsonPropertyName("settings")] public FlagSettings? Settings { get; set; }
 
+    /// <summary><c>stop_task</c>: the background task to stop (a workflow run's, say).</summary>
+    [JsonPropertyName("task_id")] public string? TaskId { get; set; }
+
     /// <summary><c>generate_session_title</c>: what the session is about (the first prompt).</summary>
     [JsonPropertyName("description")] public string? Description { get; set; }
 

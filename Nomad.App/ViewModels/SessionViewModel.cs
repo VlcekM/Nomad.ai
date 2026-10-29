@@ -836,6 +836,32 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>The view brings a transcript item into view (the side panel's "open" of a workflow run).</summary>
+    public event Action<TranscriptItem>? RevealRequested;
+
+    [RelayCommand]
+    private void OpenWorkflow(WorkflowRunItem run)
+    {
+        run.IsExpanded = true;
+        RevealRequested?.Invoke(run);
+    }
+
+    /// <summary>Stops a running workflow; its card shows it stopped once the CLI says it ended.</summary>
+    [RelayCommand]
+    private async Task StopWorkflowAsync(WorkflowRunItem run)
+    {
+        if (!run.IsRunning || run.TaskId is not { } taskId)
+        {
+            return;
+        }
+
+        if (_backend is not { IsProcessRunning: true } backend || !await backend.StopTaskAsync(taskId))
+        {
+            Items.Add(new ErrorItem($"Couldn't stop the workflow \"{run.Name}\"."));
+            ContentChanged?.Invoke();
+        }
+    }
+
     private void FinishWorkflows()
     {
         foreach (var run in Workflows.Where(w => w.IsRunning).ToList())

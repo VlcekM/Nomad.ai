@@ -208,6 +208,7 @@ public partial class SessionView : UserControl
         if (_vm is not null)
         {
             _vm.ContentChanged -= OnContentChanged;
+            _vm.RevealRequested -= OnRevealRequested;
             _vm.Items.CollectionChanged -= OnItemsChanged;
         }
 
@@ -217,9 +218,22 @@ public partial class SessionView : UserControl
         if (_vm is not null)
         {
             _vm.ContentChanged += OnContentChanged;
+            _vm.RevealRequested += OnRevealRequested;
             _vm.Items.CollectionChanged += OnItemsChanged;
             Dispatcher.UIThread.Post(() => _animateNew = true, DispatcherPriority.Background);
         }
+    }
+
+    /// <summary>Brings an item (a workflow's card, from the side panel) into view.</summary>
+    private void OnRevealRequested(TranscriptItem item)
+    {
+        if (_vm?.Items.IndexOf(item) is not (>= 0 and var index))
+        {
+            return;
+        }
+
+        Transcript.ScrollIntoView(index);
+        Dispatcher.UIThread.Post(() => Transcript.ContainerFromIndex(index)?.BringIntoView(), DispatcherPriority.Loaded);
     }
 
     private void OnItemsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

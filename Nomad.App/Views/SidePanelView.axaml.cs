@@ -165,6 +165,14 @@ public partial class SidePanelView : UserControl
         }
     }
 
+    private void OnWorkflowClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: WorkflowRunItem run } && Vm is { } vm)
+        {
+            vm.OpenWorkflowCommand.Execute(run);
+        }
+    }
+
     private void OnExplorerClick(object? sender, RoutedEventArgs e)
     {
         if (Vm?.Folder is { } folder && Directory.Exists(folder))

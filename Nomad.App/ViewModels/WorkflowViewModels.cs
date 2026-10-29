@@ -287,7 +287,7 @@ public sealed partial class WorkflowRunItem : TranscriptItem
         }
 
         TotalsText = string.Join(" · ", parts);
-        var done = agents.Count(a => a.IsDone || a.IsFailed);
+        var done = agents.Count(a => a.IsDone || a.IsFailed || a.IsStopped);
         ProgressText = !IsRunning ? StatusText
             : agents.Count == 0 ? "Starting"
             : $"{done} of {agents.Count} agents done";
@@ -341,10 +341,10 @@ public sealed partial class WorkflowPhaseItem(int index) : ObservableObject
 
     public void Refresh()
     {
-        var done = Agents.Count(a => !a.IsRunning && !a.IsQueued);
-        CountText = Agents.Count == 0 ? "" : $"{done}/{Agents.Count}";
+        var ended = Agents.Count(a => !a.IsRunning && !a.IsQueued);
+        CountText = Agents.Count == 0 ? "" : $"{Agents.Count(a => a.IsDone)}/{Agents.Count}";
         IsRunning = Agents.Any(a => a.IsRunning);
-        IsDone = Agents.Count > 0 && done == Agents.Count;
+        IsDone = Agents.Count > 0 && ended == Agents.Count;
         IsPending = !IsRunning && !IsDone;
     }
 }
@@ -378,6 +378,10 @@ public sealed partial class WorkflowAgentItem(int index) : ObservableObject
     [ObservableProperty]
     public partial bool IsFailed { get; private set; }
 
+    /// <summary>The run was stopped (or ended) before it was done.</summary>
+    [ObservableProperty]
+    public partial bool IsStopped { get; private set; }
+
     /// <summary>"Read: Program.cs": its latest tool and what it was about (its answer, once it gives one); "Queued" before it starts.</summary>
     [ObservableProperty]
     public partial string ActivityText { get; private set; } = "Queued";
@@ -406,6 +410,7 @@ public sealed partial class WorkflowAgentItem(int index) : ObservableObject
             ModelName = Catalog.ModelName(model);
         }
 
+        IsStopped = false;
         IsQueued = state.IsQueued && !state.IsDone && !state.IsFailed;
         IsDone = state.IsDone;
         IsFailed = state.IsFailed;
@@ -450,7 +455,7 @@ public sealed partial class WorkflowAgentItem(int index) : ObservableObject
     {
         IsRunning = false;
         IsQueued = false;
-        IsFailed = true;
+        IsStopped = true;
         ActivityText = "Stopped";
     }
 

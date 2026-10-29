@@ -42,6 +42,9 @@ public interface IAgentBackend : IAsyncDisposable
     /// <summary>Ultracode (Claude may start workflows unasked) and the size workflows aim for; null leaves one as it is.</summary>
     Task<bool> SetWorkflowSettingsAsync(bool? ultracode, string? size, CancellationToken cancellationToken = default);
 
+    /// <summary>Stops a background task (a workflow run); it then ends with a "killed" notification.</summary>
+    Task<bool> StopTaskAsync(string taskId, CancellationToken cancellationToken = default);
+
     /// <summary>Asks the agent for a short session title; <paramref name="persist"/> stores it with the session.</summary>
     Task<string?> GenerateTitleAsync(string description, bool persist, CancellationToken cancellationToken = default);
 
