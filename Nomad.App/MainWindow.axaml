@@ -257,12 +257,12 @@
               </Setter>
             </Style>
             <Style Selector="Border.agentlogo.shown">
-              <Setter Property="MaxWidth" Value="18" />
+              <Setter Property="MaxWidth" Value="15" />
               <Setter Property="Opacity" Value="1" />
-              <Setter Property="Margin" Value="6,0,0,0" />
+              <Setter Property="Margin" Value="5,0,0,0" />
             </Style>
             <Style Selector="Border.agentlogo.bottom.shown">
-              <Setter Property="Margin" Value="6,-5,0,0" />
+              <Setter Property="Margin" Value="5,-5,0,0" />
             </Style>
             <Style Selector="Border.merged.shown, Border.pinmark.shown, Border.workflowmark.shown">
               <Setter Property="MaxWidth" Value="16" />
@@ -451,10 +451,18 @@
                             IsVisible="{Binding IsElsewhere}"
                             ToolTip.Tip="Running in another Nomad window or a terminal" />
                   </StackPanel>
-                  <!-- A title too long for the row fades out before the marks rather than ending in "…". -->
-                  <c:EdgeFade Grid.Column="1" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Title}" />
-                  </c:EdgeFade>
+                  <!-- A title too long for the row fades out before the logo rather than ending in "…". The agent's logo
+                       (not for the main agent's sessions) sits right after the title, muted; the Rename box takes the
+                       title's place while renaming. -->
+                  <c:TrailPanel Grid.Column="1" IsVisible="{Binding !IsRenaming}" VerticalAlignment="Center">
+                    <c:EdgeFade VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" />
+                    </c:EdgeFade>
+                    <Border Classes="agentlogo" Classes.shown="{Binding ShowLogoTop}" Background="Transparent"
+                            ToolTip.Tip="{Binding BackendName}">
+                      <c:AgentLogo Size="15" Backend="{Binding Backend}" Opacity="0.5" />
+                    </Border>
+                  </c:TrailPanel>
                   <!-- Rename (double-click, F2 or the context menu): the title turns editable in place, no frame;
                        Enter saves, Esc keeps the old name. -->
                   <TextBox Grid.Column="1"
@@ -465,25 +473,22 @@
                            Text="{Binding RenameText}"
                            MaxLength="200"
                            LostFocus="OnRenameLostFocus" />
-                  <!-- The Alive list's "Show project": the session's project under its title. -->
-                  <c:EdgeFade Grid.Row="1" Grid.Column="1" Classes="project" Margin="0,-5,0,0">
-                    <TextBlock Text="{Binding ProjectName}"
-                               FontSize="{DynamicResource UiFontSizeSmall}"
-                               FontWeight="Normal"
-                               Foreground="{DynamicResource TextMutedBrush}" />
-                  </c:EdgeFade>
+                  <!-- The Alive list's "Show project": the session's project under its title, with the agent's logo
+                       right after it when that line shows. -->
+                  <c:TrailPanel Grid.Row="1" Grid.Column="1">
+                    <c:EdgeFade Classes="project" Margin="0,-5,0,0">
+                      <TextBlock Text="{Binding ProjectName}"
+                                 FontSize="{DynamicResource UiFontSizeSmall}"
+                                 FontWeight="Normal"
+                                 Foreground="{DynamicResource TextMutedBrush}" />
+                    </c:EdgeFade>
+                    <Border Classes="agentlogo bottom" Classes.shown="{Binding ShowLogoBottom}" Background="Transparent"
+                            ToolTip.Tip="{Binding BackendName}">
+                      <c:AgentLogo Size="15" Backend="{Binding Backend}" />
+                    </Border>
+                  </c:TrailPanel>
                   <!-- GitHub: the branch's pull request and the issue the session works on, in their state's colour;
                        a click opens them in the browser. -->
-                  <!-- The agent's logo (not for the main agent's sessions): on the title line, or after the project on the
-                       second line when that shows; in the same column either way, so the logos line up. -->
-                  <Border Grid.Column="2" Classes="agentlogo" Classes.shown="{Binding ShowLogoTop}" Background="Transparent"
-                          ToolTip.Tip="{Binding BackendName}">
-                    <c:AgentLogo Size="15" Backend="{Binding Backend}" />
-                  </Border>
-                  <Border Grid.Row="1" Grid.Column="2" Classes="agentlogo bottom" Classes.shown="{Binding ShowLogoBottom}" Background="Transparent"
-                          ToolTip.Tip="{Binding BackendName}">
-                    <c:AgentLogo Size="15" Backend="{Binding Backend}" />
-                  </Border>
                   <StackPanel Grid.Column="3" Classes="ghlinks" Orientation="Horizontal" Margin="4,0,0,0" VerticalAlignment="Center">
                     <Border Background="Transparent" Classes.shown="{Binding HasIssue}" Cursor="Hand"
                             PointerPressed="OnIssueIconPressed" ToolTip.Tip="{Binding IssueToolTip}">
