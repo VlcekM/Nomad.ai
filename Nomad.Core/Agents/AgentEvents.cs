@@ -38,6 +38,24 @@ public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 /// <summary>A background task (a subagent, a background command) ended: completed | failed | killed.</summary>
 public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, string? Status, string? Summary) : AgentEvent;
 
+/// <summary>A Workflow call's run started in the background: its task, its call, its name and script.</summary>
+public sealed record WorkflowStartedEvent(string TaskId, string? ToolUseId, string? Name, string? Description, string? Script) : AgentEvent;
+
+/// <summary>
+/// A workflow run moved on: its totals so far, and its phases and agents when the line carries them (null when not:
+/// the last ones still hold).
+/// </summary>
+public sealed record WorkflowProgressEvent(
+    string TaskId,
+    string? ToolUseId,
+    WorkflowProgress? Progress,
+    long Tokens,
+    int ToolUses,
+    long DurationMs) : AgentEvent;
+
+/// <summary>A background task's status changed (a workflow's "completed", "failed", "killed").</summary>
+public sealed record TaskUpdatedEvent(string TaskId, string Status) : AgentEvent;
+
 /// <summary>The Remote Control bridge's state: ready | connected | reconnecting | failed | disconnected.</summary>
 public sealed record RemoteControlStateEvent(string State) : AgentEvent;
 

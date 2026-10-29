@@ -107,6 +107,35 @@ public sealed class SystemLine : CliLine
 
     /// <summary>For subtype <c>task_started</c>: false for a command or agent the turn waits on (no background task).</summary>
     [JsonPropertyName("is_backgrounded")] public bool? IsBackgrounded { get; set; }
+
+    /// <summary>For the task_* subtypes: "local_workflow" for a Workflow run, "local_bash", "local_agent", …</summary>
+    [JsonPropertyName("task_type")] public string? TaskType { get; set; }
+
+    /// <summary>For a workflow's <c>task_started</c>: its name (the script's meta.name), its description and script.</summary>
+    [JsonPropertyName("workflow_name")] public string? WorkflowName { get; set; }
+    [JsonPropertyName("description")] public string? Description { get; set; }
+    [JsonPropertyName("prompt")] public string? Prompt { get; set; }
+
+    /// <summary>For a workflow's <c>task_progress</c>: the whole run so far (phases and agents); absent on some lines.</summary>
+    [JsonPropertyName("workflow_progress")] public JsonElement? WorkflowProgress { get; set; }
+
+    /// <summary>For <c>task_progress</c> and <c>task_notification</c>: the task's totals.</summary>
+    [JsonPropertyName("usage")] public WireTaskUsage? TaskUsage { get; set; }
+
+    /// <summary>For <c>task_updated</c>: what changed (its status, when it ended).</summary>
+    [JsonPropertyName("patch")] public WireTaskPatch? Patch { get; set; }
+}
+
+public sealed class WireTaskUsage
+{
+    [JsonPropertyName("total_tokens")] public long TotalTokens { get; set; }
+    [JsonPropertyName("tool_uses")] public int ToolUses { get; set; }
+    [JsonPropertyName("duration_ms")] public long DurationMs { get; set; }
+}
+
+public sealed class WireTaskPatch
+{
+    [JsonPropertyName("status")] public string? Status { get; set; }
 }
 
 public sealed class WireMcpServer

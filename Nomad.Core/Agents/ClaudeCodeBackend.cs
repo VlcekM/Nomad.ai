@@ -473,8 +473,24 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             case "bridge_state" when !string.IsNullOrEmpty(system.State):
                 Raise(new RemoteControlStateEvent(system.State));
                 break;
+            case "task_started" when system.TaskType == "local_workflow" && system.TaskId is not null:
+                Raise(new WorkflowStartedEvent(system.TaskId, system.ToolUseId, system.WorkflowName, system.Description, system.Prompt));
+                break;
             case "task_started" when system.IsBackgrounded == false && system.TaskId is not null:
                 _foregroundTasks.TryAdd(system.TaskId, 0);
+                break;
+            case "task_progress" when system.TaskId is not null && system.WorkflowProgress is { ValueKind: JsonValueKind.Array } or null:
+                // Workflows send progress; so may other tasks, which the app ignores (it knows no run by their id).
+                Raise(new WorkflowProgressEvent(
+                    system.TaskId,
+                    system.ToolUseId,
+                    system.WorkflowProgress is { } progress ? WorkflowProgress.Parse(progress) : null,
+                    system.TaskUsage?.TotalTokens ?? 0,
+                    system.TaskUsage?.ToolUses ?? 0,
+                    system.TaskUsage?.DurationMs ?? 0));
+                break;
+            case "task_updated" when system.TaskId is not null && system.Patch?.Status is { Length: > 0 } status:
+                Raise(new TaskUpdatedEvent(system.TaskId, status.ToLowerInvariant()));
                 break;
             case "task_notification" when system.TaskId is not null && _foregroundTasks.TryRemove(system.TaskId, out _):
                 break; // A command the turn waited on: its call already shows how it went.

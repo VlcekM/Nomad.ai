@@ -86,6 +86,12 @@ public sealed class FlagSettings
 {
     [JsonPropertyName("effortLevel")] public string? EffortLevel { get; set; }
     [JsonPropertyName("fastMode")] public bool? FastMode { get; set; }
+
+    /// <summary>Lets Claude start workflows (multi-agent runs) without being asked to in the prompt.</summary>
+    [JsonPropertyName("ultracode")] public bool? Ultracode { get; set; }
+
+    /// <summary>How many agents a workflow should keep under: "small" (under 5), "medium" (under 10, the default), "large" (under 50), "unrestricted".</summary>
+    [JsonPropertyName("workflowSizeGuideline")] public string? WorkflowSizeGuideline { get; set; }
 }
 
 /// <summary>Our answer to a CLI control request.</summary>
