@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.20.2
+
+- OpenCode's cost card and popup show each model's tokens (in, out, thinking, cache read and write) under its row
+  while the pointer is over it.
+- A sidebar title too long for its row fades out at the edge again instead of being cut off; short titles beside the
+  agent logo no longer fade their last letters.
+
 ## v1.20.1
 
 - The agent's logo sits right after the session's name, muted, rather than at the row's far edge. With the project line
