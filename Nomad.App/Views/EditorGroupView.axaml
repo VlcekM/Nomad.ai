@@ -10,10 +10,10 @@
        joined to the card (TabShape); pinned tabs come first, and the preview tab (in italics) sits at the right end. -->
   <UserControl.Resources>
     <ResourceDictionary>
-      <!-- The code's background, as in Visual Studio's editor. -->
+      <!-- The code's background. -->
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="CodeCardBrush" Color="#1E1E1E" />
+          <SolidColorBrush x:Key="CodeCardBrush" Color="#141414" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
           <SolidColorBrush x:Key="CodeCardBrush" Color="#FFFFFF" />
