@@ -39,12 +39,15 @@ public sealed class TrailPanel : Panel
             return finalSize;
         }
 
+        // The head gets at most what the line has left after the tail: measured against a wider line (a layout pass
+        // with more room, a row narrowing), it would overrun the row and be cut off by it rather than fade out.
         var head = Children[0];
-        head.Arrange(new Rect(0, 0, head.DesiredSize.Width, finalSize.Height));
+        var tailWidth = Children.Count > 1 ? Children[1].DesiredSize.Width : 0;
+        var headWidth = Math.Max(0, Math.Min(head.DesiredSize.Width, finalSize.Width - tailWidth));
+        head.Arrange(new Rect(0, 0, headWidth, finalSize.Height));
         if (Children.Count > 1)
         {
-            var tail = Children[1];
-            tail.Arrange(new Rect(head.DesiredSize.Width, 0, tail.DesiredSize.Width, finalSize.Height));
+            Children[1].Arrange(new Rect(headWidth, 0, tailWidth, finalSize.Height));
         }
 
         return finalSize;

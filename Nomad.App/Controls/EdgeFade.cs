@@ -6,7 +6,7 @@ namespace Nomad.App.Controls;
 
 /// <summary>
 /// Clips its child and fades its last <see cref="FadeWidth"/> pixels on the right to transparent: a title too long
-/// for its row fades out instead of ending in an ellipsis. A shorter one never reaches the fade.
+/// for its row fades out instead of ending in an ellipsis. One that fits isn't faded at all.
 /// </summary>
 public sealed class EdgeFade : Decorator
 {
@@ -24,30 +24,36 @@ public sealed class EdgeFade : Decorator
         set => SetValue(FadeWidthProperty, value);
     }
 
-    protected override void OnSizeChanged(SizeChangedEventArgs e)
-    {
-        base.OnSizeChanged(e);
-        UpdateMask();
-    }
-
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
         if (change.Property == FadeWidthProperty)
         {
-            UpdateMask();
+            InvalidateArrange();
         }
     }
 
-    private void UpdateMask()
+    private double _maskWidth = -1;
+
+    /// <summary>
+    /// Fades only a child that doesn't fit: one sized to its text (beside a logo, say) would otherwise fade its own
+    /// last letters too.
+    /// </summary>
+    private void UpdateMask(double width, bool overflows)
     {
-        var width = Bounds.Width;
-        if (width <= FadeWidth)
+        if (!overflows || width <= FadeWidth)
         {
+            _maskWidth = -1;
             OpacityMask = null;
             return;
         }
 
+        if (width == _maskWidth)
+        {
+            return;
+        }
+
+        _maskWidth = width;
         OpacityMask = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
@@ -72,6 +78,7 @@ public sealed class EdgeFade : Decorator
     protected override Size ArrangeOverride(Size finalSize)
     {
         Child?.Arrange(new Rect(0, 0, Math.Max(finalSize.Width, Child.DesiredSize.Width), finalSize.Height));
+        UpdateMask(finalSize.Width, Child is { } child && child.DesiredSize.Width > finalSize.Width + 0.5);
         return finalSize;
     }
 }
