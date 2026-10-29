@@ -3,6 +3,16 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.20.0
+
+- OpenCode sessions have the effort slider: its stops are the model's own levels (its variants in OpenCode, e.g. Low to
+  Max), after Default; models without any leave it out. Each model comes back at the effort last chosen with it.
+- Star OpenCode models in the model menu to make them favorites: they come first in the list and become chips on the
+  status row, and the first four get Ctrl+Shift+1…4 (and F1…F4 with that setting on), as Claude's models do.
+- OpenCode sessions show what OpenCode spent this month in place of the plan limits: the total on the status row, and
+  per model with a month-end forecast in its popup and the side panel. No key needed: it adds up the cost OpenCode
+  records with each reply.
+
 ## v1.19.0
 
 - Sessions can run on OpenCode as well as Claude Code: pick the agent with the new chip beside the model, before the
