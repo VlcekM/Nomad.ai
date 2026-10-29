@@ -921,6 +921,17 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private void FinishTask(string? toolUseId, string? taskId, string? status, string summary)
     {
+        // A workflow's card says how it ended: no notice under it.
+        if (WorkflowOf(taskId, toolUseId) is { } run)
+        {
+            if (run.IsRunning)
+            {
+                _ = FinishWorkflowAsync(run, status);
+            }
+
+            return;
+        }
+
         if (_notedTasks.Add(taskId ?? toolUseId ?? summary))
         {
             Items.Add(new NoticeItem(summary));
@@ -929,16 +940,6 @@ public sealed partial class SessionViewModel : ObservableObject
         if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
         {
             agent.Finish(failed: status == "failed", result: null);
-            return;
-        }
-
-        if (WorkflowOf(taskId, toolUseId) is { } run)
-        {
-            if (run.IsRunning)
-            {
-                _ = FinishWorkflowAsync(run, status);
-            }
-
             return;
         }
 
@@ -2142,6 +2143,8 @@ public sealed partial class SessionViewModel : ObservableObject
                 case HistoryToolResult r:
                     CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
                     break;
+                case HistoryNotice n when n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal) && Workflows.Count > 0:
+                    break; // Its card says it ended.
                 case HistoryNotice n:
                     CloseGroup();
                     Items.Add(new NoticeItem(n.Text));

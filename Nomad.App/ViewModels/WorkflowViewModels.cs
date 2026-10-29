@@ -341,10 +341,9 @@ public sealed partial class WorkflowPhaseItem(int index) : ObservableObject
 
     public void Refresh()
     {
-        var ended = Agents.Count(a => !a.IsRunning && !a.IsQueued);
         CountText = Agents.Count == 0 ? "" : $"{Agents.Count(a => a.IsDone)}/{Agents.Count}";
         IsRunning = Agents.Any(a => a.IsRunning);
-        IsDone = Agents.Count > 0 && ended == Agents.Count;
+        IsDone = Agents.Count > 0 && Agents.All(a => a.IsDone);
         IsPending = !IsRunning && !IsDone;
     }
 }
