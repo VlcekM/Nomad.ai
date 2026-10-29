@@ -4,12 +4,16 @@ using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Platform;
+using Avalonia.Rendering.SceneGraph;
+using Avalonia.Skia;
+using SkiaSharp;
 
 namespace Nomad.App.Ide;
 
 /// <summary>
 /// A file's text, virtualized: it measures to the whole file (inside a ScrollViewer) but lays out and draws only the
-/// lines in view, so a long file opens and scrolls at once. Monospace, regular weight, tabs to four columns; a drag
+/// lines in view, so a long file opens and scrolls at once. Monospace and light (see CodeWeight), tabs to four columns; a drag
 /// selects (a double-click a word, a triple-click a line), Ctrl+A selects all and Ctrl+C copies.
 /// </summary>
 public sealed class CodeView : Control
@@ -120,7 +124,7 @@ public sealed class CodeView : Control
 
     private bool HasSelection => _anchor != _caret;
 
-    /// <summary>Regular weight whatever the surroundings say: code is never bold.</summary>
+    /// <summary>For fonts Skia doesn't draw (the Claude app's): regular weight whatever the surroundings say.</summary>
     private Typeface Typeface => new(FontFamily, FontStyle.Normal, FontWeight.Normal);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -133,6 +137,7 @@ public sealed class CodeView : Control
         else if (change.Property == FontFamilyProperty || change.Property == FontSizeProperty)
         {
             _charWidth = 0;
+            _skiaResolved = false;
             ClearLayouts();
         }
         else if (change.Property == ForegroundProperty || change.Property == LineHeightProperty)
@@ -203,10 +208,52 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
+    // A system font is drawn by Skia itself, Light: Regular, smoothed in grey on the dark card, reads bold next to
+    // Visual Studio's ClearType, and Avalonia's text can't pick a variable font's other weights (Windows' Cascadia Code
+    // and Mono are only variable). A font without a Light falls back to its nearest weight.
+    private const int CodeWeight = 300;
+
+    private SKTypeface? _skia;
+    private bool _skiaResolved;
+
+    private SKTypeface? Skia
+    {
+        get
+        {
+            if (!_skiaResolved)
+            {
+                _skiaResolved = true;
+                _skia = null;
+                foreach (var name in FontFamily.FamilyNames)
+                {
+                    if (name.Contains('#') || name.Contains(':'))
+                    {
+                        break; // A font of the app's own collection (the Claude app's): Avalonia's text draws it.
+                    }
+
+                    if (SKFontManager.Default.MatchFamily(name, new SKFontStyle(CodeWeight, (int)SKFontStyleWidth.Normal, SKFontStyleSlant.Upright)) is { } typeface &&
+                        string.Equals(typeface.FamilyName, name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _skia = typeface;
+                        break;
+                    }
+                }
+            }
+
+            return _skia;
+        }
+    }
+
     private double CharWidth
     {
         get
         {
+            if (_charWidth <= 0 && Skia is { } skia)
+            {
+                using var font = new SKFont(skia, (float)FontSize);
+                _charWidth = font.MeasureText("0000000000") / 10;
+            }
+
             if (_charWidth <= 0)
             {
                 using var probe = new TextLayout("0000000000", Typeface, FontSize, null);
@@ -253,6 +300,9 @@ public sealed class CodeView : Control
             }
         }
 
+        var skia = Skia;
+        using var skiaFont = skia is null ? null : new SKFont(skia, (float)FontSize);
+        var skiaLines = new List<(string Text, float X, float Y)>();
         for (var line = first; line <= last; line++)
         {
             var text = _lines[line];
@@ -262,7 +312,17 @@ public sealed class CodeView : Control
             }
 
             var y = p.Top + line * height;
-            if (text.Length <= WholeLineLimit)
+            if (skiaFont is not null && skiaFont.ContainsGlyphs(text))
+            {
+                // Only the part in view of a very long line (a minified file's).
+                var startCol = text.Length <= WholeLineLimit ? 0 : Math.Max(0, (int)((view.Left - p.Left) / charWidth) - 2);
+                var count = text.Length <= WholeLineLimit ? text.Length : Math.Min(text.Length - startCol, (int)(view.Width / charWidth) + 4);
+                if (count > 0)
+                {
+                    skiaLines.Add((startCol == 0 && count == text.Length ? text : text.Substring(startCol, count), (float)(p.Left + startCol * charWidth), (float)y));
+                }
+            }
+            else if (text.Length <= WholeLineLimit)
             {
                 if (!_layouts.TryGetValue(line, out var layout))
                 {
@@ -283,6 +343,14 @@ public sealed class CodeView : Control
                     slice.Draw(context, new Point(p.Left + startCol * charWidth, y));
                 }
             }
+        }
+
+        if (skia is not null && skiaLines.Count > 0)
+        {
+            var color = Foreground is ISolidColorBrush brush ? brush.Color : Colors.Gray;
+            var opacity = Foreground?.Opacity ?? 1;
+            context.Custom(new SkiaLines(new Rect(Bounds.Size), skiaLines, skia, (float)FontSize, (float)height,
+                new SKColor(color.R, color.G, color.B, (byte)(color.A * opacity))));
         }
 
         // Laid-out lines far out of view are let go.
@@ -474,6 +542,39 @@ public sealed class CodeView : Control
         if (HasSelection && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
         {
             await clipboard.SetTextAsync(SelectedText());
+        }
+    }
+}
+
+/// <summary>Lines drawn straight onto Skia's canvas, in a system font at its regular weight.</summary>
+internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y)> lines, SKTypeface typeface, float size, float lineHeight, SKColor color)
+    : ICustomDrawOperation
+{
+    public Rect Bounds => bounds;
+
+    public bool HitTest(Point p) => false;
+
+    public bool Equals(ICustomDrawOperation? other) => false;
+
+    public void Dispose()
+    {
+    }
+
+    public void Render(ImmediateDrawingContext context)
+    {
+        if (context.TryGetFeature<ISkiaSharpApiLeaseFeature>() is not { } feature)
+        {
+            return;
+        }
+
+        using var lease = feature.Lease();
+        using var font = new SKFont(typeface, size) { Edging = SKFontEdging.Antialias, Subpixel = true, Hinting = SKFontHinting.Slight };
+        using var paint = new SKPaint { Color = color, IsAntialias = true };
+        var metrics = font.Metrics;
+        var baseline = (lineHeight - (metrics.Descent - metrics.Ascent)) / 2 - metrics.Ascent;
+        foreach (var (text, x, y) in lines)
+        {
+            lease.SkCanvas.DrawText(text, x, y + baseline, SKTextAlign.Left, font, paint);
         }
     }
 }
