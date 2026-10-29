@@ -151,10 +151,10 @@ public static class AutoScroll
             var dt = _lastFrame is { } last ? Math.Min(0.05, (time - last).TotalSeconds) : 0;
             _lastFrame = time;
 
-            // Speed grows faster than the distance, as in a browser but 3× quicker: 50 px out about 180 px/s, 200 px about 2000.
+            // Speed grows faster than the distance, as in a browser but 6× quicker: 50 px out about 380 px/s, 200 px about 3600.
             var distance = _pointer.Y - _anchor.Y;
             var beyond = Math.Max(0, Math.Abs(distance) - DeadZone);
-            var speed = Math.Sign(distance) * Math.Pow(beyond, 1.45) * 0.9;
+            var speed = Math.Sign(distance) * Math.Pow(beyond, 1.45) * 1.8;
             if (speed != 0 && dt > 0)
             {
                 var max = Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height);
