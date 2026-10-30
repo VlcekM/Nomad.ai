@@ -47,6 +47,9 @@ does; the session then shows and resumes there. Scratch ("No folder") sessions m
 
 ## 4. What syncs
 
+Every session of every project, archived ones included, with no opt-in. The hub keeps sessions forever, archived
+or not; they leave it only when deleted in Nomad (which deletes them on every PC).
+
 | Backend | Files | Notes |
 |---|---|---|
 | Claude Code | `<project>/<session>.jsonl`, `<project>/<session>/subagents/**` (subagent and workflow transcripts) | Rename's `custom-title` records come along in the file |
@@ -200,5 +203,3 @@ Built and pushed by a GitHub Actions workflow next to the app's release workflow
    OpenCode sessions are view-only elsewhere.
 2. **Lease timing:** 30 s renewal, 2 min expiry, fine?
 3. **Codex:** does it keep a thread index (state database) beside the rollout files that an imported rollout must be added to?
-4. **Sync everything or opt in:** every session by default, or only projects ticked in Settings → Hub?
-5. **Retention:** keep archived sessions on the hub forever, or drop them after N days?
