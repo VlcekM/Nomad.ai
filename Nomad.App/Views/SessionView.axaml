@@ -1152,7 +1152,7 @@
                         Padding="14,0,10,0">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <VirtualizingStackPanel CacheLength="1" />
+                <c:TranscriptPanel />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
           </ItemsControl>

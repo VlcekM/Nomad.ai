@@ -103,7 +103,7 @@
     </Style>
   </Window.Styles>
 
-  <Panel>
+  <Panel Name="WindowContent">
     <Grid ColumnDefinitions="Auto,*">
 
       <!-- ============================================================ sidebar -->
@@ -1011,10 +1011,10 @@
               Background="Transparent"
               PointerPressed="OnTitleBarPointerPressed">
           <c:HazardStripes Grid.ColumnSpan="2" IsVisible="{x:Static app:Program.IsDebugRun}" />
-          <!-- Cut off before the Chat / Files switch (its MaxWidth follows the switch, see UpdateTitleArea). -->
+          <!-- The title yields to the Chat / Files switch; crowded titles move the switch to the right. -->
           <Grid Name="TitleArea" ColumnDefinitions="Auto,*" ClipToBounds="True" HorizontalAlignment="Left">
             <!-- Sidebar collapsed: its buttons move here. -->
-            <StackPanel Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
+            <StackPanel Name="TitleNavigation" Orientation="Horizontal" Spacing="3" Margin="12,0,0,0" VerticalAlignment="Center"
                         IsVisible="{Binding !IsSidebarOpen}">
               <Button Theme="{StaticResource IconButton}" Command="{Binding ToggleSidebarCommand}" ToolTip.Tip="Show sidebar (Ctrl+B)">
                 <Panel>
@@ -1029,20 +1029,23 @@
 
             <!-- The title (a click renames the session in place) and, for a session in a git repository, its branch
                  and worktree. -->
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        Spacing="2"
-                        Margin="17,0,12,0"
-                        VerticalAlignment="Center">
-              <Button Theme="{StaticResource FlatButton}"
+            <Grid Grid.Column="1"
+                  Name="TitleContent"
+                  ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                  ColumnSpacing="2"
+                  Margin="17,0,12,0"
+                  VerticalAlignment="Center">
+              <Button Name="SessionTitleButton"
+                      Theme="{StaticResource FlatButton}"
                       Padding="6,3"
                       MaxWidth="560"
+                      HorizontalAlignment="Left"
                       IsVisible="{Binding Current.HasTitle}"
                       Click="OnTitleClick"
                       ToolTip.Tip="Rename (F2)"
                       ToolTip.ShowDelay="700">
                 <Panel>
-                  <TextBlock Text="{Binding Current.TitleOrPlaceholder}"
+                  <TextBlock Name="SessionTitleText" Text="{Binding Current.TitleOrPlaceholder}"
                              FontWeight="Medium"
                              Foreground="{DynamicResource TextPrimaryBrush}"
                              TextTrimming="CharacterEllipsis"
@@ -1058,13 +1061,13 @@
                            LostFocus="OnTitleRenameLostFocus" />
                 </Panel>
               </Button>
-              <TextBlock Text="New session"
+              <TextBlock Grid.Column="1" Text="New session"
                          Classes="muted"
                          Margin="6,0,0,0"
                          IsVisible="{Binding !Current.HasTitle}"
                          VerticalAlignment="Center" />
               <!-- The project's name, then "|" before the branch. -->
-              <StackPanel Orientation="Horizontal"
+              <StackPanel Grid.Column="2" Orientation="Horizontal"
                           Spacing="6"
                           Margin="6,0,0,0"
                           Background="Transparent"
@@ -1078,7 +1081,7 @@
                            VerticalAlignment="Center" />
                 <TextBlock Text="|" Classes="muted" VerticalAlignment="Center" />
               </StackPanel>
-              <StackPanel Name="TitleBranch"
+              <StackPanel Grid.Column="3" Name="TitleBranch"
                           Orientation="Horizontal"
                           Spacing="6"
                           Margin="6,0,0,0"
@@ -1119,17 +1122,17 @@
                   <TextBlock Text="{Binding Current.GitChangesText}" FontWeight="Bold" Foreground="{DynamicResource WaitingBrush}" VerticalAlignment="Center" />
                 </StackPanel>
               </StackPanel>
-              <Border Name="TitleWorktree"
+              <Border Grid.Column="4" Name="TitleWorktree"
                       Background="Transparent"
                       Margin="8,0,0,0"
                       IsVisible="{Binding Current.IsWorktreeSession}"
                       ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
                 <c:Icon Size="13" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" VerticalAlignment="Center" />
               </Border>
-            </StackPanel>
+            </Grid>
           </Grid>
 
-          <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <StackPanel Grid.Column="1" Name="TitleButtons" Orientation="Horizontal">
             <Button Theme="{StaticResource IconButton}"
                     Classes.on="{Binding IsSidePanelOpen}"
                     IsVisible="{Binding !Current.IsNew}"
@@ -1208,15 +1211,19 @@
       </Grid>
     </Grid>
 
-    <!-- Chat or Files (Tab by default), for a started session with a folder: in the middle of the window's top edge,
-         its thumb sliding to the side picked. -->
+    <!-- Centered on the window when there is room; slides beside the caption buttons when the title needs it. -->
     <Border Name="ViewSwitch"
             Classes="viewswitch"
             Classes.files="{Binding Current.IsFilesView}"
             IsVisible="{Binding Current.CanShowFiles}"
-            HorizontalAlignment="Center"
+            HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Margin="0,4,0,0">
+      <Border.Transitions>
+        <Transitions>
+          <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Border.Transitions>
       <Panel>
         <Border Classes="thumb" />
         <StackPanel Orientation="Horizontal">

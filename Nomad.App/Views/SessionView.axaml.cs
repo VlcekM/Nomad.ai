@@ -88,14 +88,24 @@ public partial class SessionView : UserControl
 
         // New transcript items, attachments and queued prompts fade and slide in; activity lines carry a class
         // so "Show activity" can leave them out. The transcript is virtualized, so its containers are prepared again
-        // whenever they scroll into view: only items added since the session was shown animate, once.
+        // whenever they scroll into view: only items added since the session was shown animate, once (and not when built
+        // out of view only to be measured).
         Transcript.ItemTemplate = new Controls.FreshTemplate(DataTemplates);
         Transcript.ContainerPrepared += (_, e) =>
         {
             e.Container.Classes.Set("activity", e.Container.DataContext is ThinkingItem or ToolGroupItem);
-            if (e.Container.DataContext is { } item && _fresh.Remove(item))
+            if (!MeasuringAhead && e.Container.DataContext is { } item && _fresh.Remove(item))
             {
                 Controls.Entrance.Play(e.Container);
+            }
+        };
+        // Showing or leaving out activity changes the items' heights, the ones out of view too. (The list's classes also
+        // hold its pseudoclasses, :pointerover and the like, which change nothing.)
+        Transcript.Classes.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems?.Contains("quiet") == true || e.OldItems?.Contains("quiet") == true)
+            {
+                (Transcript.ItemsPanelRoot as Controls.TranscriptPanel)?.ForgetHeights();
             }
         };
         AttachmentList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
@@ -155,7 +165,7 @@ public partial class SessionView : UserControl
         // Items scrolled into view (the list is virtualized) get their marks.
         Transcript.ContainerPrepared += (_, _) =>
         {
-            if (IsFindOpen && !_findRefresh.IsEnabled)
+            if (IsFindOpen && !MeasuringAhead && !_findRefresh.IsEnabled)
             {
                 _findRefresh.Start();
             }
@@ -180,6 +190,8 @@ public partial class SessionView : UserControl
     }
 
     private SessionViewModel? Vm => DataContext as SessionViewModel;
+
+    private bool MeasuringAhead => Transcript.ItemsPanelRoot is Controls.TranscriptPanel { IsMeasuringAhead: true };
 
     // ------------------------------------------------------------------ binding to the session
 
