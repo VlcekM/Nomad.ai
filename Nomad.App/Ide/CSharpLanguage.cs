@@ -328,6 +328,12 @@ public sealed partial class CSharpLanguage : ObservableObject
     public Task<LspSignatureHelp?> SignatureHelpAsync(string path, int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken = default) =>
         AskAsync<LspSignatureHelp>(async s => (await s.SignatureHelpAsync(path, line, column, trigger, retrigger, cancellationToken))!);
 
+    public Task<IReadOnlyList<LspCodeAction>?> CodeActionsAsync(string path, int line, int column, int endLine, int endColumn, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyList<LspCodeAction>>(s => s.CodeActionsAsync(path, line, column, endLine, endColumn, cancellationToken));
+
+    public Task<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>?> ResolveAsync(LspCodeAction action, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>>(s => s.ResolveAsync(action, cancellationToken));
+
     public Task<LspResolvedCompletion?> ResolveAsync(LspCompletion completion, CancellationToken cancellationToken = default) =>
         AskAsync<LspResolvedCompletion>(s => s.ResolveAsync(completion, cancellationToken));
 

@@ -257,6 +257,16 @@ public sealed class RoslynServer : IAsyncDisposable
                         ["definition"] = new JsonObject { ["linkSupport"] = false },
                         ["implementation"] = new JsonObject { ["linkSupport"] = false },
                         ["references"] = new JsonObject(),
+                        ["codeAction"] = new JsonObject
+                        {
+                            ["codeActionLiteralSupport"] = new JsonObject
+                            {
+                                ["codeActionKind"] = new JsonObject { ["valueSet"] = new JsonArray("", "quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source", "source.organizeImports") },
+                            },
+                            ["resolveSupport"] = new JsonObject { ["properties"] = new JsonArray("edit") },
+                            ["dataSupport"] = true,
+                            ["isPreferredSupport"] = true,
+                        },
                         ["signatureHelp"] = new JsonObject
                         {
                             ["signatureInformation"] = new JsonObject
@@ -508,7 +518,12 @@ public sealed class RoslynServer : IAsyncDisposable
     {
         var parameters = At(path, line, column);
         parameters["newName"] = newName;
-        var result = await _connection.CallAsync("textDocument/rename", parameters, cancellationToken, TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+        return WorkspaceEdits(await _connection.CallAsync("textDocument/rename", parameters, cancellationToken, TimeSpan.FromSeconds(60)).ConfigureAwait(false));
+    }
+
+    // A WorkspaceEdit as each file's edits (by "documentChanges", or the older "changes").
+    private static IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>> WorkspaceEdits(JsonElement result)
+    {
         var edits = new Dictionary<string, List<LspTextEdit>>(StringComparer.OrdinalIgnoreCase);
         void Add(string uri, JsonElement list)
         {
@@ -547,6 +562,82 @@ public sealed class RoslynServer : IAsyncDisposable
         }
 
         return edits.ToDictionary(e => e.Key, e => (IReadOnlyList<LspTextEdit>)e.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The fixes and refactorings offered for a range (the caret's, or a selection): their titles, to be resolved when chosen.</summary>
+    public async Task<IReadOnlyList<LspCodeAction>> CodeActionsAsync(string path, int line, int column, int endLine, int endColumn, CancellationToken cancellationToken = default)
+    {
+        var parameters = new JsonObject
+        {
+            ["textDocument"] = new JsonObject { ["uri"] = Uri(path) },
+            ["range"] = new JsonObject
+            {
+                ["start"] = new JsonObject { ["line"] = line, ["character"] = column },
+                ["end"] = new JsonObject { ["line"] = endLine, ["character"] = endColumn },
+            },
+            ["context"] = new JsonObject { ["diagnostics"] = new JsonArray(), ["triggerKind"] = 1 },
+        };
+        var result = await _connection.CallAsync("textDocument/codeAction", parameters, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        var actions = new List<LspCodeAction>();
+        if (result.ValueKind != JsonValueKind.Array)
+        {
+            return actions;
+        }
+
+        foreach (var item in result.EnumerateArray())
+        {
+            if (Action(item) is { } action)
+            {
+                actions.Add(action);
+            }
+        }
+
+        return actions;
+    }
+
+    // A code action (or a command, which Roslyn uses for a group of nested ones).
+    private static LspCodeAction? Action(JsonElement item)
+    {
+        if (LspJson.String(item, "title") is not { Length: > 0 } title)
+        {
+            return null;
+        }
+
+        var nested = new List<LspCodeAction>();
+
+        // Roslyn's group of choices ("Add using…" with one per namespace, "Fix all in…"): its command carries them.
+        var command = item.TryGetProperty("command", out var c) && c.ValueKind == JsonValueKind.Object ? c : item;
+        if (LspJson.String(command, "command") is "roslyn.client.nestedCodeAction" or "codeAction/nested" &&
+            command.TryGetProperty("arguments", out var arguments) && arguments.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var argument in arguments.EnumerateArray())
+            {
+                if (argument.ValueKind == JsonValueKind.Object && argument.TryGetProperty("NestedCodeActions", out var list) && list.ValueKind == JsonValueKind.Array)
+                {
+                    nested.AddRange(list.EnumerateArray().Select(Action).OfType<LspCodeAction>());
+                }
+            }
+        }
+
+        return new LspCodeAction(
+            title,
+            LspJson.String(item, "kind"),
+            item.TryGetProperty("isPreferred", out var preferred) && preferred.ValueKind == JsonValueKind.True,
+            item.TryGetProperty("edit", out var edit) && edit.ValueKind == JsonValueKind.Object ? WorkspaceEdits(edit) : null,
+            nested,
+            item.GetRawText());
+    }
+
+    /// <summary>A chosen code action's edits (worked out now: offering them is cheap, making them isn't).</summary>
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>> ResolveAsync(LspCodeAction action, CancellationToken cancellationToken = default)
+    {
+        if (action.Edits is { } edits)
+        {
+            return edits;
+        }
+
+        var result = await _connection.CallAsync("codeAction/resolve", JsonNode.Parse(action.Raw), cancellationToken, TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+        return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("edit", out var edit) ? WorkspaceEdits(edit) : new Dictionary<string, IReadOnlyList<LspTextEdit>>();
     }
 
     /// <summary>A file's errors and warnings (it must be open).</summary>

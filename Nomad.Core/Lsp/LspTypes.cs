@@ -121,3 +121,9 @@ public sealed record LspSignature(string Label, string? Documentation, IReadOnly
 
 /// <summary>The overloads of the call the caret is in, the one the server thinks fits, and the argument the caret is at.</summary>
 public sealed record LspSignatureHelp(IReadOnlyList<LspSignature> Signatures, int ActiveSignature, int ActiveParameter);
+
+/// <summary>
+/// A fix or refactoring offered at a place (a code action): its title, kind ("quickfix", "refactor.extract"…), whether
+/// it is the one to pick, its edits if already known (else resolved when chosen), the choices it groups, and itself as sent.
+/// </summary>
+public sealed record LspCodeAction(string Title, string? Kind, bool IsPreferred, IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>? Edits, IReadOnlyList<LspCodeAction> Nested, string Raw);

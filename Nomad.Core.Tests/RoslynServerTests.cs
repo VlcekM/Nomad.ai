@@ -136,6 +136,22 @@ public class RoslynServerTests
         Assert.Contains("TryGetValue", shown.Label, StringComparison.Ordinal);
         Assert.Equal(1, shown.ActiveParameter ?? help.ActiveParameter);
         Assert.Contains("value", shown.Label[shown.Parameters[1].Start..shown.Parameters[1].End], StringComparison.Ordinal);
+
+        // Code actions: a type whose namespace isn't imported is offered its using.
+        var fixable = lines.ToList();
+        fixable.Insert(top, "        var sb = new StringBuilder();");
+        await server.ChangeAsync(file, string.Join("\n", fixable));
+        var column0 = fixable[top].IndexOf("StringBuilder", StringComparison.Ordinal);
+        var actions = await server.CodeActionsAsync(file, top, column0 + 2, top, column0 + 2);
+        foreach (var a in actions)
+        {
+            Console.WriteLine($"action: {a.Title} [{a.Kind}] preferred {a.IsPreferred} edits {a.Edits?.Count} nested {string.Join(" / ", a.Nested.Select(n => n.Title))} raw {a.Raw[..Math.Min(300, a.Raw.Length)]}");
+        }
+
+        var fix = actions.SelectMany(a => a.Nested.Count > 0 ? a.Nested : [a]).First(a => a.Title.Contains("System.Text", StringComparison.Ordinal));
+        var fixEdits = await server.ResolveAsync(fix);
+        var fixedText = LspTextEdit.Apply(string.Join("\n", fixable), fixEdits[file]);
+        Assert.Contains("using System.Text;", fixedText, StringComparison.Ordinal);
     }
 }
 

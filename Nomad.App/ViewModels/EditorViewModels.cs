@@ -896,6 +896,31 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
     public async Task<Nomad.Core.Lsp.LspSignatureHelp?> SignatureHelpAsync(int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken) =>
         ActiveTab is { } tab && Server(tab) is { } server ? await server.SignatureHelpAsync(tab.Path, line, column, trigger, retrigger, cancellationToken) : null;
 
+    public async Task<IReadOnlyList<Nomad.Core.Lsp.LspCodeAction>?> CodeActionsAsync(Nomad.App.Ide.TextPos from, Nomad.App.Ide.TextPos to, CancellationToken cancellationToken) =>
+        ActiveTab is { } tab && Server(tab) is { } server ? await server.CodeActionsAsync(tab.Path, from.Line, from.Index, to.Line, to.Index, cancellationToken) : null;
+
+    /// <summary>A code action chosen from Ctrl+.: its edits worked out, then made (open files as an undo step, the rest on disk).</summary>
+    public void ApplyCodeAction(Nomad.Core.Lsp.LspCodeAction action) => _ = ApplyCodeActionAsync(action);
+
+    private async Task ApplyCodeActionAsync(Nomad.Core.Lsp.LspCodeAction action)
+    {
+        if (ActiveTab is not { } tab || Server(tab) is not { } server)
+        {
+            return;
+        }
+
+        if (await server.ResolveAsync(action) is not { Count: > 0 } edits)
+        {
+            owner.Prompt.AskConfirm($"Couldn't {char.ToLowerInvariant(action.Title[0])}{action.Title[1..]}", "The language server had no changes to make.", "OK", danger: false, () => Task.FromResult<string?>(null));
+            return;
+        }
+
+        if (owner.ApplyEdits(edits) is { } error)
+        {
+            owner.Prompt.AskConfirm("Some files weren't changed", error, "OK", danger: false, () => Task.FromResult<string?>(null));
+        }
+    }
+
     private void Open(Nomad.Core.Lsp.LspLocation location) =>
         owner.OpenAt(location.Path, (location.Line, location.Column),
             length: location.EndLine == location.Line ? Math.Max(0, location.EndColumn - location.Column) : 0);

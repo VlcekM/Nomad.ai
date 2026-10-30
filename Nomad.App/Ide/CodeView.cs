@@ -88,6 +88,7 @@ public sealed class CodeView : Control
                 HideQuickInfo();
                 _completion?.Reposition();
                 _signature?.Reposition();
+                _actions?.Close();
             }
 
             _viewport = e.EffectiveViewport;
@@ -137,6 +138,8 @@ public sealed class CodeView : Control
                 Navigator?.FindReferences(Spot(at));
             }
         };
+        var quick = new MenuItem { Header = "Quick actions…", InputGesture = new KeyGesture(Key.OemPeriod, KeyModifiers.Control) };
+        quick.Click += (_, _) => Dispatcher.UIThread.Post(ShowCodeActions);
         var rename = new MenuItem { Header = "Rename…", InputGesture = new KeyGesture(Key.F2) };
         rename.Click += (_, _) =>
         {
@@ -145,7 +148,7 @@ public sealed class CodeView : Control
                 Navigator?.Rename(Spot(at));
             }
         };
-        ContextMenu = new ContextMenu { Items = { ask, definition, implementation, references, rename, new Separator(), cut, copy, paste, new Separator(), all } };
+        ContextMenu = new ContextMenu { Items = { ask, quick, definition, implementation, references, rename, new Separator(), cut, copy, paste, new Separator(), all } };
         ContextMenu.Opening += (_, _) =>
         {
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
@@ -154,10 +157,12 @@ public sealed class CodeView : Control
             definitionAt = HasSelection ? null : ReferenceAt(_doc.Caret);
             definition.IsVisible = implementation.IsVisible = references.IsVisible = Navigator is not null && definitionAt is not null;
             rename.IsVisible = definition.IsVisible && !_doc.IsReadOnly;
+            quick.IsVisible = Navigator is not null && !_doc.IsReadOnly;
         };
 
         _completion = new CodeCompletion(this, popup => LogicalChildren.Add(popup));
         _signature = new CodeSignatureHelp(this, popup => LogicalChildren.Add(popup));
+        _actions = new CodeActionMenu(this, popup => LogicalChildren.Add(popup));
     }
 
     public CodeDocument? Document
@@ -234,6 +239,7 @@ public sealed class CodeView : Control
             _doc.CaretChanged += OnCaretMoved;
             _completion.Close();
             _signature.Close();
+            _actions.Close();
             _chord = false;
             _goalCol = null;
             Refresh();
@@ -1055,6 +1061,7 @@ public sealed class CodeView : Control
         base.OnLostFocus(e);
         _completion.Close();
         _signature.Close();
+        _actions.Close();
         _blink.Stop();
         InvalidateVisual();
     }
@@ -1087,6 +1094,7 @@ public sealed class CodeView : Control
         _doc.MarksChanged -= InvalidateVisual;
         _completion.Close();
         _signature.Close();
+        _actions.Close();
     }
 
     // A Go To (or a find's match): the caret's line in the middle of the view, and the focus here to type at it.
@@ -1302,6 +1310,7 @@ public sealed class CodeView : Control
     {
         _completion.Update();
         _signature.Update();
+        _actions.Update();
     }
 
     /// <summary>Where a name starts on its line, in this view's coordinates (the completion list hangs below it).</summary>
@@ -1330,6 +1339,46 @@ public sealed class CodeView : Control
     internal bool InCommentOrString(TextPos at) =>
         _doc.Highlighting?.Spans(at.Line) is { } spans &&
         spans.Any(s => s.Start < at.Index && at.Index <= s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String);
+
+    // ------------------------------------------------------------------ code actions
+
+    private CancellationTokenSource? _actionsCts;
+
+    private readonly CodeActionMenu _actions;
+
+    /// <summary>Ctrl+.: the fixes and refactorings for the caret (or the selection), as a menu at it, as Visual Studio's light bulb.</summary>
+    private async void ShowCodeActions()
+    {
+        if (Navigator is not { } navigator || _doc.IsReadOnly)
+        {
+            return;
+        }
+
+        _completion.Close();
+        HideQuickInfo();
+        _actionsCts?.Cancel();
+        var cts = _actionsCts = new CancellationTokenSource();
+        var doc = _doc;
+        var caret = doc.Caret;
+        var (from, to) = Ordered();
+        IReadOnlyList<Nomad.Core.Lsp.LspCodeAction>? actions;
+        try
+        {
+            actions = await navigator.CodeActionsAsync(from, to, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        // Moved on meanwhile: the menu would be about another place.
+        if (cts.IsCancellationRequested || _doc != doc || doc.Caret != caret || actions is null)
+        {
+            return;
+        }
+
+        _actions.Show(actions);
+    }
 
     /// <summary>Where names lead and what they are (the group's: the C# language server, or a guess without it).</summary>
     public ICodeNavigator? Navigator { get; set; }
@@ -2029,7 +2078,7 @@ public sealed class CodeView : Control
         }
 
         HideQuickInfo();
-        if (_completion.HandleKey(e) || _signature.HandleKey(e))
+        if (_actions.HandleKey(e) || _completion.HandleKey(e) || _signature.HandleKey(e))
         {
             e.Handled = true;
             return;
@@ -2098,6 +2147,9 @@ public sealed class CodeView : Control
                 break;
             case Key.Space when ctrl && !shift && editable:
                 _completion.Start(null, explicitly: true);
+                break;
+            case Key.OemPeriod when ctrl && !shift && editable:
+                ShowCodeActions();
                 break;
             case Key.Space when ctrl && shift && editable:
                 _signature.Start();
@@ -2518,4 +2570,10 @@ public interface ICodeNavigator
 
     /// <summary>The overloads of the call at a place, and the argument it is at (null outside a call, or no server).</summary>
     Task<Nomad.Core.Lsp.LspSignatureHelp?> SignatureHelpAsync(int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken);
+
+    /// <summary>Ctrl+.: the fixes and refactorings for a range (null: no server to ask).</summary>
+    Task<IReadOnlyList<Nomad.Core.Lsp.LspCodeAction>?> CodeActionsAsync(TextPos from, TextPos to, CancellationToken cancellationToken);
+
+    /// <summary>Makes a chosen code action's changes.</summary>
+    void ApplyCodeAction(Nomad.Core.Lsp.LspCodeAction action);
 }
