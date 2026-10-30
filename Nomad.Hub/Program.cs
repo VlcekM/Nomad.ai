@@ -6,6 +6,21 @@ using Nomad.Hub.Contracts;
 using Nomad.Hub.Data;
 using Nomad.Hub.Services;
 
+// The container's health check (the chiseled image has no shell or curl): asks the running hub, exits 0 if it answers.
+if (args is ["--health", ..])
+{
+    var port = Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS")?.Split(';', ',')[0] ?? "8080";
+    try
+    {
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+        return (await http.GetStringAsync($"http://127.0.0.1:{port}/health")) == "ok" ? 0 : 1;
+    }
+    catch (Exception)
+    {
+        return 1;
+    }
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 var options = builder.Configuration.GetSection("Hub").Get<HubOptions>() ?? new HubOptions();
@@ -60,6 +75,7 @@ Sessions.Map(api);
 UsageEndpoints.Map(api);
 app.MapHub<NomadHub>(HubNames.HubPath);
 
-app.Run();
+await app.RunAsync();
+return 0;
 
 public partial class Program;

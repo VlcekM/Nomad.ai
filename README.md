@@ -178,9 +178,9 @@ the previous tag.
 ### Nomad Hub
 
 `Nomad.Hub` is a small ASP.NET Core server (EF Core on SQLite, one `/data` volume) published as the
-Docker image `vlcekmato/nomad-hub` by `.github/workflows/hub.yml` (it needs the `DOCKERHUB_USERNAME`
-and `DOCKERHUB_TOKEN` secrets). Run it with `Nomad.Hub/compose.yaml` behind your reverse proxy or a
-Cloudflare Tunnel; its first start logs a one-time enrollment token (`docker compose logs hub`).
+image `ghcr.io/vlcekm/nomad-hub` by `.github/workflows/hub.yml`. Run it with `Nomad.Hub/compose.yaml`
+behind your reverse proxy or a Cloudflare Tunnel; its first start logs a one-time enrollment token
+(`docker compose logs hub`). The image has a health check (`docker ps` shows it healthy).
 
 In Settings › Hub, enter the hub's address and the token, then **Connect**. Nomad uploads every
 session on this PC (only the new bytes of a transcript that grew), fetches the other PCs' sessions into
