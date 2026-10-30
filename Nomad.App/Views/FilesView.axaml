@@ -143,7 +143,7 @@
         <ide:FileTreeView Name="Tree"
                           Tree="{Binding Files.Tree}"
                           ShowAll="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowAllFiles}"
-                          TextElement.FontSize="{DynamicResource UiFontSize}"
+                          TextElement.FontSize="{DynamicResource UiFontSizeSmall}"
                           TextElement.FontFamily="{DynamicResource UiFont}" />
       </ScrollViewer>
     </DockPanel>

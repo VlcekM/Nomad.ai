@@ -471,7 +471,7 @@ public sealed class FileTreeView : Control
         var iconPen = new Pen(Brush("TextSecondaryBrush"), 1.35, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         var chevronPen = new Pen(Brush("TextMutedBrush"), 1.35, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
         var guidePen = new Pen(guideBrush, 1);
-        var textBrush = Brush("TextPrimaryBrush");
+        var textBrush = Brush("TextNavBrush"); // A shade softer than body text, as Solution Explorer's.
         var chevron = Shape("IconChevronRight");
         var file = Shape("IconFile");
         var family = TextElement.GetFontFamily(this);
