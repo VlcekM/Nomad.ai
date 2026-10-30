@@ -92,6 +92,23 @@ public partial class FilesView : UserControl
         }
     }
 
+    // The mouse's back and forward buttons go back and forth between the places jumped to.
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        var props = e.GetCurrentPoint(this).Properties;
+        if (props.IsXButton1Pressed)
+        {
+            _session?.Files.NavigateBack();
+            e.Handled = true;
+        }
+        else if (props.IsXButton2Pressed)
+        {
+            _session?.Files.NavigateForward();
+            e.Handled = true;
+        }
+    }
+
     // Ctrl+W closes the tab shown in the focused group; Ctrl+S saves it.
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -125,7 +142,16 @@ public partial class FilesView : UserControl
                 Dispatcher.UIThread.Post(() =>
                 {
                     CodeSearchBox.Focus();
-                    CodeSearchBox.SelectAll();
+                    if (search.Query.StartsWith(':'))
+                    {
+                        // Ctrl+G: the line number goes after the ":".
+                        CodeSearchBox.ClearSelection();
+                        CodeSearchBox.CaretIndex = search.Query.Length;
+                    }
+                    else
+                    {
+                        CodeSearchBox.SelectAll();
+                    }
                 }, DispatcherPriority.Loaded);
             }
             else if (CodeSearchBox.IsFocused)

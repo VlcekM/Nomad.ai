@@ -76,8 +76,20 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
         }
     }
 
-    public void Open()
+    /// <summary>A query of ":" and a number goes to that line of the file shown (Ctrl+G opens it so), as in Visual Studio.</summary>
+    private static int? LineQuery(string query) =>
+        query.StartsWith(':') && query.Length < 12 && query[1..].All(char.IsAsciiDigit)
+            ? (query.Length > 1 ? int.Parse(query.AsSpan(1), System.Globalization.CultureInfo.InvariantCulture) : 0)
+            : null;
+
+    /// <summary>Opens it, with a query already typed (":" for Ctrl+G) when one is given.</summary>
+    public void Open(string? query = null)
     {
+        if (query is not null)
+        {
+            Query = query;
+        }
+
         if (files.Folder is not { } folder || !Directory.Exists(folder))
         {
             return;
@@ -124,6 +136,17 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
     /// <summary>Opens a result (the selected one if none is given) at its line, and closes the search.</summary>
     public void OpenResult(CodeSearchResult? result = null)
     {
+        if (result is null && LineQuery(Query) is { } line)
+        {
+            if (line > 0)
+            {
+                Close();
+                files.GoToLine(line);
+            }
+
+            return;
+        }
+
         if ((result ?? Selected) is not { } row)
         {
             return;
@@ -132,6 +155,54 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
         Close();
         var symbol = row.Symbol;
         files.OpenAt(symbol.Path, symbol.Kind == SymbolKind.File ? null : (symbol.Line, symbol.Column));
+    }
+
+    /// <summary>
+    /// F12 or Ctrl+click on a name: its declaration. One goes straight there; several open the search on the name,
+    /// to pick from. Matched by name only, as there is no compiler to say which one is meant.
+    /// </summary>
+    public async Task GoToDefinitionAsync(string name)
+    {
+        if (files.Folder is not { } folder || !Directory.Exists(folder))
+        {
+            return;
+        }
+
+        if (_index is null || !string.Equals(_index.Root, Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase))
+        {
+            _index = new CodeIndex(folder);
+            _projects.Clear();
+        }
+
+        var index = _index;
+        if (!index.IsReady || _refreshing is { IsCompleted: false })
+        {
+            Refresh(index);
+            if (_refreshing is { } refreshing)
+            {
+                await refreshing;
+            }
+        }
+
+        var found = await Task.Run(() => index.Search(name)
+            .Where(m => m.Symbol.Kind != SymbolKind.File && m.Symbol.Name == name)
+            .ToList());
+
+        // A constructor shares its type's name: the type is the one meant.
+        if (found.Any(m => m.Symbol.IsType))
+        {
+            found.RemoveAll(m => m.Symbol.Kind == SymbolKind.Constructor);
+        }
+
+        if (found.Count == 1)
+        {
+            var symbol = found[0].Symbol;
+            files.OpenAt(symbol.Path, (symbol.Line, symbol.Column));
+        }
+        else
+        {
+            Open(name);
+        }
     }
 
     // Indexing (the first time) or catching up (after): the query runs again when it is done.
@@ -171,6 +242,16 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
         _queryCts?.Cancel();
         if (!IsOpen || _index is not { } index)
         {
+            return;
+        }
+
+        if (LineQuery(Query) is { } line)
+        {
+            Results.Clear();
+            HasResults = false;
+            SelectedIndex = -1;
+            var count = files.ActiveGroup.ActiveTab?.Document.Lines.Count ?? 0;
+            Status = count == 0 ? "Open a file to go to a line" : line == 0 ? $"Line number (1â€“{count:N0})" : $"Go to line {Math.Min(line, count):N0} of {count:N0}";
             return;
         }
 

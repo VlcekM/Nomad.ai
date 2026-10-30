@@ -1021,6 +1021,27 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
+    /// <summary>F12 or Ctrl+click on a name: the name, to go to its declaration.</summary>
+    public event Action<string>? DefinitionRequested;
+
+    // The name (letters, digits, '_') at a place, if there is one there.
+    private string? NameAt(TextPos at)
+    {
+        var text = _doc.Lines[at.Line];
+        int start = Math.Min(at.Index, text.Length), end = start;
+        while (start > 0 && IsWord(text[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < text.Length && IsWord(text[end]))
+        {
+            end++;
+        }
+
+        return end > start && !char.IsDigit(text[start]) ? text[start..end] : null;
+    }
+
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
@@ -1033,6 +1054,18 @@ public sealed class CodeView : Control
         Focus();
         if (e.ClickCount == 1 && FoldClick(e.GetPosition(this)))
         {
+            e.Handled = true;
+            return;
+        }
+
+        // Ctrl+click on a name: its declaration (the caret goes there first, as in Visual Studio).
+        if (e.ClickCount == 1 && e.KeyModifiers == KeyModifiers.Control && e.GetPosition(this).X >= TextLeft &&
+            NameAt(HitTest(e.GetPosition(this))) is { } clicked)
+        {
+            _doc.Seal();
+            _doc.Anchor = _doc.Caret = HitTest(e.GetPosition(this));
+            RestartBlink();
+            DefinitionRequested?.Invoke(clicked);
             e.Handled = true;
             return;
         }
@@ -1262,6 +1295,13 @@ public sealed class CodeView : Control
         {
             case Key.M when ctrl && !shift:
                 _chord = true;
+                break;
+            case Key.F12 when !ctrl && !shift:
+                if (NameAt(caret) is { } name)
+                {
+                    DefinitionRequested?.Invoke(name);
+                }
+
                 break;
             case Key.A when ctrl && !shift:
                 SelectAll();

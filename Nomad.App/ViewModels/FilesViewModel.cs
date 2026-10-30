@@ -93,9 +93,72 @@ public sealed partial class FilesViewModel : ObservableObject
     /// <summary>Opens a file from the tree in the focused group (as a preview unless it is to be kept).</summary>
     public void Open(string path, bool keep) => ActiveGroup.Open(path, keep);
 
-    /// <summary>Opens a file (kept, in the focused group) with the caret at a line and column (0-based), as a Go To does.</summary>
-    public void OpenAt(string path, (int Line, int Column)? at)
+    /// <summary>A place in a file: where a jump came from, for Back and Forward.</summary>
+    public readonly record struct Place(string Path, int Line, int Column);
+
+    private const int MaxHistory = 100;
+    private readonly List<Place> _back = [];
+    private readonly List<Place> _forward = [];
+
+    private Place? Here() =>
+        ActiveGroup.ActiveTab is { } tab ? new Place(tab.Path, tab.Document.Caret.Line, tab.Document.Caret.Index) : null;
+
+    // A jump leaves where the caret was on the Back list (and a new jump forgets what Forward had).
+    private void Remember()
     {
+        if (Here() is { } here && (_back.Count == 0 || _back[^1] != here))
+        {
+            _back.Add(here);
+            if (_back.Count > MaxHistory)
+            {
+                _back.RemoveAt(0);
+            }
+        }
+
+        _forward.Clear();
+    }
+
+    /// <summary>Ctrl+- (or the mouse's back button): back to where the last jump came from.</summary>
+    public void NavigateBack() => Navigate(_back, _forward);
+
+    /// <summary>Ctrl+Shift+- (or the mouse's forward button): on to where Back came from.</summary>
+    public void NavigateForward() => Navigate(_forward, _back);
+
+    private void Navigate(List<Place> from, List<Place> to)
+    {
+        if (from.Count == 0)
+        {
+            return;
+        }
+
+        var place = from[^1];
+        from.RemoveAt(from.Count - 1);
+        if (Here() is { } here)
+        {
+            to.Add(here);
+        }
+
+        OpenAt(place.Path, (place.Line, place.Column), remember: false);
+    }
+
+    /// <summary>Ctrl+G: the caret to a line (1-based) of the file shown.</summary>
+    public void GoToLine(int line)
+    {
+        if (ActiveGroup.ActiveTab is { } tab)
+        {
+            Remember();
+            tab.GoTo(Math.Max(0, line - 1), 0);
+        }
+    }
+
+    /// <summary>Opens a file (kept, in the focused group) with the caret at a line and column (0-based), as a Go To does.</summary>
+    public void OpenAt(string path, (int Line, int Column)? at, bool remember = true)
+    {
+        if (remember)
+        {
+            Remember();
+        }
+
         ActiveGroup.Open(path, keep: true);
         if (at is { } place && ActiveGroup.ActiveTab is { } tab && string.Equals(tab.Path, path, StringComparison.OrdinalIgnoreCase))
         {

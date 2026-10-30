@@ -364,6 +364,13 @@ public sealed partial class EditorGroup : ObservableObject
     /// <summary>Find and replace in the file shown (Ctrl+F, Ctrl+H).</summary>
     public FindViewModel Find { get; }
 
+    /// <summary>F12 or Ctrl+click on a name in the code: off to its declaration.</summary>
+    public void GoToDefinition(string name)
+    {
+        TakeFocus();
+        _ = owner.CodeSearch.GoToDefinitionAsync(name);
+    }
+
     /// <summary>The kept tabs, pinned ones first.</summary>
     public ObservableCollection<FileTab> Tabs { get; } = [];
 

@@ -179,6 +179,14 @@ public partial class MainWindow : Window
                     return;
                 }
 
+                // Ctrl+G: go to a line, as ":" and its number in the code search.
+                if (e.Key == Key.G && e.KeyModifiers == KeyModifiers.Control)
+                {
+                    codeSearch.Open(":");
+                    e.Handled = true;
+                    return;
+                }
+
                 if (e.Key == Key.F3 && findGroup.Find.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
                 {
                     if (e.KeyModifiers == KeyModifiers.Shift)
@@ -193,6 +201,23 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     return;
                 }
+            }
+
+            // Ctrl+- and Ctrl+Shift+-: back and forward between the places jumped to in the Files view.
+            if (vm.Current.IsFilesView && e.Key is Key.OemMinus or Key.Subtract &&
+                e.KeyModifiers is KeyModifiers.Control or (KeyModifiers.Control | KeyModifiers.Shift))
+            {
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+                {
+                    vm.Current.Files.NavigateForward();
+                }
+                else
+                {
+                    vm.Current.Files.NavigateBack();
+                }
+
+                e.Handled = true;
+                return;
             }
 
             // Ctrl+F: find in the chat.
