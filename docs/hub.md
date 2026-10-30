@@ -90,6 +90,9 @@ PCs (through the relay) all drive the same process.
 ## 7. Usage records
 
 Each Nomad extracts usage from what it already reads and uploads it; the hub stores and aggregates.
+`Nomad.Core/Usage/LocalTokenUsage.cs` already reads Claude Code and Codex totals for this PC's month (the
+new-session cards); the hub version extends it to per-message records with model and cache split, and the cards
+then show all PCs' totals when a hub is set.
 
 | Backend | Source | Note |
 |---|---|---|
@@ -104,7 +107,7 @@ Each Nomad extracts usage from what it already reads and uploads it; the hub sto
 - Cost for plans (Claude, ChatGPT) is "API-equivalent", worked out in Nomad at display time from a price table,
   so a price fix applies to history too. OpenCode's is real spend.
 - Optional: `PlanUsage` snapshots (session and weekly %) every few hours, for a plan-use-over-time line.
-- Shown on Nomad's home (new-session page) as a card: this week/month by provider and model, per device on hover.
+- Shown on Nomad's home (the new-session usage cards): this week/month by provider and model, per device on hover.
 
 ## 8. Transport
 
