@@ -277,7 +277,7 @@ internal sealed class CodeCompletion
         _closeTimer.Stop();
         _card.Background = _view.Theme("BgMenuBrush");
         _card.BorderBrush = _view.Theme("BorderCardBrush");
-        _popup.PlacementRect = _view.NameRect(_line, _start);
+        (_popup.PlacementTarget, _popup.PlacementRect) = _view.WindowAnchor(_view.NameRect(_line, _start));
         _popup.HorizontalOffset = -CompletionList.TextInset - _card.Padding.Left - 1;
         if (!_popup.IsOpen)
         {
@@ -305,7 +305,7 @@ internal sealed class CodeCompletion
     {
         if (IsShown && _popup.IsOpen)
         {
-            _popup.PlacementRect = _view.NameRect(_line, _start);
+            (_popup.PlacementTarget, _popup.PlacementRect) = _view.WindowAnchor(_view.NameRect(_line, _start));
         }
     }
 

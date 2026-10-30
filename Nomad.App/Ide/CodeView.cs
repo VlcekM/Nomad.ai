@@ -1300,6 +1300,13 @@ public sealed class CodeView : Control
         return new Rect(TextLeft + Column(new TextPos(line, index)) * CharWidth, RowTop(row), 1, LineHeight);
     }
 
+    /// <summary>
+    /// A rect of this view as the window sees it, for a popup to hang from: placed against the view itself (tall as the
+    /// whole file, scrolled) a popup lands at the edge of the screen.
+    /// </summary>
+    internal (Control Target, Rect Rect) WindowAnchor(Rect local) =>
+        TopLevel.GetTopLevel(this) is { } top && this.TranslatePoint(local.TopLeft, top) is { } at ? (top, new Rect(at, local.Size)) : (this, local);
+
     /// <summary>A completion went in: the caret shows where it ended.</summary>
     internal void Committed()
     {
@@ -1318,6 +1325,13 @@ public sealed class CodeView : Control
 
     // A name in the text: where it is, and what comes before its dot ("?" for something that isn't a plain name).
     private readonly record struct Reference(string Name, string? Receiver, int Line, int Start, int End);
+
+    // Keywords that stand for a type: Go To and Quick Info take them to it, as Visual Studio does.
+    private static readonly HashSet<string> TypeKeywords =
+    [
+        "var", "string", "object", "bool", "byte", "sbyte", "char", "short", "ushort", "int", "uint", "long", "ulong",
+        "nint", "nuint", "float", "double", "decimal", "dynamic", "this", "base",
+    ];
 
     private Reference? ReferenceAt(TextPos at)
     {
@@ -1338,9 +1352,11 @@ public sealed class CodeView : Control
             return null;
         }
 
-        // Not in a comment or a string.
+        // Not in a comment or a string, and not a keyword (those that name a type, as string or var, lead to it).
         if (_doc.Highlighting?.Spans(at.Line) is { } spans &&
-            spans.Any(s => s.Start <= start && start < s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String))
+            spans.Any(s => s.Start <= start && start < s.Start + s.Length &&
+                (s.Kind is CodeKind.Comment or CodeKind.String or CodeKind.Control ||
+                 s.Kind == CodeKind.Keyword && !TypeKeywords.Contains(text[start..end]))))
         {
             return null;
         }
@@ -1469,7 +1485,7 @@ public sealed class CodeView : Control
     }
 
     // The pointer resting on a name a moment shows what it is, as Visual Studio's Quick Info.
-    private readonly DispatcherTimer _quickTimer = new() { Interval = TimeSpan.FromMilliseconds(450) };
+    private readonly DispatcherTimer _quickTimer = new() { Interval = TimeSpan.FromMilliseconds(225) };
     private Reference? _quickAt;
     private List<Nomad.Core.Lsp.LspDiagnostic> _quickProblems = [];
     private bool _quickShown;
@@ -1635,7 +1651,7 @@ public sealed class CodeView : Control
         _quickCard.Background = ThemeBrush("BgMenuBrush");
         _quickCard.BorderBrush = ThemeBrush("BorderCardBrush");
         _quickCard.Child = QuickInfoContent(info, problems);
-        QuickPopup.PlacementRect = NameRect(at.Line, at.Start).WithWidth(Math.Max(1, (at.End - at.Start) * CharWidth));
+        (QuickPopup.PlacementTarget, QuickPopup.PlacementRect) = WindowAnchor(NameRect(at.Line, at.Start).WithWidth(Math.Max(1, (at.End - at.Start) * CharWidth)));
         QuickPopup.HorizontalOffset = -11;
         QuickPopup.VerticalOffset = 2;
         QuickPopup.IsOpen = true;
