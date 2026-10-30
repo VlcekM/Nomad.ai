@@ -228,6 +228,20 @@ public sealed partial class SessionViewModel
         OnPropertyChanged(nameof(ContextToolTip));
     }
 
+    /// <summary>The model changed: the meter measures against its window, here and on the watching PCs.</summary>
+    private void RefreshContextWindow()
+    {
+        if (IsRelayViewer)
+        {
+            return; // The host sends its window.
+        }
+
+        ContextFraction = ContextTokens > 0 ? Math.Clamp(ContextTokens / (double)ContextWindowSize, 0, 1) : 0;
+        OnPropertyChanged(nameof(ContextAmountText));
+        OnPropertyChanged(nameof(ContextToolTip));
+        PublishContext();
+    }
+
     // The meter changed here: the watching PCs show it too.
     partial void OnContextTokensChanged(long value) => PublishContext();
 
@@ -235,6 +249,7 @@ public sealed partial class SessionViewModel
     {
         if (_relay is { } relay && !IsRelayViewer)
         {
+
             relay.PublishStanding(new RelayContextEvent(ContextTokens, ContextWindowSize));
         }
     }
