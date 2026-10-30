@@ -347,11 +347,11 @@ public sealed class CodexTranslator
                     }
                 }
 
-                foreach (var result in CodexTools.Results(item))
+                foreach (var result in CodexTools.Results(item, WorkingDirectory))
                 {
                     if (_finishedCalls.Add(result.Id))
                     {
-                        yield return new ToolResultEvent(result.Id, result.IsError, result.Text, result.Structured, null);
+                        yield return new ToolResultEvent(result.Id, result.IsError, result.Text, result.Structured, null) { Images = result.Images };
                     }
                 }
 

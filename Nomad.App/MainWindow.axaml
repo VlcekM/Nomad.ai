@@ -58,7 +58,7 @@
     <Style Selector="Border.resizegrip:pointerover > Border, Border.resizegrip.dragging > Border">
       <Setter Property="Opacity" Value="1" />
     </Style>
-    <!-- The title bar's Chat / Files switch: two icon segments over a thumb that slides to the one picked. -->
+    <!-- The title bar's Code / Files switch: labeled segments over a sliding thumb. -->
     <Style Selector="Border.viewswitch">
       <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
       <Setter Property="CornerRadius" Value="8" />
@@ -66,7 +66,7 @@
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style Selector="Border.viewswitch Border.thumb">
-      <Setter Property="Width" Value="34" />
+      <Setter Property="Width" Value="76" />
       <Setter Property="HorizontalAlignment" Value="Left" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Background" Value="{DynamicResource BgSegmentCheckedBrush}" />
@@ -80,10 +80,10 @@
       </Setter>
     </Style>
     <Style Selector="Border.viewswitch.files Border.thumb">
-      <Setter Property="RenderTransform" Value="translateX(34px)" />
+      <Setter Property="RenderTransform" Value="translateX(76px)" />
     </Style>
     <Style Selector="Border.viewswitch Button">
-      <Setter Property="Width" Value="34" />
+      <Setter Property="Width" Value="76" />
       <Setter Property="Height" Value="24" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -1211,7 +1211,7 @@
       </Grid>
     </Grid>
 
-    <!-- Centered on the window when there is room; slides beside the caption buttons when the title needs it. -->
+    <!-- Centered when there is room; slides only far enough to clear the title and Git status. -->
     <Border Name="ViewSwitch"
             Classes="viewswitch"
             Classes.files="{Binding Current.IsFilesView}"
@@ -1228,10 +1228,16 @@
         <Border Classes="thumb" />
         <StackPanel Orientation="Horizontal">
           <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
-            <c:Icon Size="15" Data="{StaticResource IconChat}" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Code" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              <c:Icon Size="15" Data="{StaticResource IconChat}" VerticalAlignment="Center" />
+            </StackPanel>
           </Button>
           <Button Theme="{StaticResource FlatButton}" Classes="files" Command="{Binding Current.ShowFilesCommand}" ToolTip.Tip="{Binding Current.FilesToolTip}">
-            <c:Icon Size="15" Data="{StaticResource IconFolder}" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <c:Icon Size="15" Data="{StaticResource IconFolder}" VerticalAlignment="Center" />
+              <TextBlock Text="Files" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+            </StackPanel>
           </Button>
         </StackPanel>
       </Panel>

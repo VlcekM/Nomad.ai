@@ -8,7 +8,10 @@ namespace Nomad.Core.Codex;
 public sealed record CodexCall(string Id, string Name, JsonElement Input);
 
 /// <summary>A finished call's result.</summary>
-public sealed record CodexResult(string Id, bool IsError, string Text, JsonElement Structured);
+public sealed record CodexResult(string Id, bool IsError, string Text, JsonElement Structured)
+{
+    public IReadOnlyList<string> Images { get; init; } = [];
+}
 
 /// <summary>
 /// Maps Codex's thread items onto the tool calls the transcript draws (a <c>commandExecution</c> → <c>PowerShell</c>
@@ -73,7 +76,7 @@ public static partial class CodexTools
     }
 
     /// <summary>The results of a finished item's calls; none while it runs.</summary>
-    public static IReadOnlyList<CodexResult> Results(JsonElement item)
+    public static IReadOnlyList<CodexResult> Results(JsonElement item, string? cwd = null)
     {
         var id = CodexJson.Str(item, "id") ?? "";
         var status = CodexJson.Str(item, "status");
@@ -123,24 +126,59 @@ public static partial class CodexTools
                 var error = CodexJson.Str(CodexJson.Obj(item, "error"), "message");
                 var result = CodexJson.Obj(item, "result");
                 var text = error ?? string.Join("\n", CodexJson.Arr(result, "content").Select(c => CodexJson.Str(c, "text")).OfType<string>());
-                return [new CodexResult(id, status == "failed", text, CodexJson.Any(result, "structuredContent"))];
+                return [new CodexResult(id, status == "failed" || CodexJson.Bool(result, "isError") == true, text, CodexJson.Any(result, "structuredContent"))
+                {
+                    Images = ContentImages(CodexJson.Arr(result, "content")),
+                }];
             }
 
             case "dynamicToolCall" when status is "completed" or "failed":
             {
                 var text = string.Join("\n", CodexJson.Arr(item, "contentItems").Select(c => CodexJson.Str(c, "text")).OfType<string>());
-                return [new CodexResult(id, status == "failed" || CodexJson.Bool(item, "success") == false, text, default)];
+                return [new CodexResult(id, status == "failed" || CodexJson.Bool(item, "success") == false, text, default)
+                {
+                    Images = ContentImages(CodexJson.Arr(item, "contentItems")),
+                }];
             }
 
             case "collabAgentToolCall" when status is "completed" or "failed":
                 return [new CodexResult(id, status == "failed", "", default)];
 
-            case "webSearch" or "imageView":
+            case "imageView":
+                return [new CodexResult(id, false, "", default)
+                {
+                    Images = CodexJson.Str(item, "path") is { Length: > 0 } imagePath ? [FullPath(imagePath, cwd)] : [],
+                }];
+
+            case "webSearch":
                 return [new CodexResult(id, false, "", default)];
 
             default:
                 return [];
         }
+    }
+
+    private static IReadOnlyList<string> ContentImages(IEnumerable<JsonElement> content)
+    {
+        var images = new List<string>();
+        foreach (var part in content)
+        {
+            if (CodexJson.Str(part, "type") is not ("image" or "inputImage" or "outputImage"))
+            {
+                continue;
+            }
+
+            if ((CodexJson.Str(part, "imageUrl") ?? CodexJson.Str(part, "url")) is { Length: > 0 } url)
+            {
+                images.Add(url);
+            }
+            else if (CodexJson.Str(part, "data") is { Length: > 0 } data && CodexJson.Str(part, "mimeType") is { } mime && mime.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                images.Add($"data:{mime};base64,{data}");
+            }
+        }
+
+        return images;
     }
 
     /// <summary>The id of a <c>fileChange</c>'s <paramref name="index"/>th change: the item's own for the first.</summary>

@@ -1030,8 +1030,8 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         var pinned = _main.Settings.PinnedFolders.Where(Directory.Exists).ToList();
         bool IsPinned(string f) => pinned.Any(p => string.Equals(p.TrimEnd('\\', '/'), f.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
-        var recent = folders.Where(f => !IsPinned(f)).Take(Math.Max(0, 6 - pinned.Count));
-        var wanted = pinned.Concat(recent).Select(_main.ProjectFor).ToList();
+        var recent = folders.Where(f => !IsPinned(f)).Take(Math.Max(0, 12 - pinned.Count));
+        var wanted = pinned.Concat(recent).Take(12).Select(_main.ProjectFor).ToList();
         foreach (var p in wanted)
         {
             p.IsPinned = IsPinned(p.Path);
@@ -1982,7 +1982,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
-    /// <summary>The ring's popup and the usage card: Claude's plan limits, Codex's ChatGPT plan limits, or on OpenCode the month's API cost.</summary>
+    // All three sources stay visible on the new-session dashboard.
+    public UsageViewModel ClaudeUsage => _main.Usage;
+    public CodexUsageViewModel CodexUsage => _main.CodexUsage;
+    public OpenCodeCostViewModel OpenCodeCost => _main.OpenCodeCost;
+
+    /// <summary>The ring's popup and the usage card: limits or costs for this session's backend.</summary>
     public UsageSource Usage => Backend switch
     {
         AgentBackends.OpenCode => _main.OpenCodeCost,
@@ -2606,7 +2611,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     call.SetInput(c.Input);
                     break;
                 case HistoryToolResult r:
-                    CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+                    CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                     break;
                 case HistoryNotice n when n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal) && Workflows.Count > 0:
                     break; // Its card says it ended.
@@ -3117,7 +3122,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ToolResultEvent r when r.ParentToolUseId is null:
-                CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+                CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                 _main.OnGitHubLinksMentioned(this, r.Text);
 
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
@@ -3362,7 +3367,7 @@ public sealed partial class SessionViewModel : ObservableObject
         return call;
     }
 
-    private void CompleteCall(string toolUseId, bool isError, string text, System.Text.Json.JsonElement structured)
+    private void CompleteCall(string toolUseId, bool isError, string text, System.Text.Json.JsonElement structured, IReadOnlyList<string>? images = null)
     {
         if (!_calls.TryGetValue(toolUseId, out var call))
         {
@@ -3373,6 +3378,12 @@ public sealed partial class SessionViewModel : ObservableObject
         call.ResultText = text.Length > MaxResultChars ? text[..MaxResultChars] + "\n…" : text;
         (call.Added, call.Removed) = isError ? (0, 0) : ToolText.DiffStat(call.Name, structured);
         _groupOfCall[toolUseId].Refresh();
+
+        if (images is { Count: > 0 })
+        {
+            CloseGroup();
+            Items.Add(new AssistantImagesItem(images));
+        }
 
         // Files sent to the user show in the transcript itself, after the activity line (which the next tool reopens).
         if (call.Name == "SendUserFile" && !isError && new SentFilesItem(call.Input, call.Cwd) is { IsEmpty: false } sent)

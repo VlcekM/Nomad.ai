@@ -20,6 +20,14 @@ public partial class SessionView : UserControl
     public SessionView()
     {
         InitializeComponent();
+        AddHandler(Controls.ChatImage.PreviewRequestedEvent, (_, e) =>
+        {
+            if (e.Source is Controls.ChatImage { Bitmap: { } bitmap } image)
+            {
+                OpenPreview([(bitmap, image.Caption ?? "Image")], 0);
+                e.Handled = true;
+            }
+        });
         Composer.AddHandler(KeyDownEvent, OnComposerKeyDown, RoutingStrategies.Tunnel);
         Composer.AddHandler(ContextRequestedEvent, OnComposerContextRequested, RoutingStrategies.Tunnel);
         Composer.ContextMenu = BuildComposerMenu();

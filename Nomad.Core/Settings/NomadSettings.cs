@@ -235,7 +235,7 @@ public sealed class NomadSettings
         }
     }
 
-    /// <summary>Moves a folder to the front of the recent list (max 10).</summary>
+    /// <summary>Moves a folder to the front of the recent list (max 12).</summary>
     public void TouchRecentFolder(string folder)
     {
         RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
@@ -245,9 +245,9 @@ public sealed class NomadSettings
             RemovedFolders.Remove(key);
         }
 
-        if (RecentFolders.Count > 10)
+        if (RecentFolders.Count > 12)
         {
-            RecentFolders.RemoveRange(10, RecentFolders.Count - 10);
+            RecentFolders.RemoveRange(12, RecentFolders.Count - 12);
         }
     }
 }

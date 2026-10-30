@@ -732,9 +732,8 @@ public partial class MainWindow : Window
     private (string? Text, Typeface Typeface, double FontSize)? _titleMeasure;
     private double _titleTextWidth;
     private double? _viewSwitchLeft;
-    private bool _viewSwitchDocked;
 
-    /// <summary>Keep the switch centered while it fits; otherwise give the title room by docking it on the right.</summary>
+    /// <summary>Keep the switch centered, moving only far enough to clear the title and Git status.</summary>
     private void UpdateTitleArea()
     {
         var max = double.PositiveInfinity;
@@ -743,7 +742,7 @@ public partial class MainWindow : Window
             && TitleButtons.TranslatePoint(default, WindowContent) is { } buttonsAt)
         {
             // Measure the untrimmed title, independent of the space the switch currently leaves it. Using the
-            // constrained DesiredSize here would make a long title alternate between the two positions.
+            // constrained DesiredSize here would make a long title chase the moving switch.
             var text = _vm.IsTitleRenaming ? TitleRenameBox.Text : SessionTitleText.Text;
             var typeface = new Typeface(SessionTitleText.FontFamily, SessionTitleText.FontStyle,
                 SessionTitleText.FontWeight, SessionTitleText.FontStretch);
@@ -764,11 +763,9 @@ public partial class MainWindow : Window
                 + titleWidth + children.Where(c => c != SessionTitleButton).Sum(c => c.DesiredSize.Width)
                 + (TitleContent.ColumnDefinitions.Count - 1) * TitleContent.ColumnSpacing;
             var centered = Math.Floor((WindowContent.Bounds.Width - ViewSwitch.Bounds.Width) / 2);
-            var docked = Math.Floor(buttonsAt.X - ViewSwitch.Bounds.Width - 12);
-            // A little clearance before returning to the center avoids jitter at a resize boundary.
-            _viewSwitchDocked = titleAt.X + naturalWidth + 12 + (_viewSwitchDocked ? 12 : 0) > centered
-                || centered > docked;
-            var left = _viewSwitchDocked ? docked : centered;
+            var rightmost = Math.Floor(buttonsAt.X - ViewSwitch.Bounds.Width - 12);
+            var clearOfTitle = Math.Ceiling(titleAt.X + naturalWidth + 12);
+            var left = Math.Max(0, Math.Min(rightmost, Math.Max(centered, clearOfTitle)));
             var first = _viewSwitchLeft is null;
             if (_viewSwitchLeft != left)
             {
@@ -791,7 +788,6 @@ public partial class MainWindow : Window
         else if (!ViewSwitch.IsVisible)
         {
             _viewSwitchLeft = null;
-            _viewSwitchDocked = false;
         }
 
         if (TitleArea.MaxWidth != max)

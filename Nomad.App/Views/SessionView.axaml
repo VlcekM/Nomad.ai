@@ -6,7 +6,25 @@
              xmlns:inf="using:Nomad.App.Infrastructure"
              xmlns:core="using:Nomad.Core.Agents"
              x:Class="Nomad.App.Views.SessionView"
-             x:DataType="vm:SessionViewModel">
+             x:DataType="vm:SessionViewModel"
+             c:ChatImage.BaseDirectory="{Binding Folder}">
+
+  <UserControl.Resources>
+    <DataTemplate x:Key="DashboardUsageTemplate" x:DataType="vm:UsageSource">
+      <StackPanel Spacing="10">
+        <c:Skeleton IsActive="{Binding IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
+        <ItemsControl ItemsSource="{Binding Rows}" c:Fold.IsOpen="{Binding HasUsage}" IsVisible="False" ItemTemplate="{StaticResource UsageRowTemplate}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+        <TextBlock Text="{Binding UnavailableText}" c:Fold.IsOpen="{Binding IsUnavailable}" IsVisible="False"
+                   Classes="muted" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" />
+        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageStaleTemplate}"
+                        c:Fold.IsOpen="{Binding IsStale}" IsVisible="False" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
 
   <UserControl.Styles>
     <!-- A workflow run's card; its phase dots: muted while pending, the accent while running, filled when done. -->
@@ -369,7 +387,8 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="14,12,14,11" />
-      <Setter Property="Width" Value="322" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="5" />
       <Setter Property="Height" Value="163" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -604,6 +623,19 @@
           </Button>
         </StackPanel>
       </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:AssistantImagesItem}" x:DataType="vm:AssistantImagesItem">
+      <ItemsControl ItemsSource="{Binding Sources}" Margin="0,10,0,4">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <c:ChatImage Source="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
     </DataTemplate>
 
     <!-- Files Claude sent (SendUserFile): the caption, images large (a click opens the viewer), other files as chips. -->
@@ -1291,9 +1323,9 @@
         </StackPanel>
       </Border>
 
-      <!-- New session: the latest projects as cards (click one to work there), then No folder / Open folder…. -->
+      <!-- New session: up to twelve projects, then each backend’s usage. -->
       <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
+        <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
           <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
             <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
             <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
@@ -1309,10 +1341,10 @@
               </StackPanel>
             </Button>
           </Grid>
-          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}">
+          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}" Margin="-5">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                <UniformGrid Columns="4" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -1385,6 +1417,29 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" Margin="0,26,0,0">
+            <Border Grid.Column="0" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                    BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10" VerticalAlignment="Top">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Claude" FontWeight="Medium" />
+                <ContentControl Content="{Binding ClaudeUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                    BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10" VerticalAlignment="Top">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Codex" FontWeight="Medium" />
+                <ContentControl Content="{Binding CodexUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                    BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10" VerticalAlignment="Top">
+              <StackPanel Spacing="12">
+                <TextBlock Text="OpenCode cost" FontWeight="Medium" />
+                <ContentControl Content="{Binding OpenCodeCost}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+              </StackPanel>
+            </Border>
+          </Grid>
         </StackPanel>
       </ScrollViewer>
 

@@ -98,16 +98,16 @@ public sealed partial class MainViewModel : ObservableObject
         _usageTimer.Tick += (_, _) =>
         {
             _ = Usage.RefreshAsync();
-            if (!Current.IsClaudeCode)
+            if (Current.IsNew || !Current.IsClaudeCode)
             {
-                _ = Current.Usage.RefreshAsync();
+                _ = RefreshVisibleUsageAsync();
             }
         };
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
-        if (!Current.IsClaudeCode)
+        if (Current.IsNew || !Current.IsClaudeCode)
         {
-            _ = Current.Usage.RefreshAsync(force: true);
+            _ = RefreshVisibleUsageAsync(force: true);
         }
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
@@ -852,13 +852,15 @@ public sealed partial class MainViewModel : ObservableObject
     // Leaving a session while its title is being edited keeps the new name.
     partial void OnCurrentChanging(SessionViewModel value) => EndTitleRename(save: true);
 
+    // The new-session dashboard shows all three providers, independent of the selected backend.
+    private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew
+        ? Task.WhenAll(Usage.RefreshAsync(force), CodexUsage.RefreshAsync(force), OpenCodeCost.RefreshAsync(force))
+        : Current.Usage.RefreshAsync(force);
+
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
         newValue?.ApplyDefaultMode();
-        if (newValue is { IsClaudeCode: false })
-        {
-            _ = newValue.Usage.RefreshAsync();
-        }
+        _ = RefreshVisibleUsageAsync();
 
         if (oldValue is not null)
         {

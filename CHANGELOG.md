@@ -3,6 +3,17 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.23.0
+
+- The new-session screen shows up to twelve recent projects in four columns and three rows. Below them,
+  three usage cards show Claude's session, weekly and Fable quotas, Codex's session and weekly quotas,
+  and OpenCode's monthly cost and model breakdown.
+- Images in replies render as clickable previews instead of bracketed captions. Codex tool images stay
+  visible outside folded activity, including when reopening a conversation. Local files, web images and
+  embedded image data use the image viewer; missing images show an explanatory message.
+- The title bar's Code / Files switch has text labels and moves only far enough to clear the title and Git status.
+- Spaces work when renaming chats, and chats can include additional working folders.
+
 ## v1.22.0
 
 - Claude can ask to move a conversation to another repository or working folder, showing its destination and reason

@@ -61,9 +61,9 @@ public static class CodexHistory
                             items.Add(new HistoryToolCall(call.Id, call.Name, call.Input));
                         }
 
-                        foreach (var result in CodexTools.Results(item))
+                        foreach (var result in CodexTools.Results(item, cwd))
                         {
-                            items.Add(new HistoryToolResult(result.Id, result.IsError, result.Text, result.Structured));
+                            items.Add(new HistoryToolResult(result.Id, result.IsError, result.Text, result.Structured) { Images = result.Images });
                         }
 
                         break;
