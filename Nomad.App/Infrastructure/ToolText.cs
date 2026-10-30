@@ -29,6 +29,7 @@ public static class ToolText
         "Task" or "Agent" => ToolCategory.Agent,
         "TodoWrite" => ToolCategory.Todo,
         "AskUserQuestion" => ToolCategory.Question,
+        "mcp__nomad_session__request_folder_move" => ToolCategory.Question,
         _ => ToolCategory.Other,
     };
 
@@ -173,6 +174,7 @@ public static class ToolText
         "Workflow" => "Starting a workflow…",
         "TodoWrite" => "Updating the todo list…",
         "AskUserQuestion" => "Waiting for your answer…",
+        "mcp__nomad_session__request_folder_move" => "Requesting a folder move…",
         _ => $"Using {name}…",
     };
 

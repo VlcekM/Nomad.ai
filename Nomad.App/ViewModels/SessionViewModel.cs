@@ -2123,6 +2123,13 @@ public sealed partial class SessionViewModel : ObservableObject
     [RelayCommand]
     public async Task StopAsync()
     {
+        _stopRequested = true;
+        _pendingFolderMove = null;
+        if (_movingFolder)
+        {
+            _cancelFolderMove = true;
+        }
+
         if (_backend is not null && IsTurnRunning)
         {
             await _backend.InterruptAsync();
@@ -2480,7 +2487,7 @@ public sealed partial class SessionViewModel : ObservableObject
         SessionId = history.SessionId;
         Title = summary.Title;
         IsNew = false;
-        Folder = history.WorkingDirectory ?? summary.WorkingDirectory;
+        Folder = _main.Settings.MovedSessionFolders.GetValueOrDefault(SessionId) ?? history.WorkingDirectory ?? summary.WorkingDirectory;
         if (!string.IsNullOrEmpty(history.Model))
         {
             Model = history.Model;
@@ -2746,8 +2753,15 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    public async Task ShutdownAsync()
+    public async Task ShutdownAsync(bool cancelFolderMove = true)
     {
+        if (cancelFolderMove)
+        {
+            _stopRequested = true;
+            _pendingFolderMove = null;
+            _cancelFolderMove = _movingFolder;
+        }
+
         if (_backend is not null)
         {
             var b = _backend;
@@ -2908,12 +2922,14 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case TurnStartedEvent:
+                _stopRequested = false;
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
                 break;
 
             case RemotePromptEvent remote:
+                _stopRequested = false;
                 CloseGroup();
 
                 // A background task's end, which the CLI hands to Claude in the user's place: a notice, not a prompt.
@@ -3081,10 +3097,14 @@ public sealed partial class SessionViewModel : ObservableObject
                 _main.OnPermissionRequested(this);
                 break;
 
+            case FolderMoveApprovedEvent move when !_stopRequested:
+                _pendingFolderMove = move.Path;
+                break;
+
             case PermissionCancelledEvent pc:
                 foreach (var pending in Items.OfType<PermissionItem>().Where(i => i.Request.RequestId == pc.RequestId && !i.IsAnswered))
                 {
-                    pending.MarkAnswered($"{pending.Request.ToolName} request withdrawn");
+                    pending.MarkAnswered($"{pending.Request.DisplayName ?? pending.Request.ToolName} request withdrawn");
                 }
 
                 PendingPermission = Items.OfType<PermissionItem>().LastOrDefault(i => !i.IsAnswered);
@@ -3381,7 +3401,7 @@ public sealed partial class SessionViewModel : ObservableObject
         PendingPermission = null;
         MarkResponseEnds();
 
-        if (result.Interrupted)
+        if (result.Interrupted && _pendingFolderMove is null)
         {
             State = AgentState.Interrupted;
             Items.Add(new NoticeItem("Interrupted"));
@@ -3421,6 +3441,16 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         ContentChanged?.Invoke();
+        if (_pendingFolderMove is { } destination)
+        {
+            _pendingFolderMove = null;
+            if (!result.IsError)
+            {
+                _ = ContinueInFolderAsync(destination);
+                return;
+            }
+        }
+
         _main.OnTurnCompleted(this);
 
         // Claude may have edited, committed or switched branches: the git chip and the panel's git state are stale.
@@ -3437,10 +3467,95 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    private string? _pendingFolderMove;
+    private bool _movingFolder;
+    private bool _cancelFolderMove;
+    private bool _stopRequested;
+
+    private async Task ContinueInFolderAsync(string destination)
+    {
+        _movingFolder = true;
+        _cancelFolderMove = false;
+        IsTurnRunning = true; // Prompts typed during the move join the queue.
+        State = AgentState.Running;
+        var previous = Folder;
+        var stopped = false;
+        try
+        {
+            if (HasBackgroundWork)
+            {
+                throw new InvalidOperationException("Stop background tasks before moving this conversation.");
+            }
+
+            if (!Directory.Exists(destination))
+            {
+                throw new DirectoryNotFoundException("The destination folder is no longer available.");
+            }
+
+            await ShutdownAsync(cancelFolderMove: false);
+            stopped = true;
+            if (_cancelFolderMove)
+            {
+                return;
+            }
+
+            Folder = destination;
+            WorktreeFrom = null;
+            _connectorsFromCli = false;
+            await EnsureBackendAsync();
+            if (_cancelFolderMove)
+            {
+                return;
+            }
+
+            _main.OnSessionFolderChanged(this);
+            if (_main.IsSidePanelOpen)
+            {
+                RefreshPanel(refresh: true);
+            }
+
+            Items.Add(new NoticeItem($"Moved to {destination}"));
+            IsTurnRunning = false;
+            await SendPromptAsync($"Continue the task in {destination}.");
+        }
+        catch (Exception ex)
+        {
+            Folder = previous;
+            if (stopped)
+            {
+                await ShutdownAsync(cancelFolderMove: false);
+            }
+
+            IsTurnRunning = false;
+            State = AgentState.Error;
+            Items.Add(new ErrorItem("Could not move the conversation: " + ex.Message));
+            _main.OnTurnCompleted(this);
+        }
+        finally
+        {
+            _movingFolder = false;
+            if (_cancelFolderMove)
+            {
+                IsTurnRunning = false;
+                State = AgentState.Interrupted;
+                _main.OnTurnCompleted(this);
+            }
+
+            ContentChanged?.Invoke();
+        }
+    }
+
     private async void Answer(PermissionItem item, PermissionChoice choice)
     {
         if (item.IsAnswered)
         {
+            return;
+        }
+
+        if (item.Request.ToolName == "MoveFolder" && choice != PermissionChoice.Deny && HasBackgroundWork)
+        {
+            Items.Add(new ErrorItem("Stop background tasks before moving this conversation."));
+            ContentChanged?.Invoke();
             return;
         }
 
@@ -3465,7 +3580,9 @@ public sealed partial class SessionViewModel : ObservableObject
         else
         {
             var tool = item.Request.DisplayName ?? item.Request.ToolName;
-            item.MarkAnswered(choice switch
+            item.MarkAnswered(item.Request.ToolName == "MoveFolder"
+                ? choice == PermissionChoice.Deny ? "Stayed in the current folder" : "Approved the folder move"
+                : choice switch
             {
                 PermissionChoice.Allow => $"Allowed {tool}",
                 PermissionChoice.AllowForSession => $"Allowed {tool} for this session",

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Nomad.Core.Process;
 using Nomad.Core.Protocol;
 using Nomad.Core.Sessions;
@@ -25,6 +26,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     private volatile bool _turnRunning;
     private volatile bool _stopping;
     private bool _interruptRequested;
+    private FolderMoveTool? _folderMoveTool;
+    private volatile string? _folderMoveToolUseId;
+    private readonly ConcurrentDictionary<string, byte> _subagentFolderCalls = new();
 
     // Streaming state of the current assistant message (touched only on the stdout thread).
     private string? _messageId;
@@ -72,10 +76,18 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             ForkSession = options.ForkSession,
             NewSessionId = string.IsNullOrWhiteSpace(options.ResumeSessionId) || options.ForkSession ? Guid.NewGuid().ToString() : null,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
-            ExtraArguments = options.ExtraArguments,
+            ExtraArguments = ["--append-system-prompt", FolderMoveTool.Instructions, .. options.ExtraArguments],
         };
 
         SessionId = options.ForkSession ? null : options.ResumeSessionId;
+        _folderMoveTool = new FolderMoveTool(options.WorkingDirectory);
+        _folderMoveTool.PermissionRequested += request => Raise(new PermissionRequestedEvent(request));
+        _folderMoveTool.MoveApproved += move =>
+        {
+            _folderMoveToolUseId = move.ToolUseId;
+            Raise(move);
+        };
+        _folderMoveTool.PermissionCancelled += id => Raise(new PermissionCancelledEvent(id));
         var cli = new ClaudeCliProcess(cliOptions);
         cli.StdoutLine += HandleLine;
         cli.Exited += OnExited;
@@ -111,6 +123,11 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     public async Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default)
     {
+        if (_folderMoveTool?.Respond(request, decision) == true)
+        {
+            return;
+        }
+
         var cli = RequireRunning();
         if (!_pendingPermissions.TryRemove(request.RequestId, out _))
         {
@@ -197,6 +214,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     public async Task InterruptAsync(CancellationToken cancellationToken = default)
     {
+        _folderMoveTool?.Cancel();
         if (_cli is not { IsRunning: true } || !_turnRunning)
         {
             return;
@@ -328,6 +346,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     public async Task StopAsync()
     {
         _stopping = true;
+        _folderMoveTool?.Cancel();
         if (_cli is not null)
         {
             await _cli.StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
@@ -347,7 +366,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     private async Task InitializeAsync(AgentStartOptions options)
     {
-        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "initialize", PromptSuggestions = options.PromptSuggestions ? true : null }, CancellationToken.None).ConfigureAwait(false);
+        var response = await SendControlAsync(new OutgoingControlPayload
+        {
+            Subtype = "initialize",
+            PromptSuggestions = options.PromptSuggestions ? true : null,
+            SdkMcpServers = [FolderMoveTool.ServerName],
+            SdkMcpServerConfigs = new() { [FolderMoveTool.ServerName] = new() { Timeout = 86_400_000 } },
+        }, CancellationToken.None).ConfigureAwait(false);
         if (response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object })
         {
             try
@@ -618,6 +643,11 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     Raise(new BlockCompletedEvent(messageId, index, kind, block.Thinking ?? "", line.ParentToolUseId));
                     break;
                 case AgentBlockKind.ToolUse when block.Id is not null:
+                    if (block.Name == FolderMoveTool.ToolName && line.ParentToolUseId is not null)
+                    {
+                        _subagentFolderCalls[block.Id] = 0;
+                    }
+
                     Raise(new ToolCallEvent(block.Id, block.Name ?? "tool", block.Input, line.ParentToolUseId));
                     Raise(new BlockCompletedEvent(messageId, index, kind, null, line.ParentToolUseId));
                     break;
@@ -666,6 +696,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     CliProtocol.ToolResultText(block.Content),
                     line.ToolUseResult,
                     line.ParentToolUseId));
+
+                // The tool result is now in the transcript. Stop before another model round and resume in the new folder.
+                if (block.ToolUseId == _folderMoveToolUseId && block.IsError != true && line.ParentToolUseId is null)
+                {
+                    _folderMoveToolUseId = null;
+                    _ = InterruptAsync();
+                }
             }
         }
     }
@@ -673,6 +710,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     private void HandleResult(ResultLine line)
     {
         _turnRunning = false;
+        _folderMoveTool?.Cancel();
         foreach (var id in _pendingPermissions.Keys)
         {
             if (_pendingPermissions.TryRemove(id, out _))
@@ -730,6 +768,20 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             return;
         }
 
+        if (body.Subtype == "mcp_message" && body.ServerName == FolderMoveTool.ServerName && _folderMoveTool is not null)
+        {
+            _ = HandleFolderMessageAsync(requestId, body.Message);
+            return;
+        }
+
+        // The server itself asks the user, so a CLI permission prompt would ask twice.
+        if (body.Subtype == "can_use_tool" && body.ToolName == FolderMoveTool.ToolName && _folderMoveTool is not null && _cli is { } folderCli)
+        {
+            _ = WriteSafeAsync(folderCli, CliProtocol.PermissionResponse(requestId,
+                new PermissionResultPayload { UpdatedInput = body.Input, ToolUseId = body.ToolUseId }));
+            return;
+        }
+
         if (body.Subtype == "can_use_tool" && body.ToolName is not null)
         {
             var request = new PermissionRequest
@@ -759,6 +811,36 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         }
     }
 
+    private async Task HandleFolderMessageAsync(string requestId, JsonElement message)
+    {
+        try
+        {
+            var toolUseId = FolderMoveTool.ToolUseId(message);
+            var mainAgent = toolUseId is null || !_subagentFolderCalls.TryRemove(toolUseId, out _);
+            var reply = await _folderMoveTool!.HandleAsync(message, mainAgent).ConfigureAwait(false);
+            if (_cli is { } cli)
+            {
+                var response = new JsonObject
+                {
+                    ["type"] = "control_response",
+                    ["response"] = new JsonObject
+                    {
+                        ["subtype"] = "success", ["request_id"] = requestId,
+                        ["response"] = reply is null ? new JsonObject() : new JsonObject { ["mcp_response"] = reply },
+                    },
+                };
+                await WriteSafeAsync(cli, response.ToJsonString()).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (_cli is { } cli)
+            {
+                await WriteSafeAsync(cli, CliProtocol.ErrorResponse(requestId, ex.Message)).ConfigureAwait(false);
+            }
+        }
+    }
+
     private async Task WriteSafeAsync(ClaudeCliProcess cli, string line)
     {
         try
@@ -773,6 +855,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
     private void OnExited(int exitCode)
     {
+        _folderMoveTool?.Cancel();
         foreach (var pending in _pendingControl.Values)
         {
             pending.TrySetResult(null);

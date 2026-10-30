@@ -82,6 +82,14 @@ public sealed class OutgoingControlPayload
 
     /// <summary><c>initialize</c>: a <c>prompt_suggestion</c> line after each turn (the flag alone is overridden by it).</summary>
     [JsonPropertyName("promptSuggestions")] public bool? PromptSuggestions { get; set; }
+    [JsonPropertyName("sdkMcpServers")] public List<string>? SdkMcpServers { get; set; }
+    [JsonPropertyName("sdkMcpServerConfigs")] public Dictionary<string, SdkMcpServerConfig>? SdkMcpServerConfigs { get; set; }
+}
+
+public sealed class SdkMcpServerConfig
+{
+    /// <summary>Milliseconds; folder approval may wait for a person much longer than an ordinary MCP call.</summary>
+    [JsonPropertyName("timeout")] public long Timeout { get; set; }
 }
 
 /// <summary>Session-scoped settings overlay for <c>apply_flag_settings</c>.</summary>

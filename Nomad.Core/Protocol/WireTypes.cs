@@ -200,6 +200,8 @@ public sealed class ControlRequestLine : CliLine
 public sealed class ControlRequestBody
 {
     [JsonPropertyName("subtype")] public string? Subtype { get; set; }
+    [JsonPropertyName("server_name")] public string? ServerName { get; set; }
+    [JsonPropertyName("message")] public JsonElement Message { get; set; }
     [JsonPropertyName("tool_name")] public string? ToolName { get; set; }
     [JsonPropertyName("display_name")] public string? DisplayName { get; set; }
     [JsonPropertyName("title")] public string? Title { get; set; }

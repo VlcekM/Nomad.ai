@@ -109,6 +109,9 @@ public sealed record PermissionRequestedEvent(PermissionRequest Request) : Agent
 /// <summary>The agent withdrew a pending permission request (e.g. after an interrupt).</summary>
 public sealed record PermissionCancelledEvent(string RequestId) : AgentEvent;
 
+/// <summary>The user approved moving; finish this turn, then resume the conversation in this folder.</summary>
+public sealed record FolderMoveApprovedEvent(string Path, string? ToolUseId = null) : AgentEvent;
+
 public sealed record PermissionModeChangedEvent(string Mode) : AgentEvent;
 
 public sealed record ModelChangedEvent(string Model) : AgentEvent;

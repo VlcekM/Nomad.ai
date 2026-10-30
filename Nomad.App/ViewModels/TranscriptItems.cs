@@ -369,6 +369,7 @@ public partial class PermissionItem : TranscriptItem
         var input = request.Input;
         Title = request.ToolName switch
         {
+            "MoveFolder" => "Move this conversation to another folder?",
             "Bash" or "PowerShell" => "Claude wants to run a command",
             "Edit" or "MultiEdit" or "NotebookEdit" => "Claude wants to edit a file",
             "Write" => "Claude wants to write a file",
@@ -378,11 +379,14 @@ public partial class PermissionItem : TranscriptItem
             _ => $"Claude wants to use {request.DisplayName ?? request.ToolName}",
         };
 
-        Detail = request.ToolName is "Bash" or "PowerShell"
+        Detail = request.ToolName == "MoveFolder"
+            ? $"From: {ToolText.Str(input, "from")}\nTo: {ToolText.Str(input, "path")}"
+            : request.ToolName is "Bash" or "PowerShell"
             ? ToolText.Str(input, "command") ?? ""
             : ToolText.Summary(request.ToolName, input, cwd);
         DetailIsCode = request.ToolName is "Bash" or "PowerShell" or "Grep" or "Glob";
-        Description = request.ToolName is "Bash" or "PowerShell" ? ToolText.Str(input, "description") : null;
+        Description = request.ToolName == "MoveFolder" ? request.Description
+            : request.ToolName is "Bash" or "PowerShell" ? ToolText.Str(input, "description") : null;
 
         if (request.ToolName == "Edit")
         {
@@ -424,6 +428,10 @@ public partial class PermissionItem : TranscriptItem
     public bool HasDiff => DiffLines.Count > 0;
 
     public bool CanAllowForSession { get; }
+
+    public string AllowText => Request.ToolName == "MoveFolder" ? "Move" : "Allow";
+
+    public string DenyText => Request.ToolName == "MoveFolder" ? "Stay here" : "Deny";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPending))]

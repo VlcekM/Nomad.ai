@@ -114,8 +114,74 @@ public sealed class SessionHistory
             WorkingDirectory = cwd,
             Model = model,
             Truncated = truncated,
-            Items = items,
+            Items = RestoreFolderMoves(items),
         };
+    }
+
+    /// <summary>The CLI records our handoff as an interrupt; restore the move notice shown live instead.</summary>
+    private static IReadOnlyList<HistoryItem> RestoreFolderMoves(List<HistoryItem> items)
+    {
+        const string continuationPrefix = "Continue the task in ";
+        var calls = new HashSet<string>(StringComparer.Ordinal);
+        var hidden = new HashSet<int>();
+        var moves = new Dictionary<int, string>();
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (items[i] is HistoryToolCall { Name: Agents.FolderMoveTool.ToolName } call)
+            {
+                calls.Add(call.ToolUseId);
+            }
+            else if (items[i] is HistoryToolResult { IsError: false } result && calls.Contains(result.ToolUseId))
+            {
+                var next = i + 1;
+                while (next < items.Count && items[next] is not HistoryUserMessage)
+                {
+                    next++;
+                }
+
+                if (next >= items.Count || items[next] is not HistoryUserMessage prompt ||
+                    !prompt.Text.StartsWith(continuationPrefix, StringComparison.Ordinal) || !prompt.Text.EndsWith('.'))
+                {
+                    continue;
+                }
+
+                var folder = prompt.Text[continuationPrefix.Length..^1];
+                if (!result.Text.Contains($"The user approved moving this conversation to {folder}.", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                moves[next] = folder;
+                for (var j = i + 1; j < next; j++)
+                {
+                    if (items[j] is HistoryNotice { Text: "Interrupted" } or HistoryAssistantText { Text: "No response requested." })
+                    {
+                        hidden.Add(j);
+                    }
+                }
+            }
+        }
+
+        if (moves.Count == 0)
+        {
+            return items;
+        }
+
+        var restored = new List<HistoryItem>(items.Count);
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (moves.TryGetValue(i, out var folder))
+            {
+                restored.Add(new HistoryNotice($"Moved to {folder}"));
+            }
+
+            if (!hidden.Contains(i))
+            {
+                restored.Add(items[i]);
+            }
+        }
+
+        return restored;
     }
 
     private static void AddItems(TranscriptRecord record, List<HistoryItem> items)

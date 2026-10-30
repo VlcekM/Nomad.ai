@@ -1529,13 +1529,15 @@ public sealed partial class MainViewModel : ObservableObject
 
             vm.FilePath = s.Backend == AgentBackends.ClaudeCode ? s.FilePath : null;
             vm.Backend = s.Backend;
-            vm.WorkingDirectory = s.WorkingDirectory;
-            vm.GitBranch = s.GitBranch;
-            vm.PullRequestUrl = s.PullRequestUrl;
-            vm.IssueUrl = s.IssueUrl;
+            vm.WorkingDirectory = Settings.MovedSessionFolders.GetValueOrDefault(s.SessionId) ?? s.WorkingDirectory;
+            _open.TryGetValue(s.SessionId, out var live);
+            var originalFolder = string.Equals(vm.WorkingDirectory, s.WorkingDirectory, StringComparison.OrdinalIgnoreCase);
+            vm.GitBranch = originalFolder ? s.GitBranch : live?.GitBranch;
+            vm.PullRequestUrl = originalFolder ? s.PullRequestUrl : null;
+            vm.IssueUrl = originalFolder ? s.IssueUrl : null;
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
             // An open session knows its newest title (a generated one may not be on disk yet).
-            vm.Title = _open.TryGetValue(s.SessionId, out var live) && !string.IsNullOrEmpty(live.Title) ? live.Title : s.Title;
+            vm.Title = !string.IsNullOrEmpty(live?.Title) ? live.Title : s.Title;
             vm.IsPhone = IsPhone(s.SessionId);
             vm.IsElsewhere = IsRunningElsewhere(s.SessionId);
             vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone || vm.IsElsewhere;
@@ -2296,7 +2298,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _all.Remove(item);
-        if (Settings.ArchivedSessions.Remove(item.SessionId))
+        if (Settings.ArchivedSessions.Remove(item.SessionId) | Settings.MovedSessionFolders.Remove(item.SessionId))
         {
             SaveSettings();
         }
@@ -2568,6 +2570,28 @@ public sealed partial class MainViewModel : ObservableObject
 
             MoveToTop(vm);
         }
+    }
+
+    public void OnSessionFolderChanged(SessionViewModel session)
+    {
+        if (session.SessionId is not { } id || session.Folder is not { } folder)
+        {
+            return;
+        }
+
+        Settings.MovedSessionFolders[id] = folder;
+        if (_all.FirstOrDefault(s => s.SessionId == id) is { } row)
+        {
+            row.WorkingDirectory = folder;
+            row.GitBranch = null;
+            row.PullRequestUrl = null;
+            row.IssueUrl = null;
+            row.PullRequest = null;
+            row.Issue = null;
+        }
+
+        RememberFolder(folder);
+        ApplyFilter();
     }
 
     public void OnTurnCompleted(SessionViewModel session)

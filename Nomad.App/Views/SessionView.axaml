@@ -947,7 +947,7 @@
 
     <DataTemplate DataType="{x:Type vm:PermissionItem}" x:DataType="vm:PermissionItem">
       <Panel>
-        <Border IsVisible="{Binding IsPending}"
+        <Border c:Fold.IsOpen="{Binding IsPending}" IsVisible="False"
                 Margin="0,8"
                 Background="{DynamicResource BgRaisedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
@@ -987,18 +987,18 @@
             </Border>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
               <Button Theme="{StaticResource GhostButton}" Classes="danger" Command="{Binding DenyCommand}" ToolTip.Tip="Esc">
-                <TextBlock Text="Deny" />
+                <TextBlock Text="{Binding DenyText}" />
               </Button>
               <Button Theme="{StaticResource SecondaryButton}" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}">
                 <TextBlock Text="Allow for session" />
               </Button>
               <Button Theme="{StaticResource PrimaryButton}" Command="{Binding AllowCommand}" ToolTip.Tip="Enter">
-                <TextBlock Text="Allow" />
+                <TextBlock Text="{Binding AllowText}" />
               </Button>
             </StackPanel>
           </StackPanel>
         </Border>
-        <TextBlock IsVisible="{Binding IsAnswered}" Text="{Binding AnswerText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+        <TextBlock c:Fold.IsOpen="{Binding IsAnswered}" IsVisible="False" Text="{Binding AnswerText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
       </Panel>
     </DataTemplate>
 

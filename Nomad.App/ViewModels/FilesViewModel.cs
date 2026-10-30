@@ -30,7 +30,7 @@ public sealed partial class FilesViewModel : ObservableObject
     /// <summary>The group files from the tree open in.</summary>
     public EditorGroup ActiveGroup { get; private set; }
 
-    /// <summary>The session's folder changed (a new session pointed elsewhere): start over there.</summary>
+    /// <summary>The session's folder changed: start over there.</summary>
     public void SetFolder(string? folder)
     {
         if (string.Equals(folder, Folder, StringComparison.OrdinalIgnoreCase))

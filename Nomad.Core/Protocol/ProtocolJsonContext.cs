@@ -25,4 +25,5 @@ namespace Nomad.Core.Protocol;
 [JsonSerializable(typeof(PermissionRulesUpdate))]
 [JsonSerializable(typeof(JsonElement))]
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(Dictionary<string, string>))]
 public sealed partial class ProtocolJsonContext : JsonSerializerContext;

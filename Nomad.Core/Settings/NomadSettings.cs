@@ -107,6 +107,9 @@ public sealed class NomadSettings
     /// <summary>Session id → Remote Control bridge session, so a resumed session keeps its link (newest last, max 50).</summary>
     public Dictionary<string, string> RemoteControlBridges { get; set; } = [];
 
+    /// <summary>Session id to the folder approved in Nomad, overriding the transcript's original cwd.</summary>
+    public Dictionary<string, string> MovedSessionFolders { get; set; } = [];
+
     // Updates (only a Setup install updates itself)
 
     /// <summary>
