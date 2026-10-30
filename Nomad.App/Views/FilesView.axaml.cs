@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -6,7 +7,9 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Nomad.App.Controls;
+using Nomad.App.Ide;
 using Nomad.App.ViewModels;
+using Nomad.Core.Git;
 
 namespace Nomad.App.Views;
 
@@ -22,6 +25,184 @@ public partial class FilesView : UserControl
         InitializeComponent();
         Tree.FileOpened += (path, keep) => _session?.Files.Open(path, keep);
         Tree.DiffRequested += path => _session?.Files.OpenDiff(path);
+        Tree.ContextRequested += OnTreeContext;
+        Tree.ActionRequested += (node, action) =>
+        {
+            if (action == "rename")
+            {
+                _session?.Files.Rename(node.FullPath);
+            }
+            else
+            {
+                _session?.Files.Delete(node.FullPath);
+            }
+        };
+    }
+
+    // ------------------------------------------------------------------ the tree's menu
+
+    // A right-click on a file or folder (or below them all: the folder itself), as Solution Explorer's menu.
+    private void OnTreeContext(FileNode? node)
+    {
+        if (_session?.Files is not { Tree: { } tree } files)
+        {
+            return;
+        }
+
+        node ??= tree.Root;
+        var path = node.FullPath;
+        var isRoot = node == tree.Root;
+        var folder = node.IsDirectory ? path : Path.GetDirectoryName(path)!;
+
+        MenuItem Item(string header, Action action, string? gesture = null)
+        {
+            var item = new MenuItem { Header = header };
+            if (gesture is not null)
+            {
+                item.InputGesture = KeyGesture.Parse(gesture);
+            }
+
+            item.Click += (_, _) => action();
+            return item;
+        }
+
+        var menu = new ContextMenu();
+        if (!node.IsDirectory)
+        {
+            menu.Items.Add(Item("Open", () => files.Open(path, keep: true)));
+            menu.Items.Add(new Separator());
+        }
+
+        menu.Items.Add(Item("New file…", () => files.NewFile(folder)));
+        menu.Items.Add(Item("New folder…", () => files.NewFolder(folder)));
+        if (!isRoot)
+        {
+            menu.Items.Add(new Separator());
+            menu.Items.Add(Item("Rename…", () => files.Rename(path), "F2"));
+            menu.Items.Add(Item("Delete", () => files.Delete(path), "Delete"));
+        }
+
+        menu.Items.Add(new Separator());
+        menu.Items.Add(Item("Copy path", () => _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(path)));
+        if (!isRoot)
+        {
+            menu.Items.Add(Item("Copy relative path", () => _ = TopLevel.GetTopLevel(this)?.Clipboard?.SetTextAsync(Path.GetRelativePath(tree.Root.FullPath, path))));
+        }
+
+        menu.Items.Add(Item("Reveal in File Explorer", () => Markdown.LinkSupport.ShowInExplorer(path)));
+        menu.Items.Add(Item("Open in terminal", () => OpenTerminal(folder)));
+
+        // Git, for what has changes: a file's own, a folder's below it.
+        if (tree.Git is { } git)
+        {
+            var state = node.IsDirectory ? GitFileState.None : git.StateOf(path);
+            var counts = node.IsDirectory ? git.CountsUnder(path) : default;
+            var changed = state is GitFileState.Modified or GitFileState.Added or GitFileState.Removed || counts != default;
+            if (changed)
+            {
+                menu.Items.Add(new Separator());
+                if (state == GitFileState.Modified)
+                {
+                    menu.Items.Add(Item("Compare with last commit", () => files.OpenDiff(path)));
+                }
+
+                menu.Items.Add(Item("Stage", () => _ = files.StageAsync(path)));
+                menu.Items.Add(Item("Unstage", () => _ = files.UnstageAsync(path)));
+                if (state != GitFileState.Added && (counts.Modified > 0 || counts.Removed > 0 || state == GitFileState.Modified))
+                {
+                    menu.Items.Add(Item("Undo changes…", () => files.Revert(path)));
+                }
+
+                menu.Items.Add(Item("Commit…", () => files.Commit(path)));
+            }
+        }
+
+        menu.Closed += (_, _) => Tree.Focus();
+        menu.Open(Tree);
+    }
+
+    /// <summary>Windows Terminal in the folder, or a console where it is not installed.</summary>
+    private static void OpenTerminal(string folder)
+    {
+        if (Program.Dev.ScreenshotPath is not null)
+        {
+            Console.Error.WriteLine($"OpenTerminal {folder}");
+            return;
+        }
+
+        static bool Start(ProcessStartInfo start)
+        {
+            try
+            {
+                Process.Start(start)?.Dispose();
+                return true;
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        if (!Start(new ProcessStartInfo("wt.exe") { ArgumentList = { "-d", folder }, UseShellExecute = true }))
+        {
+            Start(new ProcessStartInfo("cmd.exe") { WorkingDirectory = folder, UseShellExecute = true });
+        }
+    }
+
+    // ------------------------------------------------------------------ the question card
+
+    private void OnPromptChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(FilePromptViewModel.IsOpen) || _session?.Files.Prompt is not { } prompt)
+        {
+            return;
+        }
+
+        if (prompt.IsOpen)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (prompt.HasInput)
+                {
+                    PromptBox.Focus();
+                    PromptBox.SelectionStart = 0;
+                    PromptBox.SelectionEnd = prompt.SelectLength;
+                }
+                else
+                {
+                    PromptConfirm.Focus();
+                }
+            }, DispatcherPriority.Loaded);
+        }
+        else if (PromptCard.IsKeyboardFocusWithin)
+        {
+            Tree.Focus();
+        }
+    }
+
+    private void OnPromptKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_session?.Files.Prompt is not { } prompt)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            prompt.Cancel();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
+        {
+            prompt.ConfirmCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void OnPromptOutsidePressed(object? sender, PointerPressedEventArgs e)
+    {
+        _session?.Files.Prompt.Cancel();
+        e.Handled = true;
     }
 
     private MainViewModel? Main => TopLevel.GetTopLevel(this)?.DataContext as MainViewModel;
@@ -32,6 +213,8 @@ public partial class FilesView : UserControl
         if (_session is not null)
         {
             _session.PropertyChanged -= OnSessionChanged;
+            _session.Files.Prompt.PropertyChanged -= OnPromptChanged;
+            _session.Files.Prompt.Cancel();
             _session.Files.Show(false);
         }
 
@@ -46,6 +229,7 @@ public partial class FilesView : UserControl
         if (_session is not null)
         {
             _session.PropertyChanged += OnSessionChanged;
+            _session.Files.Prompt.PropertyChanged += OnPromptChanged;
         }
 
         if (_codeSearch is not null)

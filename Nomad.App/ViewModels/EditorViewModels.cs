@@ -794,6 +794,9 @@ public sealed partial class EditorGroup : ObservableObject
     [RelayCommand]
     private void CloseWithoutSaving(FileTab tab) => Remove(tab);
 
+    /// <summary>Closes a tab without asking (its file was moved or deleted).</summary>
+    public void Drop(FileTab tab) => Remove(tab);
+
     [RelayCommand]
     private void CancelClose(FileTab tab) => tab.IsAskingToClose = false;
 

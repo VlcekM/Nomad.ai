@@ -58,6 +58,38 @@
     <Style Selector="Panel#CodeSearch.raised Border#CodeSearchCard">
       <Setter Property="RenderTransform" Value="translateY(0px)" />
     </Style>
+    <!-- The question card (new file, rename, delete, commit): fades in and drops a little into place, like the search. -->
+    <Style Selector="Panel#Prompt">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#Prompt.raised">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Border#PromptCard">
+      <Setter Property="RenderTransform" Value="translateY(-6px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#Prompt.raised Border#PromptCard">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="{DynamicResource DangerBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.danger:pointerover">
+      <Setter Property="Opacity" Value="0.88" />
+    </Style>
     <Style Selector="Button.coderow">
       <Setter Property="Height" Value="26" />
       <Setter Property="Margin" Value="4,0" />
@@ -247,6 +279,60 @@
             </ItemsControl>
           </ScrollViewer>
         </Grid>
+      </Border>
+    </Panel>
+
+    <!-- The question card: a name, a commit message or a yes, for what the tree's menu does. Enter answers, Esc or a
+         click elsewhere cancels. -->
+    <Border Grid.ColumnSpan="3"
+            Background="Transparent"
+            IsVisible="{Binding Files.Prompt.IsOpen}"
+            PointerPressed="OnPromptOutsidePressed" />
+    <Panel Name="Prompt"
+           Grid.ColumnSpan="3"
+           IsVisible="{Binding Files.Prompt.IsShown}"
+           Classes.raised="{Binding Files.Prompt.IsRaised}"
+           KeyDown="OnPromptKeyDown">
+      <Border Name="PromptCard"
+              Width="420"
+              Margin="0,56,0,0"
+              Padding="18,16"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Top"
+              CornerRadius="9"
+              Background="{DynamicResource BgMenuBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 12 36 0 #59000000">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding Files.Prompt.Title}"
+                     FontWeight="Medium"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Files.Prompt.Message}"
+                     IsVisible="{Binding Files.Prompt.HasMessage}"
+                     Foreground="{DynamicResource TextSecondaryBrush}"
+                     FontSize="{DynamicResource UiFontSizeSmall}"
+                     TextWrapping="Wrap" />
+          <TextBox Name="PromptBox"
+                   IsVisible="{Binding Files.Prompt.HasInput}"
+                   Text="{Binding Files.Prompt.Text}"
+                   Watermark="{Binding Files.Prompt.Watermark}" />
+          <TextBlock Text="{Binding Files.Prompt.Error}"
+                     IsVisible="{Binding Files.Prompt.HasError}"
+                     Foreground="{DynamicResource DangerBrush}"
+                     FontSize="{DynamicResource UiFontSizeSmall}"
+                     TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Theme="{StaticResource GhostButton}" Content="Cancel" Command="{Binding Files.Prompt.CancelCommand}" ToolTip.Tip="Esc" />
+            <Button Name="PromptConfirm"
+                    Theme="{StaticResource PrimaryButton}"
+                    Classes.danger="{Binding Files.Prompt.IsDanger}"
+                    Content="{Binding Files.Prompt.ConfirmText}"
+                    Command="{Binding Files.Prompt.ConfirmCommand}"
+                    ToolTip.Tip="Enter" />
+          </StackPanel>
+        </StackPanel>
       </Border>
     </Panel>
   </Grid>

@@ -96,6 +96,12 @@ public sealed class FileTreeView : Control
     /// <summary>A changed file's git mark was clicked: its diff with the last commit.</summary>
     public event Action<string>? DiffRequested;
 
+    /// <summary>A right-click on a row (selected first), or on the empty space below them (null: the folder itself).</summary>
+    public event Action<FileNode?>? ContextRequested;
+
+    /// <summary>F2 or Delete on the selected row: "rename" or "delete".</summary>
+    public event Action<FileNode, string>? ActionRequested;
+
     private double FontSize => TextElement.GetFontSize(this);
 
     private double RowHeight => Math.Round(FontSize * 1.85);
@@ -748,7 +754,7 @@ public sealed class FileTreeView : Control
             TextLayout? Make(int n, string sign, IBrush brush) =>
                 n == 0 ? null : new TextLayout(sign + n.ToString(System.Globalization.CultureInfo.InvariantCulture), typeface, size, brush);
 
-            row.Counts = [Make(counts.Modified, "", key.Item3), Make(counts.Added, "+", key.Item4), Make(counts.Removed, "âˆ’", key.Item5)];
+            row.Counts = [Make(counts.Modified, "", key.Item3), Make(counts.Added, "+", key.Item4), Make(counts.Removed, "−", key.Item5)];
             row.CountsKey = key;
         }
 
@@ -923,6 +929,20 @@ public sealed class FileTreeView : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+
+        // A right-click selects the row (without opening it); its menu opens on the release.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed)
+        {
+            Focus(NavigationMethod.Pointer);
+            if (RowAt(e.GetPosition(this).Y) is { } clicked)
+            {
+                Select(clicked, open: false);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || RowAt(e.GetPosition(this).Y) is not { } row)
         {
             return;
@@ -968,11 +988,37 @@ public sealed class FileTreeView : Control
         e.Handled = true;
     }
 
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (e.InitialPressMouseButton == MouseButton.Right && _tree is not null)
+        {
+            ContextRequested?.Invoke(RowAt(e.GetPosition(this).Y)?.Node);
+            e.Handled = true;
+        }
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
         if (_tree is null || e.KeyModifiers != KeyModifiers.None)
         {
+            return;
+        }
+
+        // F2 renames the selected item, Delete deletes it (each asks first); the Menu key opens its menu.
+        if (e.Key is Key.F2 or Key.Delete or Key.Apps && _tree.Selected is { } selected && selected != _tree.Root)
+        {
+            if (e.Key == Key.Apps)
+            {
+                ContextRequested?.Invoke(selected);
+            }
+            else
+            {
+                ActionRequested?.Invoke(selected, e.Key == Key.F2 ? "rename" : "delete");
+            }
+
+            e.Handled = true;
             return;
         }
 
@@ -1049,7 +1095,7 @@ public sealed class FileTreeView : Control
     }
 
     /// <summary>Highlights a row (a file's also opens) and scrolls it into view.</summary>
-    private void Select(Row row)
+    private void Select(Row row, bool open = true)
     {
         if (_tree is null)
         {
@@ -1057,7 +1103,7 @@ public sealed class FileTreeView : Control
         }
 
         _tree.Selected = _scrolledTo = row.Node;
-        if (!row.Node.IsDirectory)
+        if (!row.Node.IsDirectory && open)
         {
             FileOpened?.Invoke(row.Node.FullPath, false);
         }

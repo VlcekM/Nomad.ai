@@ -248,14 +248,16 @@ public partial class MainWindow : Window
             }
 
             // F1…F4: the model of a new session (OpenCode: a favorite), when turned on in the settings.
-            if (vm.Current.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4)
+            if (vm.Current.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4 &&
+                !(e.Key == Key.F2 && e.Source is Ide.FileTreeView))
             {
                 vm.Current.SelectShortcutModel(e.Key - Key.F1);
                 e.Handled = true;
                 return;
             }
 
-            if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row)
+            // (In the Files view's tree, F2 renames the file instead.)
+            if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row && e.Source is not Ide.FileTreeView)
             {
                 BeginRename(row);
                 e.Handled = true;

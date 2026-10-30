@@ -20,9 +20,6 @@ public sealed record GitStatus(string Branch, int Ahead, int Behind, int Changes
 /// </summary>
 public static class GitInfo
 {
-    // A text ending in a line break has no line after it.
-    private static IEnumerable<string> SkipLastIf(this IEnumerable<string> lines, bool skip) => skip ? lines.SkipLast(1) : lines;
-
     private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
     private static readonly Dictionary<string, (DateTime At, Task<GitStatus?> Task)> Cache = new(StringComparer.OrdinalIgnoreCase);
@@ -133,7 +130,7 @@ public static class GitInfo
         return relative is "." || relative.StartsWith("..", StringComparison.Ordinal) ? path : Path.Combine(path, relative);
     }
 
-    /// <summary>A file's lines as last committed (HEAD); null when it isn't in a repository or isn't committed.</summary>
+    /// <summary>A file's lines as last committed (HEAD), split as the editor does (a final line break leaves an empty last line); null when it isn't in a repository or isn't committed.</summary>
     public static async Task<string[]?> HeadLinesAsync(string file)
     {
         if (Path.GetDirectoryName(Path.GetFullPath(file)) is not { } folder)
@@ -142,7 +139,7 @@ public static class GitInfo
         }
 
         var (ok, text, _) = await RunFullAsync(folder, Timeout, "show", "HEAD:./" + Path.GetFileName(file));
-        return ok ? text.Split('\n').Select(l => l.TrimEnd('\r')).SkipLastIf(text.EndsWith('\n')).ToArray() : null;
+        return ok ? text.Split('\n').Select(l => l.TrimEnd('\r')).ToArray() : null;
     }
 
     /// <summary>The local branches, the most recently committed to first; empty when it is no repository.</summary>
@@ -254,7 +251,7 @@ public static class GitInfo
     }
 
     /// <summary>Runs <c>git -C folder …</c>: whether it succeeded in time, and its output and error text.</summary>
-    private static Task<(bool Ok, string Output, string Error)> RunFullAsync(string folder, TimeSpan timeout, params string[] args) =>
+    internal static Task<(bool Ok, string Output, string Error)> RunFullAsync(string folder, TimeSpan timeout, params string[] args) =>
         RunToolAsync("git", ["--no-optional-locks", "-c", "core.quotepath=off", "-C", folder, .. args], null, timeout);
 
     /// <summary>Runs a command-line tool (git, gh) without a window: whether it succeeded in time, its output and error.</summary>

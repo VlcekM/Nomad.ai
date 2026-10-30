@@ -469,6 +469,9 @@ public sealed class FileTree : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>Reads <see cref="Git"/> again now (a git command was just run on the files).</summary>
+    public void RefreshGitSoon() => _ = RefreshGitAsync();
+
     private async Task RefreshGitAsync()
     {
         // One read at a time; a change meanwhile reads again after it.
