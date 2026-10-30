@@ -41,7 +41,9 @@ does not depend on the path:
 `ProjectFolders` keeps device × project → local path. A session from a project this PC has no folder for is
 listed under its project with **Choose folder…**; once a folder is chosen it is remembered for the whole project.
 Fetched transcripts are written under the local folder's encoded project directory, so `--resume` finds them where
-it always does. Scratch ("No folder") sessions map to this PC's scratch folder.
+it always does. Their records still carry the other PC's `cwd` (Nomad reads the first record's), so when it isn't
+this PC's folder for the project, the fetch records the local folder in `MovedSessionFolders`, as a folder move
+does; the session then shows and resumes there. Scratch ("No folder") sessions map to this PC's scratch folder.
 
 ## 4. What syncs
 
@@ -52,8 +54,8 @@ it always does. Scratch ("No folder") sessions map to this PC's scratch folder.
 | OpenCode | Sessions live in `opencode.db`, not files | Moved with `opencode export <id>` / `opencode import <file>` if those round-trip; otherwise view-only elsewhere (open question) |
 
 **Nomad's per-session state**, from `NomadSettings`, syncs last-writer-wins per key with a timestamp:
-`ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `MovedSessionFolders` (rewritten through the folder map),
-`InterruptedSessions`. **Local only:** window and panel sizes, collapsed groups, recent/pinned folders, fonts,
+`ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `InterruptedSessions`. `MovedSessionFolders` stays local
+(it is per-PC by nature, §3); a move on one PC changes the session's project if the new folder is another project. **Local only:** window and panel sizes, collapsed groups, recent/pinned folders, fonts,
 theme, CLI paths, phone folders, Remote Control bridges.
 
 Never synced: `~/.claude.json`, CLI settings and sign-ins, MCP config, `.codex/auth.json`.
@@ -65,13 +67,17 @@ its files. Nothing is ever merged.
 
 - Before starting or resuming a CLI process, Nomad takes the session's **lease** from the hub. The host renews it
   every 30 s; it lapses after 2 min without renewal (the host crashed or went offline).
+- The lease belongs to the Nomad that sees a live process for the session on its PC: its own, or one it finds
+  (a terminal's, or a phone-started one from its `remote-control --spawn` server). It is released when that
+  process ends, the hour's idle timeout included.
 - A lease held by another PC: the session opens as a viewer (live with the relay, snapshot without it).
 - **Continue here** (handoff): the viewer asks; the host ends its process, pushes the final file and releases the
   lease; the new PC takes the lease, pulls, resumes. A lapsed lease can be taken over at once, with a warning
-  that the last turn on the old PC may not have synced.
+  that the last turn on the old PC may not have synced. Phone-started sessions hand over as **Continue here** does
+  today; a terminal-run session can't be handed over (Nomad can't end that process), only watched.
 - **Offline fallback:** when the hub can't be reached, Nomad runs sessions as today, without a lease. If two PCs
   then both extended the same session, the upload whose start doesn't match the hub's copy is stored as a
-  **separate session** (a new id, titled "… (from \<device\>)") and flagged. Never merged, never overwritten.
+  **separate session** (rewritten with a new id in every record, titled "… (from \<device\>)") and flagged. Never merged, never overwritten.
 
 Claude Code's own Remote Control is unaffected: the host can keep it on, so the phone, claude.ai/code and other
 PCs (through the relay) all drive the same process.
@@ -100,7 +106,8 @@ then show all PCs' totals when a hub is set.
 | Codex | `token_count` events in rollouts (live: `thread/tokenUsage/updated`) | Running totals: store the differences |
 | OpenCode | Each assistant message's tokens and cost (what `OpenCodeCost` reads) | Comes with OpenCode's own USD cost |
 
-- Key `(backend, sessionId, messageId)`: uploads are idempotent, so a retry, a crash or the **backfill** (all
+- Key `(backend, sessionId, messageId)`; Codex's `token_count` events have no id, so theirs is the event's
+  timestamp plus its index in the rollout. Uploads are idempotent, so a retry, a crash or the **backfill** (all
   local history, once, when a PC enrolls) never counts twice.
 - Columns: device, backend, provider, model, time (UTC), input, output, reasoning, cache read, cache write, and
   `reportedUsd` when the provider gives one.
@@ -130,8 +137,8 @@ then show all PCs' totals when a hub is set.
 
 ## 9. Auth
 
-- At first start the hub prints a one-time **enrollment token** (and `nomad-hub enroll` makes a new one).
-  Settings → Hub takes the hub URL and the token; the hub answers with a device id and a long-lived device
+- At first start the hub prints a one-time **enrollment token** to its log; later ones come from an enrolled
+  Nomad (Settings → Hub → **Add device**, `POST /api/enroll-tokens`). Settings → Hub takes the hub URL and the token; the hub answers with a device id and a long-lived device
   secret, kept by Nomad with DPAPI.
 - Requests carry `Authorization: Bearer <device secret>` (stored hashed). Devices are listed and revoked in Settings → Hub.
 - The hub speaks plain HTTP; TLS comes from the user's reverse proxy or Cloudflare Tunnel.
@@ -173,6 +180,7 @@ Built and pushed by a GitHub Actions workflow next to the app's release workflow
 | Endpoint | |
 |---|---|
 | `POST /api/enroll` | Token → device id and secret |
+| `POST /api/enroll-tokens` | A new one-time token (enrolled devices only) |
 | `GET /api/changes?since=` | Change feed |
 | `GET /api/sessions` | Summaries (filtered by project, backend) |
 | `GET /api/sessions/{id}/file` | Current transcript (and subagent files as a tar) |
