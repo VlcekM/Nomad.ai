@@ -15,6 +15,9 @@ public enum CodeKind : byte
     Comment,
     Tag,
     Attribute,
+
+    /// <summary>Keywords that steer the flow (if, return, for, import), which Visual Studio colors apart.</summary>
+    Control,
 }
 
 /// <summary>A run of a line, by index into its text, and its kind.</summary>
@@ -232,6 +235,11 @@ public static class Highlighter
         if (Is(scope, "keyword.operator") || Is(scope, "storage"))
         {
             return text.Length > 0 && char.IsLetter(text[0]) ? CodeKind.Keyword : CodeKind.Plain;
+        }
+
+        if (Is(scope, "keyword.control") && !Is(scope, "keyword.control.directive"))
+        {
+            return CodeKind.Control;
         }
 
         if (Is(scope, "keyword"))

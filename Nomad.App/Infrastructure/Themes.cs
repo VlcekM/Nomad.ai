@@ -120,7 +120,10 @@ public static class Themes
         new("Waiting", "Accents and states", "Waiting"),
         new("Danger", "Accents and states", "Danger"),
         new("GhMerged", "Accents and states", "Merged"),
+        new("CodeBackground", "Code", "Background"),
+        new("CodeText", "Code", "Text"),
         new("CodeKeyword", "Code", "Keywords"),
+        new("CodeControl", "Code", "Control keywords"),
         new("CodeType", "Code", "Types"),
         new("CodeFunction", "Code", "Functions"),
         new("CodeString", "Code", "Strings"),
@@ -128,6 +131,8 @@ public static class Themes
         new("CodeComment", "Code", "Comments"),
         new("CodeTag", "Code", "Tags"),
         new("CodeAttribute", "Code", "Attributes and keys"),
+        new("CodeLineNumber", "Code", "Line numbers"),
+        new("CodeCurrentLine", "Code", "Current line"),
     ];
 
     /// <summary>The built-in color of a token in a mode.</summary>

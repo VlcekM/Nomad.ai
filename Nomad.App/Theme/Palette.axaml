@@ -64,15 +64,20 @@
       <Color x:Key="CheckColor">#2A74CC</Color>
       <Color x:Key="RingColor">#2A78D6</Color>
       <Color x:Key="InlineCodeColor">#DE8F73</Color>
-      <!-- Syntax colors of code, by kind (Ide/Highlighter.cs). -->
-      <Color x:Key="CodeKeywordColor">#7AA6E8</Color>
-      <Color x:Key="CodeTypeColor">#5EC4B0</Color>
-      <Color x:Key="CodeFunctionColor">#E2C47E</Color>
-      <Color x:Key="CodeStringColor">#D9967A</Color>
-      <Color x:Key="CodeNumberColor">#B3CF9B</Color>
-      <Color x:Key="CodeCommentColor">#6F8A62</Color>
-      <Color x:Key="CodeTagColor">#E08A82</Color>
-      <Color x:Key="CodeAttributeColor">#9DC6EE</Color>
+      <!-- The code editor (Visual Studio's colors) and the syntax colors of code, by kind (Ide/Highlighter.cs). -->
+      <Color x:Key="CodeBackgroundColor">#1E1E1E</Color>
+      <Color x:Key="CodeTextColor">#DCDCDC</Color>
+      <Color x:Key="CodeKeywordColor">#569CD6</Color>
+      <Color x:Key="CodeControlColor">#D8A0DF</Color>
+      <Color x:Key="CodeTypeColor">#4EC9B0</Color>
+      <Color x:Key="CodeFunctionColor">#DCDCAA</Color>
+      <Color x:Key="CodeStringColor">#D69D85</Color>
+      <Color x:Key="CodeNumberColor">#B5CEA8</Color>
+      <Color x:Key="CodeCommentColor">#57A64A</Color>
+      <Color x:Key="CodeTagColor">#569CD6</Color>
+      <Color x:Key="CodeAttributeColor">#92CAF4</Color>
+      <Color x:Key="CodeLineNumberColor">#858585</Color>
+      <Color x:Key="CodeCurrentLineColor">#464646</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
       <Color x:Key="BarTrackColor">#3A3A38</Color>
@@ -148,14 +153,19 @@
       <SolidColorBrush x:Key="GhClosedBrush" Color="#F85149" />
       <SolidColorBrush x:Key="GhNeutralBrush" Color="#8B949E" />
       <SolidColorBrush x:Key="InlineCodeBrush" Color="#DE8F73" />
-      <SolidColorBrush x:Key="CodeKeywordBrush" Color="#7AA6E8" />
-      <SolidColorBrush x:Key="CodeTypeBrush" Color="#5EC4B0" />
-      <SolidColorBrush x:Key="CodeFunctionBrush" Color="#E2C47E" />
-      <SolidColorBrush x:Key="CodeStringBrush" Color="#D9967A" />
-      <SolidColorBrush x:Key="CodeNumberBrush" Color="#B3CF9B" />
-      <SolidColorBrush x:Key="CodeCommentBrush" Color="#6F8A62" />
-      <SolidColorBrush x:Key="CodeTagBrush" Color="#E08A82" />
-      <SolidColorBrush x:Key="CodeAttributeBrush" Color="#9DC6EE" />
+      <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#1E1E1E" />
+      <SolidColorBrush x:Key="CodeTextBrush" Color="#DCDCDC" />
+      <SolidColorBrush x:Key="CodeKeywordBrush" Color="#569CD6" />
+      <SolidColorBrush x:Key="CodeControlBrush" Color="#D8A0DF" />
+      <SolidColorBrush x:Key="CodeTypeBrush" Color="#4EC9B0" />
+      <SolidColorBrush x:Key="CodeFunctionBrush" Color="#DCDCAA" />
+      <SolidColorBrush x:Key="CodeStringBrush" Color="#D69D85" />
+      <SolidColorBrush x:Key="CodeNumberBrush" Color="#B5CEA8" />
+      <SolidColorBrush x:Key="CodeCommentBrush" Color="#57A64A" />
+      <SolidColorBrush x:Key="CodeTagBrush" Color="#569CD6" />
+      <SolidColorBrush x:Key="CodeAttributeBrush" Color="#92CAF4" />
+      <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#858585" />
+      <SolidColorBrush x:Key="CodeCurrentLineBrush" Color="#464646" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#3A3A38" />
       <SolidColorBrush x:Key="RingTrackBrush" Color="#26FFFFFF" />
@@ -237,15 +247,20 @@
       <Color x:Key="CheckColor">#2A74CC</Color>
       <Color x:Key="RingColor">#2A78D6</Color>
       <Color x:Key="InlineCodeColor">#B65735</Color>
-      <!-- Syntax colors of code, by kind (Ide/Highlighter.cs). -->
-      <Color x:Key="CodeKeywordColor">#2457B5</Color>
-      <Color x:Key="CodeTypeColor">#0F7F72</Color>
-      <Color x:Key="CodeFunctionColor">#8A5D00</Color>
-      <Color x:Key="CodeStringColor">#A84A26</Color>
-      <Color x:Key="CodeNumberColor">#3B7A2E</Color>
-      <Color x:Key="CodeCommentColor">#6B7F5E</Color>
-      <Color x:Key="CodeTagColor">#B03A3A</Color>
-      <Color x:Key="CodeAttributeColor">#2E6DA4</Color>
+      <!-- The code editor (Visual Studio's colors) and the syntax colors of code, by kind (Ide/Highlighter.cs). -->
+      <Color x:Key="CodeBackgroundColor">#FFFFFF</Color>
+      <Color x:Key="CodeTextColor">#000000</Color>
+      <Color x:Key="CodeKeywordColor">#0000FF</Color>
+      <Color x:Key="CodeControlColor">#8F08C4</Color>
+      <Color x:Key="CodeTypeColor">#2B91AF</Color>
+      <Color x:Key="CodeFunctionColor">#74531F</Color>
+      <Color x:Key="CodeStringColor">#A31515</Color>
+      <Color x:Key="CodeNumberColor">#000000</Color>
+      <Color x:Key="CodeCommentColor">#008000</Color>
+      <Color x:Key="CodeTagColor">#A31515</Color>
+      <Color x:Key="CodeAttributeColor">#FF0000</Color>
+      <Color x:Key="CodeLineNumberColor">#2B91AF</Color>
+      <Color x:Key="CodeCurrentLineColor">#EAEAF2</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
       <Color x:Key="BarTrackColor">#E3E1D8</Color>
@@ -321,14 +336,19 @@
       <SolidColorBrush x:Key="GhClosedBrush" Color="#CF222E" />
       <SolidColorBrush x:Key="GhNeutralBrush" Color="#59636E" />
       <SolidColorBrush x:Key="InlineCodeBrush" Color="#B65735" />
-      <SolidColorBrush x:Key="CodeKeywordBrush" Color="#2457B5" />
-      <SolidColorBrush x:Key="CodeTypeBrush" Color="#0F7F72" />
-      <SolidColorBrush x:Key="CodeFunctionBrush" Color="#8A5D00" />
-      <SolidColorBrush x:Key="CodeStringBrush" Color="#A84A26" />
-      <SolidColorBrush x:Key="CodeNumberBrush" Color="#3B7A2E" />
-      <SolidColorBrush x:Key="CodeCommentBrush" Color="#6B7F5E" />
-      <SolidColorBrush x:Key="CodeTagBrush" Color="#B03A3A" />
-      <SolidColorBrush x:Key="CodeAttributeBrush" Color="#2E6DA4" />
+      <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="CodeTextBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CodeKeywordBrush" Color="#0000FF" />
+      <SolidColorBrush x:Key="CodeControlBrush" Color="#8F08C4" />
+      <SolidColorBrush x:Key="CodeTypeBrush" Color="#2B91AF" />
+      <SolidColorBrush x:Key="CodeFunctionBrush" Color="#74531F" />
+      <SolidColorBrush x:Key="CodeStringBrush" Color="#A31515" />
+      <SolidColorBrush x:Key="CodeNumberBrush" Color="#000000" />
+      <SolidColorBrush x:Key="CodeCommentBrush" Color="#008000" />
+      <SolidColorBrush x:Key="CodeTagBrush" Color="#A31515" />
+      <SolidColorBrush x:Key="CodeAttributeBrush" Color="#FF0000" />
+      <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#2B91AF" />
+      <SolidColorBrush x:Key="CodeCurrentLineBrush" Color="#EAEAF2" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#E3E1D8" />
       <SolidColorBrush x:Key="RingTrackBrush" Color="#1F000000" />

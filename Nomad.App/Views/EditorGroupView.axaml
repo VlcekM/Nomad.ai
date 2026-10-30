@@ -10,16 +10,6 @@
        joined to the card (TabShape); pinned tabs come first, and the preview tab (in italics) sits at the right end. -->
   <UserControl.Resources>
     <ResourceDictionary>
-      <!-- The code's background. -->
-      <ResourceDictionary.ThemeDictionaries>
-        <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="CodeCardBrush" Color="#141414" />
-        </ResourceDictionary>
-        <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="CodeCardBrush" Color="#FFFFFF" />
-        </ResourceDictionary>
-      </ResourceDictionary.ThemeDictionaries>
-
     <!-- A tab: the row's and the preview slot's. -->
     <DataTemplate x:Key="TabTemplate" x:DataType="vm:FileTab">
       <Panel Classes="tab"
@@ -104,7 +94,7 @@
     </Style>
 
     <Style Selector="Panel.tab ide|TabShape">
-      <Setter Property="Fill" Value="{DynamicResource CodeCardBrush}" />
+      <Setter Property="Fill" Value="{DynamicResource CodeBackgroundBrush}" />
       <Setter Property="Stroke" Value="{DynamicResource BorderCardBrush}" />
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
@@ -205,7 +195,7 @@
     <Border Grid.Row="1"
             Name="Card"
             Classes.flush="{Binding IsFirstActive}"
-            Background="{DynamicResource CodeCardBrush}"
+            Background="{DynamicResource CodeBackgroundBrush}"
             BorderBrush="{DynamicResource BorderCardBrush}"
             BorderThickness="1"
             CornerRadius="10"
@@ -259,11 +249,11 @@
                           Document="{Binding ActiveTab.Document}"
                           FontFamily="{DynamicResource MonoFont}"
                           FontSize="13.333"
-                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          Foreground="{DynamicResource CodeTextBrush}"
                           SelectionBrush="{DynamicResource TextSelectionBrush}"
                           CaretBrush="{DynamicResource TextCaretBrush}"
                           LineHeight="17"
-                          Padding="18,12,18,24" />
+                          Padding="0,12,18,24" />
           </ScrollViewer>
         </DockPanel>
       </Panel>

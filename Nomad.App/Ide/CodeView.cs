@@ -16,8 +16,9 @@ namespace Nomad.App.Ide;
 
 /// <summary>
 /// A file's text, virtualized: it measures to the whole file (inside a ScrollViewer) but lays out and draws only the
-/// lines in view, so a long file opens and scrolls at once. Monospace and light (see CodeWeight), tabs to four columns; a drag
-/// selects (a double-click a word, a triple-click a line), Ctrl+A selects all and Ctrl+C copies. Unless its
+/// lines in view, so a long file opens and scrolls at once. Monospace, drawn as Visual Studio draws it (see SkiaScene),
+/// with its line numbers and its box around the caret's line; tabs to four columns. A drag selects (a double-click a
+/// word, a triple-click a line), Ctrl+A selects all and Ctrl+C copies. Unless its
 /// <see cref="CodeDocument"/> is read-only it edits as Visual Studio does: typing, Enter keeping the indent, Tab and
 /// Shift+Tab on whole lines, Ctrl+arrows by word, Ctrl+X/C/V (a whole line with nothing selected), Ctrl+Z/Y.
 /// </summary>
@@ -277,10 +278,10 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
-    // A system font is drawn by Skia itself, Light: Regular, smoothed in grey on the dark card, reads bold next to
-    // Visual Studio's ClearType, and Avalonia's text can't pick a variable font's other weights (Windows' Cascadia Code
-    // and Mono are only variable). A font without a Light falls back to its nearest weight.
-    private const int CodeWeight = 300;
+    // A system font is drawn by Skia itself, at Regular and subpixel-smoothed as Visual Studio's ClearType text (see
+    // SkiaScene): Avalonia's text can't smooth into subpixels on the window's surface, nor pick a variable font's
+    // weights (Windows' Cascadia Code and Mono are only variable).
+    private const int CodeWeight = 400;
 
     private SKTypeface? _skia;
     private bool _skiaResolved;
@@ -338,19 +339,69 @@ public sealed class CodeView : Control
         var p = Padding;
 
         // A column more than the longest line, for the caret at its end.
-        return new Size(p.Left + (_longest + 1) * CharWidth + p.Right, p.Top + _lines.Count * LineHeight + p.Bottom);
+        return new Size(TextLeft + (_longest + 1) * CharWidth + p.Right, p.Top + _lines.Count * LineHeight + p.Bottom);
     }
+
+    // The line numbers, as Visual Studio sets them: right-aligned in a column of at least three digits, 40 px in, and
+    // the text 33 px after them (where its change and outlining margins are). The gutter stays put when the text
+    // scrolls sideways.
+    private const double GutterInset = 40;
+    private const double GutterGap = 33;
+
+    private int Digits => Math.Max(3, _lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
+
+    private double NumbersRight => Padding.Left + GutterInset + Digits * CharWidth;
+
+    /// <summary>Where column 0 of the text is.</summary>
+    private double TextLeft => NumbersRight + GutterGap;
 
     public override void Render(DrawingContext context)
     {
         // Hit-testable everywhere, so a press beside the text still selects.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
         var p = Padding;
+        var left = TextLeft;
         var height = LineHeight;
         var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
         var first = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, _lines.Count - 1);
         var last = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, _lines.Count - 1);
         var charWidth = CharWidth;
+
+        // Syntax colors: the lines in view are tokenized (and those above them, a frame's worth at a time).
+        var highlighting = _doc.Highlighting;
+        if (highlighting is not null && !highlighting.Advance(_doc.Lines, last, TimeSpan.FromMilliseconds(8)))
+        {
+            Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
+        }
+
+        // A system font: everything under the caret is one Skia scene, drawn opaque so its text is subpixel
+        // (ClearType) smoothed. Otherwise (a font of the app's own) Avalonia draws it, grey-smoothed.
+        var skia = Skia;
+        using var skiaFont = skia is null ? null : new SKFont(skia, (float)FontSize);
+        var scene = skia is null ? null : new List<SceneItem>();
+        var background = ThemeBrush("CodeBackgroundBrush");
+
+        void Fill(Rect rect, IBrush? brush)
+        {
+            if (brush is null)
+            {
+                return;
+            }
+
+            if (scene is not null)
+            {
+                scene.Add(new SceneItem(SceneKind.Fill, rect.ToSKRect(), null, SkColor(brush)));
+            }
+            else
+            {
+                context.FillRectangle(brush, rect);
+            }
+        }
+
+        if (scene is not null && background is not null)
+        {
+            Fill(view, background);
+        }
 
         if (HasSelection && SelectionBrush is { } selection)
         {
@@ -361,21 +412,11 @@ public sealed class CodeView : Control
                 var end = line == to.Line ? Column(to) : _lines[line].Length + 1; // A selected line break shows as a space.
                 if (end > start)
                 {
-                    context.FillRectangle(selection, new Rect(p.Left + start * charWidth, p.Top + line * height, (end - start) * charWidth, height));
+                    Fill(new Rect(left + start * charWidth, p.Top + line * height, (end - start) * charWidth, height), selection);
                 }
             }
         }
 
-        // Syntax colors: the lines in view are tokenized (and those above them, a frame's worth at a time).
-        var highlighting = _doc.Highlighting;
-        if (highlighting is not null && !highlighting.Advance(_doc.Lines, last, TimeSpan.FromMilliseconds(8)))
-        {
-            Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
-        }
-
-        var skia = Skia;
-        using var skiaFont = skia is null ? null : new SKFont(skia, (float)FontSize);
-        var skiaLines = new List<(string Text, float X, float Y, SKColor Color)>();
         var plain = SkColor(Foreground);
         for (var line = first; line <= last; line++)
         {
@@ -387,8 +428,11 @@ public sealed class CodeView : Control
 
             var y = p.Top + line * height;
             var runs = text.Length <= WholeLineLimit ? Runs(line, highlighting) : null;
-            if (skiaFont is not null && skiaFont.ContainsGlyphs(text))
+            if (scene is not null && skiaFont!.ContainsGlyphs(text))
             {
+                void Text(string piece, int col, SKColor color) =>
+                    scene.Add(new SceneItem(SceneKind.Text, new SKRect((float)(left + col * charWidth), (float)y, 0, 0), piece, color));
+
                 if (runs is not null)
                 {
                     // Each run in its kind's color, from its column (the font is monospace).
@@ -397,27 +441,27 @@ public sealed class CodeView : Control
                     {
                         if (from > col)
                         {
-                            skiaLines.Add((text[col..from], (float)(p.Left + col * charWidth), (float)y, plain));
+                            Text(text[col..from], col, plain);
                         }
 
-                        skiaLines.Add((text[from..to], (float)(p.Left + from * charWidth), (float)y, SkColor(KindBrush(kind))));
+                        Text(text[from..to], from, SkColor(KindBrush(kind)));
                         col = to;
                     }
 
                     if (col < text.Length)
                     {
-                        skiaLines.Add((text[col..], (float)(p.Left + col * charWidth), (float)y, plain));
+                        Text(text[col..], col, plain);
                     }
 
                     continue;
                 }
 
                 // Only the part in view of a very long line (a minified file's).
-                var startCol = text.Length <= WholeLineLimit ? 0 : Math.Max(0, (int)((view.Left - p.Left) / charWidth) - 2);
+                var startCol = text.Length <= WholeLineLimit ? 0 : Math.Max(0, (int)((view.Left - left) / charWidth) - 2);
                 var count = text.Length <= WholeLineLimit ? text.Length : Math.Min(text.Length - startCol, (int)(view.Width / charWidth) + 4);
                 if (count > 0)
                 {
-                    skiaLines.Add((startCol == 0 && count == text.Length ? text : text.Substring(startCol, count), (float)(p.Left + startCol * charWidth), (float)y, plain));
+                    Text(startCol == 0 && count == text.Length ? text : text.Substring(startCol, count), startCol, plain);
                 }
             }
             else if (text.Length <= WholeLineLimit)
@@ -430,24 +474,60 @@ public sealed class CodeView : Control
                     _layouts[line] = cached;
                 }
 
-                cached.Layout.Draw(context, new Point(p.Left, y));
+                cached.Layout.Draw(context, new Point(left, y));
             }
             else
             {
                 // Only the part in view of a very long line (a minified file's).
-                var startCol = Math.Max(0, (int)((view.Left - p.Left) / charWidth) - 2);
+                var startCol = Math.Max(0, (int)((view.Left - left) / charWidth) - 2);
                 var count = Math.Min(text.Length - startCol, (int)(view.Width / charWidth) + 4);
                 if (count > 0)
                 {
                     using var slice = Layout(text.Substring(startCol, count));
-                    slice.Draw(context, new Point(p.Left + startCol * charWidth, y));
+                    slice.Draw(context, new Point(left + startCol * charWidth, y));
                 }
             }
         }
 
-        if (skia is not null && skiaLines.Count > 0)
+        // The gutter, over text scrolled under it: the line numbers, the caret's brighter, and Visual Studio's box
+        // around the caret's line (with nothing selected).
+        Fill(new Rect(view.Left, view.Top, TextLeft - 2, view.Height), background);
+        var caretLine = _doc.Caret.Line;
+        if (IsEditable && !HasSelection && caretLine >= first && caretLine <= last && ThemeBrush("CodeCurrentLineBrush") is { } box)
         {
-            context.Custom(new SkiaLines(new Rect(Bounds.Size), skiaLines, skia, (float)FontSize, (float)height));
+            var top = p.Top + caretLine * height;
+            foreach (var edge in new[]
+                     {
+                         new Rect(view.Left, top, view.Width, 1), new Rect(view.Left, top + height - 1, view.Width, 1),
+                         new Rect(view.Left, top, 1, height), new Rect(view.Right - 1, top, 1, height),
+                     })
+            {
+                Fill(edge, box);
+            }
+        }
+
+        var numbers = ThemeBrush("CodeLineNumberBrush") ?? Foreground;
+        var current = Foreground;
+        for (var line = first; line <= last; line++)
+        {
+            var number = (line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var x = view.Left + NumbersRight - number.Length * charWidth;
+            var y = p.Top + line * height;
+            var brush = line == caretLine && IsEditable ? current : numbers;
+            if (scene is not null)
+            {
+                scene.Add(new SceneItem(SceneKind.Text, new SKRect((float)x, (float)y, 0, 0), number, SkColor(brush)));
+            }
+            else
+            {
+                using var layout = new TextLayout(number, Typeface, FontSize, brush, lineHeight: LineHeight);
+                layout.Draw(context, new Point(x, y));
+            }
+        }
+
+        if (scene is not null)
+        {
+            context.Custom(new SkiaScene(new Rect(Bounds.Size), view, scene, skia!, (float)FontSize, (float)height, SkColor(background), _surface));
         }
 
         if (_caretOn && IsEditable && IsFocused && CaretBrush is { } caret)
@@ -472,7 +552,7 @@ public sealed class CodeView : Control
         return new SKColor(color.R, color.G, color.B, (byte)(color.A * (brush?.Opacity ?? 1)));
     }
 
-    // The theme's color for each kind of code (CodeKeywordBrush, …), looked up again when the theme changes.
+    // The theme's color for each kind of code (CodeKeywordBrush, â€¦), looked up again when the theme changes.
     private IBrush?[]? _kindBrushes;
 
     private IBrush? KindBrush(CodeKind kind)
@@ -491,9 +571,27 @@ public sealed class CodeView : Control
         return _kindBrushes[(int)kind];
     }
 
+    private readonly Dictionary<string, IBrush?> _themeBrushes = [];
+
+    /// <summary>A theme brush by its key (null if there is none), kept until the theme changes.</summary>
+    private IBrush? ThemeBrush(string key)
+    {
+        if (!_themeBrushes.TryGetValue(key, out var brush))
+        {
+            brush = this.TryFindResource(key, ActualThemeVariant, out var value) ? value as IBrush : null;
+            _themeBrushes[key] = brush;
+        }
+
+        return brush;
+    }
+
+    // The offscreen surface the scene is drawn on, kept from frame to frame (render thread only).
+    private readonly SceneSurface _surface = new();
+
     private void OnThemeChanged()
     {
         _kindBrushes = null;
+        _themeBrushes.Clear();
         ClearLayouts();
     }
 
@@ -526,7 +624,7 @@ public sealed class CodeView : Control
     {
         var p = Padding;
         var caret = _doc.Caret;
-        return new Rect(Math.Round(p.Left + Column(caret) * CharWidth), p.Top + caret.Line * LineHeight, 1.5, LineHeight);
+        return new Rect(Math.Round(TextLeft + Column(caret) * CharWidth), p.Top + caret.Line * LineHeight, 1.5, LineHeight);
     }
 
     private TextLayout Layout(string text, List<(int From, int To, CodeKind Kind)>? runs = null) =>
@@ -602,7 +700,7 @@ public sealed class CodeView : Control
         }
 
         var line = Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, _lines.Count - 1);
-        var col = Math.Clamp((int)Math.Round((point.X - p.Left) / CharWidth), 0, _lines[line].Length);
+        var col = Math.Clamp((int)Math.Round((point.X - TextLeft) / CharWidth), 0, _lines[line].Length);
         return new TextPos(line, RawIndex(line, col));
     }
 
@@ -1038,8 +1136,47 @@ public sealed class CodeView : Control
     }
 }
 
-/// <summary>Lines drawn straight onto Skia's canvas, in a system font at its regular weight.</summary>
-internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y, SKColor Color)> lines, SKTypeface typeface, float size, float lineHeight)
+internal enum SceneKind : byte
+{
+    Fill,
+    Text,
+}
+
+/// <summary>A fill (its rectangle) or a piece of text (at the rectangle's left and top) in one color.</summary>
+internal readonly record struct SceneItem(SceneKind Kind, SKRect Rect, string? Text, SKColor Color);
+
+/// <summary>The offscreen surface a <see cref="SkiaScene"/> draws on, made again only when its size changes.</summary>
+internal sealed class SceneSurface
+{
+    private SKSurface? _surface;
+    private SKSizeI _size;
+
+    public SKSurface? Get(SKSizeI size)
+    {
+        if (_surface is null || _size != size)
+        {
+            _surface?.Dispose();
+
+            // In memory and in the platform's own BGRA: Skia smooths text into subpixels only there (in RGBA, or on the
+            // GPU, it quietly goes grey). Only the part in view is drawn, so handing it to the GPU each frame is cheap.
+            var info = new SKImageInfo(size.Width, size.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
+
+            // RGB stripes, as nearly every screen has: Skia smooths text into them (ClearType's subpixel smoothing).
+            var props = new SKSurfaceProperties(SKPixelGeometry.RgbHorizontal);
+            _surface = SKSurface.Create(info, props);
+            _size = size;
+        }
+
+        return _surface;
+    }
+}
+
+/// <summary>
+/// The code's background, selection, text and gutter, drawn onto an opaque surface of their own and then onto the
+/// window: Skia smooths text into the subpixels only where it knows what is under it, which on the window's own
+/// (layered, partly transparent) surface it doesn't. A system font at Regular, as Visual Studio's.
+/// </summary>
+internal sealed class SkiaScene(Rect bounds, Rect view, List<SceneItem> items, SKTypeface typeface, float size, float lineHeight, SKColor background, SceneSurface surface)
     : ICustomDrawOperation
 {
     public Rect Bounds => bounds;
@@ -1060,14 +1197,45 @@ internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y
         }
 
         using var lease = feature.Lease();
-        using var font = new SKFont(typeface, size) { Edging = SKFontEdging.Antialias, Subpixel = true, Hinting = SKFontHinting.Slight };
+        var canvas = lease.SkCanvas;
+        var matrix = canvas.TotalMatrix;
+
+        // The part in view, in the window's pixels.
+        var device = matrix.MapRect(view.ToSKRect());
+        var area = SKRectI.Round(device);
+        area.Intersect(canvas.DeviceClipBounds);
+        if (area.Width <= 0 || area.Height <= 0 || surface.Get(new SKSizeI(area.Width, area.Height)) is not { } target)
+        {
+            return;
+        }
+
+        var c = target.Canvas;
+        c.ResetMatrix();
+        c.Clear(background.Alpha == 255 ? background : SKColors.Black);
+        c.Translate(-area.Left, -area.Top);
+        c.Concat(in matrix);
+
+        using var font = new SKFont(typeface, size) { Edging = SKFontEdging.SubpixelAntialias, Subpixel = true, Hinting = SKFontHinting.Slight };
         using var paint = new SKPaint { IsAntialias = true };
         var metrics = font.Metrics;
         var baseline = (lineHeight - (metrics.Descent - metrics.Ascent)) / 2 - metrics.Ascent;
-        foreach (var (text, x, y, color) in lines)
+        foreach (var item in items)
         {
-            paint.Color = color;
-            lease.SkCanvas.DrawText(text, x, y + baseline, SKTextAlign.Left, font, paint);
+            paint.Color = item.Color;
+            if (item.Kind == SceneKind.Fill)
+            {
+                c.DrawRect(item.Rect, paint);
+            }
+            else
+            {
+                c.DrawText(item.Text, item.Rect.Left, item.Rect.Top + baseline, SKTextAlign.Left, font, paint);
+            }
         }
+
+        c.Flush();
+        canvas.Save();
+        canvas.ResetMatrix();
+        canvas.DrawSurface(target, area.Left, area.Top);
+        canvas.Restore();
     }
 }
