@@ -27,9 +27,12 @@ public sealed partial class CodexUsageViewModel : UsageSource
 
     public override string CardTitle => "Codex usage";
 
-    public override string? PageUrl => null;
+    /// <summary>Where the Codex CLI itself sends people to see their usage.</summary>
+    public const string UsagePageUrl = "https://chatgpt.com/settings/usage";
 
-    public override string PageToolTip => "";
+    public override string? PageUrl => UsagePageUrl;
+
+    public override string PageToolTip => "Usage on chatgpt.com";
 
     public override async Task RefreshAsync(bool force = false)
     {
