@@ -1,14 +1,17 @@
 # Nomad Hub — design
 
-Status: phase 1 built (`Nomad.Hub`, `Nomad.Core/Hub`, Settings › Hub); the relay (phase 2) is not.
+Status: phase 1 and the relay (phase 2) built (`Nomad.Hub`, `Nomad.Core/Hub`, Settings › Hub).
 
-Where phase 1 differs from the design below:
+Where it differs from the design below:
 
 - **Fetching is eager**, not on open: every session the hub has is written to this PC as soon as it changes,
   so the sidebar lists it like any local session. (Hundreds of sessions are a few hundred MB.)
-- **Handoff is by prompt**: a prompt sent to a session another PC runs asks that PC to hand it over and
-  shows a notice; the other PC ends its process once its turn is over, and the next prompt here runs it. The
-  "Live on \<device\>" mark and a Continue here button come with the relay.
+- **Handoff is by prompt**: a prompt sent to a session another PC runs and doesn't stream asks that PC to hand it
+  over and shows a notice; the other PC ends its process once its turn is over, and the next prompt here runs it.
+  There is no Continue here button: a streamed session moves only when its host lets it go (its idle timeout).
+- **Watching is automatic**: opening a session another PC streams, or prompting it, makes it a viewer ("Live from
+  \<device\>" in the transcript); the prompt goes to that PC. When the stream ends the transcript reloads from the
+  synced file, as it does between turns. Prompts from a viewer carry no device mark yet.
 - **Projects without a git remote** are keyed `folder:<name>` on every PC (not per device), so a folder with
   the same name maps across PCs.
 - **State** syncs archived and pinned (diffed from the settings on every save); the rest of the per-session
@@ -32,8 +35,8 @@ another. Single user, no tenancy. Nomad works exactly as today without it.
 | 1 | Session sync (transcripts and Nomad's per-session state), host leases, usage records | No |
 | 2 | Live relay: watch and drive a session another PC is hosting | Yes |
 
-The relay is optional on both ends: the hub has `Relay__Enabled` (default `true`), and each Nomad has
-**Stream live sessions to the hub** (Settings → Hub, default off). Without it, a session hosted elsewhere
+The relay is optional on both ends: the hub has `Hub__RelayEnabled` (default `true`), and each Nomad has
+**Stream live sessions** (Settings → Hub, default on). Without it, a session hosted elsewhere
 shows its last synced snapshot, read-only, with a **Live on \<device\>** mark and one action, **Continue here**
 (a handoff, §5).
 
@@ -172,7 +175,10 @@ then show all PCs' totals when a hub is set.
 
 - The host sends its session's normalised `AgentEvent`s (what all three backends already turn into) to the hub,
   which fans them out to the session's viewers and keeps the current turn's events, so a viewer that joins
-  mid-turn sees the whole turn.
+  mid-turn sees the whole turn. The buffer is emptied when the turn ends (the synced file has it from then on).
+  Built: `RelayPublisher` (host, 50 ms batches) and `RelayBackend` (viewer, an `IAgentBackend`) in
+  `Nomad.Core/Hub/Relay.cs`; events go as `{"t":"<type>","e":{…}}` strings the hub doesn't read, kept in memory
+  only (a hub restart ends every stream until the host's next event).
 - Viewers send prompts, permission and question answers, Stop and model/mode changes; the hub forwards them to the
   host, which applies them as if typed locally. One user, so any viewer may answer a permission prompt; the first
   answer wins and the card closes everywhere.
@@ -196,7 +202,7 @@ services:
     ports: ["127.0.0.1:8090:8080"]
     volumes: ["./data:/data"]
     environment:
-      Relay__Enabled: "true"
+      Hub__RelayEnabled: "true"
       Sessions__KeepVersions: "3"
 ```
 

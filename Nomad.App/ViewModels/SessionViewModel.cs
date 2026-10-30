@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Git;
+using Nomad.Core.Hub;
 using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
@@ -2420,7 +2421,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Brings the running process's bridge in line with <see cref="IsRemoteControl"/>.</summary>
     private async Task SyncRemoteControlAsync()
     {
-        if (!IsClaudeCode || _remoteSyncing || _backend is not { IsProcessRunning: true } backend || ReferenceEquals(backend, _remoteFailedBackend))
+        if (!IsClaudeCode || _remoteSyncing || _backend is not { IsProcessRunning: true } backend || backend is RelayBackend || ReferenceEquals(backend, _remoteFailedBackend))
         {
             return;
         }
@@ -2784,11 +2785,17 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             var old = _backend;
             _backend = null;
+            DetachRelay();
             await old.DisposeAsync();
         }
 
         _restartRequired = false;
-        await EnsureHubHostAsync();
+        if (await EnsureHubHostAsync() is { } relay)
+        {
+            await StartRelayAsync(relay);
+            return;
+        }
+
         Folder ??= _main.CreateScratchFolder();
         var backend = AgentBackends.Create(Backend);
         if (_main.Dev.LogPath is { } log && backend is ClaudeCodeBackend claude)
@@ -2796,6 +2803,7 @@ public sealed partial class SessionViewModel : ObservableObject
             claude.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
         }
         backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
+        AttachRelay(backend);
         await backend.StartAsync(new AgentStartOptions
         {
             WorkingDirectory = Folder,
@@ -2840,6 +2848,7 @@ public sealed partial class SessionViewModel : ObservableObject
             var b = _backend;
             _backend = null;
             ForgetBridgeProcess();
+            DetachRelay();
             await b.DisposeAsync();
         }
     }
@@ -3001,6 +3010,14 @@ public sealed partial class SessionViewModel : ObservableObject
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
+                break;
+
+            case RelayPromptEvent relayed:
+                ShowRelayedPrompt(relayed);
+                break;
+
+            case RelayAnsweredEvent answered:
+                OnRelayAnswered(answered);
                 break;
 
             case RemotePromptEvent remote:
@@ -3682,6 +3699,7 @@ public sealed partial class SessionViewModel : ObservableObject
         try
         {
             await _backend.RespondAsync(item.Request, decision);
+            PublishAnswered(item);
         }
         catch (Exception ex)
         {

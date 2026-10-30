@@ -118,6 +118,12 @@ public sealed record UsageRow(
 
 public sealed record UsageReport(DateTime FromUtc, DateTime ToUtc, IReadOnlyList<UsageRow> Rows, IReadOnlyList<DeviceDto> Devices);
 
+/// <summary>
+/// Watching a session through the relay: whether its host streams it, the host's name, and the events of the
+/// current turn so far (opaque JSON to the hub; the app reads them).
+/// </summary>
+public sealed record WatchResult(bool Live, string? HostName, IReadOnlyList<string> Buffer);
+
 /// <summary>Names shared by both ends.</summary>
 public static class HubNames
 {
@@ -131,6 +137,34 @@ public static class HubNames
 
     /// <summary>Client → server: renews these leases; answers with the ones no longer held.</summary>
     public const string RenewLeases = "RenewLeases";
+
+    // The relay (docs/hub.md §8): the host publishes its session's events, viewers watch them and send input back.
+
+    /// <summary>Client → server (host): <c>(backend, sessionId, string[] events, bool newTurn)</c>.</summary>
+    public const string RelayPublish = "RelayPublish";
+
+    /// <summary>Client → server (host): the session's process ended; viewers get <see cref="RelayEnded"/>.</summary>
+    public const string RelayStop = "RelayStop";
+
+    /// <summary>Client → server (viewer): <c>(backend, sessionId)</c> → <see cref="WatchResult"/>.</summary>
+    public const string RelayWatch = "RelayWatch";
+
+    public const string RelayUnwatch = "RelayUnwatch";
+
+    /// <summary>Client → server (viewer): <c>(backend, sessionId, string input)</c>, forwarded to the host.</summary>
+    public const string RelaySendInput = "RelaySendInput";
+
+    /// <summary>Server → viewers: <c>(backend, sessionId, string[] events)</c>.</summary>
+    public const string RelayEvents = "RelayEvents";
+
+    /// <summary>Server → host: <c>(backend, sessionId, string input, string fromName)</c>.</summary>
+    public const string RelayInput = "RelayInput";
+
+    /// <summary>Server → viewers: <c>(backend, sessionId)</c>, the host stopped streaming it.</summary>
+    public const string RelayEnded = "RelayEnded";
+
+    /// <summary>The largest SignalR message either end takes (a tool result or a diff can be large).</summary>
+    public const long MaxMessageBytes = 16 * 1024 * 1024;
 
     public static readonly TimeSpan LeaseRenewal = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan LeaseLifetime = TimeSpan.FromMinutes(2);

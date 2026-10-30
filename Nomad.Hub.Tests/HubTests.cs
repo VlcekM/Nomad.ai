@@ -15,11 +15,12 @@ using Nomad.Hub.Services;
 
 namespace Nomad.Hub.Tests;
 
-public sealed class HubFactory : WebApplicationFactory<Program>
+public sealed class HubFactory(bool relay = true) : WebApplicationFactory<Program>
 {
     public string DataPath { get; } = Path.Combine(Path.GetTempPath(), "nomad-hub-tests-" + Guid.NewGuid().ToString("N"));
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) => builder.UseSetting("Hub:DataPath", DataPath);
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+        builder.UseSetting("Hub:DataPath", DataPath).UseSetting("Hub:RelayEnabled", relay ? "true" : "false");
 
     public async Task<HttpClient> EnrollAsync(string name)
     {

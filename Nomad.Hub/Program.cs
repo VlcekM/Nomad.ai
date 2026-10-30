@@ -15,13 +15,14 @@ builder.Services.AddDbContext<HubDb>(o => o.UseSqlite($"Data Source={Path.Combin
 builder.Services.AddSingleton<BlobStore>();
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
+builder.Services.AddSingleton<RelayState>();
 builder.Services.AddSingleton<Maintenance>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Maintenance>());
 
 builder.Services.AddAuthentication(DeviceAuthHandler.SchemeName)
     .AddScheme<AuthenticationSchemeOptions, DeviceAuthHandler>(DeviceAuthHandler.SchemeName, null);
 builder.Services.AddAuthorization();
-builder.Services.AddSignalR().AddJsonProtocol(o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, HubJson.Default));
+builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = HubNames.MaxMessageBytes).AddJsonProtocol(o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, HubJson.Default));
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, HubJson.Default));
 builder.Services.AddRequestDecompression();
 builder.Services.AddResponseCompression(o =>
