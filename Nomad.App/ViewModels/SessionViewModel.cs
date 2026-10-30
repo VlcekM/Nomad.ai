@@ -875,6 +875,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
         SyncOptions();
         RefreshEffortStops();
+        RefreshContextWindow();
     }
 
     partial void OnPermissionModeChanged(string value) => SyncOptions();
