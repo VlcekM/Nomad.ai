@@ -139,8 +139,13 @@ then show all PCs' totals when a hub is set.
 
 - HTTP for everything that isn't live: enrollment, files, state, usage, the change feed.
 - One persistent connection per Nomad for presence, lease renewals, change notifications and (phase 2) the relay.
-  The SignalR .NET client has supported NativeAOT since .NET 9 (JSON protocol, a `JsonSerializerContext`); confirm
-  with a spike in `Nomad.App` before committing to it. Fallback: a plain WebSocket carrying JSON lines.
+  It is SignalR: a spike (`Microsoft.AspNetCore.SignalR.Client` 10.0, NativeAOT win-x64 console, .NET SDK
+  10.0.401) published with no trim or AOT warnings and passed typed invokes, typed server → client calls, a
+  server stream (`IAsyncEnumerable`) and automatic reconnect across a hub restart. The only setup is the JSON
+  protocol with the contracts' source-generated context first in the chain:
+  `.AddJsonProtocol(o => o.PayloadSerializerOptions.TypeInfoResolverChain.Insert(0, HubJson.Default))`.
+  It added about 5 MB to the executable. A hub that closes a connection on purpose (`Context.Abort()`) isn't
+  reconnected to automatically; only dropped connections are, so Nomad reconnects itself after `Closed`.
 - **Change feed:** `GET /api/changes?since=<seq>` returns what changed (sessions, state, leases) after a
   monotonic sequence number. The connection just says "seq moved"; a PC that was offline catches up with one call.
 
@@ -215,5 +220,5 @@ Built and pushed by a GitHub Actions workflow next to the app's release workflow
 
 ## 13. Open questions
 
-None left for the design. Two things to check while building: the SignalR client in `Nomad.App` under
-NativeAOT (§8), and how to carry an OpenCode Rewind to another PC (§4).
+None left for the design. One thing to work out while building: how to carry an OpenCode Rewind to another
+PC (§4).
