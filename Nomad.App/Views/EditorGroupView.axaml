@@ -156,6 +156,10 @@
     <Style Selector="Border.docbar Button">
       <Setter Property="Height" Value="26" />
     </Style>
+    <!-- In a style, not on the card itself, so .flush can override it. -->
+    <Style Selector="Border#Card">
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
     <Style Selector="Border#Card.flush">
       <Setter Property="CornerRadius" Value="0,10,10,10" />
     </Style>
@@ -198,7 +202,6 @@
             Background="{DynamicResource CodeBackgroundBrush}"
             BorderBrush="{DynamicResource BorderCardBrush}"
             BorderThickness="1"
-            CornerRadius="10"
             ClipToBounds="True">
       <Panel>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsVisible="{Binding !HasTabs}">

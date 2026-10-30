@@ -44,11 +44,13 @@ public sealed class FileTreeView : Control
     // Git marks left of a file's icon, as Visual Studio's: a blue lock (committed, unchanged), a red check (changed),
     // a green plus (new). C# files get its green "C#" icon.
     private static readonly IBrush LockBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x97, 0xE3));
+    private static readonly IBrush ProjectBrush = new SolidColorBrush(Color.FromRgb(0x38, 0x8A, 0x34));
     private static readonly IBrush CSharpBrush = new SolidColorBrush(Color.FromRgb(0x5C, 0xB8, 0x5C));
-    private static readonly Geometry LockBody = StreamGeometry.Parse("M5.5,8.5 C5.5,8 5.8,7.75 6.25,7.75 L11.75,7.75 C12.2,7.75 12.5,8 12.5,8.5 L12.5,12.5 C12.5,13 12.2,13.25 11.75,13.25 L6.25,13.25 C5.8,13.25 5.5,13 5.5,12.5 Z");
-    private static readonly Geometry LockShackle = StreamGeometry.Parse("M7,7.75 L7,6.25 C7,5.15 7.9,4.25 9,4.25 C10.1,4.25 11,5.15 11,6.25 L11,7.75");
-    private static readonly Geometry CheckShape = StreamGeometry.Parse("M5.25,8.75 L7.75,11.25 L12.5,5.75");
-    private static readonly Geometry PlusShape = StreamGeometry.Parse("M9,5 L9,12.5 M5.25,8.75 L12.75,8.75");
+    private static readonly Geometry LockBody = StreamGeometry.Parse("M7,8.6 C7,8.35 7.15,8.2 7.4,8.2 L11.1,8.2 C11.35,8.2 11.5,8.35 11.5,8.6 L11.5,11.6 C11.5,11.85 11.35,12 11.1,12 L7.4,12 C7.15,12 7,11.85 7,11.6 Z");
+    private static readonly Geometry LockShackle = StreamGeometry.Parse("M8,8.2 L8,7.1 C8,6.4 8.55,5.85 9.25,5.85 C9.95,5.85 10.5,6.4 10.5,7.1 L10.5,8.2");
+    private static readonly Geometry CheckShape = StreamGeometry.Parse("M6.75,9 L8.5,10.75 L11.5,7.25");
+    private static readonly Geometry PlusShape = StreamGeometry.Parse("M9.25,6.5 L9.25,11.5 M6.75,9 L11.75,9");
+    private static readonly Geometry ProjectShape = StreamGeometry.Parse("M1.5,4 C1.5,2.62 2.62,1.5 4,1.5 L12,1.5 C13.38,1.5 14.5,2.62 14.5,4 L14.5,12 C14.5,13.38 13.38,14.5 12,14.5 L4,14.5 C2.62,14.5 1.5,13.38 1.5,12 Z");
 
     private static readonly Geometry FolderFrontOpenShape = StreamGeometry.Parse("M3.6,7 L15.2,7 L13.6,12.6 C13.46,13.13 13,13.5 12.45,13.5 L2.2,13.5 C1.75,13.5 1.45,13.08 1.58,12.65 Z");
 
@@ -477,9 +479,10 @@ public sealed class FileTreeView : Control
         var selected = _tree?.Selected;
         var git = _tree?.Git;
         var gitFade = _gitFade.Value;
-        var checkPen = new Pen(Brush("DiffDelBrush"), 1.6, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
-        var plusPen = new Pen(Brush("DiffAddBrush"), 1.6, lineCap: PenLineCap.Round);
-        var shacklePen = new Pen(LockBrush, 1.4, lineCap: PenLineCap.Round);
+        var checkPen = new Pen(Brush("DiffDelBrush"), 1.4, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        var plusPen = new Pen(Brush("DiffAddBrush"), 1.4, lineCap: PenLineCap.Round);
+        var shacklePen = new Pen(LockBrush, 1.15, lineCap: PenLineCap.Round);
+        var showAll = _tree?.ShowAll == true;
 
         // Transparent but drawn: the pointer counts over the whole width, not only over the text and icons.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
@@ -531,9 +534,18 @@ public sealed class FileTreeView : Control
                     }
                 }
 
+                // Items shown only with "Show all files" (build output, a project's own file) have their icon faded.
+                using (context.PushOpacity(showAll && FileTree.IsHidden(row.Node) ? HiddenOpacity : 1))
                 using (context.PushTransform(Matrix.CreateTranslation(x + Box, iconTop)))
                 {
-                    if (row.Node.IsDirectory)
+                    if (row.Node.Project is not null)
+                    {
+                        // A project, as Solution Explorer's: "C#" on a green tile.
+                        context.DrawGeometry(ProjectBrush, null, ProjectShape);
+                        var mark = ProjectMark(family);
+                        mark.Draw(context, new Point((Box - mark.WidthIncludingTrailingWhitespace) / 2, (Box - mark.Height) / 2));
+                    }
+                    else if (row.Node.IsDirectory)
                     {
                         context.DrawGeometry(FolderBack, null, FolderBackShape);
                         context.DrawGeometry(FolderFront, null, row.Node.IsExpanded ? FolderFrontOpenShape : FolderFrontShape);
@@ -575,7 +587,7 @@ public sealed class FileTreeView : Control
                 var available = Math.Max(0, box.Right - 8 - textX);
 
                 // A folder's changes below it, after its name: modified (as the title bar's "N changed"), added, removed.
-                var counts = row.Node.IsDirectory && git is not null ? Counts(row, git.CountsUnder(row.Node.FullPath), family, fontSize) : null;
+                var counts = row.Node.IsDirectory && git is not null ? Counts(row, git.CountsUnder(row.Node.FullPath), fontSize) : null;
                 var countsWidth = 0.0;
                 foreach (var count in counts ?? [])
                 {
@@ -597,7 +609,7 @@ public sealed class FileTreeView : Control
                 {
                     using (context.PushOpacity(gitFade))
                     {
-                        var cx = textX + Math.Min(row.Text.WidthIncludingTrailingWhitespace, available);
+                        var cx = box.Right - 8 - countsWidth;
                         foreach (var count in counts!)
                         {
                             if (count is not null)
@@ -618,14 +630,15 @@ public sealed class FileTreeView : Control
     private const double CountGap = 7;
 
     /// <summary>A folder row's counts, laid out (none for a count of zero); null when nothing below it changed.</summary>
-    private TextLayout?[]? Counts(Row row, (int Modified, int Added, int Removed) counts, FontFamily family, double fontSize)
+    private TextLayout?[]? Counts(Row row, (int Modified, int Added, int Removed) counts, double fontSize)
     {
         if (counts == default)
         {
             return null;
         }
 
-        var size = fontSize - 1;
+        var size = fontSize - 1.5;
+        var family = this.TryFindResource("MonoFont", out var mono) && mono is FontFamily m ? m : FontFamily.Default;
         var key = (counts, size, Brush("WaitingBrush"), Brush("DiffAddBrush"), Brush("DiffDelBrush"), family);
         if (row.Counts is null || row.CountsKey != key)
         {
@@ -634,7 +647,7 @@ public sealed class FileTreeView : Control
                 old?.Dispose();
             }
 
-            var typeface = new Typeface(family, weight: FontWeight.SemiBold);
+            var typeface = new Typeface(family);
             TextLayout? Make(int n, string sign, IBrush brush) =>
                 n == 0 ? null : new TextLayout(sign + n.ToString(System.Globalization.CultureInfo.InvariantCulture), typeface, size, brush);
 
@@ -643,6 +656,24 @@ public sealed class FileTreeView : Control
         }
 
         return row.Counts;
+    }
+
+    private const double HiddenOpacity = 0.45;
+
+    private TextLayout? _projectMark;
+    private FontFamily? _projectMarkFamily;
+
+    /// <summary>The project tile's "C#", white on its green.</summary>
+    private TextLayout ProjectMark(FontFamily family)
+    {
+        if (_projectMark is null || _projectMarkFamily != family)
+        {
+            _projectMark?.Dispose();
+            _projectMark = new TextLayout("C#", new Typeface(family, weight: FontWeight.Bold), 8.5, Brushes.White);
+            _projectMarkFamily = family;
+        }
+
+        return _projectMark;
     }
 
     /// <summary>Visual Studio's C# file icon: "C#" in green.</summary>
@@ -775,6 +806,12 @@ public sealed class FileTreeView : Control
             if (!row.Node.IsDirectory)
             {
                 FileOpened?.Invoke(row.Node.FullPath, true);
+            }
+            else if (row.Node.Project is { } project)
+            {
+                // As in Solution Explorer: a project's double-click opens its project file (and leaves it as it was).
+                Toggle(row.Node);
+                FileOpened?.Invoke(project, true);
             }
 
             e.Handled = true;

@@ -1,7 +1,7 @@
 namespace Nomad.Core.Files;
 
-/// <summary>One entry of a folder, as the file tree lists it.</summary>
-public readonly record struct DirectoryEntry(string Name, string FullPath, bool IsDirectory);
+/// <summary>One entry of a folder, as the file tree lists it; a folder's <paramref name="Project"/> is the project file in it, if any.</summary>
+public readonly record struct DirectoryEntry(string Name, string FullPath, bool IsDirectory, string? Project = null);
 
 /// <summary>Lists a folder for the file tree: folders first, then files, each by name (case-insensitive).</summary>
 public static class DirectoryListing
@@ -30,7 +30,7 @@ public static class DirectoryListing
             {
                 if (!IsHidden(info.Name))
                 {
-                    entries.Add(new DirectoryEntry(info.Name, info.FullName, info is DirectoryInfo));
+                    entries.Add(new DirectoryEntry(info.Name, info.FullName, info is DirectoryInfo, info is DirectoryInfo dir ? ProjectIn(dir.FullName) : null));
                 }
             }
         }
@@ -40,6 +40,24 @@ public static class DirectoryListing
 
         entries.Sort(Compare);
         return entries;
+    }
+
+    /// <summary>A project file's extensions (.csproj and its kin), as Visual Studio opens them.</summary>
+    public static bool IsProjectFile(string name) =>
+        Path.GetExtension(name).ToLowerInvariant() is ".csproj" or ".vbproj" or ".fsproj" or ".vcxproj" or ".sqlproj" or ".esproj" or ".shproj";
+
+    /// <summary>The project file in a folder (the first by name, if it has several); null when it has none.</summary>
+    public static string? ProjectIn(string folder)
+    {
+        try
+        {
+            var options = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = false };
+            return Directory.EnumerateFiles(folder, "*.*proj", options).Where(f => IsProjectFile(f)).Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return null;
+        }
     }
 
     public static int Compare(DirectoryEntry a, DirectoryEntry b) =>

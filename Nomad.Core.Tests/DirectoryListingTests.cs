@@ -23,6 +23,13 @@ public class DirectoryListingTests
             Assert.Equal(["Assets", "src", "app.cs", "file2.cs", "file10.cs", "README.md"], names);
             Assert.True(DirectoryListing.List(folder)[0].IsDirectory);
             Assert.Empty(DirectoryListing.List(Path.Combine(folder, "missing")));
+
+            // A folder holding a project file is a project.
+            File.WriteAllText(Path.Combine(folder, "src", "App.csproj"), "");
+            File.WriteAllText(Path.Combine(folder, "src", "notes.proj.txt"), "");
+            var listed = DirectoryListing.List(folder);
+            Assert.Equal(Path.Combine(folder, "src", "App.csproj"), listed.Single(e => e.Name == "src").Project);
+            Assert.Null(listed.Single(e => e.Name == "Assets").Project);
         }
         finally
         {

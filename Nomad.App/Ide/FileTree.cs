@@ -20,6 +20,9 @@ public sealed class FileNode(string name, string fullPath, bool isDirectory, Fil
 
     public bool IsExpanded { get; set; }
 
+    /// <summary>A folder holding a project file (a .csproj): that file. Shown as a project, as in Solution Explorer.</summary>
+    public string? Project { get; internal set; }
+
     public bool IsAncestorOf(FileNode node)
     {
         for (var p = node.Parent; p is not null; p = p.Parent)
@@ -153,6 +156,46 @@ public sealed class FileTree : IDisposable
         }
     }
 
+    /// <summary>
+    /// Shown only with <see cref="ShowAll"/>, as Visual Studio's hidden items: build output and the like, a project's
+    /// own project file, and anything inside them.
+    /// </summary>
+    public static bool IsHidden(FileNode node)
+    {
+        for (var n = node; n?.Parent is not null; n = n.Parent)
+        {
+            if (IsLeftOut(n))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsLeftOut(FileNode node) =>
+        DirectoryListing.IsExcluded(node.Name, node.IsDirectory) ||
+        !node.IsDirectory && string.Equals(node.Parent?.Project, node.FullPath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Folds every folder (Solution Explorer's Collapse All).</summary>
+    public void CollapseAll()
+    {
+        Collapse(Root);
+        Changed?.Invoke();
+
+        static void Collapse(FileNode folder)
+        {
+            foreach (var child in folder.Children ?? [])
+            {
+                if (child.IsDirectory)
+                {
+                    child.IsExpanded = false;
+                    Collapse(child);
+                }
+            }
+        }
+    }
+
     /// <summary>The rows to show: every entry whose folders are all expanded, in order.</summary>
     public List<FileNode> Visible()
     {
@@ -164,7 +207,7 @@ public sealed class FileTree : IDisposable
         {
             foreach (var child in folder.Children ?? [])
             {
-                if (!ShowAll && DirectoryListing.IsExcluded(child.Name, child.IsDirectory))
+                if (!ShowAll && IsLeftOut(child))
                 {
                     continue;
                 }
@@ -388,6 +431,7 @@ public sealed class FileTree : IDisposable
             {
                 if (kept.IsDirectory == entry.IsDirectory)
                 {
+                    kept.Project = entry.Project;
                     children.Add(kept);
                     continue;
                 }
@@ -395,7 +439,14 @@ public sealed class FileTree : IDisposable
                 Forget(kept);
             }
 
-            children.Add(new FileNode(entry.Name, entry.FullPath, entry.IsDirectory, folder));
+            children.Add(new FileNode(entry.Name, entry.FullPath, entry.IsDirectory, folder) { Project = entry.Project });
+        }
+
+        // Its own listing has the last word on its project file (one made or deleted since its parent was listed).
+        if (folder.Parent is not null)
+        {
+            folder.Project = entries.Where(e => !e.IsDirectory && DirectoryListing.IsProjectFile(e.Name))
+                .Select(e => e.FullPath).Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault();
         }
 
         foreach (var gone in old.Values)

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Ide;
 
 namespace Nomad.App.ViewModels;
@@ -86,6 +87,23 @@ public sealed partial class FilesViewModel : ObservableObject
 
     /// <summary>Opens a file from the tree in the focused group (as a preview unless it is to be kept).</summary>
     public void Open(string path, bool keep) => ActiveGroup.Open(path, keep);
+
+    /// <summary>The toolbar's Collapse All: folds every folder in the tree.</summary>
+    [RelayCommand]
+    private void CollapseAll() => Tree?.CollapseAll();
+
+    /// <summary>The toolbar's "Open in Visual Studio" is there (Visual Studio is installed).</summary>
+    public bool CanOpenInVisualStudio => VisualStudio.IsInstalled;
+
+    /// <summary>Opens the folder's solution (or the folder) in Visual Studio.</summary>
+    [RelayCommand]
+    private async Task OpenInVisualStudio()
+    {
+        if (Folder is not null)
+        {
+            await VisualStudio.OpenAsync(Folder);
+        }
+    }
 
     /// <summary>Opens a file in the folder, expanding the tree down to it.</summary>
     public async Task RevealAsync(string path, bool keep = true)
