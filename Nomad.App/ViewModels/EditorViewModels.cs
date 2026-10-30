@@ -121,6 +121,11 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             doc.Caret = doc.Clamp(Document.Caret);
         }
 
+        if (doc != CodeDocument.Empty) // Binary, or unreadable: nothing to color.
+        {
+            doc.Highlighting = Highlighter.ForFile(Path) is { } grammar ? new CodeHighlighting(grammar) : null;
+        }
+
         _knownWrite = written;
         Document = doc;
         Note = note;

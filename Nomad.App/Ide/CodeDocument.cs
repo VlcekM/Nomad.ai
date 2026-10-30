@@ -60,6 +60,9 @@ public sealed class CodeDocument
     /// <summary>Tab inserts a tab when most indented lines start with one, else spaces.</summary>
     public bool IndentWithTabs { get; }
 
+    /// <summary>Its syntax highlighting, when its language has a grammar.</summary>
+    public CodeHighlighting? Highlighting { get; set; }
+
     public TextPos Anchor { get; set; }
 
     public TextPos Caret { get; set; }
@@ -232,6 +235,7 @@ public sealed class CodeDocument
 
     private TextPos Splice(TextPos from, TextPos to, string text)
     {
+        Highlighting?.Invalidate(from.Line);
         var head = _lines[from.Line][..from.Index];
         var tail = _lines[to.Line][to.Index..];
         _lines.RemoveRange(from.Line, to.Line - from.Line + 1);

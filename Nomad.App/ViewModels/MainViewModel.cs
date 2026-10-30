@@ -2791,6 +2791,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void SaveSettings()
     {
+        // --dev-set tries appearance settings for a test run: they must never land in the user's own file.
+        if (Dev.Set.Count > 0 && Dev.SettingsPath is null)
+        {
+            return;
+        }
+
         try
         {
             SettingsStore.Save(Settings, _settingsPath);

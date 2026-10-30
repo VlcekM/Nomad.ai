@@ -57,7 +57,7 @@ public sealed class CodeView : Control
     private int _longest;
     private double _charWidth;
     private Rect _viewport;
-    private readonly Dictionary<int, TextLayout> _layouts = [];
+    private readonly Dictionary<int, (TextLayout Layout, bool Colored)> _layouts = [];
     private bool _selecting;
 
     /// <summary>The column Up and Down keep to, across shorter lines.</summary>
@@ -82,6 +82,8 @@ public sealed class CodeView : Control
             _viewport = e.EffectiveViewport;
             InvalidateVisual();
         };
+        ResourcesChanged += (_, _) => OnThemeChanged(); // Another color theme, or dark and light.
+        ActualThemeVariantChanged += (_, _) => OnThemeChanged();
         _blink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -180,7 +182,7 @@ public sealed class CodeView : Control
         }
         else if (change.Property == ForegroundProperty || change.Property == LineHeightProperty)
         {
-            ClearLayouts();
+            OnThemeChanged();
         }
     }
 
@@ -268,7 +270,7 @@ public sealed class CodeView : Control
     {
         foreach (var layout in _layouts.Values)
         {
-            layout.Dispose();
+            layout.Layout.Dispose();
         }
 
         _layouts.Clear();
@@ -364,9 +366,17 @@ public sealed class CodeView : Control
             }
         }
 
+        // Syntax colors: the lines in view are tokenized (and those above them, a frame's worth at a time).
+        var highlighting = _doc.Highlighting;
+        if (highlighting is not null && !highlighting.Advance(_doc.Lines, last, TimeSpan.FromMilliseconds(8)))
+        {
+            Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
+        }
+
         var skia = Skia;
         using var skiaFont = skia is null ? null : new SKFont(skia, (float)FontSize);
-        var skiaLines = new List<(string Text, float X, float Y)>();
+        var skiaLines = new List<(string Text, float X, float Y, SKColor Color)>();
+        var plain = SkColor(Foreground);
         for (var line = first; line <= last; line++)
         {
             var text = _lines[line];
@@ -376,25 +386,51 @@ public sealed class CodeView : Control
             }
 
             var y = p.Top + line * height;
+            var runs = text.Length <= WholeLineLimit ? Runs(line, highlighting) : null;
             if (skiaFont is not null && skiaFont.ContainsGlyphs(text))
             {
+                if (runs is not null)
+                {
+                    // Each run in its kind's color, from its column (the font is monospace).
+                    var col = 0;
+                    foreach (var (from, to, kind) in runs)
+                    {
+                        if (from > col)
+                        {
+                            skiaLines.Add((text[col..from], (float)(p.Left + col * charWidth), (float)y, plain));
+                        }
+
+                        skiaLines.Add((text[from..to], (float)(p.Left + from * charWidth), (float)y, SkColor(KindBrush(kind))));
+                        col = to;
+                    }
+
+                    if (col < text.Length)
+                    {
+                        skiaLines.Add((text[col..], (float)(p.Left + col * charWidth), (float)y, plain));
+                    }
+
+                    continue;
+                }
+
                 // Only the part in view of a very long line (a minified file's).
                 var startCol = text.Length <= WholeLineLimit ? 0 : Math.Max(0, (int)((view.Left - p.Left) / charWidth) - 2);
                 var count = text.Length <= WholeLineLimit ? text.Length : Math.Min(text.Length - startCol, (int)(view.Width / charWidth) + 4);
                 if (count > 0)
                 {
-                    skiaLines.Add((startCol == 0 && count == text.Length ? text : text.Substring(startCol, count), (float)(p.Left + startCol * charWidth), (float)y));
+                    skiaLines.Add((startCol == 0 && count == text.Length ? text : text.Substring(startCol, count), (float)(p.Left + startCol * charWidth), (float)y, plain));
                 }
             }
             else if (text.Length <= WholeLineLimit)
             {
-                if (!_layouts.TryGetValue(line, out var layout))
+                // A layout made before the line was tokenized is made again with its colors.
+                if (!_layouts.TryGetValue(line, out var cached) || cached.Colored != (runs is not null))
                 {
-                    layout = Layout(text);
-                    _layouts[line] = layout;
+                    cached.Layout?.Dispose();
+                    cached = (Layout(text, runs), runs is not null);
+                    _layouts[line] = cached;
                 }
 
-                layout.Draw(context, new Point(p.Left, y));
+                cached.Layout.Draw(context, new Point(p.Left, y));
             }
             else
             {
@@ -411,10 +447,7 @@ public sealed class CodeView : Control
 
         if (skia is not null && skiaLines.Count > 0)
         {
-            var color = Foreground is ISolidColorBrush brush ? brush.Color : Colors.Gray;
-            var opacity = Foreground?.Opacity ?? 1;
-            context.Custom(new SkiaLines(new Rect(Bounds.Size), skiaLines, skia, (float)FontSize, (float)height,
-                new SKColor(color.R, color.G, color.B, (byte)(color.A * opacity))));
+            context.Custom(new SkiaLines(new Rect(Bounds.Size), skiaLines, skia, (float)FontSize, (float)height));
         }
 
         if (_caretOn && IsEditable && IsFocused && CaretBrush is { } caret)
@@ -427,10 +460,66 @@ public sealed class CodeView : Control
         {
             foreach (var key in _layouts.Keys.Where(k => k < first - 100 || k > last + 100).ToList())
             {
-                _layouts[key].Dispose();
+                _layouts[key].Layout.Dispose();
                 _layouts.Remove(key);
             }
         }
+    }
+
+    private static SKColor SkColor(IBrush? brush)
+    {
+        var color = brush is ISolidColorBrush solid ? solid.Color : Colors.Gray;
+        return new SKColor(color.R, color.G, color.B, (byte)(color.A * (brush?.Opacity ?? 1)));
+    }
+
+    // The theme's color for each kind of code (CodeKeywordBrush, …), looked up again when the theme changes.
+    private IBrush?[]? _kindBrushes;
+
+    private IBrush? KindBrush(CodeKind kind)
+    {
+        if (_kindBrushes is null)
+        {
+            _kindBrushes = new IBrush?[Enum.GetValues<CodeKind>().Length];
+            foreach (var k in Enum.GetValues<CodeKind>())
+            {
+                _kindBrushes[(int)k] = k != CodeKind.Plain && this.TryFindResource($"Code{k}Brush", ActualThemeVariant, out var value) && value is IBrush brush
+                    ? brush
+                    : Foreground;
+            }
+        }
+
+        return _kindBrushes[(int)kind];
+    }
+
+    private void OnThemeChanged()
+    {
+        _kindBrushes = null;
+        ClearLayouts();
+    }
+
+    /// <summary>A line's colored runs in columns of its tab-expanded text, or null if it hasn't been tokenized.</summary>
+    private List<(int From, int To, CodeKind Kind)>? Runs(int line, CodeHighlighting? highlighting)
+    {
+        if (highlighting?.Spans(line) is not { } spans)
+        {
+            return null;
+        }
+
+        var raw = _doc.Lines[line];
+        var runs = new List<(int, int, CodeKind)>(spans.Length);
+        var tabs = raw.Contains('\t');
+        foreach (var span in spans)
+        {
+            var end = Math.Min(span.Start + span.Length, raw.Length);
+            if (span.Start >= end)
+            {
+                continue;
+            }
+
+            runs.Add(tabs ? (Column(new TextPos(line, span.Start)), Column(new TextPos(line, end)), span.Kind) : (span.Start, end, span.Kind));
+        }
+
+        return runs;
     }
 
     private Rect CaretRect()
@@ -440,8 +529,11 @@ public sealed class CodeView : Control
         return new Rect(Math.Round(p.Left + Column(caret) * CharWidth), p.Top + caret.Line * LineHeight, 1.5, LineHeight);
     }
 
-    private TextLayout Layout(string text) =>
-        new(text, Typeface, FontSize, Foreground, lineHeight: LineHeight);
+    private TextLayout Layout(string text, List<(int From, int To, CodeKind Kind)>? runs = null) =>
+        new(text, Typeface, FontSize, Foreground, lineHeight: LineHeight, textStyleOverrides: runs?
+            .Select(r => new Avalonia.Utilities.ValueSpan<TextRunProperties>(r.From, r.To - r.From,
+                new GenericTextRunProperties(Typeface, FontSize, foregroundBrush: KindBrush(r.Kind))))
+            .ToList());
 
     private (TextPos From, TextPos To) Ordered() =>
         _doc.Anchor <= _doc.Caret ? (_doc.Anchor, _doc.Caret) : (_doc.Caret, _doc.Anchor);
@@ -947,7 +1039,7 @@ public sealed class CodeView : Control
 }
 
 /// <summary>Lines drawn straight onto Skia's canvas, in a system font at its regular weight.</summary>
-internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y)> lines, SKTypeface typeface, float size, float lineHeight, SKColor color)
+internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y, SKColor Color)> lines, SKTypeface typeface, float size, float lineHeight)
     : ICustomDrawOperation
 {
     public Rect Bounds => bounds;
@@ -969,11 +1061,12 @@ internal sealed class SkiaLines(Rect bounds, List<(string Text, float X, float Y
 
         using var lease = feature.Lease();
         using var font = new SKFont(typeface, size) { Edging = SKFontEdging.Antialias, Subpixel = true, Hinting = SKFontHinting.Slight };
-        using var paint = new SKPaint { Color = color, IsAntialias = true };
+        using var paint = new SKPaint { IsAntialias = true };
         var metrics = font.Metrics;
         var baseline = (lineHeight - (metrics.Descent - metrics.Ascent)) / 2 - metrics.Ascent;
-        foreach (var (text, x, y) in lines)
+        foreach (var (text, x, y, color) in lines)
         {
+            paint.Color = color;
             lease.SkCanvas.DrawText(text, x, y + baseline, SKTextAlign.Left, font, paint);
         }
     }

@@ -506,12 +506,76 @@ public static class MarkdownRenderer
         return sb.ToString();
     }
 
+    /// <summary>A long block (or one past the time it may take) is colored only so far; the rest stays plain.</summary>
+    private const int HighlightLimit = 60_000;
+
+    private static readonly TimeSpan HighlightBudget = TimeSpan.FromMilliseconds(30);
+
+    /// <summary>
+    /// Code in its language's syntax colors (the theme's CodeKeywordBrush and so on, as the Files view's), as runs;
+    /// null when the language has no grammar.
+    /// </summary>
+    private static InlineCollection? Highlight(string code, string? language)
+    {
+        if (code.Length > HighlightLimit || Ide.Highlighter.ForLanguage(language) is not { } grammar)
+        {
+            return null;
+        }
+
+        var inlines = new InlineCollection();
+        var lines = code.Split('\n');
+        var started = Stopwatch.GetTimestamp();
+        TextMateSharp.Grammars.IStateStack? state = null;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (i > 0)
+            {
+                inlines.Add(new LineBreak());
+            }
+
+            // The first line doesn't count: a grammar compiles its patterns there the first time.
+            var line = lines[i].TrimEnd('\r');
+            if (i == 1)
+            {
+                started = Stopwatch.GetTimestamp();
+            }
+
+            if (i > 0 && Stopwatch.GetElapsedTime(started) > HighlightBudget)
+            {
+                inlines.Add(new Run(string.Join('\n', lines[i..]).Replace("\r", "")));
+                break;
+            }
+
+            (var spans, state) = Ide.Highlighter.Tokenize(grammar, line, state);
+            var at = 0;
+            foreach (var span in spans)
+            {
+                if (span.Start > at)
+                {
+                    inlines.Add(new Run(line[at..span.Start]));
+                }
+
+                inlines.Add(new Run(line.Substring(span.Start, span.Length))
+                {
+                    [!TextElement.ForegroundProperty] = new DynamicResourceExtension($"Code{span.Kind}Brush"),
+                });
+                at = span.Start + span.Length;
+            }
+
+            if (at < line.Length)
+            {
+                inlines.Add(new Run(line[at..]));
+            }
+        }
+
+        return inlines;
+    }
+
     public static Control RenderCode(string code, string? language)
     {
         var style = MarkdownStyle.Current;
         var text = new SelectableTextBlock
         {
-            Text = code,
             FontFamily = style.CodeFont,
             FontSize = style.CodeSize,
             LineHeight = Math.Round(style.CodeSize * 1.5),
@@ -519,6 +583,14 @@ public static class MarkdownRenderer
             TextWrapping = TextWrapping.NoWrap,
             Margin = new Thickness(12, 11, 12, 11),
         };
+        if (Highlight(code, language) is { } inlines)
+        {
+            text.Inlines = inlines;
+        }
+        else
+        {
+            text.Text = code;
+        }
         var scroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,

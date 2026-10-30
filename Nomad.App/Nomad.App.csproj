@@ -35,6 +35,8 @@
     <PackageReference Include="Markdig" Version="1.4.2" />
     <!-- Self-update (UpdateService); the release workflow's vpk must be the same version. -->
     <PackageReference Include="Velopack" Version="1.2.161" />
+    <PackageReference Include="TextMateSharp" Version="2.0.4" />
+    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" />
   </ItemGroup>
 
   <ItemGroup>
