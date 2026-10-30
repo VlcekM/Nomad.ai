@@ -112,6 +112,10 @@ public sealed partial class FilesViewModel : ObservableObject
         }
 
         Tree?.Watch(shown);
+        if (shown)
+        {
+            CodeSearch.Warm();
+        }
     }
 
     /// <summary>Opens a file from the tree in the focused group (as a preview unless it is to be kept).</summary>

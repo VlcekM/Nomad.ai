@@ -651,11 +651,24 @@ public sealed partial class EditorGroup : ObservableObject
     public FindViewModel Find { get; }
 
     /// <summary>F12 or Ctrl+click on a name in the code: off to its declaration.</summary>
-    public void GoToDefinition(string name)
+    public void GoToDefinition(string name, string? receiver, int line)
     {
         TakeFocus();
-        _ = owner.CodeSearch.GoToDefinitionAsync(name);
+        if (ActiveTab is { } tab)
+        {
+            _ = owner.CodeSearch.GoToDefinitionAsync(new Nomad.Core.Code.CodeReference(name, receiver, tab.Path, line), tab.Document.Lines);
+        }
     }
+
+    /// <summary>What a name in the file shown means (for Ctrl+hover's underline and the Quick Info).</summary>
+    public IReadOnlyList<Nomad.Core.Code.CodeSymbol> Resolve(string name, string? receiver, int line) =>
+        ActiveTab is { } tab
+            ? owner.CodeSearch.Resolve(new Nomad.Core.Code.CodeReference(name, receiver, tab.Path, line), tab.Document.Lines)
+            : [];
+
+    /// <summary>A declaration's Quick Info.</summary>
+    public Nomad.Core.Code.QuickInfo Describe(Nomad.Core.Code.CodeSymbol symbol) =>
+        owner.CodeSearch.Describe(symbol, ActiveTab?.Path, ActiveTab?.Document.Lines);
 
     /// <summary>"Ask about this" in the file shown: its lines go to the chat's composer.</summary>
     public void AskAbout(int from, int to, string text)

@@ -159,22 +159,15 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
 
     /// <summary>
     /// F12 or Ctrl+click on a name: its declaration. One goes straight there; several open the search on the name,
-    /// to pick from. Matched by name only, as there is no compiler to say which one is meant.
+    /// to pick from. A guess without a compiler (<see cref="CodeLookup"/>), from what the name is used on and where.
     /// </summary>
-    public async Task GoToDefinitionAsync(string name)
+    public async Task GoToDefinitionAsync(CodeReference at, IReadOnlyList<string> lines)
     {
-        if (files.Folder is not { } folder || !Directory.Exists(folder))
+        if (Index() is not { } index)
         {
             return;
         }
 
-        if (_index is null || !string.Equals(_index.Root, Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase))
-        {
-            _index = new CodeIndex(folder);
-            _projects.Clear();
-        }
-
-        var index = _index;
         if (!index.IsReady || _refreshing is { IsCompleted: false })
         {
             Refresh(index);
@@ -184,25 +177,92 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
             }
         }
 
-        var found = await Task.Run(() => index.Search(name)
-            .Where(m => m.Symbol.Kind != SymbolKind.File && m.Symbol.Name == name)
-            .ToList());
-
-        // A constructor shares its type's name: the type is the one meant.
-        if (found.Any(m => m.Symbol.IsType))
-        {
-            found.RemoveAll(m => m.Symbol.Kind == SymbolKind.Constructor);
-        }
-
+        var found = CodeLookup.Resolve(index.Named, at, lines);
         if (found.Count == 1)
         {
-            var symbol = found[0].Symbol;
-            files.OpenAt(symbol.Path, (symbol.Line, symbol.Column));
+            var symbol = found[0];
+            files.OpenAt(symbol.Path, (symbol.Line, symbol.Column), length: symbol.Name.Length);
         }
         else
         {
-            Open(name);
+            Open(at.Name);
         }
+    }
+
+    private DateTime _refreshedUtc;
+
+    /// <summary>Starts indexing the folder (the Files view came up), so Go To and Quick Info have it when asked.</summary>
+    public void Warm()
+    {
+        if (Index() is { IsReady: false } index)
+        {
+            Refresh(index);
+        }
+    }
+
+    /// <summary>
+    /// What a name in a file means, from what is indexed now (nothing until the first indexing is done, which this
+    /// starts; it catches up with changed files every few seconds).
+    /// </summary>
+    public List<CodeSymbol> Resolve(CodeReference at, IReadOnlyList<string> lines)
+    {
+        if (Index() is not { } index)
+        {
+            return [];
+        }
+
+        if (!index.IsReady || DateTime.UtcNow - _refreshedUtc > TimeSpan.FromSeconds(5))
+        {
+            _refreshedUtc = DateTime.UtcNow;
+            Refresh(index);
+        }
+
+        return index.IsReady || at.Receiver is null ? CodeLookup.Resolve(index.Named, at, lines) : [];
+    }
+
+    private readonly Dictionary<string, (DateTime Written, string[] Lines)> _fileLines = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>A declaration's Quick Info (the lines of the file it is in come from the editor when it is open there).</summary>
+    public QuickInfo Describe(CodeSymbol symbol, string? openPath, IReadOnlyList<string>? openLines)
+    {
+        if (openLines is not null && string.Equals(openPath, symbol.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return CodeLookup.Describe(symbol, openLines);
+        }
+
+        try
+        {
+            var written = File.GetLastWriteTimeUtc(symbol.Path);
+            if (!_fileLines.TryGetValue(symbol.Path, out var cached) || cached.Written != written)
+            {
+                cached = (written, File.ReadAllLines(symbol.Path));
+                _fileLines[symbol.Path] = cached;
+            }
+
+            return CodeLookup.Describe(symbol, cached.Lines);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return new QuickInfo(symbol.Name, null);
+        }
+    }
+
+    // The folder's index (made the first time; null without a folder).
+    private CodeIndex? Index()
+    {
+        if (files.Folder is not { } folder || !Directory.Exists(folder))
+        {
+            return null;
+        }
+
+        if (_index is null || !string.Equals(_index.Root, Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), StringComparison.OrdinalIgnoreCase))
+        {
+            _index = new CodeIndex(folder);
+            _projects.Clear();
+            _fileLines.Clear();
+        }
+
+        return _index;
     }
 
     // Indexing (the first time) or catching up (after): the query runs again when it is done.

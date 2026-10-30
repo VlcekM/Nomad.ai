@@ -10,6 +10,7 @@ using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
+using Nomad.Core.Code;
 using SkiaSharp;
 
 namespace Nomad.App.Ide;
@@ -80,11 +81,18 @@ public sealed class CodeView : Control
         Cursor = TextCursor;
         EffectiveViewportChanged += (_, e) =>
         {
+            // Scrolling takes the Quick Info away (the name has moved from under it).
+            if (e.EffectiveViewport.Position != _viewport.Position)
+            {
+                HideQuickInfo();
+            }
+
             _viewport = e.EffectiveViewport;
             InvalidateVisual();
         };
         ResourcesChanged += (_, _) => OnThemeChanged(); // Another color theme, or dark and light.
         ActualThemeVariantChanged += (_, _) => OnThemeChanged();
+        _quickTimer.Tick += (_, _) => ShowQuickInfo();
         _blink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -102,12 +110,12 @@ public sealed class CodeView : Control
         var ask = new MenuItem { Header = "Ask about this", InputGesture = new KeyGesture(Key.I, KeyModifiers.Control) };
         ask.Click += (_, _) => Ask();
         var definition = new MenuItem { Header = "Go to definition", InputGesture = new KeyGesture(Key.F12) };
-        string? definitionName = null;
+        Reference? definitionAt = null;
         definition.Click += (_, _) =>
         {
-            if (definitionName is not null)
+            if (definitionAt is { } at)
             {
-                DefinitionRequested?.Invoke(definitionName);
+                RequestDefinition(at);
             }
         };
         ContextMenu = new ContextMenu { Items = { ask, definition, new Separator(), cut, copy, paste, new Separator(), all } };
@@ -116,8 +124,8 @@ public sealed class CodeView : Control
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
             copy.IsEnabled = HasSelection || !_doc.IsReadOnly;
             ask.IsVisible = AskRequested is not null;
-            definitionName = HasSelection ? null : NameAt(_doc.Caret);
-            definition.IsVisible = DefinitionRequested is not null && definitionName is not null;
+            definitionAt = HasSelection ? null : ReferenceAt(_doc.Caret);
+            definition.IsVisible = DefinitionRequested is not null && definitionAt is not null;
         };
     }
 
@@ -596,6 +604,21 @@ public sealed class CodeView : Control
             }
         }
 
+        // Ctrl over a name that leads somewhere: underlined in the accent, easing in.
+        if (_link is { } link && link.Line < _lines.Count && folding.RowOf(link.Line) is var linkRow &&
+            linkRow >= firstRow && linkRow <= lastRow && rows[linkRow] == link.Line && ThemeBrush("AccentBrush") is ISolidColorBrush linkAccent)
+        {
+            var linkP = Math.Min(1, (DateTime.UtcNow - _linkUtc).TotalMilliseconds / LinkFadeMs);
+            var underline = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(linkAccent.Color, 1 - Math.Pow(1 - linkP, 3));
+            var start = Column(new TextPos(link.Line, link.Start));
+            var end = Column(new TextPos(link.Line, link.End));
+            Fill(new Rect(left + start * charWidth, RowTop(linkRow) + height - 3, (end - start) * charWidth, 1), underline);
+            if (linkP < 1)
+            {
+                TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ => InvalidateVisual());
+            }
+        }
+
         var plain = SkColor(Foreground);
         for (var r = firstRow; r <= lastRow; r++)
         {
@@ -1053,6 +1076,16 @@ public sealed class CodeView : Control
     protected override void OnPointerExited(PointerEventArgs e)
     {
         base.OnPointerExited(e);
+
+        // (A screenshot run's window never has the real pointer, which "leaves" it at once: its Quick Info stays.)
+        if (Program.Dev.ScreenshotPath is null)
+        {
+            _pointer = null;
+            UpdateLink(false);
+            HideQuickInfo();
+            _quickAt = null;
+        }
+
         if (_hoverFoldLine >= 0)
         {
             FadeHover(0);
@@ -1111,8 +1144,226 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
-    /// <summary>F12 or Ctrl+click on a name: the name, to go to its declaration.</summary>
-    public event Action<string>? DefinitionRequested;
+    /// <summary>F12 or Ctrl+click on a name: the name, what it is used on (see <see cref="CodeReference"/>) and its line, to go to its declaration.</summary>
+    public event Action<string, string?, int>? DefinitionRequested;
+
+    /// <summary>What a name (and what it is used on, and its line) means: its declarations, the likeliest first; none for nothing known.</summary>
+    public Func<string, string?, int, IReadOnlyList<CodeSymbol>>? Resolve { get; set; }
+
+    /// <summary>A declaration's Quick Info, for the tooltip a name shows when the pointer rests on it.</summary>
+    public Func<CodeSymbol, QuickInfo?>? Describe { get; set; }
+
+    // A name in the text: where it is, and what comes before its dot ("?" for something that isn't a plain name).
+    private readonly record struct Reference(string Name, string? Receiver, int Line, int Start, int End);
+
+    private Reference? ReferenceAt(TextPos at)
+    {
+        var text = _doc.Lines[at.Line];
+        int start = Math.Min(at.Index, text.Length), end = start;
+        while (start > 0 && IsWord(text[start - 1]))
+        {
+            start--;
+        }
+
+        while (end < text.Length && IsWord(text[end]))
+        {
+            end++;
+        }
+
+        if (end == start || char.IsDigit(text[start]))
+        {
+            return null;
+        }
+
+        // Not in a comment or a string.
+        if (_doc.Highlighting?.Spans(at.Line) is { } spans &&
+            spans.Any(s => s.Start <= start && start < s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String))
+        {
+            return null;
+        }
+
+        string? receiver = null;
+        var dot = start - 1;
+        if (dot > 0 && text[dot] == '.')
+        {
+            var j = dot - 1;
+            if (j >= 0 && text[j] is '?' or '!')
+            {
+                j--;
+            }
+
+            var k = j;
+            while (k >= 0 && IsWord(text[k]))
+            {
+                k--;
+            }
+
+            receiver = k < j ? text[(k + 1)..(j + 1)] : "?";
+        }
+
+        return new Reference(text[start..end], receiver, at.Line, start, end);
+    }
+
+    // The name right under the pointer (on its letters, not only nearest to it).
+    private Reference? ReferenceUnder(Point point)
+    {
+        var rows = Rows;
+        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        if (row < 0 || row >= rows.Count || point.X < TextLeft || _doc.Folding.IsFolded(rows[row]) && point.X > TextLeft + Column(new TextPos(rows[row], _doc.Lines[rows[row]].Length)) * CharWidth)
+        {
+            return null;
+        }
+
+        if (ReferenceAt(HitTest(point)) is not { } reference || reference.Line != rows[row])
+        {
+            return null;
+        }
+
+        var from = TextLeft + Column(new TextPos(reference.Line, reference.Start)) * CharWidth;
+        var to = TextLeft + Column(new TextPos(reference.Line, reference.End)) * CharWidth;
+        return point.X >= from && point.X <= to ? reference : null;
+    }
+
+    private void RequestDefinition(Reference reference) => DefinitionRequested?.Invoke(reference.Name, reference.Receiver, reference.Line);
+
+    // ------------------------------------------------------------------ Ctrl+hover and Quick Info
+
+    private static readonly Cursor LinkCursor = new(StandardCursorType.Hand);
+    private const double LinkFadeMs = 120;
+
+    // Where the pointer is over the text (null off it).
+    private Point? _pointer;
+
+    // With Ctrl held, the name under the pointer that leads somewhere: underlined, and a click goes there.
+    private Reference? _link;
+    private DateTime _linkUtc;
+
+    private void UpdateLink(bool ctrl)
+    {
+        Reference? link = null;
+        if (ctrl && !_selecting && _pointer is { } point && ReferenceUnder(point) is { } under)
+        {
+            link = _link is { } old && old.Line == under.Line && old.Start == under.Start ? old
+                : Resolve?.Invoke(under.Name, under.Receiver, under.Line) is { Count: > 0 } ? under : null;
+        }
+
+        if (link == _link)
+        {
+            return;
+        }
+
+        _link = link;
+        _linkUtc = DateTime.UtcNow;
+        if (link is not null)
+        {
+            Cursor = LinkCursor;
+        }
+        else if (Cursor == LinkCursor)
+        {
+            Cursor = TextCursor;
+        }
+
+        InvalidateVisual();
+    }
+
+    // The pointer resting on a name a moment shows what it is, as Visual Studio's Quick Info.
+    private readonly DispatcherTimer _quickTimer = new() { Interval = TimeSpan.FromMilliseconds(450) };
+    private Reference? _quickAt;
+    private bool _quickShown;
+
+    private void UpdateQuickInfo()
+    {
+        var under = !_selecting && _pointer is { } point ? ReferenceUnder(point) : null;
+        if (under is { } u && _quickAt is { } q && u.Line == q.Line && u.Start == q.Start && (_quickTimer.IsEnabled || _quickShown))
+        {
+            return;
+        }
+
+        HideQuickInfo();
+        _quickAt = under;
+        if (under is not null && Describe is not null && Resolve is not null)
+        {
+            _quickTimer.Start();
+        }
+    }
+
+    private void HideQuickInfo()
+    {
+        _quickTimer.Stop();
+        if (_quickShown)
+        {
+            _quickShown = false;
+            ToolTip.SetIsOpen(this, false);
+            ToolTip.SetTip(this, null);
+        }
+    }
+
+    private void ShowQuickInfo()
+    {
+        _quickTimer.Stop();
+        if (_quickAt is not { } at || Resolve?.Invoke(at.Name, at.Receiver, at.Line) is not { Count: > 0 } symbols)
+        {
+            return;
+        }
+
+        ToolTip.SetTip(this, QuickInfoContent(symbols));
+        ToolTip.SetIsOpen(this, true);
+        _quickShown = true;
+    }
+
+    // The declaration's signature in the code's colors with its icon, its summary under it, and how many more there are.
+    private Control QuickInfoContent(IReadOnlyList<CodeSymbol> symbols)
+    {
+        var symbol = symbols[0];
+        var info = Describe?.Invoke(symbol) ?? new QuickInfo(symbol.Name, null);
+        var signature = new TextBlock
+        {
+            FontFamily = FontFamily,
+            FontSize = FontSize,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 620,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
+        };
+        var text = info.Signature;
+        var at = 0;
+        var spans = Highlighter.ForFile(symbol.Path) is { } grammar ? Highlighter.Tokenize(grammar, text, null).Spans : [];
+        foreach (var span in spans.Where(s => s.Length > 0 && s.Start >= at).OrderBy(s => s.Start))
+        {
+            if (span.Start > at)
+            {
+                signature.Inlines!.Add(new Run(text[at..span.Start]) { Foreground = Foreground });
+            }
+
+            var end = Math.Min(text.Length, span.Start + span.Length);
+            signature.Inlines!.Add(new Run(text[span.Start..end]) { Foreground = KindBrush(span.Kind) });
+            at = end;
+        }
+
+        if (at < text.Length)
+        {
+            signature.Inlines!.Add(new Run(text[at..]) { Foreground = Foreground });
+        }
+
+        var icon = new CodeSymbolIcon { Kind = symbol.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
+        TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
+        var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
+        if (info.Summary is { } summary)
+        {
+            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0) });
+        }
+
+        if (symbols.Count > 1)
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"+{symbols.Count - 1} more with this name (Ctrl+click lists them)",
+                Foreground = ThemeBrush("TextMutedBrush") ?? Foreground,
+                Margin = new Thickness(24, 0, 0, 0),
+            });
+        }
+
+        return panel;
+    }
 
     /// <summary>"Ask about this": the selected lines (or the caret's), first and last (0-based), and their text.</summary>
     public event Action<int, int, string>? AskRequested;
@@ -1127,27 +1378,10 @@ public sealed class CodeView : Control
         AskRequested?.Invoke(from.Line, last, text);
     }
 
-    // The name (letters, digits, '_') at a place, if there is one there.
-    private string? NameAt(TextPos at)
-    {
-        var text = _doc.Lines[at.Line];
-        int start = Math.Min(at.Index, text.Length), end = start;
-        while (start > 0 && IsWord(text[start - 1]))
-        {
-            start--;
-        }
-
-        while (end < text.Length && IsWord(text[end]))
-        {
-            end++;
-        }
-
-        return end > start && !char.IsDigit(text[start]) ? text[start..end] : null;
-    }
-
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        HideQuickInfo();
         var props = e.GetCurrentPoint(this).Properties;
 
         // A right-click with nothing selected puts the caret there first, so the menu is about that place.
@@ -1174,12 +1408,12 @@ public sealed class CodeView : Control
 
         // Ctrl+click on a name: its declaration (the caret goes there first, as in Visual Studio).
         if (e.ClickCount == 1 && e.KeyModifiers == KeyModifiers.Control && e.GetPosition(this).X >= TextLeft &&
-            NameAt(HitTest(e.GetPosition(this))) is { } clicked)
+            (_link ?? ReferenceUnder(e.GetPosition(this))) is { } clicked)
         {
             _doc.Seal();
             _doc.Anchor = _doc.Caret = HitTest(e.GetPosition(this));
             RestartBlink();
-            DefinitionRequested?.Invoke(clicked);
+            RequestDefinition(clicked);
             e.Handled = true;
             return;
         }
@@ -1217,7 +1451,15 @@ public sealed class CodeView : Control
         base.OnPointerMoved(e);
         if (!_selecting)
         {
-            Hover(e.GetPosition(this));
+            _pointer = e.GetPosition(this);
+            Hover(_pointer.Value);
+            if (_link is not null)
+            {
+                Cursor = LinkCursor; // Hover set the text's own.
+            }
+
+            UpdateLink(e.KeyModifiers.HasFlag(KeyModifiers.Control));
+            UpdateQuickInfo();
             return;
         }
 
@@ -1374,9 +1616,26 @@ public sealed class CodeView : Control
         RevealCaret();
     }
 
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        base.OnKeyUp(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            UpdateLink(false);
+        }
+    }
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl)
+        {
+            // Ctrl down over a name: it turns into a link at once, without waiting for the pointer to move.
+            UpdateLink(true);
+            return;
+        }
+
+        HideQuickInfo();
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
@@ -1411,9 +1670,9 @@ public sealed class CodeView : Control
                 _chord = true;
                 break;
             case Key.F12 when !ctrl && !shift:
-                if (NameAt(caret) is { } name)
+                if (ReferenceAt(caret) is { } reference)
                 {
-                    DefinitionRequested?.Invoke(name);
+                    RequestDefinition(reference);
                 }
 
                 break;

@@ -20,9 +20,9 @@ public sealed class CodeIndex(string root)
 
     private readonly ConcurrentDictionary<string, (DateTime Written, long Length, CodeSymbol[] Symbols)> _scanned = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _refreshing = new(1, 1);
-    private volatile Snapshot _snapshot = new([], []);
+    private volatile Snapshot _snapshot = new([], [], new Dictionary<string, CodeSymbol[]>());
 
-    private sealed record Snapshot(CodeSymbol[] Symbols, CodeSymbol[] Files);
+    private sealed record Snapshot(CodeSymbol[] Symbols, CodeSymbol[] Files, Dictionary<string, CodeSymbol[]> ByName);
 
     public string Root { get; } = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
 
@@ -49,7 +49,8 @@ public sealed class CodeIndex(string root)
                 Parallel.ForEach(files.Where(SymbolScanner.CanScan), new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancel }, Scan);
                 var symbols = _scanned.Values.SelectMany(v => v.Symbols).ToArray();
                 var fileSymbols = files.Select(f => new CodeSymbol(Path.GetFileName(f), SymbolKind.File, null, Relative(Path.GetDirectoryName(f) ?? Root), f, 0, 0)).ToArray();
-                _snapshot = new Snapshot(symbols, fileSymbols);
+                var byName = symbols.GroupBy(s => s.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+                _snapshot = new Snapshot(symbols, fileSymbols, byName);
             }, cancel);
             IsReady = true;
         }
@@ -89,6 +90,9 @@ public sealed class CodeIndex(string root)
         var relative = Path.GetRelativePath(Root, folder);
         return relative == "." ? "" : relative.Replace('\\', '/');
     }
+
+    /// <summary>The declarations with exactly this name (case-sensitive).</summary>
+    public IReadOnlyList<CodeSymbol> Named(string name) => _snapshot.ByName.TryGetValue(name, out var found) ? found : [];
 
     /// <summary>The best matches for a query: types first among equals, then shorter names.</summary>
     public List<CodeMatch> Search(string query, CancellationToken cancel = default)
