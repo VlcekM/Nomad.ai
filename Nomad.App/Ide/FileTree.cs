@@ -23,6 +23,9 @@ public sealed class FileNode(string name, string fullPath, bool isDirectory, Fil
     /// <summary>A folder holding a project file (a .csproj): that file. Shown as a project, as in Solution Explorer.</summary>
     public string? Project { get; internal set; }
 
+    /// <summary>What sort of project it is (its icon differs: a web app, a test project).</summary>
+    public ProjectKind ProjectKind { get; internal set; }
+
     public bool IsAncestorOf(FileNode node)
     {
         for (var p = node.Parent; p is not null; p = p.Parent)
@@ -432,6 +435,7 @@ public sealed class FileTree : IDisposable
                 if (kept.IsDirectory == entry.IsDirectory)
                 {
                     kept.Project = entry.Project;
+                    kept.ProjectKind = entry.Kind;
                     children.Add(kept);
                     continue;
                 }
@@ -439,14 +443,19 @@ public sealed class FileTree : IDisposable
                 Forget(kept);
             }
 
-            children.Add(new FileNode(entry.Name, entry.FullPath, entry.IsDirectory, folder) { Project = entry.Project });
+            children.Add(new FileNode(entry.Name, entry.FullPath, entry.IsDirectory, folder) { Project = entry.Project, ProjectKind = entry.Kind });
         }
 
         // Its own listing has the last word on its project file (one made or deleted since its parent was listed).
         if (folder.Parent is not null)
         {
-            folder.Project = entries.Where(e => !e.IsDirectory && DirectoryListing.IsProjectFile(e.Name))
+            var project = entries.Where(e => !e.IsDirectory && DirectoryListing.IsProjectFile(e.Name))
                 .Select(e => e.FullPath).Order(StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+            if (!string.Equals(project, folder.Project, StringComparison.OrdinalIgnoreCase))
+            {
+                folder.Project = project;
+                folder.ProjectKind = project is null ? ProjectKind.Plain : DirectoryListing.KindOf(project);
+            }
         }
 
         foreach (var gone in old.Values)

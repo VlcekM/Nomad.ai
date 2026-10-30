@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Nomad.Core.Files;
 using Nomad.Core.Git;
 
 namespace Nomad.App.Ide;
@@ -539,10 +540,23 @@ public sealed class FileTreeView : Control
                 {
                     if (row.Node.Project is not null)
                     {
-                        // A project, as Solution Explorer's: a window, open at its lower left for a green "C#".
+                        // A project, as Solution Explorer's: a window, open at its lower left for its badge: a globe
+                        // for a web app, a flask for tests, else a green "C#".
                         context.DrawGeometry(null, iconPen, ProjectShape);
-                        var mark = ProjectMark(family);
-                        mark.Draw(context, new Point(-0.5, Box - mark.Height + 1.5));
+                        switch (row.Node.ProjectKind)
+                        {
+                            case ProjectKind.Web:
+                                context.DrawGeometry(null, WebPen, GlobeShape);
+                                break;
+                            case ProjectKind.Test:
+                                context.DrawGeometry(TestFill, null, FlaskLiquid);
+                                context.DrawGeometry(null, TestPen, FlaskShape);
+                                break;
+                            default:
+                                var mark = ProjectMark(family);
+                                mark.Draw(context, new Point(-0.5, Box - mark.Height + 1.5));
+                                break;
+                        }
                     }
                     else if (row.Node.IsDirectory)
                     {
@@ -553,6 +567,23 @@ public sealed class FileTreeView : Control
                     {
                         var csharp = CSharpIcon(family);
                         csharp.Draw(context, new Point((Box - csharp.WidthIncludingTrailingWhitespace) / 2, (Box - csharp.Height) / 2 + 0.5));
+                    }
+                    else if (IsSolution(row.Node.Name))
+                    {
+                        // A solution (.sln, .slnx): Visual Studio's logo, as its own icon for them.
+                        context.DrawGeometry(SolutionBrush, null, SolutionShape);
+                    }
+                    else if (row.Node.Name.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Markdown: its "M" and down arrow in a frame.
+                        context.DrawGeometry(null, MarkdownPen, MarkdownShape);
+                    }
+                    else if (row.Node.Name.StartsWith(".git", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // .gitignore, .gitattributes, .gitmodules: git's orange diamond with its branch.
+                        context.DrawGeometry(GitBrush, null, GitShape);
+                        context.DrawGeometry(null, GitBranchPen, GitBranch);
+                        context.DrawGeometry(GitDark, null, GitNodes);
                     }
                     else if (file is not null)
                     {
@@ -658,6 +689,39 @@ public sealed class FileTreeView : Control
     }
 
     private const double HiddenOpacity = 0.45;
+
+    private static bool IsSolution(string name) =>
+        name.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
+
+    // A web project's globe and a test project's flask, at the project window's lower left.
+    private static readonly Pen WebPen = new(new SolidColorBrush(Color.FromRgb(0x3C, 0x9C, 0xDC)), 1.1);
+    private static readonly Geometry GlobeShape = StreamGeometry.Parse(
+        "M8,11.75 A3.75,3.75 0 1 1 0.5,11.75 A3.75,3.75 0 1 1 8,11.75 Z M0.5,11.75 L8,11.75 M4.25,8 C5.4,9.1 5.9,10.4 5.9,11.75 C5.9,13.1 5.4,14.4 4.25,15.5 C3.1,14.4 2.6,13.1 2.6,11.75 C2.6,10.4 3.1,9.1 4.25,8 Z");
+    private static readonly Pen TestPen = new(new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0)), 1.1, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+    private static readonly IBrush TestFill = new SolidColorBrush(Color.FromArgb(0x90, 0x4E, 0xC9, 0xB0));
+    private static readonly Geometry FlaskShape = StreamGeometry.Parse(
+        "M2.25,8 L6.25,8 M3,8 L3,10.6 L0.9,14.3 C0.7,14.7 0.95,15.25 1.45,15.25 L7.05,15.25 C7.55,15.25 7.8,14.7 7.6,14.3 L5.5,10.6 L5.5,8");
+    private static readonly Geometry FlaskLiquid = StreamGeometry.Parse("M1.9,12.6 L6.6,12.6 L7.6,14.3 C7.8,14.7 7.55,15.25 7.05,15.25 L1.45,15.25 C0.95,15.25 0.7,14.7 0.9,14.3 Z");
+
+    // Solutions: Visual Studio's logo in its purple.
+    private static readonly IBrush SolutionBrush = new SolidColorBrush(Color.FromRgb(0x9B, 0x7B, 0xDA));
+    private static readonly Geometry SolutionShape = StreamGeometry.Parse(
+        "F1 M11.2,1.2 L14.8,2.9 L14.8,13.1 L11.2,14.8 L4.9,9.1 L2.4,11 L1.2,10.4 L1.2,5.6 L2.4,5 L4.9,6.9 Z M11.2,5.3 L7.8,8 L11.2,10.7 Z M2.6,6.8 L2.6,9.2 L3.9,8 Z");
+
+    // Markdown: VS Code's blue.
+    private static readonly Pen MarkdownPen = new(new SolidColorBrush(Color.FromRgb(0x51, 0x9A, 0xBA)), 1.2, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+    private static readonly Geometry MarkdownShape = StreamGeometry.Parse(
+        "M1.5,4.5 C1.5,3.95 1.95,3.5 2.5,3.5 L13.5,3.5 C14.05,3.5 14.5,3.95 14.5,4.5 L14.5,11.5 C14.5,12.05 14.05,12.5 13.5,12.5 L2.5,12.5 C1.95,12.5 1.5,12.05 1.5,11.5 Z M3.75,10.25 L3.75,5.75 L5.75,8 L7.75,5.75 L7.75,10.25 M11,5.75 L11,10 M9.4,8.5 L11,10.1 L12.6,8.5");
+
+    // Git's logo: an orange diamond with a branch on it.
+    private static readonly IBrush GitBrush = new SolidColorBrush(Color.FromRgb(0xF0, 0x50, 0x33));
+    private static readonly IBrush GitDark = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A));
+    private static readonly Pen GitBranchPen = new(GitDark, 1.15, lineCap: PenLineCap.Round);
+    private static readonly Geometry GitShape = StreamGeometry.Parse(
+        "M7.1,1.4 C7.6,0.9 8.4,0.9 8.9,1.4 L14.6,7.1 C15.1,7.6 15.1,8.4 14.6,8.9 L8.9,14.6 C8.4,15.1 7.6,15.1 7.1,14.6 L1.4,8.9 C0.9,8.4 0.9,7.6 1.4,7.1 Z");
+    private static readonly Geometry GitBranch = StreamGeometry.Parse("M5.4,4.6 L7.6,6.8 L7.6,10.6 M7.6,6.8 L10.4,7.6");
+    private static readonly Geometry GitNodes = StreamGeometry.Parse(
+        "M8.75,10.9 A1.15,1.15 0 1 1 6.45,10.9 A1.15,1.15 0 1 1 8.75,10.9 Z M11.55,7.7 A1.15,1.15 0 1 1 9.25,7.7 A1.15,1.15 0 1 1 11.55,7.7 Z");
 
     private TextLayout? _projectMark;
     private FontFamily? _projectMarkFamily;

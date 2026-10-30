@@ -1,7 +1,18 @@
 namespace Nomad.Core.Files;
 
-/// <summary>One entry of a folder, as the file tree lists it; a folder's <paramref name="Project"/> is the project file in it, if any.</summary>
-public readonly record struct DirectoryEntry(string Name, string FullPath, bool IsDirectory, string? Project = null);
+/// <summary>
+/// One entry of a folder, as the file tree lists it; a folder's <paramref name="Project"/> is the project file in it,
+/// if any, and <paramref name="Kind"/> what sort of project it is.
+/// </summary>
+public readonly record struct DirectoryEntry(string Name, string FullPath, bool IsDirectory, string? Project = null, ProjectKind Kind = ProjectKind.Plain);
+
+/// <summary>What a project is, for its icon: a web app, a test project, or any other.</summary>
+public enum ProjectKind
+{
+    Plain,
+    Web,
+    Test,
+}
 
 /// <summary>Lists a folder for the file tree: folders first, then files, each by name (case-insensitive).</summary>
 public static class DirectoryListing
@@ -30,7 +41,8 @@ public static class DirectoryListing
             {
                 if (!IsHidden(info.Name))
                 {
-                    entries.Add(new DirectoryEntry(info.Name, info.FullName, info is DirectoryInfo, info is DirectoryInfo dir ? ProjectIn(dir.FullName) : null));
+                    var project = info is DirectoryInfo dir ? ProjectIn(dir.FullName) : null;
+                    entries.Add(new DirectoryEntry(info.Name, info.FullName, info is DirectoryInfo, project, project is null ? ProjectKind.Plain : KindOf(project)));
                 }
             }
         }
@@ -58,6 +70,36 @@ public static class DirectoryListing
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// What a project file makes: a test project (it says so, or uses a test framework or the test SDK), a web app
+    /// (the Web, Razor or Blazor SDK), or anything else.
+    /// </summary>
+    public static ProjectKind KindOf(string projectFile)
+    {
+        string text;
+        try
+        {
+            using var reader = new StreamReader(projectFile);
+            var buffer = new char[64 * 1024];
+            text = new string(buffer, 0, reader.ReadBlock(buffer, 0, buffer.Length));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return ProjectKind.Plain;
+        }
+
+        bool Has(string s) => text.Contains(s, StringComparison.OrdinalIgnoreCase);
+        if (Has("<IsTestProject>true") || Has("Microsoft.NET.Test.Sdk") || Has("\"xunit") || Has("\"NUnit") || Has("\"MSTest") ||
+            Has("\"TUnit") || Has("MSTest.Sdk"))
+        {
+            return ProjectKind.Test;
+        }
+
+        return Has("Microsoft.NET.Sdk.Web") || Has("Microsoft.NET.Sdk.Razor") || Has("Microsoft.NET.Sdk.BlazorWebAssembly")
+            ? ProjectKind.Web
+            : ProjectKind.Plain;
     }
 
     public static int Compare(DirectoryEntry a, DirectoryEntry b) =>

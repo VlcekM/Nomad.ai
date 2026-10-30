@@ -30,10 +30,32 @@ public class DirectoryListingTests
             var listed = DirectoryListing.List(folder);
             Assert.Equal(Path.Combine(folder, "src", "App.csproj"), listed.Single(e => e.Name == "src").Project);
             Assert.Null(listed.Single(e => e.Name == "Assets").Project);
+            Assert.Equal(ProjectKind.Plain, listed.Single(e => e.Name == "src").Kind);
         }
         finally
         {
             Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void ProjectsAreWebOrTestByTheirSdkAndPackages()
+    {
+        var file = Path.Combine(AppContext.BaseDirectory, $"kind-{Guid.NewGuid():N}.csproj");
+        try
+        {
+            File.WriteAllText(file, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"></Project>");
+            Assert.Equal(ProjectKind.Web, DirectoryListing.KindOf(file));
+
+            File.WriteAllText(file, "<Project Sdk=\"Microsoft.NET.Sdk.Web\"><ItemGroup><PackageReference Include=\"xunit.v3\" /></ItemGroup></Project>");
+            Assert.Equal(ProjectKind.Test, DirectoryListing.KindOf(file));
+
+            File.WriteAllText(file, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType></PropertyGroup></Project>");
+            Assert.Equal(ProjectKind.Plain, DirectoryListing.KindOf(file));
+        }
+        finally
+        {
+            File.Delete(file);
         }
     }
 }
