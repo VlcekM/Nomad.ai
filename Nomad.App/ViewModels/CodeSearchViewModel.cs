@@ -251,7 +251,7 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
             HasResults = false;
             SelectedIndex = -1;
             var count = files.ActiveGroup.ActiveTab?.Document.Lines.Count ?? 0;
-            Status = count == 0 ? "Open a file to go to a line" : line == 0 ? $"Line number (1â€“{count:N0})" : $"Go to line {Math.Min(line, count):N0} of {count:N0}";
+            Status = count == 0 ? "Open a file to go to a line" : line == 0 ? $"Line number (1–{count:N0})" : $"Go to line {Math.Min(line, count):N0} of {count:N0}";
             return;
         }
 

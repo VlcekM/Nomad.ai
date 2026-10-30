@@ -70,7 +70,21 @@ public sealed class CodeDocument
 
     public TextPos Anchor { get; set; }
 
-    public TextPos Caret { get; set; }
+    public TextPos Caret
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                CaretChanged?.Invoke();
+            }
+        }
+    }
+
+    /// <summary>The caret moved (the editor's navigation bar follows it).</summary>
+    public event Action? CaretChanged;
 
     public bool IsDirty => _version != _savedVersion;
 

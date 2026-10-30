@@ -695,7 +695,7 @@ public sealed class CodeView : Control
         return new SKColor(color.R, color.G, color.B, (byte)(color.A * (brush?.Opacity ?? 1)));
     }
 
-    // The theme's color for each kind of code (CodeKeywordBrush, Ã¢â‚¬Â¦), looked up again when the theme changes.
+    // The theme's color for each kind of code (CodeKeywordBrush, …), looked up again when the theme changes.
     private IBrush?[]? _kindBrushes;
 
     private IBrush? KindBrush(CodeKind kind)

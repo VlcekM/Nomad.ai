@@ -168,6 +168,16 @@ public sealed partial class FilesViewModel : ObservableObject
         _ = Tree?.RevealAsync(path);
     }
 
+    /// <summary>The toolbar's Sync with Active Document: the tree opens down to the file shown and selects it.</summary>
+    [RelayCommand]
+    private void SyncWithActive()
+    {
+        if (ActiveGroup.ActiveTab is { } tab)
+        {
+            _ = Tree?.RevealAsync(tab.Path);
+        }
+    }
+
     /// <summary>The toolbar's Collapse All: folds every folder in the tree.</summary>
     [RelayCommand]
     private void CollapseAll() => Tree?.CollapseAll();

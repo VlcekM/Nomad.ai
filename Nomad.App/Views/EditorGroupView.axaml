@@ -160,6 +160,21 @@
     <Style Selector="Border#Card">
       <Setter Property="CornerRadius" Value="10" />
     </Style>
+    <!-- The navigation bar's type and member: fade in and out as the caret moves between them. -->
+    <Style Selector="StackPanel.crumb">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="StackPanel.crumb.on">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+
     <!-- The find box: a raised card that fades and drops a little into place. -->
     <Style Selector="Border.findbox">
       <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
@@ -294,6 +309,17 @@
                          IsVisible="{Binding ActiveTab.HasRelativeFolder}" VerticalAlignment="Center" />
               <TextBlock Text="/" Classes="muted" IsVisible="{Binding ActiveTab.HasRelativeFolder}" VerticalAlignment="Center" />
               <TextBlock Text="{Binding ActiveTab.Name}" Foreground="{DynamicResource TextChromeBrush}" VerticalAlignment="Center" />
+              <!-- The type and member the caret is in, as Visual Studio's navigation bar. -->
+              <StackPanel Orientation="Horizontal" Spacing="6" Classes="crumb" Classes.on="{Binding ActiveTab.CaretType, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="&#x203A;" Classes="muted" VerticalAlignment="Center" />
+                <ide:CodeSymbolIcon Kind="{Binding ActiveTab.CaretType.Kind, FallbackValue=Class}" Width="14" Height="14" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ActiveTab.CaretType.Name}" Foreground="{DynamicResource TextChromeBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="6" Classes="crumb" Classes.on="{Binding ActiveTab.CaretMember, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Text="&#x203A;" Classes="muted" VerticalAlignment="Center" />
+                <ide:CodeSymbolIcon Kind="{Binding ActiveTab.CaretMember.Kind, FallbackValue=Method}" Width="14" Height="14" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding ActiveTab.CaretMember.Name}" Foreground="{DynamicResource TextChromeBrush}" VerticalAlignment="Center" />
+              </StackPanel>
               <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
             </StackPanel>
           </Border>

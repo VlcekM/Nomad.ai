@@ -93,13 +93,106 @@ public sealed partial class FileTab : ObservableObject, IDisposable
     /// <summary>Where the file was scrolled to, kept while another tab is shown.</summary>
     public Avalonia.Vector ScrollOffset { get; set; }
 
+    /// <summary>The type the caret is in, for the navigation bar ("FileTree"); null outside one.</summary>
+    [ObservableProperty]
+    public partial Nomad.Core.Code.CodeSymbol? CaretType { get; private set; }
+
+    /// <summary>The member the caret is in ("Visible"); null outside one.</summary>
+    [ObservableProperty]
+    public partial Nomad.Core.Code.CodeSymbol? CaretMember { get; private set; }
+
+    // The file's declarations, read again a moment after its text changes; the caret's place among them after it moves.
+    private List<Nomad.Core.Code.CodeSymbol> _symbols = [];
+    private DispatcherTimer? _crumbTimer;
+    private bool _rescan = true;
+
+    private void OnTextChanged()
+    {
+        _rescan = true;
+        ScheduleCrumbs(300);
+    }
+
+    private void ScheduleCrumbs(int ms)
+    {
+        if (!Nomad.Core.Code.SymbolScanner.CanScan(Path))
+        {
+            return;
+        }
+
+        if (_crumbTimer is null)
+        {
+            _crumbTimer = new DispatcherTimer();
+            _crumbTimer.Tick += (_, _) =>
+            {
+                _crumbTimer.Stop();
+                UpdateCrumbs();
+            };
+        }
+
+        // A pending rescan keeps its own (longer) wait.
+        if (!_crumbTimer.IsEnabled || _crumbTimer.Interval.TotalMilliseconds < ms)
+        {
+            _crumbTimer.Stop();
+            _crumbTimer.Interval = TimeSpan.FromMilliseconds(ms);
+            _crumbTimer.Start();
+        }
+    }
+
+    private void UpdateCrumbs()
+    {
+        var doc = Document;
+        if (_rescan)
+        {
+            _rescan = false;
+            _symbols = doc == CodeDocument.Empty ? [] : Nomad.Core.Code.SymbolScanner.Scan(Path, string.Join('\n', doc.Lines));
+        }
+
+        // Enclosing: declared at or above the caret, with its block (its folding region) reaching down to it.
+        var line = doc.Caret.Line;
+        Nomad.Core.Code.CodeSymbol? type = null, member = null;
+        foreach (var symbol in _symbols)
+        {
+            if (symbol.Line > line)
+            {
+                break;
+            }
+
+            var encloses = symbol.Line == line || doc.Folding.RegionAt(symbol.Line) is { } region && line <= region.End;
+            if (!encloses)
+            {
+                continue;
+            }
+
+            if (symbol.IsType)
+            {
+                type = symbol;
+                member = null;
+            }
+            else if (symbol.Kind is not (Nomad.Core.Code.SymbolKind.EnumMember or Nomad.Core.Code.SymbolKind.Field or Nomad.Core.Code.SymbolKind.Constant))
+            {
+                member = symbol;
+            }
+        }
+
+        CaretType = type;
+        CaretMember = member;
+    }
+
     partial void OnDocumentChanged(CodeDocument oldValue, CodeDocument newValue)
     {
+        oldValue.Changed -= OnTextChanged;
+        oldValue.CaretChanged -= OnCaretChanged;
+        newValue.Changed += OnTextChanged;
+        newValue.CaretChanged += OnCaretChanged;
+        _rescan = true;
+        ScheduleCrumbs(50);
         oldValue.DirtyChanged -= OnDirtyChanged;
 
         newValue.DirtyChanged += OnDirtyChanged;
         IsDirty = newValue.IsDirty;
     }
+
+    private void OnCaretChanged() => ScheduleCrumbs(80);
 
     private void OnDirtyChanged()
     {
