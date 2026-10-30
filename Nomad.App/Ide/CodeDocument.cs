@@ -130,6 +130,36 @@ public sealed class CodeDocument
         MarksChanged?.Invoke();
     }
 
+    /// <summary>How the text differs from the file as last committed (the gutter's git margin); null outside git.</summary>
+    public IReadOnlyList<Nomad.Core.Code.DiffHunk>? GitHunks { get; private set; }
+
+    public void SetGitHunks(IReadOnlyList<Nomad.Core.Code.DiffHunk>? hunks)
+    {
+        GitHunks = hunks;
+        MarksChanged?.Invoke();
+    }
+
+    /// <summary>Lines another program just changed (the file reloaded under the editor): they flash, and count as changed.</summary>
+    public IReadOnlyList<int> FlashLines { get; private set; } = [];
+
+    /// <summary>When <see cref="FlashLines"/> were set.</summary>
+    public DateTime FlashedUtc { get; private set; }
+
+    public void Flash(IReadOnlyList<int> lines)
+    {
+        foreach (var line in lines)
+        {
+            if (line >= 0 && line < _changed.Count)
+            {
+                _changed[line] = true;
+            }
+        }
+
+        FlashLines = lines;
+        FlashedUtc = DateTime.UtcNow;
+        MarksChanged?.Invoke();
+    }
+
     // The edits between BeginGroup and EndGroup undo and redo as one (several carets typing, a Replace All).
     private int _group;
     private int _nextGroup;

@@ -20,6 +20,9 @@ public sealed record GitStatus(string Branch, int Ahead, int Behind, int Changes
 /// </summary>
 public static class GitInfo
 {
+    // A text ending in a line break has no line after it.
+    private static IEnumerable<string> SkipLastIf(this IEnumerable<string> lines, bool skip) => skip ? lines.SkipLast(1) : lines;
+
     private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
     private static readonly Dictionary<string, (DateTime At, Task<GitStatus?> Task)> Cache = new(StringComparer.OrdinalIgnoreCase);
@@ -128,6 +131,18 @@ public static class GitInfo
 
         var relative = Path.GetRelativePath(root, Path.GetFullPath(folder));
         return relative is "." || relative.StartsWith("..", StringComparison.Ordinal) ? path : Path.Combine(path, relative);
+    }
+
+    /// <summary>A file's lines as last committed (HEAD); null when it isn't in a repository or isn't committed.</summary>
+    public static async Task<string[]?> HeadLinesAsync(string file)
+    {
+        if (Path.GetDirectoryName(Path.GetFullPath(file)) is not { } folder)
+        {
+            return null;
+        }
+
+        var (ok, text, _) = await RunFullAsync(folder, Timeout, "show", "HEAD:./" + Path.GetFileName(file));
+        return ok ? text.Split('\n').Select(l => l.TrimEnd('\r')).SkipLastIf(text.EndsWith('\n')).ToArray() : null;
     }
 
     /// <summary>The local branches, the most recently committed to first; empty when it is no repository.</summary>

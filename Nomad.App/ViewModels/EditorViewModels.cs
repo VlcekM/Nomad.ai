@@ -110,6 +110,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
     {
         _rescan = true;
         ScheduleCrumbs(300);
+        ScheduleGitHunks();
     }
 
     private void ScheduleCrumbs(int ms)
@@ -194,6 +195,97 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
     private void OnCaretChanged() => ScheduleCrumbs(80);
 
+    // The file as last committed, and how the text differs from it (the gutter's git margin, the diff view).
+    private string[]? _gitBase;
+    private DispatcherTimer? _gitTimer;
+
+    /// <summary>The file is committed in git: it can be compared with HEAD.</summary>
+    [ObservableProperty]
+    public partial bool HasGitBase { get; private set; }
+
+    /// <summary>The diff with HEAD shows in place of the text.</summary>
+    [ObservableProperty]
+    public partial bool ShowDiff { get; set; }
+
+    /// <summary>The diff view's rows (made when it is shown, and again as the text changes).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<DiffRow> DiffRows { get; private set; } = [];
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private void ToggleDiff() => ShowDiff = !ShowDiff && HasGitBase;
+
+    private bool _wantDiff;
+
+    /// <summary>Shows the diff with HEAD (now, or once HEAD's version has been read).</summary>
+    public void RequestDiff()
+    {
+        if (HasGitBase)
+        {
+            ShowDiff = true;
+        }
+        else
+        {
+            _wantDiff = true;
+        }
+    }
+
+    partial void OnShowDiffChanged(bool value) => UpdateGitHunks();
+
+    /// <summary>Reads HEAD's version again (after a load, a save, a commit) and compares.</summary>
+    public async Task RefreshGitBaseAsync()
+    {
+        _gitBase = await Nomad.Core.Git.GitInfo.HeadLinesAsync(Path);
+        HasGitBase = _gitBase is not null;
+        if (!HasGitBase)
+        {
+            ShowDiff = false;
+        }
+        else if (_wantDiff)
+        {
+            ShowDiff = true;
+        }
+
+        _wantDiff = false;
+        UpdateGitHunks();
+    }
+
+    private void ScheduleGitHunks()
+    {
+        if (_gitBase is null)
+        {
+            return;
+        }
+
+        if (_gitTimer is null)
+        {
+            _gitTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            _gitTimer.Tick += (_, _) =>
+            {
+                _gitTimer.Stop();
+                UpdateGitHunks();
+            };
+        }
+
+        _gitTimer.Stop();
+        _gitTimer.Start();
+    }
+
+    private void UpdateGitHunks()
+    {
+        var doc = Document;
+        if (_gitBase is not { } head || doc == CodeDocument.Empty)
+        {
+            doc.SetGitHunks(null);
+            DiffRows = [];
+            return;
+        }
+
+        var lines = doc.Lines.ToList();
+        var hunks = Nomad.Core.Code.LineDiff.Compute(head, lines);
+        doc.SetGitHunks(hunks);
+        DiffRows = ShowDiff ? DiffRow.Build(head, lines, hunks) : [];
+    }
+
     private void OnDirtyChanged()
     {
         IsDirty = Document.IsDirty;
@@ -236,11 +328,26 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             doc.Highlighting = Highlighter.ForFile(Path) is { } grammar ? new CodeHighlighting(grammar) : null;
         }
 
+        // Reloaded under the editor (the agent wrote it): the lines that changed flash and join the change bar.
+        var before = keepPlace && Document != CodeDocument.Empty ? Document.Lines.ToList() : null;
+
         _knownWrite = written;
         Document = doc;
         Note = note;
         ChangedOnDisk = false;
         _loaded = true;
+        if (before is not null && doc != CodeDocument.Empty)
+        {
+            var lines = doc.Lines;
+            var hunks = await Task.Run(() => Nomad.Core.Code.LineDiff.Compute(before, lines));
+            var flashed = hunks.SelectMany(h => h.NewCount > 0 ? Enumerable.Range(h.NewStart, h.NewCount) : [Math.Max(0, h.NewStart - 1)]).Distinct().ToList();
+            if (flashed.Count > 0 && Document == doc)
+            {
+                doc.Flash(flashed);
+            }
+        }
+
+        _ = RefreshGitBaseAsync();
         if (_pendingGoTo is { } pos && doc != CodeDocument.Empty)
         {
             _pendingGoTo = null;
@@ -428,6 +535,76 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         _watcher = null;
         _settle?.Stop();
         Document.DirtyChanged -= OnDirtyChanged;
+    }
+}
+
+/// <summary>A row of the diff with HEAD: a line both have, one only HEAD had, one only the text has, or a gap.</summary>
+public sealed record DiffRow(string Kind, string OldNumber, string NewNumber, string Text)
+{
+    private const int Context = 3;
+
+    public bool IsAdded => Kind == "+";
+
+    public bool IsRemoved => Kind == "-";
+
+    public bool IsGap => Kind == "...";
+
+    /// <summary>Each hunk with three lines around it, the gaps between them folded to one row.</summary>
+    public static List<DiffRow> Build(IReadOnlyList<string> head, IReadOnlyList<string> text, IReadOnlyList<Nomad.Core.Code.DiffHunk> hunks)
+    {
+        var rows = new List<DiffRow>();
+        static string N(int i) => (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        int oldAt = 0, newAt = 0;
+        foreach (var hunk in hunks)
+        {
+            // The common lines before it: the last few shown, any more folded into a gap.
+            var common = hunk.NewStart - newAt;
+            var skip = rows.Count == 0 ? Math.Max(0, common - Context) : Math.Max(0, common - 2 * Context);
+            for (var i = 0; i < common; i++)
+            {
+                if (skip > 0 && i == (rows.Count == 0 ? 0 : Context))
+                {
+                    rows.Add(new DiffRow("...", "", "", $"{skip} unchanged lines"));
+                    i += skip - 1;
+                    continue;
+                }
+
+                rows.Add(new DiffRow(" ", N(oldAt + i), N(newAt + i), text[newAt + i]));
+            }
+
+            for (var i = 0; i < hunk.OldCount; i++)
+            {
+                rows.Add(new DiffRow("-", N(hunk.OldStart + i), "", head[hunk.OldStart + i]));
+            }
+
+            for (var i = 0; i < hunk.NewCount; i++)
+            {
+                rows.Add(new DiffRow("+", "", N(hunk.NewStart + i), text[hunk.NewStart + i]));
+            }
+
+            oldAt = hunk.OldStart + hunk.OldCount;
+            newAt = hunk.NewStart + hunk.NewCount;
+        }
+
+        // A few lines after the last change.
+        var tail = Math.Min(Context, text.Count - newAt);
+        for (var i = 0; i < tail; i++)
+        {
+            rows.Add(new DiffRow(" ", N(oldAt + i), N(newAt + i), text[newAt + i]));
+        }
+
+        if (text.Count - newAt > tail)
+        {
+            rows.Add(new DiffRow("...", "", "", $"{text.Count - newAt - tail} unchanged lines"));
+        }
+
+        if (hunks.Count == 0)
+        {
+            rows.Clear();
+            rows.Add(new DiffRow("...", "", "", "No changes since the last commit"));
+        }
+
+        return rows;
     }
 }
 

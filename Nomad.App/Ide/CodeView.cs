@@ -358,6 +358,15 @@ public sealed class CodeView : Control
     // At the gutter's left edge: the change bar (1 px) and the caret line's marker (4 px) from here, and the caret
     // line's fill right of them.
     private const double BarLeft = 6;
+
+    // The git margin: at the gutter's left edge, before the change bar.
+    private const double GitBarLeft = 1;
+    private const double GitBarWidth = 3;
+    private static readonly IBrush GitModifiedBrush = new SolidColorBrush(Color.FromRgb(0x3C, 0x8C, 0xD8));
+
+    // Lines another program just changed: an accent wash fading out over this long.
+    private const double FlashMs = 1600;
+    private DispatcherTimer? _flashTimer;
     private const double RowLeft = 10;
 
     // The fold button: 16 px, centered this far right of the line numbers, its chevron 10 px.
@@ -487,6 +496,41 @@ public sealed class CodeView : Control
         var row = caretShown && !HasSelection ? ThemeBrush("CodeCurrentLineBrush") : null;
         var rowRect = new Rect(view.Left + RowLeft, RowTop(caretRow), Math.Max(0, view.Width - RowLeft), height);
         Fill(rowRect, row);
+
+        // Lines another program (the agent) just changed: an accent wash that fades.
+        var flashAge = (DateTime.UtcNow - _doc.FlashedUtc).TotalMilliseconds;
+        if (_doc.FlashLines.Count > 0 && flashAge < FlashMs && ThemeBrush("AccentBrush") is ISolidColorBrush flashAccent)
+        {
+            var strength = 0.32 * (1 - Math.Pow(Math.Min(1, flashAge / FlashMs), 2));
+            var wash = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(flashAccent.Color, strength);
+            foreach (var flashed in _doc.FlashLines)
+            {
+                var flashRow = folding.RowOf(Math.Min(flashed, _lines.Count - 1));
+                if (flashRow >= firstRow && flashRow <= lastRow && rows[flashRow] == flashed)
+                {
+                    Fill(new Rect(view.Left + RowLeft, RowTop(flashRow), Math.Max(0, view.Width - RowLeft), height), wash);
+                }
+            }
+
+            // Repainted until it has faded (the timer stops itself then).
+            if (_flashTimer is null)
+            {
+                _flashTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+                _flashTimer.Tick += (_, _) =>
+                {
+                    InvalidateVisual();
+                    if ((DateTime.UtcNow - _doc.FlashedUtc).TotalMilliseconds >= FlashMs)
+                    {
+                        _flashTimer.Stop();
+                    }
+                };
+            }
+
+            if (!_flashTimer.IsEnabled)
+            {
+                _flashTimer.Start();
+            }
+        }
 
         // The find's matches in view (they are in document order: the first in view is found by halving).
         var marks = _doc.Marks;
@@ -627,6 +671,38 @@ public sealed class CodeView : Control
         Fill(gutter, background);
         Fill(rowRect.Intersect(gutter), row);
         var change = IsEditable ? ThemeBrush("CodeChangeBrush") : null;
+
+        // The git margin, at the gutter's very edge as Visual Studio's: lines added since the last commit in green,
+        // changed ones in blue, and a red notch where lines were removed.
+        if (_doc.GitHunks is { Count: > 0 } hunks)
+        {
+            var added = ThemeBrush("DiffAddBrush");
+            var removed = ThemeBrush("DiffDelBrush");
+            foreach (var hunk in hunks)
+            {
+                if (hunk.NewCount == 0)
+                {
+                    var at = Math.Min(hunk.NewStart, _lines.Count - 1);
+                    var notchRow = folding.RowOf(at);
+                    if (notchRow >= firstRow && notchRow <= lastRow)
+                    {
+                        Fill(new Rect(view.Left + GitBarLeft, RowTop(notchRow) - (hunk.NewStart >= _lines.Count ? -height + 2 : 1), GitBarWidth + 1, 3), removed);
+                    }
+
+                    continue;
+                }
+
+                for (var l = hunk.NewStart; l < hunk.NewStart + hunk.NewCount && l < _lines.Count; l++)
+                {
+                    var hunkRow = folding.RowOf(l);
+                    if (hunkRow >= firstRow && hunkRow <= lastRow && rows[hunkRow] == l)
+                    {
+                        Fill(new Rect(view.Left + GitBarLeft, RowTop(hunkRow), GitBarWidth, height), hunk.OldCount == 0 ? added : GitModifiedBrush);
+                    }
+                }
+            }
+        }
+
         for (var r = firstRow; r <= lastRow; r++)
         {
             var line = rows[r];

@@ -187,6 +187,16 @@ public sealed partial class FilesViewModel : ObservableObject
         _ = Tree?.RevealAsync(path);
     }
 
+    /// <summary>Opens a file with its diff against the last commit (the tree's red check clicked).</summary>
+    public void OpenDiff(string path)
+    {
+        OpenAt(path, null);
+        if (ActiveGroup.ActiveTab is { } tab && string.Equals(tab.Path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            tab.RequestDiff();
+        }
+    }
+
     /// <summary>The toolbar's Sync with Active Document: the tree opens down to the file shown and selects it.</summary>
     [RelayCommand]
     private void SyncWithActive()

@@ -93,6 +93,9 @@ public sealed class FileTreeView : Control
     /// <summary>A file to show: its full path, and whether to keep it (a double-click, Enter) or only preview it.</summary>
     public event Action<string, bool>? FileOpened;
 
+    /// <summary>A changed file's git mark was clicked: its diff with the last commit.</summary>
+    public event Action<string>? DiffRequested;
+
     private double FontSize => TextElement.GetFontSize(this);
 
     private double RowHeight => Math.Round(FontSize * 1.85);
@@ -926,6 +929,17 @@ public sealed class FileTreeView : Control
         }
 
         Focus(NavigationMethod.Pointer);
+
+        // A changed file's red check (or green plus): its diff with the last commit.
+        var x = e.GetPosition(this).X;
+        if (!row.Node.IsDirectory && _tree?.Git is { } git && x >= Left(row.Node.Depth) && x < Left(row.Node.Depth) + Box &&
+            git.StateOf(row.Node.FullPath) == GitFileState.Modified)
+        {
+            Select(row);
+            DiffRequested?.Invoke(row.Node.FullPath);
+            e.Handled = true;
+            return;
+        }
 
         // The second click of a double-click: a file is kept in its tab; a folder, already toggled once, stays.
         if (e.ClickCount >= 2)

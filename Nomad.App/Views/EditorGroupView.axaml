@@ -160,6 +160,71 @@
     <Style Selector="Border#Card">
       <Setter Property="CornerRadius" Value="10" />
     </Style>
+    <!-- Compare: on while the diff shows. -->
+    <Style Selector="Button.difftoggle">
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.difftoggle.on">
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- The diff view: over the text, fading in and out. -->
+    <Style Selector="Border.diffview">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.diffview.on">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Border.diffrow">
+      <Setter Property="MinHeight" Value="17" />
+    </Style>
+    <Style Selector="Border.diffrow.added">
+      <Setter Property="Background" Value="{DynamicResource DiffAddBgBrush}" />
+    </Style>
+    <Style Selector="Border.diffrow.removed">
+      <Setter Property="Background" Value="{DynamicResource DiffDelBgBrush}" />
+    </Style>
+    <Style Selector="Border.diffrow.gap">
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="Margin" Value="0,4" />
+      <Setter Property="Padding" Value="0,2" />
+    </Style>
+    <Style Selector="TextBlock.diffnum">
+      <Setter Property="Foreground" Value="{DynamicResource CodeLineNumberBrush}" />
+      <Setter Property="TextAlignment" Value="Right" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+    </Style>
+    <Style Selector="TextBlock.diffsign">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Border.diffrow.added TextBlock.diffsign">
+      <Setter Property="Foreground" Value="{DynamicResource DiffAddBrush}" />
+    </Style>
+    <Style Selector="Border.diffrow.removed TextBlock.diffsign">
+      <Setter Property="Foreground" Value="{DynamicResource DiffDelBrush}" />
+    </Style>
+    <Style Selector="TextBlock.difftext">
+      <Setter Property="Foreground" Value="{DynamicResource CodeTextBrush}" />
+      <Setter Property="Margin" Value="0,0,24,0" />
+    </Style>
+    <Style Selector="Border.diffrow.gap TextBlock.difftext">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="FontStyle" Value="Italic" />
+    </Style>
+
     <!-- The navigation bar's type and member: fade in and out as the caret moves between them. -->
     <Style Selector="StackPanel.crumb">
       <Setter Property="Opacity" Value="0" />
@@ -303,7 +368,21 @@
 
         <DockPanel Name="Document" IsVisible="{Binding HasTabs}">
           <!-- Where the file is, as Visual Studio's navigation bar sits over the code. -->
-          <Border DockPanel.Dock="Top" Height="28" Padding="14,0" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
+          <Border DockPanel.Dock="Top" Height="28" Padding="14,0,6,0" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+            <!-- The diff with the last commit, in place of the text (and back). -->
+            <Button DockPanel.Dock="Right"
+                    Theme="{StaticResource FlatButton}"
+                    Classes="difftoggle"
+                    Classes.on="{Binding ActiveTab.ShowDiff, FallbackValue=False}"
+                    IsVisible="{Binding ActiveTab.HasGitBase, FallbackValue=False}"
+                    Command="{Binding ActiveTab.ToggleDiffCommand}"
+                    ToolTip.Tip="Compare with the last commit">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <c:Icon Size="12" Data="{StaticResource IconGitBranch}" />
+                <TextBlock Text="Compare" />
+              </StackPanel>
+            </Button>
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" TextElement.FontSize="{DynamicResource UiFontSizeSmall}">
               <TextBlock Text="{Binding ActiveTab.RelativeFolder}" Classes="muted" MaxWidth="420" TextTrimming="CharacterEllipsis"
                          IsVisible="{Binding ActiveTab.HasRelativeFolder}" VerticalAlignment="Center" />
@@ -322,6 +401,7 @@
               </StackPanel>
               <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
             </StackPanel>
+            </DockPanel>
           </Border>
 
           <!-- Closing a tab with unsaved edits asks first. -->
@@ -362,6 +442,32 @@
                           LineHeight="17"
                           Padding="0,12,18,24" />
           </ScrollViewer>
+
+          <!-- The diff with the last commit: removed lines red, added green, unchanged runs folded. -->
+          <Border Classes="diffview" Classes.on="{Binding ActiveTab.ShowDiff, FallbackValue=False}" Background="{DynamicResource CodeBackgroundBrush}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+              <ItemsControl ItemsSource="{Binding ActiveTab.DiffRows, FallbackValue={x:Null}}" Margin="0,8,0,24"
+                            TextElement.FontFamily="{DynamicResource MonoFont}" TextElement.FontSize="13.333">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <VirtualizingStackPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:DiffRow">
+                    <Border Classes="diffrow" Classes.added="{Binding IsAdded}" Classes.removed="{Binding IsRemoved}" Classes.gap="{Binding IsGap}">
+                      <Grid ColumnDefinitions="44,44,18,*">
+                        <TextBlock Text="{Binding OldNumber}" Classes="diffnum" />
+                        <TextBlock Grid.Column="1" Text="{Binding NewNumber}" Classes="diffnum" />
+                        <TextBlock Grid.Column="2" Text="{Binding Kind}" Classes="diffsign" />
+                        <TextBlock Grid.Column="3" Text="{Binding Text}" Classes="difftext" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
 
           <!-- The find's matches beside the scroll bar. -->
           <ide:CodeMarkerBar Document="{Binding ActiveTab.Document}" Width="6" HorizontalAlignment="Right" Margin="0,2,2,14" />

@@ -21,6 +21,7 @@ public partial class FilesView : UserControl
     {
         InitializeComponent();
         Tree.FileOpened += (path, keep) => _session?.Files.Open(path, keep);
+        Tree.DiffRequested += path => _session?.Files.OpenDiff(path);
     }
 
     private MainViewModel? Main => TopLevel.GetTopLevel(this)?.DataContext as MainViewModel;
