@@ -84,6 +84,74 @@ public sealed class FileTree : IDisposable
     /// <summary><see cref="Git"/> was read again.</summary>
     public event Action? GitChanged;
 
+    /// <summary>
+    /// The agent is at work (a turn running, or one that ended a moment ago): changes on disk now are taken as its own,
+    /// flashed in the tree and marked for the rest of the session. Set by the session.
+    /// </summary>
+    public Func<bool>? IsAgentWorking { get; set; }
+
+    /// <summary>A file or folder the agent changed (full path): the view flashes its row, or the lowest one shown above it.</summary>
+    public event Action<string>? AgentChanged;
+
+    // Every path the agent changed this session, and every folder above them (both by full path).
+    private readonly HashSet<string> _agentFiles = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _agentFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The agent changed this file (or something in this folder) since the session's tree was made.</summary>
+    public bool IsAgentTouched(FileNode node) => node.IsDirectory ? _agentFolders.Contains(node.FullPath) : _agentFiles.Contains(node.FullPath);
+
+    // Saves from the editor, so their writes aren't taken as the agent's (shared by every tree).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> OwnWrites = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The editor is about to write this file: the change on disk is not the agent's.</summary>
+    public static void NoteOwnWrite(string path) => OwnWrites[Path.GetFullPath(path)] = DateTime.UtcNow;
+
+    // Watcher threads: a change that looks like the agent's goes to the UI thread to be marked and flashed.
+    private void MaybeAgent(string path)
+    {
+        if (IsAgentWorking is not { } working || path.EndsWith(".nomad-save", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (OwnWrites.TryGetValue(path, out var at) && DateTime.UtcNow - at < TimeSpan.FromSeconds(3))
+        {
+            return;
+        }
+
+        // Not build output, dot folders or the like: those change by the hundred and aren't the agent's doing.
+        var relative = Path.GetRelativePath(Root.FullPath, path);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
+        {
+            return;
+        }
+
+        var parts = relative.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (DirectoryListing.IsHidden(parts[i]) || DirectoryListing.IsExcluded(parts[i], isDirectory: i < parts.Length - 1))
+            {
+                return;
+            }
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!working())
+            {
+                return;
+            }
+
+            _agentFiles.Add(path);
+            for (var folder = Path.GetDirectoryName(path); folder is not null && folder.Length >= Root.FullPath.Length; folder = Path.GetDirectoryName(folder))
+            {
+                _agentFolders.Add(folder);
+            }
+
+            AgentChanged?.Invoke(path);
+        });
+    }
+
     /// <summary>Lists a folder that has not been listed yet (or waits for the listing already under way).</summary>
     public Task LoadAsync(FileNode folder)
     {
@@ -259,14 +327,30 @@ public sealed class FileTree : IDisposable
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite,
                 InternalBufferSize = 64 * 1024,
             };
-            _watcher.Created += (_, e) => Touched(e.FullPath);
-            _watcher.Deleted += (_, e) => Touched(e.FullPath);
+            _watcher.Created += (_, e) =>
+            {
+                Touched(e.FullPath);
+                MaybeAgent(e.FullPath);
+            };
+            _watcher.Deleted += (_, e) =>
+            {
+                Touched(e.FullPath);
+                MaybeAgent(e.FullPath);
+            };
             _watcher.Renamed += (_, e) =>
             {
                 Touched(e.OldFullPath);
                 Touched(e.FullPath);
+                MaybeAgent(e.FullPath);
             };
-            _watcher.Changed += (_, _) => GitTouched();
+            _watcher.Changed += (_, e) =>
+            {
+                GitTouched();
+                if (File.Exists(e.FullPath))
+                {
+                    MaybeAgent(e.FullPath);
+                }
+            };
             _watcher.Error += (_, _) => TouchedAll();
             _watcher.EnableRaisingEvents = true;
         }

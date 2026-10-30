@@ -1861,6 +1861,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     partial void OnIsTurnRunningChanged(bool value)
     {
+        Files.IsAgentWorking = value;
         if (value)
         {
             _turnStartUtc = DateTime.UtcNow;

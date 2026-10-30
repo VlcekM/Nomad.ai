@@ -307,6 +307,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
         var bytes = doc.Encode();
         var version = doc.Text;
+        FileTree.NoteOwnWrite(Path);
         try
         {
             _knownWrite = await Task.Run(() =>

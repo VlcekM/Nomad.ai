@@ -78,13 +78,32 @@ public sealed partial class FilesViewModel : ObservableObject
         }
     }
 
+    // Changes that land just after a turn ends (the last write settling) are still the agent's.
+    private static readonly TimeSpan AgentGrace = TimeSpan.FromSeconds(3);
+    private DateTime _agentStoppedUtc;
+
+    /// <summary>A turn is running: changes on disk are the agent's (the session keeps it current).</summary>
+    public bool IsAgentWorking
+    {
+        get;
+        set
+        {
+            if (field && !value)
+            {
+                _agentStoppedUtc = DateTime.UtcNow;
+            }
+
+            field = value;
+        }
+    }
+
     /// <summary>The view came on screen or left it.</summary>
     public void Show(bool shown)
     {
         _shown = shown;
         if (shown && Tree is null && Folder is not null && Directory.Exists(Folder))
         {
-            Tree = new FileTree(Folder);
+            Tree = new FileTree(Folder) { IsAgentWorking = () => IsAgentWorking || DateTime.UtcNow - _agentStoppedUtc < AgentGrace };
         }
 
         Tree?.Watch(shown);

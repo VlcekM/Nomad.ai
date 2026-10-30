@@ -28,6 +28,8 @@ public sealed class FileTreeView : Control
         AvaloniaProperty.Register<FileTreeView, bool>(nameof(ShowAll));
 
     private const double FoldMs = 200;
+    private const double FlashInMs = 140;
+    private const double FlashOutMs = 1100;
     private const double HoverMs = 120;
     private const double Indent = 14;
     private const double Inset = 4;
@@ -159,6 +161,11 @@ public sealed class FileTreeView : Control
         public (double Width, double Size, IBrush Brush, FontFamily Family) TextKey;
 
         public bool Leaving => Presence.Target == 0;
+
+        // The agent's flash: eases in, then fades out slowly.
+        public bool Flashing;
+        public TimeSpan? FlashStart;
+        public double Flash;
     }
 
     // ------------------------------------------------------------------ tree
@@ -225,6 +232,7 @@ public sealed class FileTreeView : Control
             SaveScroll();
             _tree.Changed -= OnTreeChanged;
             _tree.GitChanged -= OnGitChanged;
+            _tree.AgentChanged -= OnAgentChanged;
         }
 
         _tree = tree;
@@ -235,6 +243,7 @@ public sealed class FileTreeView : Control
             tree.ShowAll = ShowAll;
             tree.Changed += OnTreeChanged;
             tree.GitChanged += OnGitChanged;
+            tree.AgentChanged += OnAgentChanged;
             _gitFade.Jump(tree.Git is null ? 0 : 1);
             _ = tree.LoadAsync(tree.Root);
         }
@@ -254,6 +263,36 @@ public sealed class FileTreeView : Control
             DispatcherTimer.RunOnce(() => this.BringIntoView(new Rect(0, TopOf(row) - 2, Bounds.Width, RowHeight + 4)),
                 TimeSpan.FromMilliseconds(FoldMs + 20));
         }
+    }
+
+    // The agent changed something: its row flashes, or the lowest row shown above it (a collapsed folder).
+    private void OnAgentChanged(string path)
+    {
+        Row? best = null;
+        foreach (var row in _rows)
+        {
+            if (row.Leaving)
+            {
+                continue;
+            }
+
+            var node = row.Node.FullPath;
+            var under = string.Equals(node, path, StringComparison.OrdinalIgnoreCase) ||
+                        path.Length > node.Length && path.StartsWith(node, StringComparison.OrdinalIgnoreCase) && path[node.Length] == Path.DirectorySeparatorChar;
+            if (under && (best is null || node.Length > best.Node.FullPath.Length))
+            {
+                best = row;
+            }
+        }
+
+        if (best is not null)
+        {
+            best.FlashStart = null; // Started on the next frame.
+            best.Flashing = true;
+            Tick();
+        }
+
+        InvalidateVisual();
     }
 
     private void OnGitChanged()
@@ -371,7 +410,7 @@ public sealed class FileTreeView : Control
 
     private void Tick()
     {
-        if (_ticking || _top is null || !_gitFade.Running && !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running))
+        if (_ticking || _top is null || !_gitFade.Running && !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running || r.Flashing))
         {
             return;
         }
@@ -391,6 +430,19 @@ public sealed class FileTreeView : Control
             row.Presence.Step(now, FoldMs);
             row.Hover.Step(now, HoverMs);
             row.Turn.Step(now, FoldMs);
+            if (row.Flashing)
+            {
+                row.FlashStart ??= now;
+                var t = (now - row.FlashStart.Value).TotalMilliseconds;
+                row.Flash = t < FlashInMs
+                    ? 1 - Math.Pow(1 - t / FlashInMs, 3)
+                    : Math.Max(0, 1 - (1 - Math.Pow(1 - Math.Min(1, (t - FlashInMs) / FlashOutMs), 3)));
+                if (t >= FlashInMs + FlashOutMs)
+                {
+                    row.Flashing = false;
+                    row.Flash = 0;
+                }
+            }
         }
 
         DropRows(_rows.FindAll(r => r.Leaving && !r.Presence.Running));
@@ -483,6 +535,7 @@ public sealed class FileTreeView : Control
         var plusPen = new Pen(Brush("DiffAddBrush"), 1.4, lineCap: PenLineCap.Round);
         var shacklePen = new Pen(LockBrush, 1.15, lineCap: PenLineCap.Round);
         var showAll = _tree?.ShowAll == true;
+        var accentBrush = Brush("AccentBrush");
 
         // Transparent but drawn: the pointer counts over the whole width, not only over the text and icons.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
@@ -506,6 +559,15 @@ public sealed class FileTreeView : Control
                 if (row.Node == selected)
                 {
                     context.DrawRectangle(selectedBrush, null, box, 6, 6);
+                }
+
+                // The agent just changed it (or something in it): an accent wash that fades.
+                if (row.Flash > 0.01)
+                {
+                    using (context.PushOpacity(row.Flash * 0.38))
+                    {
+                        context.DrawRectangle(accentBrush, null, box, 6, 6);
+                    }
                 }
                 else if (row.Hover.Value > 0.01)
                 {
@@ -625,11 +687,13 @@ public sealed class FileTreeView : Control
                 }
 
                 available = Math.Max(0, available - countsWidth);
-                var key = (available, fontSize, textBrush, family);
+                // Changed by the agent this session: its name in the accent color (a folder's when anything in it was).
+                var nameBrush = _tree?.IsAgentTouched(row.Node) == true ? accentBrush : textBrush;
+                var key = (available, fontSize, nameBrush, family);
                 if (row.Text is null || row.TextKey != key)
                 {
                     row.Text?.Dispose();
-                    row.Text = new TextLayout(row.Node.Name, new Typeface(family), fontSize, textBrush,
+                    row.Text = new TextLayout(row.Node.Name, new Typeface(family), fontSize, nameBrush,
                         textWrapping: TextWrapping.NoWrap, textTrimming: TextTrimming.CharacterEllipsis, maxWidth: available);
                     row.TextKey = key;
                 }
