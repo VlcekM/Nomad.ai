@@ -35,7 +35,7 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
   `--dev-type "abc{Enter}{Ctrl+S}" <seconds>` types into the focused control (keys in braces are pressed); click
-  into a file's text first with `--dev-drag x,y,x,y <seconds>` to edit it.
+  into a file's text first with `--dev-drag x,y,x,y <seconds>` to edit it. `--dev-close <seconds>` closes the window as its X does.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a
   real turn on the cheapest model before the shot. `--dev-backend opencode --dev-model opencode/big-pickle` runs it on
   OpenCode instead, on a free OpenCode Zen model (no key needed); `--dev-backend codex --dev-model gpt-6-luna` on Codex

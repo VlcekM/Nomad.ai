@@ -119,6 +119,22 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // The unsaved-edits question takes every key: Enter saves, Esc stays.
+            if (vm.Unsaved.IsOpen)
+            {
+                if (e.Key == Key.Escape)
+                {
+                    vm.Unsaved.Cancel();
+                }
+                else if (e.Key == Key.Enter)
+                {
+                    vm.Unsaved.SaveAllCommand.Execute(null);
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             // Ctrl+T: the session search. While it is open it takes Esc, the arrows and Enter.
             if (e.Key == Key.T && e.KeyModifiers == KeyModifiers.Control)
             {
@@ -253,6 +269,10 @@ public partial class MainWindow : Window
 
         Opened += (_, _) => _ = StartAsync();
         Closing += OnClosing;
+
+        // While the unsaved-edits question is open, typing doesn't reach the files behind it.
+        AddHandler(TextInputEvent, (_, e) => e.Handled |= vm.Unsaved.IsOpen, RoutingStrategies.Tunnel);
+
         vm.Search.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SessionSearchViewModel.IsOpen))
@@ -1130,6 +1150,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        // Files edited in the Files view: save them, drop the edits or stay. (Windows shutting down doesn't wait.)
+        if (!_editsSettled && e.CloseReason != WindowCloseReason.OSShutdown && _vm.EditedFiles.Any())
+        {
+            e.Cancel = true;
+            _ = AskAboutEditsThenCloseAsync();
+            return;
+        }
+
         SavePlacement();
         _vm.SaveSettings();
 
@@ -1147,6 +1175,28 @@ public partial class MainWindow : Window
 
         // A downloaded update is applied by Velopack's updater once Nomad has exited.
         _vm.Updates.OnExit();
+    }
+
+    private bool _editsSettled;
+
+    private async Task AskAboutEditsThenCloseAsync()
+    {
+        var exiting = _exiting;
+        if (!IsVisible || WindowState == WindowState.Minimized)
+        {
+            ShowFromTray(); // Exit from the tray with the window hidden: the question needs it.
+        }
+
+        if (await _vm.Unsaved.AskAsync(_vm.EditedFiles, "quit"))
+        {
+            _editsSettled = true;
+            _exiting = exiting;
+            Close();
+        }
+        else
+        {
+            _exiting = false;
+        }
     }
 
     private void SavePlacement()
@@ -1226,6 +1276,11 @@ public partial class MainWindow : Window
             {
                 DispatcherTimer.RunOnce(() => session.StopCommand.Execute(null), TimeSpan.FromSeconds(stopAfter));
             }
+        }
+
+        if (dev.CloseAfter is { } closeAt)
+        {
+            DispatcherTimer.RunOnce(Close, TimeSpan.FromSeconds(closeAt));
         }
 
         if (dev.Type is var (typed, typeAt))
@@ -1508,6 +1563,7 @@ public partial class MainWindow : Window
             await Console.Error.WriteLineAsync("Screenshot failed: " + ex.Message);
         }
 
+        _editsSettled = true; // A test run doesn't wait on a question.
         Close();
     }
 

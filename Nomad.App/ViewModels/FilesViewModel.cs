@@ -27,6 +27,9 @@ public sealed partial class FilesViewModel : ObservableObject
 
     public ObservableCollection<EditorGroup> Groups { get; } = [];
 
+    /// <summary>The open files with unsaved edits.</summary>
+    public IEnumerable<FileTab> EditedFiles => Groups.SelectMany(g => g.AllTabs).Where(t => t.IsDirty);
+
     /// <summary>The group files from the tree open in.</summary>
     public EditorGroup ActiveGroup { get; private set; }
 

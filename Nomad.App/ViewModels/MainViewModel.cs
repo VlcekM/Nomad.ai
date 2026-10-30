@@ -41,6 +41,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
 
+    /// <summary>Asks about files edited in the Files view before quitting or deleting their session.</summary>
+    public UnsavedChangesViewModel Unsaved { get; } = new();
+
+    /// <summary>Every file with unsaved edits, in every opened session.</summary>
+    public IEnumerable<FileTab> EditedFiles => LiveSessions.SelectMany(s => s.Files.EditedFiles);
+
     /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
     public static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
 
@@ -2252,6 +2258,13 @@ public sealed partial class MainViewModel : ObservableObject
         ClearPicks();
         var due = items.Where(s => s.CanManage).ToList();
         if (due.Count == 0)
+        {
+            return;
+        }
+
+        // Its files with unsaved edits would go with it.
+        var edited = due.SelectMany(i => _open.TryGetValue(i.SessionId, out var s) ? s.Files.EditedFiles : []);
+        if (!await Unsaved.AskAsync(edited, due.Count == 1 ? "delete this chat" : "delete these chats"))
         {
             return;
         }

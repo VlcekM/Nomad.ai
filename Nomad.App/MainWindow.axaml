@@ -1436,6 +1436,73 @@
       </Border>
     </Panel>
 
+    <!-- ============================================================ unsaved edits -->
+    <!-- Quitting or deleting a chat with files edited in the Files view: save them, drop the edits, or stay. -->
+    <Panel Name="UnsavedOverlay" IsVisible="{Binding Unsaved.IsShown}" Classes.raised="{Binding Unsaved.IsRaised}">
+      <Panel.Styles>
+        <Style Selector="Panel#UnsavedOverlay">
+          <Setter Property="Opacity" Value="0" />
+          <Setter Property="IsHitTestVisible" Value="False" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#UnsavedOverlay.raised">
+          <Setter Property="Opacity" Value="1" />
+          <Setter Property="IsHitTestVisible" Value="True" />
+        </Style>
+        <Style Selector="Border#UnsavedCard">
+          <Setter Property="RenderTransform" Value="translateY(8px) scale(0.98)" />
+          <Setter Property="Transitions">
+            <Transitions>
+              <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" />
+            </Transitions>
+          </Setter>
+        </Style>
+        <Style Selector="Panel#UnsavedOverlay.raised Border#UnsavedCard">
+          <Setter Property="RenderTransform" Value="translateY(0px) scale(1)" />
+        </Style>
+      </Panel.Styles>
+      <Border Background="{DynamicResource BgOverlayBrush}" />
+      <Border Name="UnsavedCard"
+              Width="440"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              CornerRadius="10"
+              Padding="20,18,20,16"
+              Background="{DynamicResource BgMainBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 16 48 0 #59000000">
+        <StackPanel Spacing="10">
+          <TextBlock Text="{Binding Unsaved.Title}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" TextWrapping="Wrap" />
+          <TextBlock Text="{Binding Unsaved.Message}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+          <ScrollViewer MaxHeight="180" HorizontalScrollBarVisibility="Disabled" Margin="0,2,0,0">
+            <ItemsControl ItemsSource="{Binding Unsaved.Files}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileTab">
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,3" ToolTip.Tip="{Binding Path}">
+                    <c:Icon Size="13" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding RelativeFolder}" Foreground="{DynamicResource TextMutedBrush}" FontSize="{DynamicResource UiFontSizeSmall}"
+                               MaxWidth="260" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <TextBlock Text="{Binding Unsaved.Error}" IsVisible="{Binding Unsaved.HasError}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" Margin="0,6,0,0">
+            <Button Theme="{StaticResource GhostButton}" Content="Cancel" Command="{Binding Unsaved.CancelCommand}" ToolTip.Tip="Esc" />
+            <Button Theme="{StaticResource SecondaryButton}" Content="Don't save" Command="{Binding Unsaved.DiscardCommand}" />
+            <Button Theme="{StaticResource PrimaryButton}" Content="Save" Command="{Binding Unsaved.SaveAllCommand}" ToolTip.Tip="Enter" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Panel>
+
     <!-- A session row being dragged: its title follows the pointer. -->
     <Canvas IsHitTestVisible="False">
       <Border Name="DragGhost"

@@ -26,6 +26,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-type "ab{Enter}{Ctrl+Z}" &lt;seconds&gt;  type into the focused control this long after start ({gesture} presses a key)
+/// --dev-close &lt;seconds&gt;       close the window (as its X does) this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
 /// --dev-pick &lt;n&gt;              pick the first n Idle rows (as Ctrl+clicks would) after start; with --dev-menu row, it opens on them
@@ -85,6 +86,9 @@ public sealed class DevOptions
 
     /// <summary><c>--dev-type</c>: text typed into the focused control, a key in braces pressed.</summary>
     public (string Text, double Seconds)? Type { get; private set; }
+
+    /// <summary><c>--dev-close</c>: the window is closed (as its X does) this long after start.</summary>
+    public double? CloseAfter { get; private set; }
     public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
 
     /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
@@ -191,6 +195,12 @@ public sealed class DevOptions
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
                     {
                         o.Key = (gesture, at);
+                    }
+                    break;
+                case "--dev-close":
+                    if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var closeAt))
+                    {
+                        o.CloseAfter = closeAt;
                     }
                     break;
                 case "--dev-type":
