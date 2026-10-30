@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
@@ -77,7 +77,7 @@ public sealed class CodeView : Control
 
     public CodeView()
     {
-        Cursor = new Cursor(StandardCursorType.Ibeam);
+        Cursor = TextCursor;
         EffectiveViewportChanged += (_, e) =>
         {
             _viewport = e.EffectiveViewport;
@@ -356,9 +356,10 @@ public sealed class CodeView : Control
     private const double BarLeft = 6;
     private const double RowLeft = 10;
 
-    // The fold box (Visual Studio's [-] and [+]): 9 px, centered this far right of the line numbers.
-    private const double FoldBox = 9;
+    // The fold button: 16 px, centered this far right of the line numbers, its chevron 10 px.
+    private const double FoldButton = 16;
     private const double FoldCenter = 16;
+    private const double FoldGlyph = 10;
 
     private int Digits => Math.Max(3, _lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
 
@@ -428,6 +429,33 @@ public sealed class CodeView : Control
             Fill(new Rect(rect.X, rect.Bottom - 1, rect.Width, 1), brush);
             Fill(new Rect(rect.X, rect.Y, 1, rect.Height), brush);
             Fill(new Rect(rect.Right - 1, rect.Y, 1, rect.Height), brush);
+        }
+
+        // A rounded fill or a chevron (the fold buttons').
+        void Shape(SceneKind kind, Rect rect, IBrush? brush)
+        {
+            if (brush is null)
+            {
+                return;
+            }
+
+            if (scene is not null)
+            {
+                scene.Add(new SceneItem(kind, rect.ToSKRect(), null, SkColor(brush)));
+            }
+            else if (kind == SceneKind.RoundFill)
+            {
+                context.DrawRectangle(brush, null, rect, 3, 3);
+            }
+            else
+            {
+                var pen = new Pen(brush, 1.5, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+                var (a, b, c) = kind == SceneKind.ChevronDown
+                    ? (new Point(rect.Left, rect.Center.Y - rect.Height / 4), new Point(rect.Center.X, rect.Center.Y + rect.Height / 4), new Point(rect.Right, rect.Center.Y - rect.Height / 4))
+                    : (new Point(rect.Center.X - rect.Width / 4, rect.Top), new Point(rect.Center.X + rect.Width / 4, rect.Center.Y), new Point(rect.Center.X - rect.Width / 4, rect.Bottom));
+                context.DrawLine(pen, a, b);
+                context.DrawLine(pen, b, c);
+            }
         }
 
         void Label(string text, double x, double y, IBrush? brush)
@@ -576,15 +604,19 @@ public sealed class CodeView : Control
             var number = (line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
             Label(number, view.Left + NumbersRight - number.Length * charWidth, RowTop(r), line == caretLine && IsEditable ? Foreground : numbers);
 
+            // The fold button: a chevron, down for an open block and right for a folded one, on a rounded backdrop
+            // that eases in under the pointer.
             if (folding.RegionAt(line) is not null)
             {
-                var box = FoldBoxRect(view, r);
-                Frame(box, numbers);
-                Fill(new Rect(box.X + 2, box.Y + 4, box.Width - 4, 1), numbers);
-                if (folding.IsFolded(line))
+                var button = FoldButtonRect(view, r);
+                var hovered = line == _hoverFoldLine ? _hoverLevel : 0;
+                if (hovered > 0 && ThemeBrush("BgHoverBrush") is ISolidColorBrush hover)
                 {
-                    Fill(new Rect(box.X + 4, box.Y + 2, 1, box.Height - 4), numbers);
+                    Shape(SceneKind.RoundFill, button, new Avalonia.Media.Immutable.ImmutableSolidColorBrush(hover.Color, hover.Opacity * hovered));
                 }
+
+                var glyph = button.Deflate((button.Width - FoldGlyph) / 2);
+                Shape(folding.IsFolded(line) ? SceneKind.ChevronRight : SceneKind.ChevronDown, glyph, hovered > 0.5 ? Foreground : numbers);
             }
         }
 
@@ -615,12 +647,12 @@ public sealed class CodeView : Control
         }
     }
 
-    /// <summary>A row's fold box, in the gutter (which stays put as the text scrolls sideways).</summary>
-    private Rect FoldBoxRect(Rect view, int row)
+    /// <summary>A row's fold button, in the gutter (which stays put as the text scrolls sideways).</summary>
+    private Rect FoldButtonRect(Rect view, int row)
     {
-        var x = Math.Round(view.Left + NumbersRight + FoldCenter - FoldBox / 2);
-        var y = Math.Round(RowTop(row) + (LineHeight - FoldBox) / 2);
-        return new Rect(x, y, FoldBox, FoldBox);
+        var x = Math.Round(view.Left + NumbersRight + FoldCenter - FoldButton / 2);
+        var y = Math.Round(RowTop(row) + (LineHeight - FoldButton) / 2);
+        return new Rect(x, y, FoldButton, FoldButton);
     }
 
     private static SKColor SkColor(IBrush? brush)
@@ -629,7 +661,7 @@ public sealed class CodeView : Control
         return new SKColor(color.R, color.G, color.B, (byte)(color.A * (brush?.Opacity ?? 1)));
     }
 
-    // The theme's color for each kind of code (CodeKeywordBrush, â€¦), looked up again when the theme changes.
+    // The theme's color for each kind of code (CodeKeywordBrush, Ã¢â‚¬Â¦), looked up again when the theme changes.
     private IBrush?[]? _kindBrushes;
 
     private IBrush? KindBrush(CodeKind kind)
@@ -790,6 +822,95 @@ public sealed class CodeView : Control
     /// <summary>Ctrl+M was pressed: the next key finishes the chord.</summary>
     private bool _chord;
 
+    private static readonly Cursor TextCursor = new(StandardCursorType.Ibeam);
+    private static readonly Cursor GutterCursor = new(StandardCursorType.Arrow);
+
+    // The fold button under the pointer (its block's first line, -1 for none), and how far its backdrop has eased in.
+    private int _hoverFoldLine = -1;
+    private double _hoverLevel;
+    private double _hoverFrom;
+    private double _hoverTarget;
+    private long _hoverStart;
+    private DispatcherTimer? _hoverTimer;
+    private const double HoverMs = 120;
+
+    // The pointer over the text or the gutter: an I-beam over the text, an arrow over the gutter (as in Visual Studio),
+    // and the fold button under it lit.
+    private void Hover(Point point)
+    {
+        var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
+        var inGutter = point.X < view.Left + TextLeft - 2;
+        Cursor = inGutter ? GutterCursor : TextCursor;
+
+        var line = -1;
+        var rows = Rows;
+        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        if (inGutter && row >= 0 && row < rows.Count && _doc.Folding.RegionAt(rows[row]) is not null &&
+            FoldButtonRect(view, row).Inflate(1).Contains(point))
+        {
+            line = rows[row];
+        }
+
+        if (line == _hoverFoldLine && _hoverTarget == (line >= 0 ? 1 : 0))
+        {
+            return;
+        }
+
+        if (line >= 0)
+        {
+            // Onto a button: it lights from nothing (another one's backdrop goes at once).
+            if (line != _hoverFoldLine)
+            {
+                _hoverLevel = 0;
+            }
+
+            _hoverFoldLine = line;
+            FadeHover(1);
+        }
+        else
+        {
+            FadeHover(0); // Off it: the backdrop eases out where it is.
+        }
+    }
+
+    private void FadeHover(double target)
+    {
+        _hoverFrom = _hoverLevel;
+        _hoverTarget = target;
+        _hoverStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_hoverTimer is null)
+        {
+            _hoverTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _hoverTimer.Tick += (_, _) =>
+            {
+                var t = Math.Min(1, System.Diagnostics.Stopwatch.GetElapsedTime(_hoverStart).TotalMilliseconds / HoverMs);
+                var eased = 1 - Math.Pow(1 - t, 3); // Cubic ease-out.
+                _hoverLevel = _hoverFrom + (_hoverTarget - _hoverFrom) * eased;
+                if (t >= 1)
+                {
+                    _hoverTimer!.Stop();
+                    if (_hoverTarget == 0)
+                    {
+                        _hoverFoldLine = -1;
+                    }
+                }
+
+                InvalidateVisual();
+            };
+        }
+
+        _hoverTimer.Start();
+    }
+
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        if (_hoverFoldLine >= 0)
+        {
+            FadeHover(0);
+        }
+    }
+
     /// <summary>A click on a fold box (in the gutter) or on a folded block's "..." toggles it; false if it was neither.</summary>
     private bool FoldClick(Point point)
     {
@@ -802,7 +923,7 @@ public sealed class CodeView : Control
 
         var line = rows[row];
         var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
-        var onBox = _doc.Folding.RegionAt(line) is not null && FoldBoxRect(view, row).Inflate(4).Contains(point);
+        var onBox = _doc.Folding.RegionAt(line) is not null && FoldButtonRect(view, row).Inflate(1).Contains(point);
         var onDots = _doc.Folding.IsFolded(line) && FoldedBox(line, row).Contains(point);
         if (!onBox && !onDots)
         {
@@ -891,6 +1012,7 @@ public sealed class CodeView : Control
         base.OnPointerMoved(e);
         if (!_selecting)
         {
+            Hover(e.GetPosition(this));
             return;
         }
 
@@ -1314,6 +1436,13 @@ internal enum SceneKind : byte
 {
     Fill,
     Text,
+
+    /// <summary>A fill with corners rounded by 3 px.</summary>
+    RoundFill,
+
+    /// <summary>A chevron in the rectangle, pointing down (an open block) or right (a folded one).</summary>
+    ChevronDown,
+    ChevronRight,
 }
 
 /// <summary>A fill (its rectangle) or a piece of text (at the rectangle's left and top) in one color.</summary>
@@ -1396,13 +1525,39 @@ internal sealed class SkiaScene(Rect bounds, Rect view, List<SceneItem> items, S
         foreach (var item in items)
         {
             paint.Color = item.Color;
-            if (item.Kind == SceneKind.Fill)
+            switch (item.Kind)
             {
-                c.DrawRect(item.Rect, paint);
-            }
-            else
-            {
-                c.DrawText(item.Text, item.Rect.Left, item.Rect.Top + baseline, SKTextAlign.Left, font, paint);
+                case SceneKind.Fill:
+                    c.DrawRect(item.Rect, paint);
+                    break;
+                case SceneKind.RoundFill:
+                    c.DrawRoundRect(item.Rect, 3, 3, paint);
+                    break;
+                case SceneKind.ChevronDown or SceneKind.ChevronRight:
+                    using (var stroke = new SKPaint { Color = item.Color, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round })
+                    using (var path = new SKPath())
+                    {
+                        var (r, down) = (item.Rect, item.Kind == SceneKind.ChevronDown);
+                        if (down)
+                        {
+                            path.MoveTo(r.Left, r.MidY - r.Height / 4);
+                            path.LineTo(r.MidX, r.MidY + r.Height / 4);
+                            path.LineTo(r.Right, r.MidY - r.Height / 4);
+                        }
+                        else
+                        {
+                            path.MoveTo(r.MidX - r.Width / 4, r.Top);
+                            path.LineTo(r.MidX + r.Width / 4, r.MidY);
+                            path.LineTo(r.MidX - r.Width / 4, r.Bottom);
+                        }
+
+                        c.DrawPath(path, stroke);
+                    }
+
+                    break;
+                default:
+                    c.DrawText(item.Text, item.Rect.Left, item.Rect.Top + baseline, SKTextAlign.Left, font, paint);
+                    break;
             }
         }
 
