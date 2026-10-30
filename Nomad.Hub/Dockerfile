@@ -22,4 +22,5 @@ ENV ASPNETCORE_HTTP_PORTS=8080 \
     Hub__DataPath=/data
 VOLUME /data
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD ["dotnet", "Nomad.Hub.dll", "--health"]
 ENTRYPOINT ["dotnet", "Nomad.Hub.dll"]

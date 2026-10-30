@@ -5,7 +5,7 @@ Newest first: the newest heading is also the version of local builds (`Directory
 
 ## v1.25.0
 
-- Nomad Hub: a self-hosted server (Docker image `vlcekmato/nomad-hub`) that keeps several PCs' sessions in step.
+- Nomad Hub: a self-hosted server (container image `ghcr.io/vlcekm/nomad-hub`) that keeps several PCs' sessions in step.
   Settings › Hub connects a PC with a one-time token; Claude Code, Codex and OpenCode sessions then sync both
   ways, into each PC's own folder for the same repository, with archived and pinned.
 - A session runs on one PC at a time, and the others watch it live through the hub: its turn streams in as it

@@ -200,7 +200,7 @@ then show all PCs' totals when a hub is set.
 ```yaml
 services:
   hub:
-    image: vlcekmato/nomad-hub:latest
+    image: ghcr.io/vlcekm/nomad-hub:latest
     restart: unless-stopped
     ports: ["127.0.0.1:8090:8080"]
     volumes: ["./data:/data"]
