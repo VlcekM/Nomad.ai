@@ -43,7 +43,9 @@ public sealed class SessionStore
     }
 
     public static string DefaultProjectsRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects");
+        Path.Combine(Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") is { Length: > 0 } dir
+            ? dir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude"), "projects");
 
     public string ProjectsRoot { get; }
 

@@ -1406,7 +1406,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string ContextPercentText => ContextTokens > 0 ? $"{ContextFraction:P0} used" : "Empty";
 
-    public string ContextAmountText => $"{Format.Tokens(ContextTokens)} / {Format.Tokens(Catalog.ContextWindow(Model))}";
+    public string ContextAmountText => $"{Format.Tokens(ContextTokens)} / {Format.Tokens(ContextWindowSize)}";
 
     /// <summary>Reloads what the side panel shows: the project's git state and the configured MCP servers.</summary>
     public void RefreshPanel(bool refresh = false)
@@ -1974,7 +1974,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial long ContextTokens { get; set; }
 
     public string ContextToolTip => ContextTokens > 0
-        ? $"Context: {Format.Tokens(ContextTokens)} of {Format.Tokens(Catalog.ContextWindow(Model))} ({ContextFraction:P0})"
+        ? $"Context: {Format.Tokens(ContextTokens)} of {Format.Tokens(ContextWindowSize)} ({ContextFraction:P0})"
         : "Context: empty";
 
     [ObservableProperty]
@@ -2776,6 +2776,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task EnsureBackendAsync()
     {
+        await AwaitWatchStartingAsync();
         if (_backend is { IsProcessRunning: true } && !_restartRequired)
         {
             return;
@@ -3018,6 +3019,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case RelayAnsweredEvent answered:
                 OnRelayAnswered(answered);
+                break;
+
+            case RelayContextEvent context:
+                ShowRelayedContext(context);
                 break;
 
             case RemotePromptEvent remote:
@@ -3535,7 +3540,7 @@ public sealed partial class SessionViewModel : ObservableObject
         if (context > 0)
         {
             ContextTokens = context;
-            ContextFraction = Math.Clamp(context / (double)Catalog.ContextWindow(Model), 0, 1);
+            ContextFraction = Math.Clamp(context / (double)ContextWindowSize, 0, 1);
         }
 
         ContentChanged?.Invoke();

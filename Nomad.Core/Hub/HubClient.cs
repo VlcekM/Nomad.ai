@@ -107,7 +107,7 @@ public sealed class HubClient : IAsyncDisposable
             .Build();
         connection.On<long>(HubNames.Changed, seq => Changed?.Invoke(seq));
         connection.On<HandoffRequest>(HubNames.HandoffRequested, r => HandoffRequested?.Invoke(r));
-        connection.On<string, string, string[]>(HubNames.RelayEvents, (b, s, e) => RelayEvents?.Invoke(b, s, e));
+        connection.On<string, string, string[], long>(HubNames.RelayEvents, (b, s, e, first) => RelayEvents?.Invoke(b, s, e, first));
         connection.On<string, string, string, string>(HubNames.RelayInput, (b, s, i, from) => RelayInput?.Invoke(b, s, i, from));
         connection.On<string, string>(HubNames.RelayEnded, (b, s) => RelayEnded?.Invoke(b, s));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
@@ -175,8 +175,8 @@ public sealed class HubClient : IAsyncDisposable
 
     // ------------------------------------------------------------------ relay (docs/hub.md §8)
 
-    /// <summary>Events of a session this PC watches: (backend, session id, encoded events).</summary>
-    public event Action<string, string, string[]>? RelayEvents;
+    /// <summary>Events of a session this PC watches: (backend, session id, encoded events, the first one's number).</summary>
+    public event Action<string, string, string[], long>? RelayEvents;
 
     /// <summary>A viewer's input for a session this PC streams: (backend, session id, encoded input, viewer's PC name).</summary>
     public event Action<string, string, string, string>? RelayInput;

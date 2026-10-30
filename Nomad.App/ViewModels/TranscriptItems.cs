@@ -32,6 +32,13 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
     /// <summary>Typed in Remote Control (claude.ai or the phone), not in Nomad.</summary>
     public bool IsRemote { get; init; }
 
+    /// <summary>Typed on another PC of the hub (the one running the session, or one watching it): its name.</summary>
+    public string? FromDevice { get; init; }
+
+    public bool IsFromDevice => FromDevice is not null;
+
+    public string FromDeviceToolTip => "Sent from " + FromDevice;
+
     /// <summary>Claude Code picked the message up (✓✓); until then it is only sent (✓).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SeenToolTip))]

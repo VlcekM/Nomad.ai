@@ -16,6 +16,9 @@ namespace Nomad.Core.Hub;
 /// <summary>A permission or question card answered (on the host or by a viewer): the other PCs close theirs.</summary>
 public sealed record RelayAnsweredEvent(string RequestId, string By) : AgentEvent;
 
+/// <summary>The host's context meter: tokens in use after the last turn, of a window this big.</summary>
+public sealed record RelayContextEvent(long Tokens, long Window) : AgentEvent;
+
 /// <summary>A prompt the host's session took (typed there, or relayed from <paramref name="From"/>): a turn is running.</summary>
 public sealed record RelayPromptEvent(string Text, string? Uuid, string? From) : AgentEvent;
 
@@ -56,7 +59,7 @@ public static class RelayCodec
                      c.AssistantMessageStartedEvent, c.BlockStartedEvent, c.TextDeltaEvent, c.ThinkingDeltaEvent, c.BlockCompletedEvent,
                      c.ToolCallEvent, c.ToolResultEvent, c.PermissionRequestedEvent, c.PermissionCancelledEvent, c.FolderMoveApprovedEvent,
                      c.PermissionModeChangedEvent, c.ModelChangedEvent, c.StatusEvent, c.TurnCompletedEvent, c.AgentErrorEvent,
-                     c.ProcessExitedEvent, c.RelayAnsweredEvent, c.RelayPromptEvent,
+                     c.ProcessExitedEvent, c.RelayAnsweredEvent, c.RelayPromptEvent, c.RelayContextEvent,
                  })
         {
             ByType[info.Type] = info;
@@ -176,15 +179,50 @@ public sealed class RelayBackend : IAgentBackend
 
         HostName = watch.HostName;
         _running = true;
-        Handle(watch.Buffer);
+        lock (_order)
+        {
+            Handle(watch.Buffer);
+            _next = watch.Next;
+            foreach (var (events, first) in _early)
+            {
+                Deliver(events, first);
+            }
+
+            _early.Clear();
+        }
     }
 
-    private void OnEvents(string backend, string sessionId, string[] events)
+    // Events are numbered by the hub. Those that come while the watch is being asked for wait for its answer: the
+    // ones its buffer already has are dropped, the rest follow it.
+    private readonly Lock _order = new();
+    private readonly List<(string[] Events, long First)> _early = [];
+    private long _next = -1;
+
+    private void OnEvents(string backend, string sessionId, string[] events, long first)
     {
-        if (backend == _backend && sessionId == SessionId && _running)
+        if (backend != _backend || sessionId != SessionId)
         {
-            Handle(events);
+            return;
         }
+
+        lock (_order)
+        {
+            if (_next < 0)
+            {
+                _early.Add((events, first));
+            }
+            else if (_running)
+            {
+                Deliver(events, first);
+            }
+        }
+    }
+
+    private void Deliver(string[] events, long first)
+    {
+        var skip = (int)Math.Clamp(_next - first, 0, events.Length);
+        Handle(events.Skip(skip));
+        _next = Math.Max(_next, first + events.Length);
     }
 
     /// <summary>Back after a drop: the hub forgot this watcher, so watch again (and end if the host is gone meanwhile).</summary>
@@ -197,9 +235,17 @@ public sealed class RelayBackend : IAgentBackend
 
         try
         {
-            if (!(await _client.WatchAsync(_backend, SessionId!).ConfigureAwait(false)).Live)
+            var watch = await _client.WatchAsync(_backend, SessionId!).ConfigureAwait(false);
+            if (!watch.Live)
             {
                 OnEnded(_backend, SessionId!);
+                return;
+            }
+
+            // Numbered afresh if the hub restarted; what was missed meanwhile shows when the transcript reloads.
+            lock (_order)
+            {
+                _next = watch.Next;
             }
         }
         catch (Exception)
@@ -332,6 +378,7 @@ public sealed class RelayPublisher : IAsyncDisposable
     private readonly Func<string?> _sessionId;
     private readonly IAgentBackend _source;
     private readonly Func<bool> _enabled;
+    private readonly string _hostName;
     private readonly ConcurrentQueue<string> _queue = new();
     private (string Uuid, string From)? _expected;
     private readonly CancellationTokenSource _stop = new();
@@ -339,10 +386,12 @@ public sealed class RelayPublisher : IAsyncDisposable
     private bool _newTurn = true;
     private volatile bool _ended;
 
+    /// <param name="hostName">This PC's name, on the prompts typed here.</param>
     /// <param name="enabled">Whether to stream now (this PC's switch and the hub's); the events are dropped while not.</param>
-    public RelayPublisher(HubClient client, string backend, Func<string?> sessionId, IAgentBackend source, Func<bool> enabled)
+    public RelayPublisher(HubClient client, string backend, Func<string?> sessionId, IAgentBackend source, string hostName, Func<bool> enabled)
     {
         _client = client;
+        _hostName = hostName;
         _backend = backend;
         _sessionId = sessionId;
         _source = source;
@@ -364,7 +413,7 @@ public sealed class RelayPublisher : IAsyncDisposable
             // Viewers see the prompt itself (the backend's own event carries only its text).
             var expected = _expected;
             _expected = null;
-            Publish(new RelayPromptEvent(started.Prompt, expected?.Uuid, expected?.From));
+            Publish(new RelayPromptEvent(started.Prompt, expected?.Uuid, expected?.From ?? _hostName));
             return;
         }
 
@@ -384,6 +433,21 @@ public sealed class RelayPublisher : IAsyncDisposable
     {
         if (_queue.Count < MaxQueued && RelayCodec.Encode(e) is { } json)
         {
+            _queue.Enqueue(json);
+        }
+    }
+
+    private readonly ConcurrentDictionary<Type, string> _standing = new();
+
+    /// <summary>
+    /// Sends a standing event, one that says how things are rather than what happened (the context meter): the newest
+    /// of each kind also heads every turn's buffer, so a viewer joining between turns or mid-turn has it too.
+    /// </summary>
+    public void PublishStanding(AgentEvent e)
+    {
+        if (RelayCodec.Encode(e) is { } json)
+        {
+            _standing[e.GetType()] = json;
             _queue.Enqueue(json);
         }
     }
@@ -415,6 +479,7 @@ public sealed class RelayPublisher : IAsyncDisposable
             if (!_client.IsConnected || !_enabled())
             {
                 _queue.Clear(); // Offline or off: nobody can watch; the transcript syncs later anyway.
+                _newTurn = true; // The hub forgot the stream: it starts again, with the standing events.
             }
 
             return;
@@ -437,23 +502,29 @@ public sealed class RelayPublisher : IAsyncDisposable
         {
             if (batch.Count > 0)
             {
-                await _client.PublishAsync(_backend, id, batch.ToArray(), _newTurn, _stop.Token).ConfigureAwait(false);
-                _newTurn = false;
+                await PublishBatchAsync(id, batch).ConfigureAwait(false);
             }
 
             // The turn is in the transcript now (synced soon): a viewer joining from here on starts from that, so the
-            // hub forgets the turn.
+            // hub forgets the turn (all but the standing events).
             if (endsTurn)
             {
                 _newTurn = true;
-                await _client.PublishAsync(_backend, id, [], true, _stop.Token).ConfigureAwait(false);
-                _newTurn = false;
+                await PublishBatchAsync(id, []).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // The hub went away mid-turn: these are lost to viewers, the transcript isn't.
         }
+    }
+
+    /// <summary>A batch that starts the hub's buffer over leads with the standing events, so every viewer gets them.</summary>
+    private async Task PublishBatchAsync(string id, List<string> batch)
+    {
+        var events = _newTurn ? [.. _standing.Values, .. batch] : batch;
+        await _client.PublishAsync(_backend, id, [.. events], _newTurn, _stop.Token).ConfigureAwait(false);
+        _newTurn = false;
     }
 
     private async Task StopRelayAsync()
@@ -535,5 +606,6 @@ internal sealed class OptionalJsonElementConverter : JsonConverter<JsonElement>
 [JsonSerializable(typeof(ProcessExitedEvent))]
 [JsonSerializable(typeof(RelayAnsweredEvent))]
 [JsonSerializable(typeof(RelayPromptEvent))]
+[JsonSerializable(typeof(RelayContextEvent))]
 [JsonSerializable(typeof(RelayInput))]
 internal sealed partial class RelayJson : JsonSerializerContext;

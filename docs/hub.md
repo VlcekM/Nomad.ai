@@ -11,7 +11,8 @@ Where it differs from the design below:
   There is no Continue here button: a streamed session moves only when its host lets it go (its idle timeout).
 - **Watching is automatic**: opening a session another PC streams, or prompting it, makes it a viewer ("Live from
   \<device\>" in the transcript); the prompt goes to that PC. When the stream ends the transcript reloads from the
-  synced file, as it does between turns. Prompts from a viewer carry no device mark yet.
+  synced file, as it does between turns; on starting to watch, that session is fetched first. Prompts typed on
+  another PC show its name at the top of the bubble.
 - **Projects without a git remote** are keyed `folder:<name>` on every PC (not per device), so a folder with
   the same name maps across PCs.
 - **State** syncs archived and pinned (diffed from the settings on every save); the rest of the per-session
@@ -176,6 +177,8 @@ then show all PCs' totals when a hub is set.
 - The host sends its session's normalised `AgentEvent`s (what all three backends already turn into) to the hub,
   which fans them out to the session's viewers and keeps the current turn's events, so a viewer that joins
   mid-turn sees the whole turn. The buffer is emptied when the turn ends (the synced file has it from then on).
+  Events are numbered per stream (`WatchResult.Next`, `RelayEvents`' `first`), so a viewer keeps the ones that
+  arrive while it asks to watch and drops those its buffer already had.
   Built: `RelayPublisher` (host, 50 ms batches) and `RelayBackend` (viewer, an `IAgentBackend`) in
   `Nomad.Core/Hub/Relay.cs`; events go as `{"t":"<type>","e":{…}}` strings the hub doesn't read, kept in memory
   only (a hub restart ends every stream until the host's next event).
