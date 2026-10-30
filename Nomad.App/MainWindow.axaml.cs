@@ -1050,10 +1050,13 @@ public partial class MainWindow : Window
 
     private TrayIcon? _tray;
 
-    /// <summary>With "close to tray" on, an icon in the notification area: a click shows the window, its menu exits.</summary>
+    /// <summary>
+    /// With "close to tray" on, an icon in the notification area: a click shows the window, its menu exits. A debug run
+    /// (--dev-*) never goes to the tray: it has no icon, and its X quits.
+    /// </summary>
     private void CreateTrayIcon()
     {
-        if (_vm.Dev.ScreenshotPath is not null || Application.Current is not { } app)
+        if (Program.IsDebugRun || Application.Current is not { } app)
         {
             return;
         }
@@ -1140,7 +1143,7 @@ public partial class MainWindow : Window
     private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         // "Close to tray": the window only hides (the tray icon brings it back); Exit quits.
-        if (_vm.Settings.CloseToTray && !_exiting && !_shutDown && _vm.Dev.ScreenshotPath is null
+        if (_vm.Settings.CloseToTray && !_exiting && !_shutDown && !Program.IsDebugRun
             && e.CloseReason is WindowCloseReason.WindowClosing or WindowCloseReason.Undefined)
         {
             e.Cancel = true;
