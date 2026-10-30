@@ -113,6 +113,18 @@ public sealed class NomadSettings
     /// <summary>Session id to the folder approved in Nomad, overriding the transcript's original cwd.</summary>
     public Dictionary<string, string> MovedSessionFolders { get; set; } = [];
 
+    // Nomad Hub (docs/hub.md)
+    /// <summary>The hub's address; null: no hub, Nomad works on its own.</summary>
+    public string? HubUrl { get; set; }
+
+    /// <summary>This PC as the hub knows it, set by enrolling.</summary>
+    public Guid? HubDeviceId { get; set; }
+
+    public string? HubDeviceName { get; set; }
+
+    /// <summary>The device secret, encrypted for this Windows user (DPAPI), base64.</summary>
+    public string? HubSecret { get; set; }
+
     /// <summary>Extra workspace folders selected for each chat; the original working directory stays the same.</summary>
     public Dictionary<string, List<string>> SessionAdditionalDirectories { get; set; } = [];
 

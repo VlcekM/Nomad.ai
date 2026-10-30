@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nomad.Hub\Nomad.Hub.csproj" />
+    <ProjectReference Include="..\Nomad.Core\Nomad.Core.csproj" />
   </ItemGroup>
 
 </Project>
