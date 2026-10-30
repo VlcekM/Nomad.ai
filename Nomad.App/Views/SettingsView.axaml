@@ -880,6 +880,25 @@
                 </Grid>
                 <Border Classes="rowline" />
 
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Stream live sessions" Classes="rowlabel" />
+                    <TextBlock Text="Your other PCs watch a session running here as it happens, and can prompt, answer and stop it. Off: they ask for it instead, and it moves to them after its turn."
+                               Classes="rowhint" TextWrapping="Wrap" />
+                    <TextBlock Text="This hub has streaming turned off (Hub__RelayEnabled)." Classes="rowhint" IsVisible="{Binding Hub.RelayOffOnHub}" />
+                  </StackPanel>
+                  <Button Grid.Column="1"
+                          Theme="{StaticResource FlatButton}"
+                          Padding="6"
+                          VerticalAlignment="Center"
+                          Command="{Binding Hub.ToggleStreamLiveCommand}">
+                    <Border Classes="switch large" Classes.on="{Binding Hub.StreamLive}">
+                      <Ellipse />
+                    </Border>
+                  </Button>
+                </Grid>
+                <Border Classes="rowline" />
+
                 <TextBlock Text="Devices" Classes="rowlabel" Margin="0,18,0,6" />
                 <ItemsControl ItemsSource="{Binding Hub.Devices}">
                   <ItemsControl.ItemTemplate>

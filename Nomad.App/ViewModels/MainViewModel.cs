@@ -1181,6 +1181,7 @@ public sealed partial class MainViewModel : ObservableObject
                 : item.IsCodex ? await LoadCodexHistoryAsync(item)
                 : await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
             session.LoadHistory(summary, history);
+            _ = session.WatchIfLiveAsync();
         }
         catch (Exception ex)
         {

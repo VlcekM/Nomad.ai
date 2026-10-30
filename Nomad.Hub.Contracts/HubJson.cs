@@ -29,7 +29,9 @@ namespace Nomad.Hub.Contracts;
 [JsonSerializable(typeof(UsageBatch))]
 [JsonSerializable(typeof(UsageBatchResult))]
 [JsonSerializable(typeof(UsageReport))]
+[JsonSerializable(typeof(WatchResult))]
 [JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(string[]))]
 [JsonSerializable(typeof(long))]
 [JsonSerializable(typeof(bool))]
 public sealed partial class HubJson : JsonSerializerContext;

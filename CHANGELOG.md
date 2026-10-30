@@ -8,8 +8,10 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - Nomad Hub: a self-hosted server (Docker image `vlcekmato/nomad-hub`) that keeps several PCs' sessions in step.
   Settings › Hub connects a PC with a one-time token; Claude Code, Codex and OpenCode sessions then sync both
   ways, into each PC's own folder for the same repository, with archived and pinned.
-- A session runs on one PC at a time. A prompt sent to it on another PC asks the first to hand it over once its turn
-  is done; a copy changed on two PCs at once is kept as a new session, never merged.
+- A session runs on one PC at a time, and the others watch it live through the hub: its turn streams in as it
+  happens, and their prompts, answers and Stop go to the PC running it (Settings › Hub › Stream live sessions).
+  With streaming off, a prompt from another PC asks the first to hand the session over once its turn is done.
+  A copy changed on two PCs at once is kept as a new session, never merged.
 - With a hub connected, the Claude and Codex usage cards count every PC's tokens this month.
 
 ## v1.24.0

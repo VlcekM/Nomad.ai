@@ -78,6 +78,26 @@ public sealed partial class HubViewModel : ObservableObject
 
     public ObservableCollection<HubDeviceRow> Devices { get; } = [];
 
+    /// <summary>Whether the hub relays live sessions (its <c>Hub:RelayEnabled</c>); asked once connected.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RelayOffOnHub))]
+    public partial bool HubRelays { get; set; }
+
+    private bool _hubAsked;
+
+    public bool RelayOffOnHub => _hubAsked && !HubRelays;
+
+    /// <summary>This PC streams its running sessions (Settings › Hub).</summary>
+    public bool StreamLive => _main.Settings.HubRelay;
+
+    [RelayCommand]
+    private void ToggleStreamLive()
+    {
+        _main.Settings.HubRelay = !_main.Settings.HubRelay;
+        _main.SaveSettings();
+        OnPropertyChanged(nameof(StreamLive));
+    }
+
     // ------------------------------------------------------------------ lifetime
 
     /// <summary>Starts syncing if this PC is enrolled (not in scripted dev runs, so test sessions stay off the hub).</summary>
@@ -103,7 +123,15 @@ public sealed partial class HubViewModel : ObservableObject
         var statePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_main.SettingsPath))!, "hub-sync.json");
         _sync = new HubSync(new HubClient(url, secret), backends, statePath, (_, id) => _busy.ContainsKey(id));
         _sync.Status += s => Dispatcher.UIThread.Post(() => Status = s);
-        _sync.ConnectionChanged += up => Dispatcher.UIThread.Post(() => IsConnected = up);
+        _sync.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
+        {
+            IsConnected = up;
+            if (up && !_hubAsked)
+            {
+                _ = AskHubAsync();
+            }
+        });
+        _sync.Client.RelayInput += (backend, id, input, from) => Dispatcher.UIThread.Post(() => _main.OnHubRelayInput(id, input, from));
         _sync.SessionPulled += p => Dispatcher.UIThread.Post(() => _main.OnHubSessionPulled(p));
         _sync.SessionDeleted += (backend, id) => Dispatcher.UIThread.Post(() => _ = _main.OnHubSessionDeletedAsync(id));
         _sync.StateChanged += s => Dispatcher.UIThread.Post(() => ApplyState(s));
@@ -215,15 +243,68 @@ public sealed partial class HubViewModel : ObservableObject
         _main.OnHubStateChanged(state.SessionId, state.Key, on);
     }
 
+    private async Task AskHubAsync()
+    {
+        if (_sync is not { } sync)
+        {
+            return;
+        }
+
+        try
+        {
+            HubRelays = (await sync.Client.InfoAsync()).RelayEnabled;
+            _hubAsked = true;
+            OnPropertyChanged(nameof(RelayOffOnHub));
+            if (HubRelays)
+            {
+                _main.OnHubRelayReady();
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+        }
+    }
+
+    // ------------------------------------------------------------------ the live relay (docs/hub.md §8)
+
+    /// <summary>Streams a session this PC runs, while this PC's switch and the hub allow; null without a hub.</summary>
+    public RelayPublisher? Publish(string backend, Func<string?> sessionId, IAgentBackend source) =>
+        _sync is { } sync ? new RelayPublisher(sync.Client, backend, sessionId, source, () => HubRelays && _main.Settings.HubRelay) : null;
+
+    /// <summary>The session as another PC runs it, to watch, when that PC streams it now; null otherwise.</summary>
+    public async Task<RelayBackend?> WatchAsync(string backend, string sessionId, CancellationToken ct = default)
+    {
+        if (_sync is not { } sync || !HubRelays || !sync.Client.IsConnected || sync.Holds(backend, sessionId))
+        {
+            return null;
+        }
+
+        try
+        {
+            if ((await sync.Client.WatchAsync(backend, sessionId, ct)).Live)
+            {
+                return new RelayBackend(sync.Client, backend, sessionId);
+            }
+
+            await sync.Client.UnwatchAsync(backend, sessionId, ct);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or OperationCanceledException or Microsoft.AspNetCore.SignalR.HubException)
+        {
+        }
+
+        return null;
+    }
+
     /// <summary>
-    /// Before this PC runs a session: takes its lease. Throws (shown in the transcript) when another PC runs it, after
-    /// asking that PC to hand it over; then fetches the newest version so the CLI resumes from it.
+    /// Before this PC runs a session: takes its lease. When another PC runs it, returns that PC's stream to watch, or
+    /// throws (shown in the transcript) after asking that PC to hand it over; then fetches the newest version so the CLI
+    /// resumes from it.
     /// </summary>
-    public async Task EnsureHostAsync(string backend, string sessionId)
+    public async Task<RelayBackend?> EnsureHostAsync(string backend, string sessionId)
     {
         if (_sync is not { } sync || sync.Holds(backend, sessionId))
         {
-            return;
+            return null;
         }
 
         // Never long: a hub out of reach (a laptop away from home) counts as no hub, and the session runs.
@@ -231,6 +312,11 @@ public sealed partial class HubViewModel : ObservableObject
         var lease = await sync.TakeLeaseAsync(backend, sessionId, quick.Token);
         if (lease is { Granted: false })
         {
+            if (await WatchAsync(backend, sessionId, quick.Token) is { } relay)
+            {
+                return relay;
+            }
+
             var asked = await sync.Client.RequestHandoffAsync(backend, sessionId, quick.Token).ConfigureAwait(true);
             throw new InvalidOperationException(asked
                 ? $"This session is running on {lease.HolderName}. Nomad asked it to hand the session over; send again in a moment."
@@ -248,6 +334,8 @@ public sealed partial class HubViewModel : ObservableObject
             {
             }
         }
+
+        return null;
     }
 
     /// <summary>A session's process started or ended here: holds its lease while it runs, hands it back after.</summary>

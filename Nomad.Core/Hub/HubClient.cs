@@ -107,6 +107,9 @@ public sealed class HubClient : IAsyncDisposable
             .Build();
         connection.On<long>(HubNames.Changed, seq => Changed?.Invoke(seq));
         connection.On<HandoffRequest>(HubNames.HandoffRequested, r => HandoffRequested?.Invoke(r));
+        connection.On<string, string, string[]>(HubNames.RelayEvents, (b, s, e) => RelayEvents?.Invoke(b, s, e));
+        connection.On<string, string, string, string>(HubNames.RelayInput, (b, s, i, from) => RelayInput?.Invoke(b, s, i, from));
+        connection.On<string, string>(HubNames.RelayEnded, (b, s) => RelayEnded?.Invoke(b, s));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
@@ -169,6 +172,36 @@ public sealed class HubClient : IAsyncDisposable
 
         return await connection.InvokeAsync<List<LeaseKey>>(HubNames.RenewLeases, keys.ToList(), ct).ConfigureAwait(false);
     }
+
+    // ------------------------------------------------------------------ relay (docs/hub.md §8)
+
+    /// <summary>Events of a session this PC watches: (backend, session id, encoded events).</summary>
+    public event Action<string, string, string[]>? RelayEvents;
+
+    /// <summary>A viewer's input for a session this PC streams: (backend, session id, encoded input, viewer's PC name).</summary>
+    public event Action<string, string, string, string>? RelayInput;
+
+    /// <summary>A watched session stopped streaming: (backend, session id).</summary>
+    public event Action<string, string>? RelayEnded;
+
+    private HubConnection Live => _connection is { State: HubConnectionState.Connected } connection
+        ? connection
+        : throw new InvalidOperationException("Not connected to the hub.");
+
+    public Task PublishAsync(string backend, string sessionId, string[] events, bool newTurn, CancellationToken ct = default) =>
+        Live.InvokeAsync(HubNames.RelayPublish, backend, sessionId, events, newTurn, ct);
+
+    public Task StopRelayAsync(string backend, string sessionId, CancellationToken ct = default) =>
+        Live.InvokeAsync(HubNames.RelayStop, backend, sessionId, ct);
+
+    public Task<WatchResult> WatchAsync(string backend, string sessionId, CancellationToken ct = default) =>
+        Live.InvokeAsync<WatchResult>(HubNames.RelayWatch, backend, sessionId, ct);
+
+    public Task UnwatchAsync(string backend, string sessionId, CancellationToken ct = default) =>
+        Live.InvokeAsync(HubNames.RelayUnwatch, backend, sessionId, ct);
+
+    public Task SendInputAsync(string backend, string sessionId, string input, CancellationToken ct = default) =>
+        Live.InvokeAsync(HubNames.RelaySendInput, backend, sessionId, input, ct);
 
     private sealed class ForeverRetry : IRetryPolicy
     {

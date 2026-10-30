@@ -16,12 +16,12 @@ public sealed partial class MainViewModel
     public string BackendOf(string sessionId) =>
         _all.FirstOrDefault(s => s.SessionId == sessionId)?.Backend ?? AgentBackends.ClaudeCode;
 
-    private void HubActivity(SessionViewModel session) => Hub.SetBusy(session.SessionId, session.IsTurnRunning);
+    private void HubActivity(SessionViewModel session) => Hub.SetBusy(session.SessionId, session.IsTurnRunning && !session.IsRelayViewer);
 
     private void HubTurnCompleted(SessionViewModel session)
     {
         Hub.SetBusy(session.SessionId, false);
-        if (session.IsProcessRunning)
+        if (session.IsProcessRunning && !session.IsRelayViewer)
         {
             Hub.OnAliveChanged(session.Backend, session.SessionId, running: true); // A new session has its id only now.
         }
@@ -29,8 +29,32 @@ public sealed partial class MainViewModel
         Hub.Wake();
     }
 
-    private void HubAliveChanged(SessionViewModel session) =>
-        Hub.OnAliveChanged(session.Backend, session.SessionId, session.IsProcessRunning);
+    private void HubAliveChanged(SessionViewModel session)
+    {
+        // Watching another PC's session holds nothing here.
+        if (!session.IsRelayViewer)
+        {
+            Hub.OnAliveChanged(session.Backend, session.SessionId, session.IsProcessRunning);
+        }
+    }
+
+    /// <summary>The hub is up and relays: sessions opened before that watch the ones another PC runs now.</summary>
+    public void OnHubRelayReady()
+    {
+        foreach (var session in _open.Values.Where(s => !s.IsProcessRunning).ToList())
+        {
+            _ = session.WatchIfLiveAsync();
+        }
+    }
+
+    /// <summary>A prompt, answer or Stop from a PC watching a session this one streams.</summary>
+    public void OnHubRelayInput(string sessionId, string input, string from)
+    {
+        if (_open.TryGetValue(sessionId, out var session) && RelayCodec.DecodeInput(input) is { } decoded)
+        {
+            _ = session.ApplyRelayInputAsync(decoded, from);
+        }
+    }
 
     /// <summary>A session came from the hub: listed (in this PC's folder for it), and an open idle one shows the new turns.</summary>
     public void OnHubSessionPulled(PulledSession pulled)
@@ -42,7 +66,7 @@ public sealed partial class MainViewModel
             SaveSettings();
         }
 
-        if (_open.TryGetValue(pulled.SessionId, out var session) && !session.IsProcessRunning)
+        if (_open.TryGetValue(pulled.SessionId, out var session) && session.CanReloadFromStore)
         {
             _ = session.ReloadFromStoreAsync();
         }

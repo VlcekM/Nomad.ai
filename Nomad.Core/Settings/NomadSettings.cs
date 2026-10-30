@@ -125,6 +125,9 @@ public sealed class NomadSettings
     /// <summary>The device secret, encrypted for this Windows user (DPAPI), base64.</summary>
     public string? HubSecret { get; set; }
 
+    /// <summary>Sessions running here stream through the hub, so the other PCs can watch and prompt them (§8).</summary>
+    public bool HubRelay { get; set; } = true;
+
     /// <summary>Extra workspace folders selected for each chat; the original working directory stays the same.</summary>
     public Dictionary<string, List<string>> SessionAdditionalDirectories { get; set; } = [];
 
