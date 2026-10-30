@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Nomad.App.Controls;
 using Nomad.App.ViewModels;
 
@@ -26,12 +27,14 @@ public partial class EditorGroupView : UserControl
         if (_group is not null)
         {
             _group.PropertyChanged -= OnGroupChanged;
+            _group.Find.FocusRequested -= OnFindFocusRequested;
         }
 
         _group = DataContext as EditorGroup;
         if (_group is not null)
         {
             _group.PropertyChanged += OnGroupChanged;
+            _group.Find.FocusRequested += OnFindFocusRequested;
         }
 
         _shown = _group?.ActiveTab;
@@ -82,6 +85,73 @@ public partial class EditorGroupView : UserControl
 
             e.Handled = true;
         }
+    }
+
+    // Ctrl+F puts the focus in the query (Ctrl+H in the replacement, when there is a query already).
+    private void OnFindFocusRequested(bool replace)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var box = replace && FindQuery.Text is { Length: > 0 } ? FindReplace : FindQuery;
+            box.Focus();
+            box.SelectAll();
+        }, DispatcherPriority.Loaded);
+    }
+
+    // In the find box: Enter goes to the next match (Shift: the previous), Esc closes it and goes back to the code.
+    private void OnFindKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_group is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                _group.Find.Previous();
+            }
+            else
+            {
+                _group.Find.Next();
+            }
+
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseFind();
+            e.Handled = true;
+        }
+    }
+
+    // In the replacement: Enter replaces the next match, Ctrl+Alt+Enter all of them, Esc closes.
+    private void OnReplaceKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_group is null)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            (e.KeyModifiers.HasFlag(KeyModifiers.Alt) ? _group.Find.ReplaceAllCommand : _group.Find.ReplaceCommand).Execute(null);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseFind();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindClose(object? sender, RoutedEventArgs e) => CloseFind();
+
+    private void CloseFind()
+    {
+        _group?.Find.Close();
+        Code.Focus();
     }
 
     // A new tab fades in.

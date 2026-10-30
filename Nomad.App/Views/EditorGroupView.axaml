@@ -160,6 +160,83 @@
     <Style Selector="Border#Card">
       <Setter Property="CornerRadius" Value="10" />
     </Style>
+    <!-- The find box: a raised card that fades and drops a little into place. -->
+    <Style Selector="Border.findbox">
+      <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Padding" Value="3,4,6,4" />
+      <Setter Property="BoxShadow" Value="0 6 20 0 #4D000000" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="translateY(-6px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.findbox.raised">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Border.findfield">
+      <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="Padding" Value="7,0,2,0" />
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.findfield.nomatch">
+      <Setter Property="BorderBrush" Value="{DynamicResource DiffDelBrush}" />
+    </Style>
+    <Style Selector="Border.findfield TextBox">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    </Style>
+    <Style Selector="Button.findtool">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    </Style>
+    <Style Selector="Button.findword">
+      <Setter Property="Width" Value="NaN" />
+      <Setter Property="Padding" Value="7,0" />
+    </Style>
+    <Style Selector="Button.findtoggle TextBlock">
+      <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Button.findtoggle.on">
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.findstatus">
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+    <!-- The replace toggle's chevron: right while closed, down while open, crossfading. -->
+    <Style Selector="Button.findexpand c|Icon">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.findexpand c|Icon.down, Button.findexpand.open c|Icon.right">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.findexpand.open c|Icon.down">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
     <Style Selector="Border#Card.flush">
       <Setter Property="CornerRadius" Value="0,10,10,10" />
     </Style>
@@ -246,6 +323,7 @@
             </DockPanel>
           </Border>
 
+          <Panel>
           <!-- Visual Studio's editor size: 10 pt (13.33 px) on 17 px lines; only the lines in view are drawn. -->
           <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
             <ide:CodeView Name="Code"
@@ -258,6 +336,68 @@
                           LineHeight="17"
                           Padding="0,12,18,24" />
           </ScrollViewer>
+
+          <!-- The find's matches beside the scroll bar. -->
+          <ide:CodeMarkerBar Document="{Binding ActiveTab.Document}" Width="6" HorizontalAlignment="Right" Margin="0,2,2,14" />
+
+          <!-- Find and replace (Ctrl+F, Ctrl+H), over the code's top right as in Visual Studio. -->
+          <Border Name="FindBox"
+                  Classes="findbox"
+                  Classes.raised="{Binding Find.IsRaised}"
+                  IsVisible="{Binding Find.IsShown}"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Top"
+                  Margin="0,6,22,0">
+            <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+              <Button Theme="{StaticResource IconButton}" Classes="findtool findexpand" Classes.open="{Binding Find.IsReplaceShown}" Width="20" Height="24" Grid.RowSpan="2" VerticalAlignment="Top"
+                      Command="{Binding Find.ToggleReplaceCommand}" ToolTip.Tip="Toggle replace (Ctrl+H)">
+                <Panel>
+                  <c:Icon Classes="right" Size="12" Data="{StaticResource IconChevronRight}" />
+                  <c:Icon Classes="down" Size="12" Data="{StaticResource IconChevronDown}" />
+                </Panel>
+              </Button>
+              <Border Grid.Column="1" Classes="findfield" Classes.nomatch="{Binding Find.HasNoMatch}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBox Name="FindQuery" Theme="{StaticResource BareTextBox}" Width="200" Watermark="Find" Text="{Binding Find.Query}" VerticalAlignment="Center" KeyDown="OnFindKeyDown" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="1">
+                    <Button Theme="{StaticResource IconButton}" Classes="findtool findtoggle" Classes.on="{Binding Find.MatchCase}" Command="{Binding Find.ToggleMatchCaseCommand}" ToolTip.Tip="Match case">
+                      <TextBlock Text="Aa" />
+                    </Button>
+                    <Button Theme="{StaticResource IconButton}" Classes="findtool findtoggle" Classes.on="{Binding Find.WholeWord}" Command="{Binding Find.ToggleWholeWordCommand}" ToolTip.Tip="Match whole word">
+                      <TextBlock Text="ab" TextDecorations="Underline" />
+                    </Button>
+                    <Button Theme="{StaticResource IconButton}" Classes="findtool findtoggle" Classes.on="{Binding Find.UseRegex}" Command="{Binding Find.ToggleRegexCommand}" ToolTip.Tip="Use regular expressions">
+                      <TextBlock Text=".*" />
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </Border>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1" Margin="6,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Find.Status}" Classes="muted findstatus" MinWidth="64" VerticalAlignment="Center" />
+                <Button Theme="{StaticResource IconButton}" Classes="findtool" Command="{Binding Find.PreviousCommand}" ToolTip.Tip="Previous (Shift+F3)">
+                  <c:Icon Size="12" Data="{StaticResource IconChevronRight}" RenderTransform="rotate(-90deg)" />
+                </Button>
+                <Button Theme="{StaticResource IconButton}" Classes="findtool" Command="{Binding Find.NextCommand}" ToolTip.Tip="Next (F3)">
+                  <c:Icon Size="12" Data="{StaticResource IconChevronRight}" RenderTransform="rotate(90deg)" />
+                </Button>
+                <Button Theme="{StaticResource IconButton}" Classes="findtool" Click="OnFindClose" ToolTip.Tip="Close (Esc)">
+                  <c:Icon Size="10" Data="{StaticResource IconClose}" />
+                </Button>
+              </StackPanel>
+              <Border Grid.Row="1" Grid.Column="1" Classes="findfield" Margin="0,4,0,0" IsVisible="{Binding Find.IsReplaceShown}">
+                <TextBox Name="FindReplace" Theme="{StaticResource BareTextBox}" Width="200" Watermark="Replace" Text="{Binding Find.ReplaceText}" VerticalAlignment="Center" KeyDown="OnReplaceKeyDown" />
+              </Border>
+              <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="1" Margin="6,4,0,0" IsVisible="{Binding Find.IsReplaceShown}">
+                <Button Theme="{StaticResource IconButton}" Classes="findtool findword" Command="{Binding Find.ReplaceCommand}" ToolTip.Tip="Replace next (Alt+R)">
+                  <TextBlock Text="Replace" />
+                </Button>
+                <Button Theme="{StaticResource IconButton}" Classes="findtool findword" Command="{Binding Find.ReplaceAllCommand}" ToolTip.Tip="Replace all (Alt+A)">
+                  <TextBlock Text="All" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </Border>
+          </Panel>
         </DockPanel>
       </Panel>
     </Border>

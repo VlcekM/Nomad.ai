@@ -167,6 +167,34 @@ public partial class MainWindow : Window
                 }
             }
 
+            // In the Files view: Ctrl+F and Ctrl+H find and replace in the file shown, F3 and Shift+F3 go to the next
+            // and previous match.
+            if (vm.Current.IsFilesView && !vm.Search.IsOpen && !vm.IsSettingsOpen && !codeSearch.IsOpen &&
+                vm.Current.Files.ActiveGroup is { HasTabs: true } findGroup)
+            {
+                if (e.Key is Key.F or Key.H && e.KeyModifiers == KeyModifiers.Control)
+                {
+                    findGroup.Find.Open(replace: e.Key == Key.H);
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.F3 && findGroup.Find.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+                {
+                    if (e.KeyModifiers == KeyModifiers.Shift)
+                    {
+                        findGroup.Find.Previous();
+                    }
+                    else
+                    {
+                        findGroup.Find.Next();
+                    }
+
+                    e.Handled = true;
+                    return;
+                }
+            }
+
             // Ctrl+F: find in the chat.
             if (e.Key == Key.F && e.KeyModifiers == KeyModifiers.Control && !vm.Search.IsOpen && !vm.IsSettingsOpen)
             {

@@ -144,6 +144,8 @@
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
       <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
+      <SolidColorBrush x:Key="CodeFindMatchBrush" Color="#5C8A6A2A" />
+      <SolidColorBrush x:Key="CodeFindMarkBrush" Color="#D7A84A" />
       <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
       <!-- Find in the chat (Ctrl+F): every match, and the current one -->
       <SolidColorBrush x:Key="FindMatchBrush" Color="#33D2784B" />
@@ -329,6 +331,8 @@
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
       <SolidColorBrush x:Key="PaceBrush" Color="#5C2A78D6" />
+      <SolidColorBrush x:Key="CodeFindMatchBrush" Color="#66F2C46B" />
+      <SolidColorBrush x:Key="CodeFindMarkBrush" Color="#C08A1E" />
       <SolidColorBrush x:Key="TextSelectionBrush" Color="#553A6EA5" />
       <!-- Find in the chat (Ctrl+F): every match, and the current one -->
       <SolidColorBrush x:Key="FindMatchBrush" Color="#2ED2784B" />

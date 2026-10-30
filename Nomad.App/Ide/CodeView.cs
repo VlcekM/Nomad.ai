@@ -171,7 +171,9 @@ public sealed class CodeView : Control
             _doc.Changed -= OnDocumentChanged;
             _doc.Folding.Changed -= OnFoldingChanged;
             _doc.RevealRequested -= OnRevealRequested;
+            _doc.MarksChanged -= InvalidateVisual;
             _doc = Document ?? CodeDocument.Empty;
+            _doc.MarksChanged += InvalidateVisual;
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
             _doc.RevealRequested += OnRevealRequested;
@@ -486,6 +488,36 @@ public sealed class CodeView : Control
         var rowRect = new Rect(view.Left + RowLeft, RowTop(caretRow), Math.Max(0, view.Width - RowLeft), height);
         Fill(rowRect, row);
 
+        // The find's matches in view (they are in document order: the first in view is found by halving).
+        var marks = _doc.Marks;
+        if (marks.Count > 0 && ThemeBrush("CodeFindMatchBrush") is { } markBrush)
+        {
+            int lo = 0, hi = marks.Count;
+            while (lo < hi)
+            {
+                var mid = (lo + hi) / 2;
+                if (marks[mid].From.Line < rows[firstRow])
+                {
+                    lo = mid + 1;
+                }
+                else
+                {
+                    hi = mid;
+                }
+            }
+
+            for (var i = lo; i < marks.Count && marks[i].From.Line <= rows[lastRow]; i++)
+            {
+                var (from, to) = marks[i];
+                var markRow = folding.RowOf(from.Line);
+                if (rows[markRow] == from.Line)
+                {
+                    var start = Column(from);
+                    Fill(new Rect(left + start * charWidth, RowTop(markRow), (Column(to) - start) * charWidth, height), markBrush);
+                }
+            }
+        }
+
         if (HasSelection && SelectionBrush is { } selection)
         {
             var (from, to) = Ordered();
@@ -785,6 +817,8 @@ public sealed class CodeView : Control
         _doc.Folding.Changed += OnFoldingChanged;
         _doc.RevealRequested -= OnRevealRequested;
         _doc.RevealRequested += OnRevealRequested;
+        _doc.MarksChanged -= InvalidateVisual;
+        _doc.MarksChanged += InvalidateVisual;
         Refresh();
     }
 
@@ -795,13 +829,18 @@ public sealed class CodeView : Control
         _doc.Changed -= OnDocumentChanged;
         _doc.Folding.Changed -= OnFoldingChanged;
         _doc.RevealRequested -= OnRevealRequested;
+        _doc.MarksChanged -= InvalidateVisual;
     }
 
-    // A Go To: the caret's line in the middle of the view, and the focus here to type at it.
-    private void OnRevealRequested()
+    // A Go To (or a find's match): the caret's line in the middle of the view, and the focus here to type at it.
+    private void OnRevealRequested(bool focus)
     {
         _goalCol = null;
-        Focus();
+        if (focus)
+        {
+            Focus();
+        }
+
         RestartBlink();
         Dispatcher.UIThread.Post(() =>
         {

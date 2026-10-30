@@ -349,6 +349,7 @@ public sealed partial class EditorGroup : ObservableObject
     public EditorGroup(FilesViewModel owner)
     {
         this.owner = owner;
+        Find = new FindViewModel(this);
         Tabs.CollectionChanged += (_, _) =>
         {
             for (var i = 0; i < Tabs.Count; i++)
@@ -359,6 +360,9 @@ public sealed partial class EditorGroup : ObservableObject
             OnPropertyChanged(nameof(IsFirstActive));
         };
     }
+
+    /// <summary>Find and replace in the file shown (Ctrl+F, Ctrl+H).</summary>
+    public FindViewModel Find { get; }
 
     /// <summary>The kept tabs, pinned ones first.</summary>
     public ObservableCollection<FileTab> Tabs { get; } = [];
@@ -406,6 +410,8 @@ public sealed partial class EditorGroup : ObservableObject
             newValue.IsActive = true;
             newValue.IsFocused = IsFocused;
         }
+
+        Find.OnActiveTabChanged();
     }
 
     partial void OnIsFocusedChanged(bool value)

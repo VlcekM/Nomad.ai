@@ -80,14 +80,56 @@ public sealed class CodeDocument
     /// <summary>Whether it now differs from the file as last saved or loaded.</summary>
     public event Action? DirtyChanged;
 
-    /// <summary>The caret was put somewhere to be shown (<see cref="GoTo"/>): the view scrolls it to the middle and takes the focus.</summary>
-    public event Action? RevealRequested;
+    /// <summary>
+    /// The caret was put somewhere to be shown (<see cref="GoTo"/>, <see cref="Select"/>): the view scrolls it to the
+    /// middle, and takes the focus when the argument says so.
+    /// </summary>
+    public event Action<bool>? RevealRequested;
 
-    /// <summary>Puts the caret at a place (no selection) and has the view show it, as a Go To does.</summary>
+    /// <summary>Puts the caret at a place (no selection) and has the view show it and take the focus, as a Go To does.</summary>
     public void GoTo(TextPos pos)
     {
         Anchor = Caret = Clamp(pos);
-        RevealRequested?.Invoke();
+        RevealRequested?.Invoke(true);
+    }
+
+    /// <summary>Selects a range and has the view show it (a find's match: the focus stays in the find box).</summary>
+    public void Select(TextPos from, TextPos to, bool focus = false)
+    {
+        Anchor = Clamp(from);
+        Caret = Clamp(to);
+        RevealRequested?.Invoke(focus);
+    }
+
+    /// <summary>The find's matches, picked out in the text and beside the scroll bar; <see cref="CurrentMark"/> is the one at hand (-1 for none).</summary>
+    public IReadOnlyList<(TextPos From, TextPos To)> Marks { get; private set; } = [];
+
+    public int CurrentMark { get; private set; } = -1;
+
+    /// <summary><see cref="Marks"/> changed.</summary>
+    public event Action? MarksChanged;
+
+    public void SetMarks(IReadOnlyList<(TextPos From, TextPos To)> marks, int current)
+    {
+        Marks = marks;
+        CurrentMark = current;
+        MarksChanged?.Invoke();
+    }
+
+    // The edits between BeginGroup and EndGroup undo and redo as one (several carets typing, a Replace All).
+    private int _group;
+    private int _nextGroup;
+
+    public void BeginGroup()
+    {
+        Seal();
+        _group = ++_nextGroup;
+    }
+
+    public void EndGroup()
+    {
+        _group = 0;
+        Seal();
     }
 
     public bool CanUndo => _undo.Count > 0;
@@ -150,7 +192,7 @@ public sealed class CodeDocument
 
         var now = DateTime.UtcNow;
         var merged = false;
-        if (_undo.Count > 0 && _redo.Count == 0 && now - _lastEdit < MergeWindow && _undo[^1] is var last && !last.Sealed)
+        if (_group == 0 && _undo.Count > 0 && _redo.Count == 0 && now - _lastEdit < MergeWindow && _undo[^1] is var last && !last.Sealed)
         {
             // Typing on: one more character right after the last ones (a space after a word starts a new step).
             if (removed.Length == 0 && last.Removed.Length == 0 && text.Length == 1 && text != "\n" && last.InsertedEnd == from &&
@@ -170,7 +212,7 @@ public sealed class CodeDocument
 
         if (!merged)
         {
-            _undo.Add(new Edit(from, removed, text, end, before, (Anchor, Caret), _version, 0, flags));
+            _undo.Add(new Edit(from, removed, text, end, before, (Anchor, Caret), _version, 0, flags, Group: _group));
         }
 
         _undo[^1] = _undo[^1] with { VersionAfter = Bump() };
@@ -195,12 +237,19 @@ public sealed class CodeDocument
             return;
         }
 
-        var edit = _undo[^1] with { Sealed = true };
-        _undo.RemoveAt(_undo.Count - 1);
-        Splice(edit.Start, edit.InsertedEnd, edit.Removed, edit.RemovedChanged);
-        (Anchor, Caret) = edit.Before;
-        _version = edit.VersionBefore;
-        _redo.Add(edit);
+        // A group comes off whole, last edit first.
+        var group = _undo[^1].Group;
+        do
+        {
+            var edit = _undo[^1] with { Sealed = true };
+            _undo.RemoveAt(_undo.Count - 1);
+            Splice(edit.Start, edit.InsertedEnd, edit.Removed, edit.RemovedChanged);
+            (Anchor, Caret) = edit.Before;
+            _version = edit.VersionBefore;
+            _redo.Add(edit);
+        }
+        while (group != 0 && _undo.Count > 0 && _undo[^1].Group == group);
+
         Notify();
     }
 
@@ -211,12 +260,19 @@ public sealed class CodeDocument
             return;
         }
 
-        var edit = _redo[^1];
-        _redo.RemoveAt(_redo.Count - 1);
-        Splice(edit.Start, EndOf(edit.Start, edit.Removed), edit.Inserted);
-        (Anchor, Caret) = edit.After;
-        _version = edit.VersionAfter;
-        _undo.Add(edit);
+        // A group goes back on whole, first edit first (as undo left them).
+        var group = _redo[^1].Group;
+        do
+        {
+            var edit = _redo[^1];
+            _redo.RemoveAt(_redo.Count - 1);
+            Splice(edit.Start, EndOf(edit.Start, edit.Removed), edit.Inserted);
+            (Anchor, Caret) = edit.After;
+            _version = edit.VersionAfter;
+            _undo.Add(edit);
+        }
+        while (group != 0 && _redo.Count > 0 && _redo[^1].Group == group);
+
         Notify();
     }
 
@@ -313,5 +369,6 @@ public sealed class CodeDocument
         int VersionBefore,
         int VersionAfter,
         bool[]? RemovedChanged,
-        bool Sealed = false);
+        bool Sealed = false,
+        int Group = 0);
 }
