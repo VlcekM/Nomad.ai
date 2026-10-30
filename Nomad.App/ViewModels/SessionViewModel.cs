@@ -2776,6 +2776,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task EnsureBackendAsync()
     {
+        await AwaitWatchStartingAsync();
         if (_backend is { IsProcessRunning: true } && !_restartRequired)
         {
             return;

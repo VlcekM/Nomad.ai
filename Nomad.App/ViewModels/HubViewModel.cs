@@ -267,9 +267,32 @@ public sealed partial class HubViewModel : ObservableObject
 
     // ------------------------------------------------------------------ the live relay (docs/hub.md §8)
 
+    public string ThisPcName => _main.Settings.HubDeviceName ?? Environment.MachineName;
+
     /// <summary>Streams a session this PC runs, while this PC's switch and the hub allow; null without a hub.</summary>
     public RelayPublisher? Publish(string backend, Func<string?> sessionId, IAgentBackend source) =>
-        _sync is { } sync ? new RelayPublisher(sync.Client, backend, sessionId, source, () => HubRelays && _main.Settings.HubRelay) : null;
+        _sync is { } sync ? new RelayPublisher(sync.Client, backend, sessionId, source, ThisPcName, () => HubRelays && _main.Settings.HubRelay) : null;
+
+    /// <summary>
+    /// Fetches the newest version of a session another PC runs (when starting to watch it: the stream carries only the
+    /// turn running); <see cref="MainViewModel.OnHubSessionPulled"/> shows it once it is here.
+    /// </summary>
+    public async Task FetchWatchedAsync(string backend, string sessionId)
+    {
+        if (_sync is not { } sync)
+        {
+            return;
+        }
+
+        try
+        {
+            using var fetch = new CancellationTokenSource(TimeSpan.FromMinutes(2)); // Behind a first sync, if one runs.
+            await sync.PullOneAsync(backend, sessionId, fetch.Token, held: false);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
+        {
+        }
+    }
 
     /// <summary>The session as another PC runs it, to watch, when that PC streams it now; null otherwise.</summary>
     public async Task<RelayBackend?> WatchAsync(string backend, string sessionId, CancellationToken ct = default)
@@ -312,12 +335,19 @@ public sealed partial class HubViewModel : ObservableObject
         var lease = await sync.TakeLeaseAsync(backend, sessionId, quick.Token);
         if (lease is { Granted: false })
         {
+            // Just started: the live connection (and whether the hub relays) may be a moment behind the HTTP call.
+            while (!(_hubAsked && sync.Client.IsConnected) && !quick.IsCancellationRequested)
+            {
+                await Task.Delay(100, CancellationToken.None);
+            }
+
             if (await WatchAsync(backend, sessionId, quick.Token) is { } relay)
             {
                 return relay;
             }
 
-            var asked = await sync.Client.RequestHandoffAsync(backend, sessionId, quick.Token).ConfigureAwait(true);
+            using var ask = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var asked = await sync.Client.RequestHandoffAsync(backend, sessionId, ask.Token).ConfigureAwait(true);
             throw new InvalidOperationException(asked
                 ? $"This session is running on {lease.HolderName}. Nomad asked it to hand the session over; send again in a moment."
                 : $"This session is running on {lease.HolderName}, which is offline. It can be continued here once its hold lapses (two minutes after it was last seen).");

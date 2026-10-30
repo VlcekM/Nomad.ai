@@ -270,12 +270,11 @@ public sealed class HubSync : IAsyncDisposable
         }
     }
 
-    /// <summary>Fetches and uploads now (and once more if that turned up more to do), without waiting for the loop.</summary>
     /// <summary>
-    /// Brings one session up to the hub's version before this PC runs it (the lease is already this PC's, so nobody
-    /// else writes it meanwhile).
+    /// Brings one session up to the hub's version: before this PC runs it (<paramref name="held"/>: the lease is already
+    /// this PC's, so nobody else writes it meanwhile), or before it watches another PC run it.
     /// </summary>
-    public async Task PullOneAsync(string backend, string sessionId, CancellationToken ct = default)
+    public async Task PullOneAsync(string backend, string sessionId, CancellationToken ct = default, bool held = true)
     {
         if (await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) is not { } remote)
         {
@@ -285,9 +284,12 @@ public sealed class HubSync : IAsyncDisposable
         await _work.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            lock (_leaseLock)
+            if (held)
             {
-                _leases.Remove(new LeaseKey(backend, sessionId)); // ApplyAsync leaves alone what this PC holds.
+                lock (_leaseLock)
+                {
+                    _leases.Remove(new LeaseKey(backend, sessionId)); // ApplyAsync leaves alone what this PC holds.
+                }
             }
 
             await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
@@ -295,15 +297,19 @@ public sealed class HubSync : IAsyncDisposable
         }
         finally
         {
-            lock (_leaseLock)
+            if (held)
             {
-                _leases.Add(new LeaseKey(backend, sessionId));
+                lock (_leaseLock)
+                {
+                    _leases.Add(new LeaseKey(backend, sessionId));
+                }
             }
 
             _work.Release();
         }
     }
 
+    /// <summary>Fetches and uploads now (and once more if that turned up more to do), without waiting for the loop.</summary>
     public async Task SyncNowAsync(CancellationToken ct = default)
     {
         _pullWanted = _pushWanted = true;
@@ -609,10 +615,14 @@ public sealed class HubSync : IAsyncDisposable
         }
 
         var changes = await _client.ChangesAsync(since, ct).ConfigureAwait(false);
+        var applied = 0;
         foreach (var remote in changes.Sessions)
         {
             ct.ThrowIfCancellationRequested();
-            await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
+            if (await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false) && ++applied % 25 == 0)
+            {
+                Save(); // A first sync is long: what it fetched stays fetched if Nomad closes meanwhile.
+            }
         }
 
         foreach (var state in changes.States)

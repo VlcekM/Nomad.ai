@@ -176,15 +176,50 @@ public sealed class RelayBackend : IAgentBackend
 
         HostName = watch.HostName;
         _running = true;
-        Handle(watch.Buffer);
+        lock (_order)
+        {
+            Handle(watch.Buffer);
+            _next = watch.Next;
+            foreach (var (events, first) in _early)
+            {
+                Deliver(events, first);
+            }
+
+            _early.Clear();
+        }
     }
 
-    private void OnEvents(string backend, string sessionId, string[] events)
+    // Events are numbered by the hub. Those that come while the watch is being asked for wait for its answer: the
+    // ones its buffer already has are dropped, the rest follow it.
+    private readonly Lock _order = new();
+    private readonly List<(string[] Events, long First)> _early = [];
+    private long _next = -1;
+
+    private void OnEvents(string backend, string sessionId, string[] events, long first)
     {
-        if (backend == _backend && sessionId == SessionId && _running)
+        if (backend != _backend || sessionId != SessionId)
         {
-            Handle(events);
+            return;
         }
+
+        lock (_order)
+        {
+            if (_next < 0)
+            {
+                _early.Add((events, first));
+            }
+            else if (_running)
+            {
+                Deliver(events, first);
+            }
+        }
+    }
+
+    private void Deliver(string[] events, long first)
+    {
+        var skip = (int)Math.Clamp(_next - first, 0, events.Length);
+        Handle(events.Skip(skip));
+        _next = Math.Max(_next, first + events.Length);
     }
 
     /// <summary>Back after a drop: the hub forgot this watcher, so watch again (and end if the host is gone meanwhile).</summary>
@@ -197,9 +232,17 @@ public sealed class RelayBackend : IAgentBackend
 
         try
         {
-            if (!(await _client.WatchAsync(_backend, SessionId!).ConfigureAwait(false)).Live)
+            var watch = await _client.WatchAsync(_backend, SessionId!).ConfigureAwait(false);
+            if (!watch.Live)
             {
                 OnEnded(_backend, SessionId!);
+                return;
+            }
+
+            // Numbered afresh if the hub restarted; what was missed meanwhile shows when the transcript reloads.
+            lock (_order)
+            {
+                _next = watch.Next;
             }
         }
         catch (Exception)
@@ -332,6 +375,7 @@ public sealed class RelayPublisher : IAsyncDisposable
     private readonly Func<string?> _sessionId;
     private readonly IAgentBackend _source;
     private readonly Func<bool> _enabled;
+    private readonly string _hostName;
     private readonly ConcurrentQueue<string> _queue = new();
     private (string Uuid, string From)? _expected;
     private readonly CancellationTokenSource _stop = new();
@@ -339,10 +383,12 @@ public sealed class RelayPublisher : IAsyncDisposable
     private bool _newTurn = true;
     private volatile bool _ended;
 
+    /// <param name="hostName">This PC's name, on the prompts typed here.</param>
     /// <param name="enabled">Whether to stream now (this PC's switch and the hub's); the events are dropped while not.</param>
-    public RelayPublisher(HubClient client, string backend, Func<string?> sessionId, IAgentBackend source, Func<bool> enabled)
+    public RelayPublisher(HubClient client, string backend, Func<string?> sessionId, IAgentBackend source, string hostName, Func<bool> enabled)
     {
         _client = client;
+        _hostName = hostName;
         _backend = backend;
         _sessionId = sessionId;
         _source = source;
@@ -364,7 +410,7 @@ public sealed class RelayPublisher : IAsyncDisposable
             // Viewers see the prompt itself (the backend's own event carries only its text).
             var expected = _expected;
             _expected = null;
-            Publish(new RelayPromptEvent(started.Prompt, expected?.Uuid, expected?.From));
+            Publish(new RelayPromptEvent(started.Prompt, expected?.Uuid, expected?.From ?? _hostName));
             return;
         }
 

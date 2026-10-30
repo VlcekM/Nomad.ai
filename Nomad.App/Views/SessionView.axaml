@@ -547,6 +547,10 @@
                 CornerRadius="10"
                 Padding="12,6,12,7">
           <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsFromDevice}" Margin="0,2,0,-2" ToolTip.Tip="{Binding FromDeviceToolTip}">
+              <c:Icon Size="12" Data="{StaticResource IconLaptop}" Classes="tick" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding FromDevice}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+            </StackPanel>
             <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}" Margin="0,4,0,0">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>

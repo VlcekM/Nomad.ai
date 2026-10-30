@@ -16,11 +16,13 @@ public sealed class RelayTests
         var inputs = new TaskCompletionSource<(string Input, string From)>();
         host.On<string, string, string, string>(HubNames.RelayInput, (_, _, input, from) => inputs.TrySetResult((input, from)));
         var streamed = new List<string>();
+        long streamedFirst = -1;
         var more = new TaskCompletionSource();
         var ended = new TaskCompletionSource();
-        viewer.On<string, string, string[]>(HubNames.RelayEvents, (_, _, events) =>
+        viewer.On<string, string, string[], long>(HubNames.RelayEvents, (_, _, events, first) =>
         {
             streamed.AddRange(events);
+            streamedFirst = first;
             more.TrySetResult();
         });
         viewer.On<string, string>(HubNames.RelayEnded, (_, _) => ended.TrySetResult());
@@ -35,10 +37,12 @@ public sealed class RelayTests
         var watch = await viewer.InvokeAsync<WatchResult>(HubNames.RelayWatch, "claude-code", "s1");
         Assert.Equal((true, "PC-A"), (watch.Live, watch.HostName));
         Assert.Equal(["e1", "e2"], watch.Buffer);
+        Assert.Equal(3, watch.Next); // "old turn" was 0, e1 1, e2 2.
 
         await host.InvokeAsync(HubNames.RelayPublish, "claude-code", "s1", new[] { "e3" }, false);
         await more.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(["e3"], streamed);
+        Assert.Equal(3, streamedFirst);
 
         // The turn ended: the hub forgets it, and the stream stays live.
         await host.InvokeAsync(HubNames.RelayPublish, "claude-code", "s1", Array.Empty<string>(), true);

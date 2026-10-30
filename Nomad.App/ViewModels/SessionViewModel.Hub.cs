@@ -44,6 +44,12 @@ public sealed partial class SessionViewModel
     /// <summary>Watches the session on the PC that runs it: its events come in as if from a process here.</summary>
     private async Task StartRelayAsync(RelayBackend relay)
     {
+        // The transcript up to the turn running now, which the stream adds to: shown when it is here (between turns).
+        if (SessionId is { } id)
+        {
+            _ = _main.Hub.FetchWatchedAsync(Backend, id);
+        }
+
         // Set first: the turn so far arrives while it starts, and Apply takes only the current backend's events.
         _backend = relay;
         relay.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(relay, e));
@@ -76,21 +82,42 @@ public sealed partial class SessionViewModel
 
     private static string LiveNotice(RelayBackend relay) => $"Live from {relay.HostName ?? "another PC"}: prompts, answers and Stop go there.";
 
-    /// <summary>Just opened: if another PC runs it right now and streams it, its turn shows here as it happens.</summary>
-    public async Task WatchIfLiveAsync()
+    /// <summary>A watch being started on opening; a prompt meanwhile waits for it rather than starting a second one.</summary>
+    private Task? _watchStarting;
+
+    private async Task AwaitWatchStartingAsync()
     {
-        if (_backend is not null || SessionId is not { } id || await _main.Hub.WatchAsync(Backend, id) is not { } relay || _backend is not null)
+        if (_watchStarting is { } starting)
         {
-            return;
+            await starting;
+        }
+    }
+
+    /// <summary>Just opened: if another PC runs it right now and streams it, its turn shows here as it happens.</summary>
+    public Task WatchIfLiveAsync()
+    {
+        if (_watchStarting is { IsCompleted: false } running)
+        {
+            return running;
         }
 
-        try
+        return _watchStarting = WatchAsync();
+
+        async Task WatchAsync()
         {
-            await StartRelayAsync(relay);
-        }
-        catch (Exception)
-        {
-            // It stopped streaming meanwhile: the stored transcript is what there is.
+            if (_backend is not null || SessionId is not { } id || await _main.Hub.WatchAsync(Backend, id) is not { } relay || _backend is not null)
+            {
+                return;
+            }
+
+            try
+            {
+                await StartRelayAsync(relay);
+            }
+            catch (Exception)
+            {
+                // It stopped streaming meanwhile: the stored transcript is what there is.
+            }
         }
     }
 
@@ -162,7 +189,7 @@ public sealed partial class SessionViewModel
 
     /// <summary>This PC answered a card: the watching PCs close theirs.</summary>
     private void PublishAnswered(PermissionItem item) =>
-        _relay?.Publish(new RelayAnsweredEvent(item.Request.RequestId, _main.Settings.HubDeviceName ?? Environment.MachineName));
+        _relay?.Publish(new RelayAnsweredEvent(item.Request.RequestId, _main.Hub.ThisPcName));
 
     /// <summary>A prompt the session took on the PC running it (or one this PC relayed, which shows already).</summary>
     private void ShowRelayedPrompt(RelayPromptEvent prompt)
@@ -176,7 +203,7 @@ public sealed partial class SessionViewModel
         }
 
         var (text, files) = AttachedFiles.Split(prompt.Text);
-        Items.Add(new UserMessageItem(text, prompt.Uuid, DateTime.UtcNow, seen: true) { Files = files });
+        Items.Add(new UserMessageItem(text, prompt.Uuid, DateTime.UtcNow, seen: true) { Files = files, FromDevice = prompt.From });
         IsTurnRunning = true;
         State = AgentState.Running;
         HasRun = true;

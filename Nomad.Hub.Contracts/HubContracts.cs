@@ -120,9 +120,11 @@ public sealed record UsageReport(DateTime FromUtc, DateTime ToUtc, IReadOnlyList
 
 /// <summary>
 /// Watching a session through the relay: whether its host streams it, the host's name, and the events of the
-/// current turn so far (opaque JSON to the hub; the app reads them).
+/// current turn so far (opaque JSON to the hub; the app reads them). Every event of a stream has a number;
+/// <paramref name="Next"/> is the one after the buffer's last, so a viewer can drop the <see cref="HubNames.RelayEvents"/>
+/// it already has from the buffer and keep the ones that came while it asked.
 /// </summary>
-public sealed record WatchResult(bool Live, string? HostName, IReadOnlyList<string> Buffer);
+public sealed record WatchResult(bool Live, string? HostName, IReadOnlyList<string> Buffer, long Next);
 
 /// <summary>Names shared by both ends.</summary>
 public static class HubNames
@@ -154,7 +156,7 @@ public static class HubNames
     /// <summary>Client → server (viewer): <c>(backend, sessionId, string input)</c>, forwarded to the host.</summary>
     public const string RelaySendInput = "RelaySendInput";
 
-    /// <summary>Server → viewers: <c>(backend, sessionId, string[] events)</c>.</summary>
+    /// <summary>Server → viewers: <c>(backend, sessionId, string[] events, long first)</c>, <c>first</c> the number of the first event.</summary>
     public const string RelayEvents = "RelayEvents";
 
     /// <summary>Server → host: <c>(backend, sessionId, string input, string fromName)</c>.</summary>

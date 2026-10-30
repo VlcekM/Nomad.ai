@@ -53,8 +53,11 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     public async Task RelayPublish(string backend, string sessionId, string[] events, bool newTurn)
     {
         RequireRelay();
-        relay.Publish(backend, sessionId, Context.ConnectionId, Context.User!.DeviceName(), events, newTurn);
-        await Clients.Group(RelayGroup(RelayState.Key(backend, sessionId))).SendAsync(HubNames.RelayEvents, backend, sessionId, events);
+        var first = relay.Publish(backend, sessionId, Context.ConnectionId, Context.User!.DeviceName(), events, newTurn);
+        if (events.Length > 0)
+        {
+            await Clients.Group(RelayGroup(RelayState.Key(backend, sessionId))).SendAsync(HubNames.RelayEvents, backend, sessionId, events, first);
+        }
     }
 
     public async Task RelayStop(string backend, string sessionId)
@@ -101,11 +104,15 @@ public sealed class RelayState
         public string Connection { get; set; } = connection;
         public string HostName { get; set; } = hostName;
         public List<string> Buffer { get; } = [];
+
+        /// <summary>How many events the stream has had: the next one's number.</summary>
+        public long Next { get; set; }
     }
 
     public static string Key(string backend, string sessionId) => backend + "/" + sessionId;
 
-    public void Publish(string backend, string sessionId, string connection, string hostName, string[] events, bool newTurn)
+    /// <summary>Adds a host's events; returns the number of the first.</summary>
+    public long Publish(string backend, string sessionId, string connection, string hostName, string[] events, bool newTurn)
     {
         lock (_lock)
         {
@@ -127,6 +134,10 @@ public sealed class RelayState
             {
                 live.Buffer.RemoveRange(0, live.Buffer.Count - MaxBuffered);
             }
+
+            var first = live.Next;
+            live.Next += events.Length;
+            return first;
         }
     }
 
@@ -144,8 +155,8 @@ public sealed class RelayState
         lock (_lock)
         {
             return _live.TryGetValue(Key(backend, sessionId), out var live)
-                ? new WatchResult(true, live.HostName, [.. live.Buffer])
-                : new WatchResult(false, null, []);
+                ? new WatchResult(true, live.HostName, [.. live.Buffer], live.Next)
+                : new WatchResult(false, null, [], 0);
         }
     }
 
