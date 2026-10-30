@@ -25,6 +25,7 @@
   <StreamGeometry x:Key="IconTerminal">M3,4.5 L6.5,8 L3,11.5 M8.25,11.75 L13,11.75</StreamGeometry>
   <StreamGeometry x:Key="IconThought">M8,1.75 C5.6,1.75 3.75,3.55 3.75,5.85 C3.75,7.3 4.45,8.4 5.6,9.2 L5.6,11 L10.4,11 L10.4,9.2 C11.55,8.4 12.25,7.3 12.25,5.85 C12.25,3.55 10.4,1.75 8,1.75 Z M6,13 L10,13 M6.9,14.6 L9.1,14.6</StreamGeometry>
   <StreamGeometry x:Key="IconFile">M4,1.75 L9.25,1.75 L12.5,5 L12.5,14.25 L4,14.25 Z M9.25,1.75 L9.25,5 L12.5,5</StreamGeometry>
+  <StreamGeometry x:Key="IconFiles">M2.75,4.25 L7.5,4.25 L10.5,7.25 L10.5,14.25 L2.75,14.25 Z M7.5,4.25 L7.5,7.25 L10.5,7.25 M5.75,4.25 L5.75,1.75 L10.5,1.75 L13.5,4.75 L13.5,11.75 L10.5,11.75</StreamGeometry>
   <StreamGeometry x:Key="IconPencil">M10.75,2.25 L13.75,5.25 L5.5,13.5 L2.25,13.75 L2.5,10.5 Z M9.25,3.75 L12.25,6.75</StreamGeometry>
   <StreamGeometry x:Key="IconGlobe">M14,8 A6,6 0 1 1 2,8 A6,6 0 1 1 14,8 Z M2,8 L14,8 M8,2 C9.8,3.8 10.6,5.9 10.6,8 C10.6,10.1 9.8,12.2 8,14 C6.2,12.2 5.4,10.1 5.4,8 C5.4,5.9 6.2,3.8 8,2 Z</StreamGeometry>
   <StreamGeometry x:Key="IconTool">M10.2,2.2 C11.6,1.7 13.2,2.1 14,3.3 L11.6,5.6 L10.4,5.6 L10.4,4.4 L12.7,2 M10.4,5.6 L3.3,12.7 C2.8,13.2 2.8,13.9 3.3,14.4 C3.8,14.9 4.5,14.9 5,14.4 L12.1,7.3 C13.3,7.6 14.6,7 15,5.8</StreamGeometry>

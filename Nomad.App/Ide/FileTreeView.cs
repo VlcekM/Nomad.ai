@@ -22,6 +22,8 @@ public sealed class FileTreeView : Control
     public static readonly StyledProperty<FileTree?> TreeProperty =
         AvaloniaProperty.Register<FileTreeView, FileTree?>(nameof(Tree));
 
+    public static readonly StyledProperty<bool> ShowAllProperty =
+        AvaloniaProperty.Register<FileTreeView, bool>(nameof(ShowAll));
 
     private const double FoldMs = 200;
     private const double HoverMs = 120;
@@ -60,6 +62,13 @@ public sealed class FileTreeView : Control
     {
         get => GetValue(TreeProperty);
         set => SetValue(TreeProperty, value);
+    }
+
+    /// <summary>The tree shows every file (<see cref="FileTree.ShowAll"/>), the toolbar's toggle.</summary>
+    public bool ShowAll
+    {
+        get => GetValue(ShowAllProperty);
+        set => SetValue(ShowAllProperty, value);
     }
 
     /// <summary>A file to show: its full path, and whether to keep it (a double-click, Enter) or only preview it.</summary>
@@ -140,6 +149,10 @@ public sealed class FileTreeView : Control
         {
             Attach(change.GetNewValue<FileTree?>());
         }
+        else if (change.Property == ShowAllProperty && _tree is not null)
+        {
+            _tree.ShowAll = ShowAll;
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -197,6 +210,7 @@ public sealed class FileTreeView : Control
         _hover = null;
         if (tree is not null)
         {
+            tree.ShowAll = ShowAll;
             tree.Changed += OnTreeChanged;
             _ = tree.LoadAsync(tree.Root);
         }

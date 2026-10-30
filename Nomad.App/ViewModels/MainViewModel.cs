@@ -775,6 +775,24 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The Files view's tree shows everything, build output and dot folders too (its toolbar's toggle).</summary>
+    public bool ShowAllFiles
+    {
+        get => Settings.ShowAllFiles;
+        set
+        {
+            if (Settings.ShowAllFiles != value)
+            {
+                Settings.ShowAllFiles = value;
+                SaveSettings();
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    [RelayCommand]
+    public void ToggleShowAllFiles() => ShowAllFiles = !ShowAllFiles;
+
     public const double DefaultFileTreeWidth = 280;
 
     /// <summary>The Files view's tree width (its inner edge drags it).</summary>

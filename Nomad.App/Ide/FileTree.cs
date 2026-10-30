@@ -123,6 +123,23 @@ public sealed class FileTree : IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Every file is shown; off, those Visual Studio leaves out of a project (build output, dot folders) are not
+    /// (<see cref="DirectoryListing.IsExcluded"/>).
+    /// </summary>
+    public bool ShowAll
+    {
+        get;
+        set
+        {
+            if (field != value)
+            {
+                field = value;
+                Changed?.Invoke();
+            }
+        }
+    }
+
     /// <summary>The rows to show: every entry whose folders are all expanded, in order.</summary>
     public List<FileNode> Visible()
     {
@@ -134,6 +151,11 @@ public sealed class FileTree : IDisposable
         {
             foreach (var child in folder.Children ?? [])
             {
+                if (!ShowAll && DirectoryListing.IsExcluded(child.Name, child.IsDirectory))
+                {
+                    continue;
+                }
+
                 rows.Add(child);
                 if (child.IsExpanded)
                 {

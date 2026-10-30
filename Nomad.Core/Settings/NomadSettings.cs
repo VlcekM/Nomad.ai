@@ -216,6 +216,9 @@ public sealed class NomadSettings
     /// <summary>The Files view's tree width, dragged at its inner edge (180–720).</summary>
     public double FileTreeWidth { get; set; } = 280;
 
+    /// <summary>The Files view's tree shows every file, build output (bin, obj) and dot folders too, as Visual Studio's "Show All Files".</summary>
+    public bool ShowAllFiles { get; set; }
+
     /// <summary>Side panel cards turned off in its menu ("Project", "Subagents", "Tasks", "Context", "Usage", "Mcp").</summary>
     public List<string> HiddenPanelCards { get; set; } = [];
     public List<string> RecentFolders { get; set; } = [];

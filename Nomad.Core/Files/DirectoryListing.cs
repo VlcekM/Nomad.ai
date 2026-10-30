@@ -9,6 +9,16 @@ public static class DirectoryListing
     /// <summary>Never listed: git's own folder.</summary>
     public static bool IsHidden(string name) => name.Equals(".git", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Left out of the tree unless it shows all files, as Visual Studio's Solution Explorer leaves them out of an SDK
+    /// project (its default item excludes): build output (<c>bin</c>, <c>obj</c>), dot folders (<c>.vs</c>,
+    /// <c>.idea</c>), <c>node_modules</c> and per-user files (<c>*.user</c>, <c>*.suo</c>).
+    /// </summary>
+    public static bool IsExcluded(string name, bool isDirectory) => isDirectory
+        ? name.StartsWith('.') || name.Equals("bin", StringComparison.OrdinalIgnoreCase) || name.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+          name.Equals("node_modules", StringComparison.OrdinalIgnoreCase)
+        : name.EndsWith(".user", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".suo", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>The folder's entries; empty when it is gone or can't be read.</summary>
     public static List<DirectoryEntry> List(string folder)
     {
