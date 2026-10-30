@@ -36,6 +36,7 @@ public sealed class CodeDocument
     public CodeDocument(string text, bool readOnly = false, Encoding? encoding = null, bool bom = false)
     {
         _lines = [.. text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None)];
+        _changed.AddRange(Enumerable.Repeat(false, _lines.Count));
         var lf = text.IndexOf('\n');
         NewLine = lf > 0 && text[lf - 1] == '\r' ? "\r\n" : lf >= 0 ? "\n" : text.Contains('\r') ? "\r" : "\r\n";
         IndentWithTabs = _lines.Count(l => l.StartsWith('\t')) > _lines.Count(l => l.StartsWith("  ", StringComparison.Ordinal));
@@ -211,6 +212,12 @@ public sealed class CodeDocument
         var was = IsDirty;
         _savedVersion = _version;
         Seal();
+        for (var i = 0; i < _changed.Count; i++)
+        {
+            _changed[i] = false;
+        }
+
+        Changed?.Invoke(); // The change bar goes.
         if (was)
         {
             DirtyChanged?.Invoke();
@@ -244,8 +251,17 @@ public sealed class CodeDocument
         var endIndex = parts[^1].Length;
         parts[^1] += tail;
         _lines.InsertRange(from.Line, parts);
+
+        // The lines it wrote are changed ones now (the change bar).
+        _changed.RemoveRange(from.Line, to.Line - from.Line + 1);
+        _changed.InsertRange(from.Line, Enumerable.Repeat(true, parts.Length));
         return new TextPos(from.Line + parts.Length - 1, endIndex);
     }
+
+    private readonly List<bool> _changed = [];
+
+    /// <summary>Edited since the file was opened or last saved (the editor's change bar).</summary>
+    public bool IsLineChanged(int line) => line < _changed.Count && _changed[line];
 
     private static TextPos EndOf(TextPos start, string text)
     {

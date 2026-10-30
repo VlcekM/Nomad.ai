@@ -348,6 +348,11 @@ public sealed class CodeView : Control
     private const double GutterInset = 40;
     private const double GutterGap = 33;
 
+    // At the gutter's left edge: the change bar (1 px) and the caret line's marker (4 px) from here, and the caret
+    // line's fill right of them.
+    private const double BarLeft = 6;
+    private const double RowLeft = 10;
+
     private int Digits => Math.Max(3, _lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
 
     private double NumbersRight => Padding.Left + GutterInset + Digits * CharWidth;
@@ -402,6 +407,12 @@ public sealed class CodeView : Control
         {
             Fill(view, background);
         }
+
+        // The caret's line, filled across the view from just right of the change bar (under the selection and text).
+        var caretLine = _doc.Caret.Line;
+        var row = IsEditable && !HasSelection && caretLine >= first && caretLine <= last ? ThemeBrush("CodeCurrentLineBrush") : null;
+        var rowRect = new Rect(view.Left + RowLeft, p.Top + caretLine * height, Math.Max(0, view.Width - RowLeft), height);
+        Fill(rowRect, row);
 
         if (HasSelection && SelectionBrush is { } selection)
         {
@@ -489,21 +500,26 @@ public sealed class CodeView : Control
             }
         }
 
-        // The gutter, over text scrolled under it: the line numbers, the caret's brighter, and Visual Studio's box
-        // around the caret's line (with nothing selected).
-        Fill(new Rect(view.Left, view.Top, TextLeft - 2, view.Height), background);
-        var caretLine = _doc.Caret.Line;
-        if (IsEditable && !HasSelection && caretLine >= first && caretLine <= last && ThemeBrush("CodeCurrentLineBrush") is { } box)
+        // The gutter, over text scrolled under it, as Visual Studio's: the caret line's fill carried through it, a thin
+        // bar beside lines changed since the file was opened or saved, a wider marker beside the caret's line, and the
+        // line numbers (the caret's brighter).
+        var gutter = new Rect(view.Left, view.Top, TextLeft - 2, view.Height);
+        Fill(gutter, background);
+        Fill(rowRect.Intersect(gutter), row);
+        if (IsEditable && ThemeBrush("CodeChangeBrush") is { } change)
         {
-            var top = p.Top + caretLine * height;
-            foreach (var edge in new[]
-                     {
-                         new Rect(view.Left, top, view.Width, 1), new Rect(view.Left, top + height - 1, view.Width, 1),
-                         new Rect(view.Left, top, 1, height), new Rect(view.Right - 1, top, 1, height),
-                     })
+            for (var line = first; line <= last; line++)
             {
-                Fill(edge, box);
+                if (_doc.IsLineChanged(line))
+                {
+                    Fill(new Rect(view.Left + BarLeft, p.Top + line * height, 1, height), change);
+                }
             }
+        }
+
+        if (IsEditable && caretLine >= first && caretLine <= last)
+        {
+            Fill(new Rect(view.Left + BarLeft, p.Top + caretLine * height, RowLeft - BarLeft, height), ThemeBrush("CodeLineMarkerBrush"));
         }
 
         var numbers = ThemeBrush("CodeLineNumberBrush") ?? Foreground;
