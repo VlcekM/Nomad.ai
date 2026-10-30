@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.22.0
+
+- Claude can ask to move a conversation to another repository or working folder, showing its destination and reason
+  with Move and Stay here. Moving keeps the conversation, loads the new folder's project instructions, updates the
+  folder, branch and Files view, and remembers the destination when the session is reopened.
+- Long chats keep a steady scrollbar as you scroll, hover and focus controls, instead of changing their estimated height.
+- The Chat / Files switch stays clear of long session titles and the window controls.
+- Picking an agent closes its dropdown.
+
 ## v1.21.0
 
 - Codex joins Claude Code and OpenCode as an agent, on your ChatGPT plan or an API key: pick it in the agent chip.
