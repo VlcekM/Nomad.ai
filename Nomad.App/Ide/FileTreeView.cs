@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Nomad.Core.Git;
 
 namespace Nomad.App.Ide;
 
@@ -40,6 +41,15 @@ public sealed class FileTreeView : Control
     private static readonly IBrush FolderFront = new SolidColorBrush(Color.FromRgb(0xF0, 0xC1, 0x55));
     private static readonly Geometry FolderBackShape = StreamGeometry.Parse("M1.5,4 C1.5,3.17 2.17,2.5 3,2.5 L6.2,2.5 L7.7,4 L13,4 C13.83,4 14.5,4.67 14.5,5.5 L14.5,12 C14.5,12.83 13.83,13.5 13,13.5 L3,13.5 C2.17,13.5 1.5,12.83 1.5,12 Z");
     private static readonly Geometry FolderFrontShape = StreamGeometry.Parse("M1.5,6.5 L14.5,6.5 L14.5,12 C14.5,12.83 13.83,13.5 13,13.5 L3,13.5 C2.17,13.5 1.5,12.83 1.5,12 Z");
+    // Git marks left of a file's icon, as Visual Studio's: a blue lock (committed, unchanged), a red check (changed),
+    // a green plus (new). C# files get its green "C#" icon.
+    private static readonly IBrush LockBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x97, 0xE3));
+    private static readonly IBrush CSharpBrush = new SolidColorBrush(Color.FromRgb(0x5C, 0xB8, 0x5C));
+    private static readonly Geometry LockBody = StreamGeometry.Parse("M5.5,8.5 C5.5,8 5.8,7.75 6.25,7.75 L11.75,7.75 C12.2,7.75 12.5,8 12.5,8.5 L12.5,12.5 C12.5,13 12.2,13.25 11.75,13.25 L6.25,13.25 C5.8,13.25 5.5,13 5.5,12.5 Z");
+    private static readonly Geometry LockShackle = StreamGeometry.Parse("M7,7.75 L7,6.25 C7,5.15 7.9,4.25 9,4.25 C10.1,4.25 11,5.15 11,6.25 L11,7.75");
+    private static readonly Geometry CheckShape = StreamGeometry.Parse("M5.25,8.75 L7.75,11.25 L12.5,5.75");
+    private static readonly Geometry PlusShape = StreamGeometry.Parse("M9,5 L9,12.5 M5.25,8.75 L12.75,8.75");
+
     private static readonly Geometry FolderFrontOpenShape = StreamGeometry.Parse("M3.6,7 L15.2,7 L13.6,12.6 C13.46,13.13 13,13.5 12.45,13.5 L2.2,13.5 C1.75,13.5 1.45,13.08 1.58,12.65 Z");
 
     private readonly List<Row> _rows = [];
@@ -50,6 +60,11 @@ public sealed class FileTreeView : Control
     private bool _ticking;
     private bool _restoreScroll;
     private FileNode? _scrolledTo;
+
+    // The git marks fade in when the folder's state is first read.
+    private Anim _gitFade;
+    private TextLayout? _csharp;
+    private (double Size, FontFamily Family) _csharpKey;
 
     static FileTreeView()
     {
@@ -135,6 +150,10 @@ public sealed class FileTreeView : Control
         public Anim Hover;
         public Anim Turn;
         public TextLayout? Text;
+
+        // A folder's counts of changed files below it: modified, added, removed.
+        public TextLayout?[]? Counts;
+        public ((int, int, int) Counts, double Size, IBrush M, IBrush A, IBrush R, FontFamily Family) CountsKey;
         public (double Width, double Size, IBrush Brush, FontFamily Family) TextKey;
 
         public bool Leaving => Presence.Target == 0;
@@ -203,6 +222,7 @@ public sealed class FileTreeView : Control
         {
             SaveScroll();
             _tree.Changed -= OnTreeChanged;
+            _tree.GitChanged -= OnGitChanged;
         }
 
         _tree = tree;
@@ -212,6 +232,8 @@ public sealed class FileTreeView : Control
         {
             tree.ShowAll = ShowAll;
             tree.Changed += OnTreeChanged;
+            tree.GitChanged += OnGitChanged;
+            _gitFade.Jump(tree.Git is null ? 0 : 1);
             _ = tree.LoadAsync(tree.Root);
         }
 
@@ -230,6 +252,21 @@ public sealed class FileTreeView : Control
             DispatcherTimer.RunOnce(() => this.BringIntoView(new Rect(0, TopOf(row) - 2, Bounds.Width, RowHeight + 4)),
                 TimeSpan.FromMilliseconds(FoldMs + 20));
         }
+    }
+
+    private void OnGitChanged()
+    {
+        if (_tree?.Git is null)
+        {
+            _gitFade.Jump(0);
+        }
+        else
+        {
+            _gitFade.Retarget(1);
+            Tick();
+        }
+
+        InvalidateVisual();
     }
 
     private void SaveScroll()
@@ -332,7 +369,7 @@ public sealed class FileTreeView : Control
 
     private void Tick()
     {
-        if (_ticking || _top is null || !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running))
+        if (_ticking || _top is null || !_gitFade.Running && !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running))
         {
             return;
         }
@@ -344,6 +381,7 @@ public sealed class FileTreeView : Control
     private void Step(TimeSpan now)
     {
         _ticking = false;
+        _gitFade.Step(now, FoldMs);
         var folding = false;
         foreach (var row in _rows)
         {
@@ -369,6 +407,12 @@ public sealed class FileTreeView : Control
         {
             row.Text?.Dispose();
             row.Text = null;
+            foreach (var count in row.Counts ?? [])
+            {
+                count?.Dispose();
+            }
+
+            row.Counts = null;
         }
 
         if (rows == _rows)
@@ -431,6 +475,11 @@ public sealed class FileTreeView : Control
         var family = TextElement.GetFontFamily(this);
         var fontSize = FontSize;
         var selected = _tree?.Selected;
+        var git = _tree?.Git;
+        var gitFade = _gitFade.Value;
+        var checkPen = new Pen(Brush("DiffDelBrush"), 1.6, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
+        var plusPen = new Pen(Brush("DiffAddBrush"), 1.6, lineCap: PenLineCap.Round);
+        var shacklePen = new Pen(LockBrush, 1.4, lineCap: PenLineCap.Round);
 
         // Transparent but drawn: the pointer counts over the whole width, not only over the text and icons.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
@@ -489,14 +538,51 @@ public sealed class FileTreeView : Control
                         context.DrawGeometry(FolderBack, null, FolderBackShape);
                         context.DrawGeometry(FolderFront, null, row.Node.IsExpanded ? FolderFrontOpenShape : FolderFrontShape);
                     }
+                    else if (row.Node.Name.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var csharp = CSharpIcon(family);
+                        csharp.Draw(context, new Point((Box - csharp.WidthIncludingTrailingWhitespace) / 2, (Box - csharp.Height) / 2 + 0.5));
+                    }
                     else if (file is not null)
                     {
                         context.DrawGeometry(null, iconPen, file);
                     }
                 }
 
+                // A file's git mark where a folder's chevron is.
+                if (!row.Node.IsDirectory && git is not null && gitFade > 0.01)
+                {
+                    using (context.PushOpacity(gitFade))
+                    using (context.PushTransform(Matrix.CreateTranslation(x, iconTop)))
+                    {
+                        switch (git.StateOf(row.Node.FullPath))
+                        {
+                            case GitFileState.Clean:
+                                context.DrawGeometry(LockBrush, null, LockBody);
+                                context.DrawGeometry(null, shacklePen, LockShackle);
+                                break;
+                            case GitFileState.Modified:
+                                context.DrawGeometry(null, checkPen, CheckShape);
+                                break;
+                            case GitFileState.Added:
+                                context.DrawGeometry(null, plusPen, PlusShape);
+                                break;
+                        }
+                    }
+                }
+
                 var textX = x + Box * 2 + 6;
                 var available = Math.Max(0, box.Right - 8 - textX);
+
+                // A folder's changes below it, after its name: modified (as the title bar's "N changed"), added, removed.
+                var counts = row.Node.IsDirectory && git is not null ? Counts(row, git.CountsUnder(row.Node.FullPath), family, fontSize) : null;
+                var countsWidth = 0.0;
+                foreach (var count in counts ?? [])
+                {
+                    countsWidth += count is null ? 0 : count.WidthIncludingTrailingWhitespace + CountGap;
+                }
+
+                available = Math.Max(0, available - countsWidth);
                 var key = (available, fontSize, textBrush, family);
                 if (row.Text is null || row.TextKey != key)
                 {
@@ -507,11 +593,71 @@ public sealed class FileTreeView : Control
                 }
 
                 row.Text.Draw(context, new Point(textX, y + (rowHeight - row.Text.Height) / 2));
+                if (countsWidth > 0 && gitFade > 0.01)
+                {
+                    using (context.PushOpacity(gitFade))
+                    {
+                        var cx = textX + Math.Min(row.Text.WidthIncludingTrailingWhitespace, available);
+                        foreach (var count in counts!)
+                        {
+                            if (count is not null)
+                            {
+                                cx += CountGap;
+                                count.Draw(context, new Point(cx, y + (rowHeight - count.Height) / 2));
+                                cx += count.WidthIncludingTrailingWhitespace;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 
     private static double Left(int depth) => Inset + 4 + depth * Indent;
+
+    private const double CountGap = 7;
+
+    /// <summary>A folder row's counts, laid out (none for a count of zero); null when nothing below it changed.</summary>
+    private TextLayout?[]? Counts(Row row, (int Modified, int Added, int Removed) counts, FontFamily family, double fontSize)
+    {
+        if (counts == default)
+        {
+            return null;
+        }
+
+        var size = fontSize - 1;
+        var key = (counts, size, Brush("WaitingBrush"), Brush("DiffAddBrush"), Brush("DiffDelBrush"), family);
+        if (row.Counts is null || row.CountsKey != key)
+        {
+            foreach (var old in row.Counts ?? [])
+            {
+                old?.Dispose();
+            }
+
+            var typeface = new Typeface(family, weight: FontWeight.SemiBold);
+            TextLayout? Make(int n, string sign, IBrush brush) =>
+                n == 0 ? null : new TextLayout(sign + n.ToString(System.Globalization.CultureInfo.InvariantCulture), typeface, size, brush);
+
+            row.Counts = [Make(counts.Modified, "", key.Item3), Make(counts.Added, "+", key.Item4), Make(counts.Removed, "âˆ’", key.Item5)];
+            row.CountsKey = key;
+        }
+
+        return row.Counts;
+    }
+
+    /// <summary>Visual Studio's C# file icon: "C#" in green.</summary>
+    private TextLayout CSharpIcon(FontFamily family)
+    {
+        const double size = 11;
+        if (_csharp is null || _csharpKey != (size, family))
+        {
+            _csharp?.Dispose();
+            _csharp = new TextLayout("C#", new Typeface(family, weight: FontWeight.Bold), size, CSharpBrush);
+            _csharpKey = (size, family);
+        }
+
+        return _csharp;
+    }
 
     /// <summary>
     /// Where each row is drawn, and the band it shows through. A run of neighbouring rows folding together (a

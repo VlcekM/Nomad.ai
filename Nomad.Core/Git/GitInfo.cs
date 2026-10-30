@@ -232,7 +232,7 @@ public static class GitInfo
     }
 
     /// <summary>Runs <c>git -C folder …</c>; its output, or null when it fails or takes too long.</summary>
-    private static async Task<string?> RunAsync(string folder, params string[] args)
+    internal static async Task<string?> RunAsync(string folder, params string[] args)
     {
         var (ok, output, _) = await RunFullAsync(folder, Timeout, args);
         return ok ? output : null;

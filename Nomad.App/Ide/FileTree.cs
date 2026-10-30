@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using Nomad.Core.Files;
+using Nomad.Core.Git;
 
 namespace Nomad.App.Ide;
 
@@ -41,12 +42,18 @@ public sealed class FileTree : IDisposable
 {
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(200);
 
+    // A commit or a checkout elsewhere (a worktree's index is outside its folder) is caught up this often.
+    private static readonly TimeSpan GitPoll = TimeSpan.FromSeconds(10);
+
     private readonly Dictionary<string, FileNode> _listed = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<FileNode, Task> _loading = [];
     private readonly HashSet<string> _dirty = new(StringComparer.OrdinalIgnoreCase);
     private FileSystemWatcher? _watcher;
     private DispatcherTimer? _settle;
     private bool _dirtyAll;
+    private bool _gitDirty;
+    private bool _gitReading;
+    private DispatcherTimer? _gitPoll;
 
     public FileTree(string folder)
     {
@@ -64,6 +71,12 @@ public sealed class FileTree : IDisposable
 
     /// <summary>Entries were listed, or came or went: the visible rows may differ.</summary>
     public event Action? Changed;
+
+    /// <summary>The files' git state (null outside a repository), kept current while <see cref="Watch"/> is on.</summary>
+    public GitFiles? Git { get; private set; }
+
+    /// <summary><see cref="Git"/> was read again.</summary>
+    public event Action? GitChanged;
 
     /// <summary>Lists a folder that has not been listed yet (or waits for the listing already under way).</summary>
     public Task LoadAsync(FileNode folder)
@@ -180,15 +193,24 @@ public sealed class FileTree : IDisposable
         {
             _watcher!.Dispose();
             _watcher = null;
+            _gitPoll?.Stop();
             return;
         }
+
+        if (_gitPoll is null)
+        {
+            _gitPoll = new DispatcherTimer { Interval = GitPoll };
+            _gitPoll.Tick += (_, _) => _ = RefreshGitAsync();
+        }
+
+        _gitPoll.Start();
 
         try
         {
             _watcher = new FileSystemWatcher(Root.FullPath)
             {
                 IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite,
                 InternalBufferSize = 64 * 1024,
             };
             _watcher.Created += (_, e) => Touched(e.FullPath);
@@ -198,6 +220,7 @@ public sealed class FileTree : IDisposable
                 Touched(e.OldFullPath);
                 Touched(e.FullPath);
             };
+            _watcher.Changed += (_, _) => GitTouched();
             _watcher.Error += (_, _) => TouchedAll();
             _watcher.EnableRaisingEvents = true;
         }
@@ -214,11 +237,13 @@ public sealed class FileTree : IDisposable
     {
         Watch(false);
         _settle?.Stop();
+        _gitPoll = null;
     }
 
     // Watcher threads: note the folder that changed, and re-list after the changes settle.
     private void Touched(string path)
     {
+        GitTouched();
         if (Path.GetDirectoryName(path) is not { } folder || IsUnderGit(path))
         {
             return;
@@ -232,11 +257,23 @@ public sealed class FileTree : IDisposable
         Dispatcher.UIThread.Post(Schedule);
     }
 
+    // A file was written, or anything came or went (in .git too: a commit, a checkout): git's view may differ.
+    private void GitTouched()
+    {
+        lock (_dirty)
+        {
+            _gitDirty = true;
+        }
+
+        Dispatcher.UIThread.Post(Schedule);
+    }
+
     private void TouchedAll()
     {
         lock (_dirty)
         {
             _dirtyAll = true;
+            _gitDirty = true;
         }
 
         Dispatcher.UIThread.Post(Schedule);
@@ -270,6 +307,12 @@ public sealed class FileTree : IDisposable
         List<FileNode> folders;
         lock (_dirty)
         {
+            if (_gitDirty)
+            {
+                _gitDirty = false;
+                _ = RefreshGitAsync();
+            }
+
             folders = _dirtyAll
                 ? [.. _listed.Values]
                 : [.. _dirty.Select(path => _listed.GetValueOrDefault(path)).OfType<FileNode>()];
@@ -294,6 +337,39 @@ public sealed class FileTree : IDisposable
         }
 
         Changed?.Invoke();
+    }
+
+    private async Task RefreshGitAsync()
+    {
+        // One read at a time; a change meanwhile reads again after it.
+        if (_gitReading)
+        {
+            lock (_dirty)
+            {
+                _gitDirty = true;
+            }
+
+            return;
+        }
+
+        _gitReading = true;
+        try
+        {
+            Git = await GitFiles.ReadAsync(Root.FullPath);
+        }
+        finally
+        {
+            _gitReading = false;
+        }
+
+        GitChanged?.Invoke();
+        lock (_dirty)
+        {
+            if (_gitDirty && _watcher is not null)
+            {
+                Schedule();
+            }
+        }
     }
 
     // Keeps the nodes still there (with their own children and expansion), adds the new ones, forgets the rest.
