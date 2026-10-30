@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -720,13 +721,69 @@ public partial class MainWindow : Window
 
     private void OnGripCaptureLost(object? sender, PointerCaptureLostEventArgs e) => EndGripDrag(null);
 
-    /// <summary>The session title stops short of the Chat / Files switch in the middle of the window.</summary>
+    private (string? Text, Typeface Typeface, double FontSize)? _titleMeasure;
+    private double _titleTextWidth;
+    private double? _viewSwitchLeft;
+    private bool _viewSwitchDocked;
+
+    /// <summary>Keep the switch centered while it fits; otherwise give the title room by docking it on the right.</summary>
     private void UpdateTitleArea()
     {
         var max = double.PositiveInfinity;
-        if (ViewSwitch.IsVisible && ViewSwitch.TranslatePoint(default, TitleBar) is { } at)
+        if (ViewSwitch.IsVisible && ViewSwitch.Bounds.Width > 0
+            && TitleBar.TranslatePoint(default, WindowContent) is { } titleAt
+            && TitleButtons.TranslatePoint(default, WindowContent) is { } buttonsAt)
         {
-            max = Math.Max(0, Math.Floor(at.X) - 12);
+            // Measure the untrimmed title, independent of the space the switch currently leaves it. Using the
+            // constrained DesiredSize here would make a long title alternate between the two positions.
+            var text = _vm.IsTitleRenaming ? TitleRenameBox.Text : SessionTitleText.Text;
+            var typeface = new Typeface(SessionTitleText.FontFamily, SessionTitleText.FontStyle,
+                SessionTitleText.FontWeight, SessionTitleText.FontStretch);
+            var measure = (text, typeface, SessionTitleText.FontSize);
+            if (_titleMeasure is not { } previous || !previous.Equals(measure))
+            {
+                using var layout = new TextLayout(text ?? "", typeface, SessionTitleText.FontSize, null);
+                _titleTextWidth = layout.WidthIncludingTrailingWhitespace;
+                _titleMeasure = measure;
+            }
+
+            var children = TitleContent.Children.Where(c => c.IsVisible).ToArray();
+            var titleWidth = SessionTitleButton.IsVisible
+                ? Math.Min(SessionTitleButton.MaxWidth, Math.Max(_vm.IsTitleRenaming ? TitleRenameBox.MinWidth : 0,
+                    _titleTextWidth) + SessionTitleButton.Padding.Left + SessionTitleButton.Padding.Right)
+                : 0;
+            var naturalWidth = TitleNavigation.DesiredSize.Width + TitleContent.Margin.Left + TitleContent.Margin.Right
+                + titleWidth + children.Where(c => c != SessionTitleButton).Sum(c => c.DesiredSize.Width)
+                + (TitleContent.ColumnDefinitions.Count - 1) * TitleContent.ColumnSpacing;
+            var centered = Math.Floor((WindowContent.Bounds.Width - ViewSwitch.Bounds.Width) / 2);
+            var docked = Math.Floor(buttonsAt.X - ViewSwitch.Bounds.Width - 12);
+            // A little clearance before returning to the center avoids jitter at a resize boundary.
+            _viewSwitchDocked = titleAt.X + naturalWidth + 12 + (_viewSwitchDocked ? 12 : 0) > centered
+                || centered > docked;
+            var left = _viewSwitchDocked ? docked : centered;
+            var first = _viewSwitchLeft is null;
+            if (_viewSwitchLeft != left)
+            {
+                _viewSwitchLeft = left;
+                // A newly shown switch starts in place; later moves retarget the running transition.
+                var transitions = ViewSwitch.Transitions;
+                if (first)
+                {
+                    ViewSwitch.Transitions = null;
+                }
+
+                ViewSwitch.Margin = new Thickness(left, 4, 0, 0);
+                ViewSwitch.Transitions = transitions;
+            }
+
+            // Follow the animated position so the title and its metadata never run under the moving switch.
+            var currentLeft = first ? left : ViewSwitch.Bounds.X;
+            max = Math.Max(0, Math.Floor(currentLeft - titleAt.X) - 12);
+        }
+        else if (!ViewSwitch.IsVisible)
+        {
+            _viewSwitchLeft = null;
+            _viewSwitchDocked = false;
         }
 
         if (TitleArea.MaxWidth != max)
