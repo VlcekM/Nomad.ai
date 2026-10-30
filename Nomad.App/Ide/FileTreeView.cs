@@ -44,13 +44,12 @@ public sealed class FileTreeView : Control
     // Git marks left of a file's icon, as Visual Studio's: a blue lock (committed, unchanged), a red check (changed),
     // a green plus (new). C# files get its green "C#" icon.
     private static readonly IBrush LockBrush = new SolidColorBrush(Color.FromRgb(0x3B, 0x97, 0xE3));
-    private static readonly IBrush ProjectBrush = new SolidColorBrush(Color.FromRgb(0x38, 0x8A, 0x34));
     private static readonly IBrush CSharpBrush = new SolidColorBrush(Color.FromRgb(0x5C, 0xB8, 0x5C));
     private static readonly Geometry LockBody = StreamGeometry.Parse("M7,8.6 C7,8.35 7.15,8.2 7.4,8.2 L11.1,8.2 C11.35,8.2 11.5,8.35 11.5,8.6 L11.5,11.6 C11.5,11.85 11.35,12 11.1,12 L7.4,12 C7.15,12 7,11.85 7,11.6 Z");
     private static readonly Geometry LockShackle = StreamGeometry.Parse("M8,8.2 L8,7.1 C8,6.4 8.55,5.85 9.25,5.85 C9.95,5.85 10.5,6.4 10.5,7.1 L10.5,8.2");
     private static readonly Geometry CheckShape = StreamGeometry.Parse("M6.75,9 L8.5,10.75 L11.5,7.25");
     private static readonly Geometry PlusShape = StreamGeometry.Parse("M9.25,6.5 L9.25,11.5 M6.75,9 L11.75,9");
-    private static readonly Geometry ProjectShape = StreamGeometry.Parse("M1.5,4 C1.5,2.62 2.62,1.5 4,1.5 L12,1.5 C13.38,1.5 14.5,2.62 14.5,4 L14.5,12 C14.5,13.38 13.38,14.5 12,14.5 L4,14.5 C2.62,14.5 1.5,13.38 1.5,12 Z");
+    private static readonly Geometry ProjectShape = StreamGeometry.Parse("M5,8 L5,3.75 C5,3.06 5.56,2.5 6.25,2.5 L14,2.5 C14.69,2.5 15.25,3.06 15.25,3.75 L15.25,11.25 C15.25,11.94 14.69,12.5 14,12.5 L10.75,12.5 M5,5.25 L15.25,5.25");
 
     private static readonly Geometry FolderFrontOpenShape = StreamGeometry.Parse("M3.6,7 L15.2,7 L13.6,12.6 C13.46,13.13 13,13.5 12.45,13.5 L2.2,13.5 C1.75,13.5 1.45,13.08 1.58,12.65 Z");
 
@@ -540,10 +539,10 @@ public sealed class FileTreeView : Control
                 {
                     if (row.Node.Project is not null)
                     {
-                        // A project, as Solution Explorer's: "C#" on a green tile.
-                        context.DrawGeometry(ProjectBrush, null, ProjectShape);
+                        // A project, as Solution Explorer's: a window, open at its lower left for a green "C#".
+                        context.DrawGeometry(null, iconPen, ProjectShape);
                         var mark = ProjectMark(family);
-                        mark.Draw(context, new Point((Box - mark.WidthIncludingTrailingWhitespace) / 2, (Box - mark.Height) / 2));
+                        mark.Draw(context, new Point(-0.5, Box - mark.Height + 1.5));
                     }
                     else if (row.Node.IsDirectory)
                     {
@@ -663,13 +662,13 @@ public sealed class FileTreeView : Control
     private TextLayout? _projectMark;
     private FontFamily? _projectMarkFamily;
 
-    /// <summary>The project tile's "C#", white on its green.</summary>
+    /// <summary>The project icon's "C#", in the C# file icon's green.</summary>
     private TextLayout ProjectMark(FontFamily family)
     {
         if (_projectMark is null || _projectMarkFamily != family)
         {
             _projectMark?.Dispose();
-            _projectMark = new TextLayout("C#", new Typeface(family, weight: FontWeight.Bold), 8.5, Brushes.White);
+            _projectMark = new TextLayout("C#", new Typeface(family, weight: FontWeight.Bold), 8.5, CSharpBrush);
             _projectMarkFamily = family;
         }
 
