@@ -1545,6 +1545,10 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The usage ring is shown in the status row (a setting).</summary>
     public bool ShowUsageRing => _main.ShowUsageRing;
 
+    public bool ShowNewSessionUsage => _main.ShowNewSessionUsage;
+
+    public void OnShowNewSessionUsageChanged() => OnPropertyChanged(nameof(ShowNewSessionUsage));
+
     public void OnShowUsageRingChanged() => OnPropertyChanged(nameof(ShowUsageRing));
 
     // ------------------------------------------------------------------ files view
@@ -1986,6 +1990,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public UsageViewModel ClaudeUsage => _main.Usage;
     public CodexUsageViewModel CodexUsage => _main.CodexUsage;
     public OpenCodeCostViewModel OpenCodeCost => _main.OpenCodeCost;
+    public LocalTokenUsageViewModel LocalTokens => _main.LocalTokens;
 
     /// <summary>The ring's popup and the usage card: limits or costs for this session's backend.</summary>
     public UsageSource Usage => Backend switch

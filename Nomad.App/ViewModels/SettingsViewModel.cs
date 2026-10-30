@@ -62,6 +62,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
         ShowUsageRing = s.ShowUsageRing;
+        ShowNewSessionUsage = s.ShowNewSessionUsage;
         FileTreeOnRight = s.FileTreeOnRight;
         FilesViewKey = s.FilesViewKey;
         CompactModelPicker = s.CompactModelPicker;
@@ -387,6 +388,20 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool ShowUsageRing { get; set; }
+
+    [ObservableProperty]
+    public partial bool ShowNewSessionUsage { get; set; }
+
+    [RelayCommand]
+    private void ToggleShowNewSessionUsage() => ShowNewSessionUsage = !ShowNewSessionUsage;
+
+    partial void OnShowNewSessionUsageChanged(bool value)
+    {
+        if (_loaded)
+        {
+            _main.ShowNewSessionUsage = value;
+        }
+    }
 
     [RelayCommand]
     private void ToggleShowUsageRing() => ShowUsageRing = !ShowUsageRing;

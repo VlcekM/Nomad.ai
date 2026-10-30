@@ -36,6 +36,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The ChatGPT plan's Codex limits (Codex sessions' usage).</summary>
     public CodexUsageViewModel CodexUsage { get; } = new();
 
+    public LocalTokenUsageViewModel LocalTokens { get; } = new();
+
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
 
@@ -541,6 +543,32 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The provider usage cards above recent projects on the new-session screen.</summary>
+    public bool ShowNewSessionUsage
+    {
+        get => Settings.ShowNewSessionUsage;
+        set
+        {
+            if (Settings.ShowNewSessionUsage == value)
+            {
+                return;
+            }
+
+            Settings.ShowNewSessionUsage = value;
+            SaveSettings();
+            OnPropertyChanged();
+            foreach (var session in _open.Values.Append(Current).Distinct())
+            {
+                session.OnShowNewSessionUsageChanged();
+            }
+
+            if (value && Current.IsNew)
+            {
+                _ = RefreshVisibleUsageAsync();
+            }
+        }
+    }
+
     /// <summary>Only the current model's chip on the status row; the rest are in its menu.</summary>
     public bool CompactModelPicker
     {
@@ -853,8 +881,8 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnCurrentChanging(SessionViewModel value) => EndTitleRename(save: true);
 
     // The new-session dashboard shows all three providers, independent of the selected backend.
-    private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew
-        ? Task.WhenAll(Usage.RefreshAsync(force), CodexUsage.RefreshAsync(force), OpenCodeCost.RefreshAsync(force))
+    private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew && ShowNewSessionUsage
+        ? Task.WhenAll(Usage.RefreshAsync(force), CodexUsage.RefreshAsync(force), OpenCodeCost.RefreshAsync(force), LocalTokens.RefreshAsync(force))
         : Current.Usage.RefreshAsync(force);
 
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
