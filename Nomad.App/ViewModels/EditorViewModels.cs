@@ -560,10 +560,18 @@ public sealed partial class EditorGroup : ObservableObject
     /// </summary>
     public void Adopt(FileTab tab)
     {
+        // The file is open here too: the copy with unsaved edits stays (the other one, if both have some).
         if (Tabs.FirstOrDefault(t => SamePath(t, tab.Path)) is { } open)
         {
-            ActiveTab = open;
-            return;
+            if (!tab.IsDirty || open.IsDirty)
+            {
+                ActiveTab = open;
+                tab.Dispose();
+                return;
+            }
+
+            Tabs.Remove(open);
+            open.Dispose();
         }
 
         tab.Group = this;

@@ -472,10 +472,20 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
+    // Off screen it lets go of the document, which would otherwise keep a closed group's view alive.
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _doc.Changed -= OnDocumentChanged;
+        _doc.Changed += OnDocumentChanged;
+        Refresh();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
         _blink.Stop();
+        _doc.Changed -= OnDocumentChanged;
     }
 
     /// <summary>Scrolls the caret into view, once the layout has caught up with an edit.</summary>
