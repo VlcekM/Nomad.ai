@@ -597,6 +597,37 @@ public partial class MainWindow : Window
         }
     }
 
+    // ------------------------------------------------------------------ files dragged from the Files view's tree
+
+    /// <summary>
+    /// A file dragged out of the Files view's tree: its name follows the pointer, and let go over the title bar's Chat
+    /// switch it is attached to the chat, which comes up. A null <paramref name="e"/> ends the drag without a drop.
+    /// </summary>
+    public void DragFile(SessionViewModel session, string path, PointerEventArgs? e, bool done)
+    {
+        var over = e is not null && ChatSwitchButton.IsEffectivelyVisible &&
+                   new Rect(ChatSwitchButton.Bounds.Size).Inflate(6).Contains(e.GetPosition(ChatSwitchButton));
+        if (e is null || done)
+        {
+            DragGhost.Opacity = 0;
+            ChatSwitchButton.Classes.Remove("droptarget");
+            if (done && over)
+            {
+                session.AddAttachments([Infrastructure.PromptImages.FromPath(path)]);
+                session.ShowChatCommand.Execute(null);
+            }
+
+            return;
+        }
+
+        var at = e.GetPosition(this);
+        DragGhostText.Text = Path.GetFileName(Path.TrimEndingDirectorySeparator(path));
+        DragGhost.Opacity = 0.95;
+        Canvas.SetLeft(DragGhost, at.X + 12);
+        Canvas.SetTop(DragGhost, at.Y + 8);
+        ChatSwitchButton.Classes.Set("droptarget", over);
+    }
+
     // A row's GitHub icons open their pull request or issue (and keep the press from opening the session).
     private void OnPullRequestIconPressed(object? sender, PointerPressedEventArgs e) =>
         OpenLink(e, (sender as Control)?.DataContext is SessionListItemViewModel { PullRequest.Url: { } url } ? url : null);

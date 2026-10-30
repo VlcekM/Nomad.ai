@@ -101,6 +101,11 @@
     <Style Selector="Border.viewswitch:not(.files) Button.chat, Border.viewswitch.files Button.files">
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
+    <!-- A file from the tree dragged over Chat: let go to attach it. -->
+    <Style Selector="Border.viewswitch Button.chat.droptarget">
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
   </Window.Styles>
 
   <Panel Name="WindowContent">
@@ -1227,7 +1232,7 @@
       <Panel>
         <Border Classes="thumb" />
         <StackPanel Orientation="Horizontal">
-          <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
+          <Button Name="ChatSwitchButton" Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <TextBlock Text="Chat" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
               <c:Icon Size="15" Data="{StaticResource IconChat}" VerticalAlignment="Center" />

@@ -162,6 +162,9 @@ public sealed class FileTreeView : Control
         public Anim Presence;
         public Anim Hover;
         public Anim Turn;
+
+        // The folder a dragged item would go into.
+        public Anim Drop;
         public TextLayout? Text;
 
         // A folder's counts of changed files below it: modified, added, removed.
@@ -419,7 +422,7 @@ public sealed class FileTreeView : Control
 
     private void Tick()
     {
-        if (_ticking || _top is null || !_gitFade.Running && !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running || r.Flashing))
+        if (_ticking || _top is null || !_gitFade.Running && !_rows.Any(r => r.Presence.Running || r.Hover.Running || r.Turn.Running || r.Drop.Running || r.Flashing))
         {
             return;
         }
@@ -439,6 +442,7 @@ public sealed class FileTreeView : Control
             row.Presence.Step(now, FoldMs);
             row.Hover.Step(now, HoverMs);
             row.Turn.Step(now, FoldMs);
+            row.Drop.Step(now, HoverMs);
             if (row.Flashing)
             {
                 row.FlashStart ??= now;
@@ -583,6 +587,20 @@ public sealed class FileTreeView : Control
                     using (context.PushOpacity(row.Hover.Value))
                     {
                         context.DrawRectangle(hoverBrush, null, box, 6, 6);
+                    }
+                }
+
+                // Where a dragged item would go: an accent outline round the folder, with a faint wash.
+                if (row.Drop.Value > 0.01)
+                {
+                    using (context.PushOpacity(row.Drop.Value))
+                    {
+                        using (context.PushOpacity(0.14))
+                        {
+                            context.DrawRectangle(accentBrush, null, box, 6, 6);
+                        }
+
+                        context.DrawRectangle(null, new Pen(accentBrush, 1.2), box.Deflate(0.6), 6, 6);
                     }
                 }
 
@@ -899,10 +917,106 @@ public sealed class FileTreeView : Control
         return y;
     }
 
+    // ------------------------------------------------------------------ drag
+
+    // The row pressed (and where), until the press ends; dragged once the pointer has moved far enough.
+    private (Row Row, Point At)? _press;
+    private bool _dragging;
+    private FileNode? _dropTarget;
+
+    /// <summary>A file or folder dragged out of the tree (each move, then with true once let go, or cancelled with null).</summary>
+    public event Action<string, PointerEventArgs?, bool>? FileDragged;
+
+    /// <summary>A file or folder dropped on a folder of the tree: its path, and the folder's.</summary>
+    public event Action<string, string>? MoveRequested;
+
+    // The folder a drop at this point goes into: a folder row's own, a file's parent, the root below the rows; none
+    // outside the tree, or where the item already is (or inside itself).
+    private FileNode? DropTargetAt(Point at, FileNode dragged)
+    {
+        if (_tree is null || !new Rect(Bounds.Size).Contains(at))
+        {
+            return null;
+        }
+
+        var target = RowAt(at.Y)?.Node is { } node ? (node.IsDirectory ? node : node.Parent) : _tree.Root;
+        return target is null || target == dragged.Parent || target == dragged || dragged.IsAncestorOf(target) ? null : target;
+    }
+
+    private void SetDropTarget(FileNode? target)
+    {
+        if (target == _dropTarget)
+        {
+            return;
+        }
+
+        _dropTarget = target;
+        foreach (var row in _rows)
+        {
+            row.Drop.Retarget(row.Node == target ? 1 : 0);
+        }
+
+        Tick();
+    }
+
+    private void EndDrag(PointerEventArgs? e, bool drop)
+    {
+        if (!_dragging || _press is not { } press)
+        {
+            _press = null;
+            return;
+        }
+
+        _dragging = false;
+        _press = null;
+        var target = _dropTarget;
+        SetDropTarget(null);
+        Cursor = _hover is null ? null : HandCursor;
+        if (drop && target is not null)
+        {
+            MoveRequested?.Invoke(press.Row.Node.FullPath, target.FullPath);
+            FileDragged?.Invoke(press.Row.Node.FullPath, null, false);
+        }
+        else
+        {
+            FileDragged?.Invoke(press.Row.Node.FullPath, drop ? e : null, drop);
+        }
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        EndDrag(null, drop: false);
+    }
+
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        SetHover(RowAt(e.GetPosition(this).Y));
+        var at = e.GetPosition(this);
+        if (_press is { } press)
+        {
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                EndDrag(null, drop: false);
+            }
+            else if (_dragging || Math.Abs(at.X - press.At.X) >= 6 || Math.Abs(at.Y - press.At.Y) >= 6)
+            {
+                if (!_dragging)
+                {
+                    _dragging = true;
+                    e.Pointer.Capture(this);
+                    SetHover(null);
+                    Cursor = new Cursor(StandardCursorType.DragMove);
+                }
+
+                SetDropTarget(DropTargetAt(at, press.Row.Node));
+                FileDragged?.Invoke(press.Row.Node.FullPath, e, false);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        SetHover(RowAt(at.Y));
     }
 
     protected override void OnPointerExited(PointerEventArgs e)
@@ -985,12 +1099,22 @@ public sealed class FileTreeView : Control
             Toggle(row.Node);
         }
 
+        _press = (row, e.GetPosition(this));
         e.Handled = true;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (e.InitialPressMouseButton == MouseButton.Left && _dragging)
+        {
+            EndDrag(e, drop: true);
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
+        _press = null;
         if (e.InitialPressMouseButton == MouseButton.Right && _tree is not null)
         {
             ContextRequested?.Invoke(RowAt(e.GetPosition(this).Y)?.Node);

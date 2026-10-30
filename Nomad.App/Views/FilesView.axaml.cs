@@ -26,6 +26,22 @@ public partial class FilesView : UserControl
         Tree.FileOpened += (path, keep) => _session?.Files.Open(path, keep);
         Tree.DiffRequested += path => _session?.Files.OpenDiff(path);
         Tree.ContextRequested += OnTreeContext;
+        Tree.MoveRequested += (from, folder) =>
+        {
+            if (_session?.Files is { } files && files.Move(from, Path.Combine(folder, Path.GetFileName(Path.TrimEndingDirectorySeparator(from)))) is { } error)
+            {
+                files.Prompt.AskConfirm("Couldn't move it", error, "OK", danger: false, () => Task.FromResult<string?>(null));
+            }
+        };
+
+        // Dragged out of the tree: the window shows its name by the pointer, and the Chat switch takes it as an attachment.
+        Tree.FileDragged += (path, e, done) =>
+        {
+            if (TopLevel.GetTopLevel(this) is MainWindow window && _session is { } session)
+            {
+                window.DragFile(session, path, e, done);
+            }
+        };
         Tree.ActionRequested += (node, action) =>
         {
             if (action == "rename")
