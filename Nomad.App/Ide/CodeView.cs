@@ -87,6 +87,7 @@ public sealed class CodeView : Control
             {
                 HideQuickInfo();
                 _completion?.Reposition();
+                _signature?.Reposition();
             }
 
             _viewport = e.EffectiveViewport;
@@ -156,6 +157,7 @@ public sealed class CodeView : Control
         };
 
         _completion = new CodeCompletion(this, popup => LogicalChildren.Add(popup));
+        _signature = new CodeSignatureHelp(this, popup => LogicalChildren.Add(popup));
     }
 
     public CodeDocument? Document
@@ -231,6 +233,7 @@ public sealed class CodeView : Control
             _doc.RevealRequested += OnRevealRequested;
             _doc.CaretChanged += OnCaretMoved;
             _completion.Close();
+            _signature.Close();
             _chord = false;
             _goalCol = null;
             Refresh();
@@ -1051,6 +1054,7 @@ public sealed class CodeView : Control
     {
         base.OnLostFocus(e);
         _completion.Close();
+        _signature.Close();
         _blink.Stop();
         InvalidateVisual();
     }
@@ -1082,6 +1086,7 @@ public sealed class CodeView : Control
         _doc.CaretChanged -= OnCaretMoved;
         _doc.MarksChanged -= InvalidateVisual;
         _completion.Close();
+        _signature.Close();
     }
 
     // A Go To (or a find's match): the caret's line in the middle of the view, and the focus here to type at it.
@@ -1287,11 +1292,17 @@ public sealed class CodeView : Control
 
     private readonly CodeCompletion _completion;
 
+    private readonly CodeSignatureHelp _signature;
+
     internal CodeDocument Doc => _doc;
 
     internal IBrush? Theme(string key) => ThemeBrush(key);
 
-    private void OnCaretMoved() => _completion.Update();
+    private void OnCaretMoved()
+    {
+        _completion.Update();
+        _signature.Update();
+    }
 
     /// <summary>Where a name starts on its line, in this view's coordinates (the completion list hangs below it).</summary>
     internal Rect NameRect(int line, int index)
@@ -2018,7 +2029,7 @@ public sealed class CodeView : Control
         }
 
         HideQuickInfo();
-        if (_completion.HandleKey(e))
+        if (_completion.HandleKey(e) || _signature.HandleKey(e))
         {
             e.Handled = true;
             return;
@@ -2087,6 +2098,9 @@ public sealed class CodeView : Control
                 break;
             case Key.Space when ctrl && !shift && editable:
                 _completion.Start(null, explicitly: true);
+                break;
+            case Key.Space when ctrl && shift && editable:
+                _signature.Start();
                 break;
             case Key.I when ctrl && !shift && AskRequested is not null:
                 Ask();
@@ -2255,6 +2269,7 @@ public sealed class CodeView : Control
         _goalCol = null;
         _doc.Replace(from, to, e.Text);
         _completion.AfterTyping(e.Text);
+        _signature.AfterTyping(e.Text);
         e.Handled = true;
     }
 
@@ -2500,4 +2515,7 @@ public interface ICodeNavigator
 
     /// <summary>A chosen completion's documentation and the usings it brings.</summary>
     Task<Nomad.Core.Lsp.LspResolvedCompletion?> ResolveCompletionAsync(Nomad.Core.Lsp.LspCompletion item, CancellationToken cancellationToken);
+
+    /// <summary>The overloads of the call at a place, and the argument it is at (null outside a call, or no server).</summary>
+    Task<Nomad.Core.Lsp.LspSignatureHelp?> SignatureHelpAsync(int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken);
 }

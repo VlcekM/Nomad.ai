@@ -124,6 +124,18 @@ public class RoslynServerTests
             var more = await server.ResolveAsync(builder);
             Console.WriteLine($"StringBuilder: {builder.Label} {builder.Edit} -> {string.Join(" | ", more.AdditionalEdits)}");
         }
+
+        // Signature help inside a call: TryGetValue(path, out var at), at its second argument.
+        await server.ChangeAsync(file, string.Join("\n", lines));
+        var call = lines[get].IndexOf("TryGetValue(", StringComparison.Ordinal) + "TryGetValue(".Length;
+        var second = lines[get].IndexOf(", ", call, StringComparison.Ordinal) + 2;
+        var help = await server.SignatureHelpAsync(file, get, second, ",", false);
+        Assert.NotNull(help);
+        var shown = help.Signatures[help.ActiveSignature];
+        Console.WriteLine($"signature: {shown.Label} [{string.Join(", ", shown.Parameters.Select(p => shown.Label[p.Start..p.End]))}] active {shown.ActiveParameter ?? help.ActiveParameter}");
+        Assert.Contains("TryGetValue", shown.Label, StringComparison.Ordinal);
+        Assert.Equal(1, shown.ActiveParameter ?? help.ActiveParameter);
+        Assert.Contains("value", shown.Label[shown.Parameters[1].Start..shown.Parameters[1].End], StringComparison.Ordinal);
     }
 }
 

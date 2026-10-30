@@ -893,6 +893,9 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
     public async Task<Nomad.Core.Lsp.LspResolvedCompletion?> ResolveCompletionAsync(Nomad.Core.Lsp.LspCompletion item, CancellationToken cancellationToken) =>
         ActiveTab is { } tab && Server(tab) is { } server ? await server.ResolveAsync(item, cancellationToken) : null;
 
+    public async Task<Nomad.Core.Lsp.LspSignatureHelp?> SignatureHelpAsync(int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken) =>
+        ActiveTab is { } tab && Server(tab) is { } server ? await server.SignatureHelpAsync(tab.Path, line, column, trigger, retrigger, cancellationToken) : null;
+
     private void Open(Nomad.Core.Lsp.LspLocation location) =>
         owner.OpenAt(location.Path, (location.Line, location.Column),
             length: location.EndLine == location.Line ? Math.Max(0, location.EndColumn - location.Column) : 0);

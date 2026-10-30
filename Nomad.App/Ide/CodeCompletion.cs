@@ -99,7 +99,7 @@ internal sealed class CodeCompletion
     public bool IsOpen { get; private set; }
 
     // Showing a list now (not only waiting for one).
-    private bool IsShown => IsOpen && _list.Count > 0;
+    private bool IsShown => IsOpen && !_waiting && _list.Count > 0;
 
     /// <summary>Asks for completions at the caret (after a '.', or a name begun; Ctrl+Space with no trigger).</summary>
     public void Start(string? trigger, bool explicitly = false)
@@ -437,7 +437,7 @@ internal sealed class CodeCompletion
         }
 
         // From where the server says the completion goes (it may take in a character before the name), else the name.
-        var start = item.Edit is { } edit && edit.Line == _line && edit.Column <= caret.Index ? edit.Column : _start;
+        var start = item.Edit is { } edit && edit.Line == _line && edit.Column <= _start && edit.Column >= _start - 2 ? edit.Column : _start;
         var resolved = _resolved.GetValueOrDefault(item);
         Close();
         doc.BeginGroup();

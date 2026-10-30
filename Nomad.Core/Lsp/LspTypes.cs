@@ -115,3 +115,9 @@ internal static class LspJson
         : value.ValueKind == JsonValueKind.String ? value.GetString()
         : String(value, "value");
 }
+
+/// <summary>One overload a signature help shows: its declaration, its documentation, and where each parameter is in the declaration.</summary>
+public sealed record LspSignature(string Label, string? Documentation, IReadOnlyList<(int Start, int End, string? Documentation)> Parameters, int? ActiveParameter);
+
+/// <summary>The overloads of the call the caret is in, the one the server thinks fits, and the argument the caret is at.</summary>
+public sealed record LspSignatureHelp(IReadOnlyList<LspSignature> Signatures, int ActiveSignature, int ActiveParameter);

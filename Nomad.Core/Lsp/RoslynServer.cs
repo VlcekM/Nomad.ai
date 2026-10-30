@@ -257,6 +257,16 @@ public sealed class RoslynServer : IAsyncDisposable
                         ["definition"] = new JsonObject { ["linkSupport"] = false },
                         ["implementation"] = new JsonObject { ["linkSupport"] = false },
                         ["references"] = new JsonObject(),
+                        ["signatureHelp"] = new JsonObject
+                        {
+                            ["signatureInformation"] = new JsonObject
+                            {
+                                ["documentationFormat"] = new JsonArray("plaintext", "markdown"),
+                                ["parameterInformation"] = new JsonObject { ["labelOffsetSupport"] = true },
+                                ["activeParameterSupport"] = true,
+                            },
+                            ["contextSupport"] = true,
+                        },
                         ["rename"] = new JsonObject { ["prepareSupport"] = true },
                         ["diagnostic"] = new JsonObject { ["dynamicRegistration"] = false, ["relatedDocumentSupport"] = false },
                         ["publishDiagnostics"] = new JsonObject { ["relatedInformation"] = false },
@@ -648,6 +658,59 @@ public sealed class RoslynServer : IAsyncDisposable
         }
 
         return new LspCompletionList(list, incomplete);
+    }
+
+    /// <summary>The overloads of the call the caret is in (null outside one): typed a '(' or ',' (the trigger), or moved within it.</summary>
+    public async Task<LspSignatureHelp?> SignatureHelpAsync(string path, int line, int column, string? trigger, bool retrigger, CancellationToken cancellationToken = default)
+    {
+        var parameters = At(path, line, column);
+        parameters["context"] = new JsonObject
+        {
+            ["triggerKind"] = trigger is null ? (retrigger ? 3 : 1) : 2,
+            ["triggerCharacter"] = trigger,
+            ["isRetrigger"] = retrigger,
+        };
+        var result = await _connection.CallAsync("textDocument/signatureHelp", parameters, cancellationToken, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+        if (result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("signatures", out var list) || list.ValueKind != JsonValueKind.Array || list.GetArrayLength() == 0)
+        {
+            return null;
+        }
+
+        var signatures = new List<LspSignature>();
+        foreach (var signature in list.EnumerateArray())
+        {
+            var label = LspJson.String(signature, "label") ?? "";
+            var parts = new List<(int, int, string?)>();
+            if (signature.TryGetProperty("parameters", out var ps) && ps.ValueKind == JsonValueKind.Array)
+            {
+                var from = 0;
+                foreach (var p in ps.EnumerateArray())
+                {
+                    var doc = LspJson.Markup(p, "documentation");
+                    if (p.TryGetProperty("label", out var l) && l.ValueKind == JsonValueKind.Array && l.GetArrayLength() == 2)
+                    {
+                        parts.Add((l[0].GetInt32(), l[1].GetInt32(), doc));
+                    }
+                    else if (l.ValueKind == JsonValueKind.String && l.GetString() is { Length: > 0 } text && label.IndexOf(text, from, StringComparison.Ordinal) is var at and >= 0)
+                    {
+                        // A parameter named by its text: found in the declaration after the one before it.
+                        parts.Add((at, at + text.Length, doc));
+                        from = at + text.Length;
+                    }
+                    else
+                    {
+                        parts.Add((0, 0, doc));
+                    }
+                }
+            }
+
+            int? active = signature.TryGetProperty("activeParameter", out var a) && a.ValueKind == JsonValueKind.Number ? a.GetInt32() : null;
+            signatures.Add(new LspSignature(label, LspJson.Markup(signature, "documentation"), parts, active));
+        }
+
+        var activeSignature = result.TryGetProperty("activeSignature", out var s) && s.ValueKind == JsonValueKind.Number ? s.GetInt32() : 0;
+        var activeParameter = result.TryGetProperty("activeParameter", out var ap) && ap.ValueKind == JsonValueKind.Number ? ap.GetInt32() : 0;
+        return new LspSignatureHelp(signatures, Math.Clamp(activeSignature, 0, signatures.Count - 1), activeParameter);
     }
 
     /// <summary>More about a completion that was chosen: the usings it brings, its documentation.</summary>
