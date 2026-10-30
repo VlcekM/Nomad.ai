@@ -2,5 +2,8 @@
   <Project Path="Nomad.App/Nomad.App.csproj" />
   <Project Path="Nomad.Core.Tests/Nomad.Core.Tests.csproj" />
   <Project Path="Nomad.Core/Nomad.Core.csproj" />
+  <Project Path="Nomad.Hub.Contracts/Nomad.Hub.Contracts.csproj" />
+  <Project Path="Nomad.Hub.Tests/Nomad.Hub.Tests.csproj" />
+  <Project Path="Nomad.Hub/Nomad.Hub.csproj" />
   <Project Path="Nomad.Probe/Nomad.Probe.csproj" />
 </Solution>

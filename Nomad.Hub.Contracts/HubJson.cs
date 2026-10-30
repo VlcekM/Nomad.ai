@@ -1,0 +1,35 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace Nomad.Hub.Contracts;
+
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(EnrollRequest))]
+[JsonSerializable(typeof(EnrollResponse))]
+[JsonSerializable(typeof(EnrollTokenResponse))]
+[JsonSerializable(typeof(DeviceDto))]
+[JsonSerializable(typeof(List<DeviceDto>))]
+[JsonSerializable(typeof(HubInfo))]
+[JsonSerializable(typeof(ProjectDto))]
+[JsonSerializable(typeof(List<ProjectDto>))]
+[JsonSerializable(typeof(ProjectFolderRequest))]
+[JsonSerializable(typeof(SessionDto))]
+[JsonSerializable(typeof(List<SessionDto>))]
+[JsonSerializable(typeof(SessionCommit))]
+[JsonSerializable(typeof(CommitRejection))]
+[JsonSerializable(typeof(SessionStateRequest))]
+[JsonSerializable(typeof(SessionStateDto))]
+[JsonSerializable(typeof(LeaseRequest))]
+[JsonSerializable(typeof(LeaseDto))]
+[JsonSerializable(typeof(LeaseKey))]
+[JsonSerializable(typeof(LeaseKey[]))]
+[JsonSerializable(typeof(List<LeaseKey>))]
+[JsonSerializable(typeof(HandoffRequest))]
+[JsonSerializable(typeof(ChangesDto))]
+[JsonSerializable(typeof(UsageBatch))]
+[JsonSerializable(typeof(UsageBatchResult))]
+[JsonSerializable(typeof(UsageReport))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(bool))]
+public sealed partial class HubJson : JsonSerializerContext;
