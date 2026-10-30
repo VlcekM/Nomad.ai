@@ -50,15 +50,39 @@ public sealed class CodeMarkerBar : Control
 
     public override void Render(DrawingContext context)
     {
-        if (_doc is not { Marks.Count: > 0 } doc)
+        if (_doc is not { } doc || doc.Marks.Count == 0 && doc.Diagnostics.Count == 0)
+        {
+            return;
+        }
+
+        var lines = Math.Max(1, doc.Lines.Count);
+        var height = Bounds.Height;
+
+        // Errors and warnings, as Visual Studio's: a tick each in their color (an error over a warning on the same spot).
+        if (doc.Diagnostics.Count > 0)
+        {
+            var danger = this.TryFindResource("DangerBrush", ActualThemeVariant, out var r) && r is IBrush red ? red : Brushes.Red;
+            var green = new SolidColorBrush(Color.FromRgb(0x5B, 0xA8, 0x4E));
+            foreach (var severity in new[] { Nomad.Core.Lsp.LspSeverity.Warning, Nomad.Core.Lsp.LspSeverity.Error })
+            {
+                foreach (var (d, _) in doc.Diagnostics)
+                {
+                    if (d.Severity == severity)
+                    {
+                        var y = Math.Round(d.Line / (double)lines * (height - 3));
+                        context.FillRectangle(severity == Nomad.Core.Lsp.LspSeverity.Error ? danger : green, new Rect(0, y, Bounds.Width, 3));
+                    }
+                }
+            }
+        }
+
+        if (doc.Marks.Count == 0)
         {
             return;
         }
 
         var brush = this.TryFindResource("CodeFindMarkBrush", ActualThemeVariant, out var b) && b is IBrush mark ? mark : Brushes.Orange;
         var accent = this.TryFindResource("AccentBrush", ActualThemeVariant, out var a) && a is IBrush acc ? acc : Brushes.White;
-        var lines = Math.Max(1, doc.Lines.Count);
-        var height = Bounds.Height;
         var last = -1.0;
         foreach (var (from, _) in doc.Marks)
         {

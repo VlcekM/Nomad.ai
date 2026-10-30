@@ -30,11 +30,11 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
 - `--dev-menu model|mode|folder|branch|plus|workflows|usage|remote` opens a status-row menu first (`workflows` the + menu's saved workflows, `list` / `alivelist` the Idle / Alive list options, `row` an Idle row's context menu, `group` a folder heading's, `composer` the composer's edit menu); `--dev-settings-open` the settings;
   `--dev-side-panel` the right-hand panel; `--dev-files [a|b|…]` a chat's Files view, with those files open in tabs (`--dev-files-split` opens the last to the side too).
 - `--dev-compose "/co"` types into the composer, `--dev-paste-image <file>` attaches an image or file, and
-  `--dev-drag x1,y1,x2,y2 <seconds>` drags the mouse inside the window (clicks, text selection; add
+  `--dev-drag x1,y1,x2,y2 <seconds>` (repeatable) drags the mouse inside the window (clicks, text selection, a hover at the end; add
   `--dev-drag-ctrl` for a Ctrl+click).
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
-  `--dev-type "abc{Enter}{Ctrl+S}" <seconds>` types into the focused control (keys in braces are pressed); click
+  `--dev-type "abc{Enter}{Ctrl+S}" <seconds>` types into the focused control (keys in braces are pressed, `{Wait}` pauses 1.5 s); click
   into a file's text first with `--dev-drag x,y,x,y <seconds>` to edit it. `--dev-close <seconds>` closes the window as its X does.
 - `--dev-prompt "..." --dev-model claude-haiku-5-5 --dev-lean --dev-wait-turn --dev-after 60` runs a
   real turn on the cheapest model before the shot. `--dev-backend opencode --dev-model opencode/big-pickle` runs it on

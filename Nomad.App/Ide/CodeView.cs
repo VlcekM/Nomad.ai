@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -85,6 +86,7 @@ public sealed class CodeView : Control
             if (e.EffectiveViewport.Position != _viewport.Position)
             {
                 HideQuickInfo();
+                _completion?.Reposition();
             }
 
             _viewport = e.EffectiveViewport;
@@ -126,15 +128,34 @@ public sealed class CodeView : Control
                 RequestImplementation(at);
             }
         };
-        ContextMenu = new ContextMenu { Items = { ask, definition, implementation, new Separator(), cut, copy, paste, new Separator(), all } };
+        var references = new MenuItem { Header = "Find all references", InputGesture = new KeyGesture(Key.F12, KeyModifiers.Shift) };
+        references.Click += (_, _) =>
+        {
+            if (definitionAt is { } at)
+            {
+                Navigator?.FindReferences(Spot(at));
+            }
+        };
+        var rename = new MenuItem { Header = "Rename…", InputGesture = new KeyGesture(Key.F2) };
+        rename.Click += (_, _) =>
+        {
+            if (definitionAt is { } at)
+            {
+                Navigator?.Rename(Spot(at));
+            }
+        };
+        ContextMenu = new ContextMenu { Items = { ask, definition, implementation, references, rename, new Separator(), cut, copy, paste, new Separator(), all } };
         ContextMenu.Opening += (_, _) =>
         {
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
             copy.IsEnabled = HasSelection || !_doc.IsReadOnly;
             ask.IsVisible = AskRequested is not null;
             definitionAt = HasSelection ? null : ReferenceAt(_doc.Caret);
-            definition.IsVisible = implementation.IsVisible = Navigator is not null && definitionAt is not null;
+            definition.IsVisible = implementation.IsVisible = references.IsVisible = Navigator is not null && definitionAt is not null;
+            rename.IsVisible = definition.IsVisible && !_doc.IsReadOnly;
         };
+
+        _completion = new CodeCompletion(this, popup => LogicalChildren.Add(popup));
     }
 
     public CodeDocument? Document
@@ -200,6 +221,7 @@ public sealed class CodeView : Control
         {
             _doc.Changed -= OnDocumentChanged;
             _doc.Folding.Changed -= OnFoldingChanged;
+            _doc.CaretChanged -= OnCaretMoved;
             _doc.RevealRequested -= OnRevealRequested;
             _doc.MarksChanged -= InvalidateVisual;
             _doc = Document ?? CodeDocument.Empty;
@@ -207,6 +229,8 @@ public sealed class CodeView : Control
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
             _doc.RevealRequested += OnRevealRequested;
+            _doc.CaretChanged += OnCaretMoved;
+            _completion.Close();
             _chord = false;
             _goalCol = null;
             Refresh();
@@ -709,6 +733,88 @@ public sealed class CodeView : Control
             }
         }
 
+        // The language server's errors (red) and warnings (green) as wavy underlines, its suggestions as a few grey dots
+        // under their start, as Visual Studio's; fading in when they come.
+        if (_doc.Diagnostics is { Count: > 0 } diagnostics)
+        {
+            var fading = false;
+            var (firstLine, lastLine) = (rows[firstRow], rows[lastRow]);
+            foreach (var (d, since) in diagnostics)
+            {
+                var fade = Math.Min(1, (DateTime.UtcNow - since).TotalMilliseconds / DiagnosticFadeMs);
+                var eased = 1 - Math.Pow(1 - fade, 3);
+                fading |= fade < 1;
+                if (d.EndLine < firstLine || d.Line > lastLine || d.Line >= _lines.Count)
+                {
+                    continue;
+                }
+
+                var brush = d.Severity switch
+                {
+                    Nomad.Core.Lsp.LspSeverity.Error => ThemeBrush("DangerBrush"),
+                    Nomad.Core.Lsp.LspSeverity.Warning => WarningBrush,
+                    Nomad.Core.Lsp.LspSeverity.Information => numbers,
+                    _ => null,
+                };
+                if (brush is not ISolidColorBrush solid)
+                {
+                    continue;
+                }
+
+                var color = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(solid.Color, solid.Opacity * eased);
+                for (var l = Math.Max(d.Line, firstLine); l <= Math.Min(d.EndLine, Math.Min(lastLine, _lines.Count - 1)); l++)
+                {
+                    var dRow = folding.RowOf(l);
+                    if (rows[dRow] != l)
+                    {
+                        continue;
+                    }
+
+                    var length = _lines[l].Length;
+                    var from = l == d.Line ? Math.Min(d.Column, length) : _lines[l].Length - _lines[l].TrimStart().Length;
+                    var to = l == d.EndLine ? Math.Min(d.EndColumn, length) : length;
+                    if (to <= from)
+                    {
+                        // An empty range (a missing ';'): the character before it, or a little stub.
+                        (from, to) = from > 0 ? (from - 1, from) : (from, from + 1);
+                    }
+
+                    var x0 = left + Column(new TextPos(l, from)) * charWidth;
+                    var x1 = left + Math.Max(Column(new TextPos(l, to)), Column(new TextPos(l, from)) + 1) * charWidth;
+                    var bottom = RowTop(dRow) + height - 1;
+                    if (d.Severity == Nomad.Core.Lsp.LspSeverity.Information)
+                    {
+                        for (var x = x0; x < Math.Min(x1, x0 + 2 * charWidth); x += 3)
+                        {
+                            Fill(new Rect(Math.Round(x), bottom - 1, 1, 1), color);
+                        }
+
+                        break;
+                    }
+
+                    var wave = new Rect(x0, bottom - 3, x1 - x0, 3);
+                    if (scene is not null)
+                    {
+                        scene.Add(new SceneItem(SceneKind.Squiggle, wave.ToSKRect(), null, SkColor(color)));
+                    }
+                    else
+                    {
+                        using var path = SquigglePath(wave.ToSKRect());
+                        var points = path.Points;
+                        for (var i = 1; i < points.Length; i++)
+                        {
+                            context.DrawLine(new Pen(color, 1), new Point(points[i - 1].X, points[i - 1].Y), new Point(points[i].X, points[i].Y));
+                        }
+                    }
+                }
+            }
+
+            if (fading)
+            {
+                TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ => InvalidateVisual());
+            }
+        }
+
         // The gutter, over text scrolled under it, as Visual Studio's: the caret line's fill carried through it, a thin
         // bar beside lines changed since the file was opened or saved, a marker in the accent color beside the caret's
         // line, the line numbers (the caret's brighter) and the fold boxes.
@@ -800,6 +906,26 @@ public sealed class CodeView : Control
                 _layouts.Remove(key);
             }
         }
+    }
+
+    private const double DiagnosticFadeMs = 200;
+
+    private static readonly IBrush WarningBrush = new SolidColorBrush(Color.FromRgb(0x5B, 0xA8, 0x4E));
+
+    /// <summary>A wave along a rectangle (3 px high), 4 px from crest to crest.</summary>
+    internal static SKPath SquigglePath(SKRect rect)
+    {
+        var path = new SKPath();
+        var (top, bottom) = (rect.Top + 0.5f, rect.Bottom - 0.5f);
+        path.MoveTo(rect.Left, bottom);
+        var up = true;
+        for (var x = rect.Left + 2; x <= rect.Right + 0.01f; x += 2)
+        {
+            path.LineTo(x, up ? top : bottom);
+            up = !up;
+        }
+
+        return path;
     }
 
     /// <summary>A row's fold button, in the gutter (which stays put as the text scrolls sideways).</summary>
@@ -924,6 +1050,7 @@ public sealed class CodeView : Control
     protected override void OnLostFocus(RoutedEventArgs e)
     {
         base.OnLostFocus(e);
+        _completion.Close();
         _blink.Stop();
         InvalidateVisual();
     }
@@ -938,6 +1065,8 @@ public sealed class CodeView : Control
         _doc.Folding.Changed += OnFoldingChanged;
         _doc.RevealRequested -= OnRevealRequested;
         _doc.RevealRequested += OnRevealRequested;
+        _doc.CaretChanged -= OnCaretMoved;
+        _doc.CaretChanged += OnCaretMoved;
         _doc.MarksChanged -= InvalidateVisual;
         _doc.MarksChanged += InvalidateVisual;
         Refresh();
@@ -950,7 +1079,9 @@ public sealed class CodeView : Control
         _doc.Changed -= OnDocumentChanged;
         _doc.Folding.Changed -= OnFoldingChanged;
         _doc.RevealRequested -= OnRevealRequested;
+        _doc.CaretChanged -= OnCaretMoved;
         _doc.MarksChanged -= InvalidateVisual;
+        _completion.Close();
     }
 
     // A Go To (or a find's match): the caret's line in the middle of the view, and the focus here to type at it.
@@ -1152,6 +1283,36 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
+    // ------------------------------------------------------------------ completion
+
+    private readonly CodeCompletion _completion;
+
+    internal CodeDocument Doc => _doc;
+
+    internal IBrush? Theme(string key) => ThemeBrush(key);
+
+    private void OnCaretMoved() => _completion.Update();
+
+    /// <summary>Where a name starts on its line, in this view's coordinates (the completion list hangs below it).</summary>
+    internal Rect NameRect(int line, int index)
+    {
+        var row = _doc.Folding.RowOf(Math.Min(line, _lines.Count - 1));
+        return new Rect(TextLeft + Column(new TextPos(line, index)) * CharWidth, RowTop(row), 1, LineHeight);
+    }
+
+    /// <summary>A completion went in: the caret shows where it ended.</summary>
+    internal void Committed()
+    {
+        _goalCol = null;
+        RestartBlink();
+        RevealCaret();
+    }
+
+    /// <summary>In a comment or a string (no completions there).</summary>
+    internal bool InCommentOrString(TextPos at) =>
+        _doc.Highlighting?.Spans(at.Line) is { } spans &&
+        spans.Any(s => s.Start < at.Index && at.Index <= s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String);
+
     /// <summary>Where names lead and what they are (the group's: the C# language server, or a guess without it).</summary>
     public ICodeNavigator? Navigator { get; set; }
 
@@ -1310,12 +1471,21 @@ public sealed class CodeView : Control
     // The pointer resting on a name a moment shows what it is, as Visual Studio's Quick Info.
     private readonly DispatcherTimer _quickTimer = new() { Interval = TimeSpan.FromMilliseconds(450) };
     private Reference? _quickAt;
+    private List<Nomad.Core.Lsp.LspDiagnostic> _quickProblems = [];
     private bool _quickShown;
     private CancellationTokenSource? _quickCts;
 
     private void UpdateQuickInfo()
     {
         var under = !_selecting && _pointer is { } point ? ReferenceUnder(point) : null;
+        var problems = !_selecting && _pointer is { } at ? DiagnosticsUnder(at) : [];
+
+        // Off a name but on a squiggle: the problem alone (a place of its own, so moving along it doesn't ask again).
+        if (under is null && problems.Count > 0)
+        {
+            under = new Reference("", null, problems[0].Line, problems[0].Column, problems[0].EndColumn);
+        }
+
         if (Same(under, _quickAt) && (_quickTimer.IsEnabled || _quickShown || _quickCts is { IsCancellationRequested: false }))
         {
             return;
@@ -1323,10 +1493,53 @@ public sealed class CodeView : Control
 
         HideQuickInfo();
         _quickAt = under;
-        if (under is not null && Navigator is not null)
+        _quickProblems = problems;
+        if (under is not null && (Navigator is not null || problems.Count > 0))
         {
             _quickTimer.Start();
         }
+    }
+
+    // The errors and warnings (and suggestions) whose squiggle is under the pointer.
+    private List<Nomad.Core.Lsp.LspDiagnostic> DiagnosticsUnder(Point point)
+    {
+        var rows = Rows;
+        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        if (_doc.Diagnostics.Count == 0 || row < 0 || row >= rows.Count || point.X < TextLeft)
+        {
+            return [];
+        }
+
+        var line = rows[row];
+        var col = (point.X - TextLeft) / CharWidth;
+        var found = new List<Nomad.Core.Lsp.LspDiagnostic>();
+        foreach (var (d, _) in _doc.Diagnostics)
+        {
+            if (d.Severity > Nomad.Core.Lsp.LspSeverity.Information || line < d.Line || line > d.EndLine)
+            {
+                continue;
+            }
+
+            var length = _doc.Lines[line].Length;
+            var from = line == d.Line ? Math.Min(d.Column, length) : 0;
+            var to = line == d.EndLine ? Math.Min(d.EndColumn, length) : length;
+            if (to <= from)
+            {
+                (from, to) = from > 0 ? (from - 1, from) : (from, from + 1);
+            }
+
+            if (d.Severity == Nomad.Core.Lsp.LspSeverity.Information)
+            {
+                to = Math.Min(to, from + 2);
+            }
+
+            if (col >= Column(new TextPos(line, from)) - 0.2 && col <= Column(new TextPos(line, to)) + 0.2)
+            {
+                found.Add(d);
+            }
+        }
+
+        return [.. found.OrderBy(d => d.Severity)];
     }
 
     private void HideQuickInfo()
@@ -1337,38 +1550,133 @@ public sealed class CodeView : Control
         if (_quickShown)
         {
             _quickShown = false;
-            ToolTip.SetIsOpen(this, false);
-            ToolTip.SetTip(this, null);
+            _quickCard.Opacity = 0;
+            DispatcherTimer.RunOnce(() =>
+            {
+                if (!_quickShown)
+                {
+                    QuickPopup.IsOpen = false;
+                    _quickCard.Child = null;
+                }
+            }, TimeSpan.FromMilliseconds(130));
+        }
+    }
+
+    // Quick Info's own popup (not a tooltip: placed under the name, as wide as it needs), fading in and out.
+    private readonly Border _quickCard = new()
+    {
+        CornerRadius = new CornerRadius(6),
+        BorderThickness = new Thickness(1),
+        Padding = new Thickness(10, 8),
+        MaxWidth = 680,
+        Opacity = 0,
+        IsHitTestVisible = false,
+        Transitions =
+        [
+            new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(130), Easing = new Avalonia.Animation.Easings.CubicEaseOut() },
+        ],
+    };
+
+    private Popup? _quickPopup;
+
+    private Popup QuickPopup
+    {
+        get
+        {
+            if (_quickPopup is null)
+            {
+                _quickPopup = new Popup
+                {
+                    Child = _quickCard,
+                    PlacementTarget = this,
+                    Placement = PlacementMode.AnchorAndGravity,
+                    PlacementAnchor = Avalonia.Controls.Primitives.PopupPositioning.PopupAnchor.BottomLeft,
+                    PlacementGravity = Avalonia.Controls.Primitives.PopupPositioning.PopupGravity.BottomRight,
+                    IsLightDismissEnabled = false,
+                    Focusable = false,
+                    IsHitTestVisible = false,
+                };
+                LogicalChildren.Add(_quickPopup);
+            }
+
+            return _quickPopup;
         }
     }
 
     private async void ShowQuickInfo()
     {
         _quickTimer.Stop();
-        if (_quickAt is not { } at || Navigator is not { } navigator)
+        if (_quickAt is not { } at)
         {
             return;
         }
 
+        var problems = _quickProblems;
         var cts = _quickCts = new CancellationTokenSource();
-        QuickInfoView? info;
-        try
+        QuickInfoView? info = null;
+        if (at.Name.Length > 0 && Navigator is { } navigator)
         {
-            info = await navigator.QuickInfoAsync(Spot(at), cts.Token);
+            try
+            {
+                info = await navigator.QuickInfoAsync(Spot(at), cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
         }
-        catch (OperationCanceledException)
+
+        if (cts.IsCancellationRequested || !Same(_quickAt, at) || info is null && problems.Count == 0)
         {
             return;
         }
 
-        if (cts.IsCancellationRequested || !Same(_quickAt, at) || info is null)
-        {
-            return;
-        }
-
-        ToolTip.SetTip(this, QuickInfoContent(info));
-        ToolTip.SetIsOpen(this, true);
+        // Under the name (or the squiggle), as Visual Studio's; above it when there's no room below.
+        _quickCard.Background = ThemeBrush("BgMenuBrush");
+        _quickCard.BorderBrush = ThemeBrush("BorderCardBrush");
+        _quickCard.Child = QuickInfoContent(info, problems);
+        QuickPopup.PlacementRect = NameRect(at.Line, at.Start).WithWidth(Math.Max(1, (at.End - at.Start) * CharWidth));
+        QuickPopup.HorizontalOffset = -11;
+        QuickPopup.VerticalOffset = 2;
+        QuickPopup.IsOpen = true;
         _quickShown = true;
+        Dispatcher.UIThread.Post(() => _quickCard.Opacity = _quickShown ? 1 : 0, DispatcherPriority.Loaded);
+    }
+
+    // The problems at the place (each with its severity's mark), then what the name is.
+    private Control QuickInfoContent(QuickInfoView? info, IReadOnlyList<Nomad.Core.Lsp.LspDiagnostic> problems)
+    {
+        var panel = new StackPanel { Spacing = 6 };
+        foreach (var problem in problems)
+        {
+            var brush = problem.Severity switch
+            {
+                Nomad.Core.Lsp.LspSeverity.Error => ThemeBrush("DangerBrush"),
+                Nomad.Core.Lsp.LspSeverity.Warning => WarningBrush,
+                _ => ThemeBrush("TextMutedBrush"),
+            };
+            var mark = new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4), Background = brush, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(4, 5, 4, 0) };
+            var message = new TextBlock { TextWrapping = TextWrapping.Wrap, MaxWidth = 620 };
+            if (problem.Code is { Length: > 0 } code)
+            {
+                message.Inlines!.Add(new Run(code + "  ") { Foreground = ThemeBrush("TextMutedBrush") ?? Foreground });
+            }
+
+            message.Inlines!.Add(new Run(problem.Message));
+            panel.Children.Add(new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { mark, message } });
+        }
+
+        if (info is not null)
+        {
+            if (problems.Count > 0)
+            {
+                panel.Children.Add(new Border { Height = 1, Background = ThemeBrush("BorderDividerBrush") ?? Brushes.Gray, Margin = new Thickness(0, 2) });
+            }
+
+            panel.Children.Add(QuickInfoContent(info));
+        }
+
+        return panel;
     }
 
     // The declaration in the code's colors with its icon, its documentation under it, and how many more there are.
@@ -1694,6 +2002,12 @@ public sealed class CodeView : Control
         }
 
         HideQuickInfo();
+        if (_completion.HandleKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
@@ -1740,6 +2054,23 @@ public sealed class CodeView : Control
                     RequestImplementation(implemented);
                 }
 
+                break;
+            case Key.F12 when shift && !ctrl:
+                if (ReferenceAt(caret) is { } used)
+                {
+                    Navigator?.FindReferences(Spot(used));
+                }
+
+                break;
+            case Key.F2 when !ctrl && !shift && editable && Navigator is not null:
+                if (ReferenceAt(caret) is { } renamed)
+                {
+                    Navigator.Rename(Spot(renamed));
+                }
+
+                break;
+            case Key.Space when ctrl && !shift && editable:
+                _completion.Start(null, explicitly: true);
                 break;
             case Key.I when ctrl && !shift && AskRequested is not null:
                 Ask();
@@ -1903,9 +2234,11 @@ public sealed class CodeView : Control
             return;
         }
 
+        _completion.BeforeTyping(e.Text);
         var (from, to) = Ordered();
         _goalCol = null;
         _doc.Replace(from, to, e.Text);
+        _completion.AfterTyping(e.Text);
         e.Handled = true;
     }
 
@@ -1982,6 +2315,9 @@ internal enum SceneKind : byte
     /// <summary>A chevron in the rectangle, pointing down (an open block) or right (a folded one).</summary>
     ChevronDown,
     ChevronRight,
+
+    /// <summary>A wavy line along the rectangle's bottom (an error's or warning's).</summary>
+    Squiggle,
 }
 
 /// <summary>A fill (its rectangle) or a piece of text (at the rectangle's left and top) in one color.</summary>
@@ -2094,6 +2430,14 @@ internal sealed class SkiaScene(Rect bounds, Rect view, List<SceneItem> items, S
                     }
 
                     break;
+                case SceneKind.Squiggle:
+                    using (var stroke = new SKPaint { Color = item.Color, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1f })
+                    using (var path = CodeView.SquigglePath(item.Rect))
+                    {
+                        c.DrawPath(path, stroke);
+                    }
+
+                    break;
                 default:
                     c.DrawText(item.Text, item.Rect.Left, item.Rect.Top + baseline, SKTextAlign.Left, font, paint);
                     break;
@@ -2128,4 +2472,16 @@ public interface ICodeNavigator
 
     /// <summary>Ctrl+F12: off to what implements it (a list for several).</summary>
     void GoToImplementation(CodeSpot spot);
+
+    /// <summary>Shift+F12: everywhere the name is used.</summary>
+    void FindReferences(CodeSpot spot);
+
+    /// <summary>F2: a new name for it, everywhere.</summary>
+    void Rename(CodeSpot spot);
+
+    /// <summary>What could be typed at a place (null: no language server to ask).</summary>
+    Task<Nomad.Core.Lsp.LspCompletionList?> CompleteAsync(int line, int column, string? trigger, CancellationToken cancellationToken);
+
+    /// <summary>A chosen completion's documentation and the usings it brings.</summary>
+    Task<Nomad.Core.Lsp.LspResolvedCompletion?> ResolveCompletionAsync(Nomad.Core.Lsp.LspCompletion item, CancellationToken cancellationToken);
 }

@@ -280,15 +280,15 @@ public partial class MainWindow : Window
 
             // F1…F4: the model of a new session (OpenCode: a favorite), when turned on in the settings.
             if (vm.Current.ModelFunctionKeys && !vm.IsSettingsOpen && e.KeyModifiers == KeyModifiers.None && e.Key is >= Key.F1 and <= Key.F4 &&
-                !(e.Key == Key.F2 && e.Source is Ide.FileTreeView))
+                !(e.Key == Key.F2 && e.Source is Ide.FileTreeView or Ide.CodeView { IsEditable: true }))
             {
                 vm.Current.SelectShortcutModel(e.Key - Key.F1);
                 e.Handled = true;
                 return;
             }
 
-            // (In the Files view's tree, F2 renames the file instead.)
-            if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row && e.Source is not Ide.FileTreeView)
+            // (In the Files view's tree, F2 renames the file instead; in its code, the name at the caret.)
+            if (e.Key == Key.F2 && e.KeyModifiers == KeyModifiers.None && vm.CurrentRow is { } row && e.Source is not (Ide.FileTreeView or Ide.CodeView { IsEditable: true }))
             {
                 BeginRename(row);
                 e.Handled = true;
@@ -1494,7 +1494,7 @@ public partial class MainWindow : Window
             _vm.Current.AddAttachments(dev.PasteImages.Select(Infrastructure.PromptImages.FromPath));
         }
 
-        if (dev.Drag is var (x1, y1, x2, y2, dragAt))
+        foreach (var (x1, y1, x2, y2, dragAt) in dev.Drags)
         {
             DispatcherTimer.RunOnce(() => _ = DragAsync(new Point(x1, y1), new Point(x2, y2)), TimeSpan.FromSeconds(dragAt));
         }
@@ -1570,7 +1570,13 @@ public partial class MainWindow : Window
         for (var i = 0; i < text.Length; i++)
         {
             var close = text[i] == '{' ? text.IndexOf('}', i) : -1;
-            if (close > i + 1)
+            if (close > i + 1 && text[(i + 1)..close] == "Wait")
+            {
+                // A pause (a language server's answer to come).
+                await Task.Delay(1500);
+                i = close;
+            }
+            else if (close > i + 1)
             {
                 PressKey(KeyGesture.Parse(text[(i + 1)..close]));
                 i = close;

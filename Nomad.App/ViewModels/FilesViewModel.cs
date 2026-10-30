@@ -243,6 +243,49 @@ public sealed partial class FilesViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// A language server's edits to files (a rename's): made in the open ones' text, each as one undo step, and in the
+    /// others on disk (in their own encoding). Null when all went in, else what couldn't be written.
+    /// </summary>
+    public string? ApplyEdits(IReadOnlyDictionary<string, IReadOnlyList<Nomad.Core.Lsp.LspTextEdit>> edits)
+    {
+        var failed = new List<string>();
+        foreach (var (path, fileEdits) in edits)
+        {
+            var documents = Groups.SelectMany(g => g.AllTabs)
+                .Where(t => string.Equals(t.Path, path, StringComparison.OrdinalIgnoreCase) && t.Document != Ide.CodeDocument.Empty)
+                .Select(t => t.Document).Distinct().ToList();
+            if (documents.Count > 0)
+            {
+                foreach (var document in documents)
+                {
+                    document.ApplyEdits(fileEdits);
+                }
+
+                continue;
+            }
+
+            try
+            {
+                var bytes = File.ReadAllBytes(path);
+                using var reader = new StreamReader(new MemoryStream(bytes), new System.Text.UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
+                var text = reader.ReadToEnd();
+                var encoding = reader.CurrentEncoding;
+                var bom = encoding.GetPreamble() is { Length: > 0 } preamble && bytes.AsSpan().StartsWith(preamble);
+                var changed = Nomad.Core.Lsp.LspTextEdit.Apply(text, fileEdits);
+                Ide.FileTree.NoteOwnWrite(path);
+                var output = encoding is System.Text.UTF8Encoding ? new System.Text.UTF8Encoding(bom) : encoding;
+                File.WriteAllText(path, changed, output);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                failed.Add($"{Path.GetFileName(path)}: {e.Message}");
+            }
+        }
+
+        return failed.Count == 0 ? null : "Couldn't write " + string.Join("; ", failed);
+    }
+
     /// <summary>"Ask about this": a quote of the lines, for the chat's composer (the session puts it there and shows the chat).</summary>
     public event Action<string>? AskRequested;
 

@@ -126,9 +126,13 @@ public sealed class CodeSymbolIcon : Control
 
     protected override Size MeasureOverride(Size availableSize) => new(16, 16);
 
-    public override void Render(DrawingContext context)
+    public override void Render(DrawingContext context) =>
+        Draw(context, Kind, new Point((Bounds.Width - 16) / 2, (Bounds.Height - 16) / 2), TextElement.GetForeground(this));
+
+    /// <summary>A kind's icon (16 by 16) at a place; <paramref name="plain"/> colors the kinds without a color of their own.</summary>
+    public static void Draw(DrawingContext context, SymbolKind kind, Point offset, IBrush? plain)
     {
-        var (shape, brush, filled) = Kind switch
+        var (shape, brush, filled) = kind switch
         {
             SymbolKind.Class or SymbolKind.Record => (ClassShape, Orange, false),
             SymbolKind.Struct => (StructShape, Teal, false),
@@ -141,9 +145,8 @@ public sealed class CodeSymbolIcon : Control
             SymbolKind.Field or SymbolKind.Variable => (FieldShape, Blue, false),
             SymbolKind.Constant => (ConstantShape, Grey, false),
             SymbolKind.Event => (EventShape, Orange, true),
-            _ => (FileShape, TextElement.GetForeground(this) ?? Grey, false),
+            _ => (FileShape, plain ?? Grey, false),
         };
-        var offset = new Point((Bounds.Width - 16) / 2, (Bounds.Height - 16) / 2);
         using (context.PushTransform(Matrix.CreateTranslation(offset.X, offset.Y)))
         {
             if (filled)

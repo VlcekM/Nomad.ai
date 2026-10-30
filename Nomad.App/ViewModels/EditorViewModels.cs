@@ -197,6 +197,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         newValue.DirtyChanged += OnDirtyChanged;
         IsDirty = newValue.IsDirty;
         SyncLanguage();
+        OnDiagnosticsChanged(Path);
     }
 
     private void OnCaretChanged() => ScheduleCrumbs(80);
@@ -214,6 +215,11 @@ public sealed partial class FileTab : ObservableObject, IDisposable
                 return;
             }
 
+            if (field is not null)
+            {
+                field.DiagnosticsChanged -= OnDiagnosticsChanged;
+            }
+
             if (_languageOpen)
             {
                 field?.Close(Path);
@@ -221,7 +227,20 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             }
 
             field = value;
+            if (field is not null)
+            {
+                field.DiagnosticsChanged += OnDiagnosticsChanged;
+            }
+
             SyncLanguage();
+        }
+    }
+
+    private void OnDiagnosticsChanged(string path)
+    {
+        if (string.Equals(path, Path, StringComparison.OrdinalIgnoreCase) && Language is { } language && Document != CodeDocument.Empty)
+        {
+            Document.SetDiagnostics(language.DiagnosticsOf(Path));
         }
     }
 
@@ -806,6 +825,73 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
             owner.FindInFiles.ShowLocations($"Implementations of {spot.Name}", found);
         }
     }
+
+    /// <summary>Shift+F12: every place the name is used, listed (without the server: the files' text, by whole word).</summary>
+    public void FindReferences(Nomad.App.Ide.CodeSpot spot) => _ = FindReferencesAsync(spot);
+
+    private async Task FindReferencesAsync(Nomad.App.Ide.CodeSpot spot)
+    {
+        if (ActiveTab is not { } tab)
+        {
+            return;
+        }
+
+        if (Server(tab) is not { } server)
+        {
+            owner.FindInFiles.WholeWord = true;
+            owner.FindInFiles.MatchCase = true;
+            owner.FindInFiles.UseRegex = false;
+            owner.FindInFiles.Open(spot.Name);
+            return;
+        }
+
+        if (await server.ReferencesAsync(tab.Path, spot.Line, spot.Column) is { Count: > 0 } found)
+        {
+            owner.FindInFiles.ShowLocations($"References to {spot.Name}", found);
+        }
+    }
+
+    /// <summary>F2 on a name: asks for its new one, then renames it everywhere (open files as an undo step, the rest on disk).</summary>
+    public void Rename(Nomad.App.Ide.CodeSpot spot) => _ = RenameAsync(spot);
+
+    private async Task RenameAsync(Nomad.App.Ide.CodeSpot spot)
+    {
+        if (ActiveTab is not { } tab || Server(tab) is not { } server)
+        {
+            return;
+        }
+
+        if (await server.PrepareRenameAsync(tab.Path, spot.Line, spot.Column) is not { } range || range.EndLine != range.Line)
+        {
+            owner.Prompt.AskConfirm($"Can't rename {spot.Name}", "Only names declared in this solution can be renamed.", "OK", danger: false, () => Task.FromResult<string?>(null));
+            return;
+        }
+
+        var lines = tab.Document.Lines;
+        var name = range.Line < lines.Count && range.EndColumn <= lines[range.Line].Length ? lines[range.Line][range.Column..range.EndColumn] : spot.Name;
+        owner.Prompt.AskText($"Rename {name}", name, "Rename", async newName =>
+        {
+            if (newName == name)
+            {
+                return null;
+            }
+
+            if (await server.RenameAsync(tab.Path, range.Line, range.Column, newName) is not { Count: > 0 } edits)
+            {
+                return $"Couldn't rename it to {newName}.";
+            }
+
+            var error = owner.ApplyEdits(edits);
+            tab.Document.GoTo(tab.Document.Caret);
+            return error;
+        });
+    }
+
+    public async Task<Nomad.Core.Lsp.LspCompletionList?> CompleteAsync(int line, int column, string? trigger, CancellationToken cancellationToken) =>
+        ActiveTab is { } tab && Server(tab) is { } server ? await server.CompletionAsync(tab.Path, line, column, trigger, cancellationToken) : null;
+
+    public async Task<Nomad.Core.Lsp.LspResolvedCompletion?> ResolveCompletionAsync(Nomad.Core.Lsp.LspCompletion item, CancellationToken cancellationToken) =>
+        ActiveTab is { } tab && Server(tab) is { } server ? await server.ResolveAsync(item, cancellationToken) : null;
 
     private void Open(Nomad.Core.Lsp.LspLocation location) =>
         owner.OpenAt(location.Path, (location.Line, location.Column),

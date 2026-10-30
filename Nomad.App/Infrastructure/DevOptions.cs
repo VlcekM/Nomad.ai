@@ -93,7 +93,8 @@ public sealed class DevOptions
 
     /// <summary><c>--dev-close</c>: the window is closed (as its X does) this long after start.</summary>
     public double? CloseAfter { get; private set; }
-    public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
+    /// <summary><c>--dev-drag</c> (repeatable): mouse drags inside the window, each at its time.</summary>
+    public List<(double X1, double Y1, double X2, double Y2, double Seconds)> Drags { get; } = [];
 
     /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
     public bool DragCtrl { get; private set; }
@@ -220,7 +221,7 @@ public sealed class DevOptions
                     var xy = Next().Split(',').Select(v => double.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out var d) ? d : double.NaN).ToArray();
                     if (xy.Length == 4 && !xy.Any(double.IsNaN) && double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var dragAt))
                     {
-                        o.Drag = (xy[0], xy[1], xy[2], xy[3], dragAt);
+                        o.Drags.Add((xy[0], xy[1], xy[2], xy[3], dragAt));
                     }
 
                     break;

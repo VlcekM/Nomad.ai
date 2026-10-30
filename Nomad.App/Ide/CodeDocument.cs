@@ -139,6 +139,48 @@ public sealed class CodeDocument
         MarksChanged?.Invoke();
     }
 
+    /// <summary>The language server's errors, warnings and suggestions, each with when it first showed (they fade in).</summary>
+    public IReadOnlyList<(Nomad.Core.Lsp.LspDiagnostic Diagnostic, DateTime Since)> Diagnostics { get; private set; } = [];
+
+    /// <summary>A newer list of diagnostics: the ones already shown keep their time (they don't fade in again).</summary>
+    public void SetDiagnostics(IReadOnlyList<Nomad.Core.Lsp.LspDiagnostic> diagnostics)
+    {
+        var old = Diagnostics.ToLookup(d => (d.Diagnostic.Code, d.Diagnostic.Message, d.Diagnostic.Severity), d => d.Since);
+        var now = DateTime.UtcNow;
+        Diagnostics = [.. diagnostics.OrderBy(d => d.Line).ThenBy(d => d.Column).Select(d => (d, old[(d.Code, d.Message, d.Severity)].DefaultIfEmpty(now).Min()))];
+        MarksChanged?.Invoke();
+    }
+
+    // An edit moves the diagnostics after it along (until the server's next ones come); those it touches go.
+    private void ShiftDiagnostics(TextPos from, TextPos to, TextPos end)
+    {
+        if (Diagnostics.Count == 0)
+        {
+            return;
+        }
+
+        TextPos Move(TextPos p) => p < to ? p
+            : p.Line == to.Line ? new TextPos(end.Line, end.Index + p.Index - to.Index)
+            : new TextPos(p.Line + end.Line - to.Line, p.Index);
+
+        var shifted = new List<(Nomad.Core.Lsp.LspDiagnostic, DateTime)>(Diagnostics.Count);
+        foreach (var (d, since) in Diagnostics)
+        {
+            var (start, stop) = (new TextPos(d.Line, d.Column), new TextPos(d.EndLine, d.EndColumn));
+            if (stop < from || stop == from && start < from)
+            {
+                shifted.Add((d, since));
+            }
+            else if (start >= to && !(start == to && from == to && stop == start))
+            {
+                var (a, b) = (Move(start), Move(stop));
+                shifted.Add((d with { Line = a.Line, Column = a.Index, EndLine = b.Line, EndColumn = b.Index }, since));
+            }
+        }
+
+        Diagnostics = shifted;
+    }
+
     /// <summary>Lines another program just changed (the file reloaded under the editor): they flash, and count as changed.</summary>
     public IReadOnlyList<int> FlashLines { get; private set; } = [];
 
@@ -174,6 +216,45 @@ public sealed class CodeDocument
     {
         _group = 0;
         Seal();
+    }
+
+    /// <summary>
+    /// Makes a language server's edits (all against the text as it is; last first so the earlier stay put) as one undo
+    /// step, the caret and selection staying on the text they were on.
+    /// </summary>
+    public void ApplyEdits(IEnumerable<Nomad.Core.Lsp.LspTextEdit> edits, bool group = true)
+    {
+        if (IsReadOnly)
+        {
+            return;
+        }
+
+        var (anchor, caret) = (Anchor, Caret);
+        if (group)
+        {
+            BeginGroup();
+        }
+
+        foreach (var edit in edits.OrderByDescending(e => e.Line).ThenByDescending(e => e.Column))
+        {
+            var from = Clamp(new TextPos(edit.Line, edit.Column));
+            var to = Clamp(new TextPos(edit.EndLine, edit.EndColumn));
+            Replace(from, to, edit.NewText);
+            var end = Caret;
+            TextPos Move(TextPos p) => p <= from ? p
+                : p < to ? end
+                : p.Line == to.Line ? new TextPos(end.Line, end.Index + p.Index - to.Index)
+                : new TextPos(p.Line + end.Line - to.Line, p.Index);
+            (anchor, caret) = (Move(anchor), Move(caret));
+        }
+
+        if (group)
+        {
+            EndGroup();
+        }
+
+        Anchor = Clamp(anchor);
+        Caret = Clamp(caret);
     }
 
     public bool CanUndo => _undo.Count > 0;
@@ -387,6 +468,7 @@ public sealed class CodeDocument
         _changed.RemoveRange(from.Line, to.Line - from.Line + 1);
         _changed.InsertRange(from.Line, changed is { } marks && marks.Length == parts.Length ? marks : Enumerable.Repeat(true, parts.Length));
         Folding.OnSplice(from.Line, to.Line - from.Line + 1, parts.Length);
+        ShiftDiagnostics(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
         return (new TextPos(from.Line + parts.Length - 1, endIndex), removedChanged);
     }
 

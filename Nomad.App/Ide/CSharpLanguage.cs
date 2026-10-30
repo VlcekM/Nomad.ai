@@ -137,6 +137,8 @@ public sealed partial class CSharpLanguage : ObservableObject
             }
 
             _server = server;
+            server.DiagnosticsStale += () => Dispatcher.UIThread.Post(ScheduleDiagnostics);
+            server.DiagnosticsPublished += (path, found) => Dispatcher.UIThread.Post(() => SetDiagnostics(path, found));
             Status = $"C#: loading {server.Opened ?? "the solution"}…";
             server.Exited += () => Dispatcher.UIThread.Post(() =>
             {
@@ -160,6 +162,7 @@ public sealed partial class CSharpLanguage : ObservableObject
             {
                 State = CSharpState.Ready;
                 Status = $"C#: {server.Opened ?? "ready"} loaded";
+                ScheduleDiagnostics();
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -193,6 +196,7 @@ public sealed partial class CSharpLanguage : ObservableObject
         if (sent)
         {
             _ = Send(() => _server!.OpenAsync(path, text));
+            ScheduleDiagnostics();
         }
     }
 
@@ -212,6 +216,7 @@ public sealed partial class CSharpLanguage : ObservableObject
             _changeTimer.Tick += OnChangeTimer;
             _changeTimer.Stop();
             _changeTimer.Start();
+            ScheduleDiagnostics();
         }
     }
 
@@ -236,6 +241,7 @@ public sealed partial class CSharpLanguage : ObservableObject
         }
 
         _files.Remove(path);
+        _diagnostics.Remove(path);
         if (file.Sent)
         {
             _ = Send(() => _server!.CloseAsync(path));
@@ -305,4 +311,110 @@ public sealed partial class CSharpLanguage : ObservableObject
     /// <summary>The hover markdown at a place; null for nothing, or no answer yet.</summary>
     public Task<string?> HoverAsync(string path, int line, int column, CancellationToken cancellationToken = default) =>
         AskAsync<string>(async s => (await s.HoverAsync(path, line, column, cancellationToken))!);
+
+    public Task<IReadOnlyList<LspLocation>?> ReferencesAsync(string path, int line, int column, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyList<LspLocation>>(s => s.ReferencesAsync(path, line, column, cancellationToken));
+
+    /// <summary>The name a rename at a place would change (null when nothing there can be renamed).</summary>
+    public async Task<LspLocation?> PrepareRenameAsync(string path, int line, int column, CancellationToken cancellationToken = default) =>
+        await AskAsync<LspLocation>(async s => (await s.PrepareRenameAsync(path, line, column, cancellationToken))?.Range!);
+
+    public Task<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>?> RenameAsync(string path, int line, int column, string newName, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>>(s => s.RenameAsync(path, line, column, newName, cancellationToken));
+
+    public Task<LspCompletionList?> CompletionAsync(string path, int line, int column, string? trigger, CancellationToken cancellationToken = default) =>
+        AskAsync<LspCompletionList>(s => s.CompletionAsync(path, line, column, trigger, cancellationToken));
+
+    public Task<LspResolvedCompletion?> ResolveAsync(LspCompletion completion, CancellationToken cancellationToken = default) =>
+        AskAsync<LspResolvedCompletion>(s => s.ResolveAsync(completion, cancellationToken));
+
+    // ------------------------------------------------------------------ diagnostics
+
+    private static readonly TimeSpan DiagnosticsDelay = TimeSpan.FromMilliseconds(500);
+    private readonly Dictionary<string, IReadOnlyList<LspDiagnostic>> _diagnostics = new(StringComparer.OrdinalIgnoreCase);
+    private DispatcherTimer? _diagnosticsTimer;
+    private bool _pulling;
+    private bool _pullAgain;
+
+    /// <summary>A file's errors and warnings changed (<see cref="DiagnosticsOf"/> has them).</summary>
+    public event Action<string>? DiagnosticsChanged;
+
+    public IReadOnlyList<LspDiagnostic> DiagnosticsOf(string path) => _diagnostics.GetValueOrDefault(path) ?? [];
+
+    // The open files' diagnostics are asked for a moment after the typing stops (or the server says they're stale).
+    private void ScheduleDiagnostics()
+    {
+        if (_stopped)
+        {
+            return;
+        }
+
+        if (_diagnosticsTimer is null)
+        {
+            _diagnosticsTimer = new DispatcherTimer { Interval = DiagnosticsDelay };
+            _diagnosticsTimer.Tick += (_, _) =>
+            {
+                _diagnosticsTimer.Stop();
+                _ = PullDiagnosticsAsync();
+            };
+        }
+
+        _diagnosticsTimer.Stop();
+        _diagnosticsTimer.Start();
+    }
+
+    private async Task PullDiagnosticsAsync()
+    {
+        if (!IsReady || _server is not { } server)
+        {
+            return;
+        }
+
+        if (_pulling)
+        {
+            _pullAgain = true;
+            return;
+        }
+
+        _pulling = true;
+        try
+        {
+            _changeTimer?.Stop();
+            Flush();
+            foreach (var path in _files.Where(f => f.Value.Sent).Select(f => f.Key).ToList())
+            {
+                IReadOnlyList<LspDiagnostic> found;
+                try
+                {
+                    found = await server.DiagnosticsAsync(path);
+                }
+                catch (Exception ex) when (ex is LspException or TimeoutException or InvalidOperationException or OperationCanceledException or System.Text.Json.JsonException or KeyNotFoundException)
+                {
+                    continue;
+                }
+
+                // Edited meanwhile: the next pull has the newer ones.
+                if (_files.TryGetValue(path, out var file) && !file.Pending)
+                {
+                    SetDiagnostics(path, found);
+                }
+            }
+        }
+        finally
+        {
+            _pulling = false;
+        }
+
+        if (_pullAgain)
+        {
+            _pullAgain = false;
+            ScheduleDiagnostics();
+        }
+    }
+
+    private void SetDiagnostics(string path, IReadOnlyList<LspDiagnostic> found)
+    {
+        _diagnostics[path] = found;
+        DiagnosticsChanged?.Invoke(path);
+    }
 }
