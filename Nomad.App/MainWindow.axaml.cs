@@ -1495,7 +1495,11 @@ public partial class MainWindow : Window
         if (dev.SettingsOpen)
         {
             _vm.OpenSettingsCommand.Execute(null);
-            if (dev.SettingsClaudePage)
+            if (dev.SettingsHubPage)
+            {
+                _vm.SettingsPage?.ShowHubCommand.Execute(null);
+            }
+            else if (dev.SettingsClaudePage)
             {
                 _vm.SettingsPage?.ShowClaudeCodeCommand.Execute(null);
             }

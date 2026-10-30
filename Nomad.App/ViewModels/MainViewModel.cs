@@ -126,6 +126,8 @@ public sealed partial class MainViewModel : ObservableObject
         _elsewhereTimer.Tick += (_, _) => _ = ScanElsewhereAsync();
         _elsewhereTimer.Start();
 
+        Hub.Start(); // Nomad Hub, when this PC is enrolled.
+
         // The open session's branch, unpushed commits and uncommitted changes, which other sessions and terminals change too.
         _gitTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
         _gitTimer.Tick += (_, _) => _ = Current.RefreshGitAsync();
@@ -2273,6 +2275,7 @@ public sealed partial class MainViewModel : ObservableObject
         foreach (var item in due)
         {
             await DeleteFoldedAsync(item);
+            Hub.OnDeleted(item.Backend, item.SessionId);
         }
 
         ApplyFilter();
@@ -2433,6 +2436,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnAliveChanged(SessionViewModel session)
     {
+        HubAliveChanged(session);
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm && vm.IsAlive != (session.IsProcessRunning || IsRunningElsewhere(id)))
         {
             vm.IsAlive = session.IsProcessRunning || IsRunningElsewhere(id);
@@ -2597,6 +2601,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnSessionActivity(SessionViewModel session)
     {
+        HubActivity(session);
         if (session.Folder is not null)
         {
             RememberFolder(session.Folder);
@@ -2639,6 +2644,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnTurnCompleted(SessionViewModel session)
     {
+        HubTurnCompleted(session);
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {
             vm.IsRunning = false;
@@ -2800,6 +2806,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             SettingsStore.Save(Settings, _settingsPath);
+            Hub.OnSettingsSaved();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

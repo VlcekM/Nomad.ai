@@ -69,6 +69,7 @@ public sealed class DevOptions
     public string? FilesOpen { get; private set; }
     public bool FilesSplit { get; private set; }
     public bool SettingsClaudePage { get; private set; }
+    public bool SettingsHubPage { get; private set; }
     public bool SettingsUpdatesPage { get; private set; }
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
@@ -78,6 +79,9 @@ public sealed class DevOptions
 
     /// <summary>Start the phone folders' Remote Control servers in a scripted run too (off by default).</summary>
     public bool Phone { get; private set; }
+
+    /// <summary>Sync with Nomad Hub in a scripted run too (off by default, so test sessions stay off the hub).</summary>
+    public bool Hub { get; private set; }
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
     public List<(string Key, string Value)> Set { get; } = [];
@@ -166,9 +170,10 @@ public sealed class DevOptions
                 case "--dev-queue": o.Queue.Add(Next().Replace("\\n", "\n")); break;
                 case "--dev-settings-open":
                     o.SettingsOpen = true;
-                    if (i + 1 < args.Length && args[i + 1] is "claude" or "updates")
+                    if (i + 1 < args.Length && args[i + 1] is "claude" or "hub" or "updates")
                     {
                         o.SettingsClaudePage = args[i + 1] == "claude";
+                        o.SettingsHubPage = args[i + 1] == "hub";
                         o.SettingsUpdatesPage = args[i + 1] == "updates";
                         i++;
                     }
@@ -188,6 +193,7 @@ public sealed class DevOptions
                 case "--dev-log": o.LogPath = Path.GetFullPath(Next()); break;
                 case "--dev-cli-debug": o.CliDebugPath = Path.GetFullPath(Next()); break;
                 case "--dev-phone": o.Phone = true; break;
+                case "--dev-hub": o.Hub = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;
                 case "--dev-key":

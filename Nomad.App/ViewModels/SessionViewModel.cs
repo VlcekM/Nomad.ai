@@ -2788,6 +2788,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         _restartRequired = false;
+        await EnsureHubHostAsync();
         Folder ??= _main.CreateScratchFolder();
         var backend = AgentBackends.Create(Backend);
         if (_main.Dev.LogPath is { } log && backend is ClaudeCodeBackend claude)

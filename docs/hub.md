@@ -1,6 +1,18 @@
 # Nomad Hub — design
 
-Status: design only, nothing built yet.
+Status: phase 1 built (`Nomad.Hub`, `Nomad.Core/Hub`, Settings › Hub); the relay (phase 2) is not.
+
+Where phase 1 differs from the design below:
+
+- **Fetching is eager**, not on open: every session the hub has is written to this PC as soon as it changes,
+  so the sidebar lists it like any local session. (Hundreds of sessions are a few hundred MB.)
+- **Handoff is by prompt**: a prompt sent to a session another PC runs asks that PC to hand it over and
+  shows a notice; the other PC ends its process once its turn is over, and the next prompt here runs it. The
+  "Live on \<device\>" mark and a Continue here button come with the relay.
+- **Projects without a git remote** are keyed `folder:<name>` on every PC (not per device), so a folder with
+  the same name maps across PCs.
+- **State** syncs archived and pinned (diffed from the settings on every save); the rest of the per-session
+  state stays local for now.
 
 A small self-hosted server that keeps several workstations' Nomad in step: the same sessions on every PC,
 one place for token use from every provider, and (optionally) a session running on one PC driven live from

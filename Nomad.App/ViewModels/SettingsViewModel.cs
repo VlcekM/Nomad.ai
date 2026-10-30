@@ -17,6 +17,7 @@ public enum SettingsPageKind
 {
     General,
     ClaudeCode,
+    Hub,
     Updates,
 }
 
@@ -97,14 +98,26 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ------------------------------------------------------------------ navigation
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGeneralPage), nameof(IsClaudeCodePage), nameof(IsUpdatesPage))]
+    [NotifyPropertyChangedFor(nameof(IsGeneralPage), nameof(IsClaudeCodePage), nameof(IsHubPage), nameof(IsUpdatesPage))]
     public partial SettingsPageKind Page { get; set; }
 
     public bool IsGeneralPage => Page == SettingsPageKind.General;
 
     public bool IsClaudeCodePage => Page == SettingsPageKind.ClaudeCode;
 
+    public bool IsHubPage => Page == SettingsPageKind.Hub;
+
     public bool IsUpdatesPage => Page == SettingsPageKind.Updates;
+
+    /// <summary>Nomad Hub (Settings › Hub).</summary>
+    public HubViewModel Hub => _main.Hub;
+
+    [RelayCommand]
+    private void ShowHub()
+    {
+        Page = SettingsPageKind.Hub;
+        _ = Hub.RefreshDevicesAsync();
+    }
 
     [RelayCommand]
     private void ShowGeneral() => Page = SettingsPageKind.General;

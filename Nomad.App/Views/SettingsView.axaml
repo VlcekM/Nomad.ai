@@ -197,6 +197,12 @@
               <TextBlock Text="Claude Code" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsHubPage}" Command="{Binding ShowHubCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Data="{StaticResource IconGlobe}" />
+              <TextBlock Text="Hub" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsUpdatesPage}" Command="{Binding ShowUpdatesCommand}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <c:Icon Data="{StaticResource IconUpdate}" />
@@ -810,6 +816,101 @@
                 <Run Text="Settings are saved to" />
                 <Run Text="{Binding SettingsPath}" FontFamily="{DynamicResource MonoFont}" />
               </TextBlock>
+            </StackPanel>
+
+            <!-- Hub -->
+            <StackPanel Classes="page" IsVisible="{Binding IsHubPage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+              <TextBlock Text="Nomad Hub" Classes="pagetitle" />
+              <TextBlock Text="A hub you host keeps this PC's sessions and your other PCs' in step, and adds up everyone's token use. Without one, Nomad works on its own."
+                         Classes="rowhint" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+              <!-- Not connected: address, one-time token, this PC's name. -->
+              <StackPanel IsVisible="{Binding Hub.IsNotEnrolled}">
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Hub address" Classes="rowlabel" />
+                    <TextBlock Text="Where your hub answers, behind your proxy or tunnel." Classes="rowhint" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="field" Width="360">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hub.Url}" Watermark="https://hub.example.com" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Enrollment token" Classes="rowlabel" />
+                    <TextBlock Text="From the hub's log on its first start, or Add device on a PC already connected. It works once." Classes="rowhint" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="field" Width="360">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hub.Token}" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="This PC's name" Classes="rowlabel" />
+                    <TextBlock Text="How your other PCs see it." Classes="rowhint" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="field" Width="360">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hub.DeviceName}" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                  <Button Theme="{StaticResource PrimaryButton}" Content="Connect" Command="{Binding Hub.ConnectCommand}" />
+                </StackPanel>
+              </StackPanel>
+
+              <!-- Connected: status, sync now, devices. -->
+              <StackPanel IsVisible="{Binding Hub.IsEnrolled}">
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="{Binding Hub.Url}" Classes="rowlabel" />
+                    <TextBlock Text="Live" Classes="rowhint ok" IsVisible="{Binding Hub.IsConnected}" />
+                    <TextBlock Text="Not reachable now: sessions sync when it is." Classes="rowhint" IsVisible="{Binding !Hub.IsConnected}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Theme="{StaticResource SecondaryButton}" Content="Sync now" Command="{Binding Hub.SyncNowCommand}" />
+                    <Button Theme="{StaticResource SecondaryButton}" Content="Disconnect" Command="{Binding Hub.DisconnectCommand}" />
+                  </StackPanel>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <TextBlock Text="Devices" Classes="rowlabel" Margin="0,18,0,6" />
+                <ItemsControl ItemsSource="{Binding Hub.Devices}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:HubDeviceRow">
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,6">
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" Classes="rowlabel" />
+                          <TextBlock Text="{Binding Seen}" Classes="rowhint" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Theme="{StaticResource SecondaryButton}" Content="Remove" VerticalAlignment="Center"
+                                IsVisible="{Binding CanRevoke}"
+                                Command="{Binding $parent[UserControl].((vm:SettingsViewModel)DataContext).Hub.RevokeCommand}"
+                                CommandParameter="{Binding}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Classes="rowline" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Add device" Classes="rowlabel" />
+                    <TextBlock Text="A one-time token for another PC's Settings › Hub." Classes="rowhint" />
+                    <SelectableTextBlock Text="{Binding Hub.NewToken}" IsVisible="{Binding Hub.HasNewToken}" FontFamily="{DynamicResource MonoFont}" Margin="0,6,0,0" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Theme="{StaticResource SecondaryButton}" Content="Add device" VerticalAlignment="Center" Command="{Binding Hub.AddDeviceCommand}" />
+                </Grid>
+                <Border Classes="rowline" />
+              </StackPanel>
+
+              <TextBlock Text="{Binding Hub.Status}" IsVisible="{Binding Hub.HasStatus}" Classes="rowhint" TextWrapping="Wrap" Margin="0,14,0,0" />
             </StackPanel>
 
             <!-- Updates -->

@@ -171,6 +171,30 @@ the previous tag.
   Anthropic Mono are offered too: they are unpacked from the app's WOFF2 files into
   `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai. The Updates page is described under
   Install and update.
+- **Nomad Hub** (Settings › Hub, optional): a server you host keeps several PCs' sessions in step
+  (Claude Code, Codex and OpenCode) and adds up every PC's token use for the usage cards. See
+  [Nomad Hub](#nomad-hub) below and `docs/hub.md`.
+
+### Nomad Hub
+
+`Nomad.Hub` is a small ASP.NET Core server (EF Core on SQLite, one `/data` volume) published as the
+Docker image `vlcekmato/nomad-hub` by `.github/workflows/hub.yml` (it needs the `DOCKERHUB_USERNAME`
+and `DOCKERHUB_TOKEN` secrets). Run it with `Nomad.Hub/compose.yaml` behind your reverse proxy or a
+Cloudflare Tunnel; its first start logs a one-time enrollment token (`docker compose logs hub`).
+
+In Settings › Hub, enter the hub's address and the token, then **Connect**. Nomad uploads every
+session on this PC (only the new bytes of a transcript that grew), fetches the other PCs' sessions into
+this PC's folder for the same repository (matched by git remote), and keeps archived and pinned in step.
+A session runs on one PC at a time: the PC running it holds its lease, and a prompt sent to it elsewhere
+asks that PC to hand it over. A copy changed on two PCs at once is never merged: this PC's copy is kept
+as a new session, titled "… (from \<PC\>)". **Add device** makes a token for the next PC. With a hub
+connected, the usage cards show all PCs' tokens this month. Scripted dev runs don't sync unless given
+`--dev-hub`.
+
+```powershell
+dotnet test Nomad.Hub.Tests                 # the hub's API and two PCs syncing through it
+docker build -f Nomad.Hub/Dockerfile .      # the image, from the repository root
+```
 
 ### Memory and rendering
 
@@ -203,6 +227,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | `%APPDATA%\Nomad\settings.json` | Nomad.ai settings, recent folders, window placement |
 | `%APPDATA%\Nomad\releases-cache.json` | The GitHub release list and its ETag (Settings → Updates) |
 | `%APPDATA%\Nomad\usage-cache.json` | The last plan usage answer, shared between windows |
+| `%APPDATA%\Nomad\hub-sync.json` | What this PC last synced with Nomad Hub (versions, file stamps, change cursor) |
 | `%LOCALAPPDATA%\Nomad\` | The Setup install (`current\` is replaced by each update) and the Claude font cache (`fonts\`) |
 | `%LOCALAPPDATA%\velopack\velopack_Nomad.log` | Velopack's log: update checks, downloads, applied updates, uninstall |
 | `%LOCALAPPDATA%\NomadData\scratch\` | Folders for sessions started with "No folder" |
@@ -215,6 +240,9 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | `Nomad.Core` | CLI process host (Job object, so children die with Nomad.ai), stream-json protocol records with source-generated JSON, `IAgentBackend` / `ClaudeCodeBackend`, session store and history reader, settings, GitHub release list |
 | `Nomad.App` | Avalonia UI: frameless window, sidebar, session view, own Markdig-to-Avalonia renderer, menus, settings dialog, self-update |
 | `Nomad.Probe` | Console test bench that runs Nomad.Core against the real CLI |
+| `Nomad.Hub` | The self-hosted sync server (ASP.NET Core, EF Core SQLite, SignalR) |
+| `Nomad.Hub.Contracts` | Wire types shared by the hub and the app, with source-generated JSON |
+| `Nomad.Hub.Tests` | The hub's API, and two PCs syncing through it with `Nomad.Core`'s `HubSync` |
 | `Nomad.Core.Tests` | A few xUnit tests over captured stream-json fixtures and session titles |
 
 ### Dependencies
@@ -255,12 +283,13 @@ read should be a free 304 from the ETag cache).
 | `--dev-wait-turn` | …or as soon as the first turn has finished |
 | `--dev-size <W>x<H>` | Initial window size (window placement is then not saved) |
 | `--dev-menu model\|mode\|folder\|branch\|plus\|usage\|remote\|update\|list\|row` | Open a menu (the update chip's prompt, the sidebar's list options, the first Idle row's context menu) before the screenshot |
-| `--dev-settings-open [claude\|updates]` | Open the settings dialog (or that page) before the screenshot |
+| `--dev-settings-open [claude\|hub\|updates]` | Open the settings dialog (or that page) before the screenshot |
 | `--dev-side-panel` | Open the side panel (not saved) |
 | `--dev-queue "<text>"` | Put a prompt in the queue above the composer (repeatable) |
 | `--dev-settings <path>` | Use this settings file |
 | `--dev-lean` | Small CLI tool set, no MCP servers or skills |
 | `--dev-phone` | Start the phone folders' Remote Control servers (scripted runs skip them) |
+| `--dev-hub` | Sync with Nomad Hub when the settings are enrolled (scripted runs skip it, so test sessions stay off the hub) |
 | `--dev-expand` | Expand tool groups and thinking before the screenshot |
 | `--dev-answer allow\|session\|deny\|pick` | Answer every permission request automatically (questions get their first options; `pick` only selects them) |
 | `--dev-set textSize=Large` | Change an appearance setting live (`textSize`, `width`) |
