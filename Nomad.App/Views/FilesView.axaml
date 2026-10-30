@@ -58,6 +58,55 @@
     <Style Selector="Panel#CodeSearch.raised Border#CodeSearchCard">
       <Setter Property="RenderTransform" Value="translateY(0px)" />
     </Style>
+    <!-- Find in files (Ctrl+Shift+F): as the code search, with the in-file find's toggles. -->
+    <Style Selector="Panel#FindInFiles">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#FindInFiles.raised">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Border#FindInFilesCard">
+      <Setter Property="RenderTransform" Value="translateY(-6px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#FindInFiles.raised Border#FindInFilesCard">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Button.fiftoggle">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Button.fiftoggle TextBlock">
+      <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Button.fiftoggle.on">
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Border.fiffile">
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+    <Style Selector="TextBlock.fifline">
+      <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+      <Setter Property="FontSize" Value="{DynamicResource CodeFontSize}" />
+    </Style>
+
     <!-- The question card (new file, rename, delete, commit): fades in and drops a little into place, like the search. -->
     <Style Selector="Panel#Prompt">
       <Setter Property="Opacity" Value="0" />
@@ -274,6 +323,101 @@
                                  VerticalAlignment="Center" />
                     </Grid>
                   </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Panel>
+
+    <!-- Find in files (Ctrl+Shift+F): a box with the in-file find's toggles over the open files, the matches under it
+         by file. A click anywhere else closes it. -->
+    <Border Grid.ColumnSpan="3"
+            Background="Transparent"
+            IsVisible="{Binding Files.FindInFiles.IsOpen}"
+            PointerPressed="OnFindInFilesOutsidePressed" />
+    <Panel Name="FindInFiles"
+           Grid.Column="1"
+           IsVisible="{Binding Files.FindInFiles.IsShown}"
+           Classes.raised="{Binding Files.FindInFiles.IsRaised}">
+      <Border Name="FindInFilesCard"
+              MaxWidth="860"
+              Margin="20,4,20,24"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Top"
+              CornerRadius="9"
+              ClipToBounds="True"
+              Background="{DynamicResource BgMenuBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 12 36 0 #59000000">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto" Height="40">
+            <c:Icon Size="14" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="14,0,10,0" />
+            <TextBox Grid.Column="1"
+                     Name="FindInFilesBox"
+                     Theme="{StaticResource BareTextBox}"
+                     Watermark="Find in files"
+                     Text="{Binding Files.FindInFiles.Query}"
+                     VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1" Margin="8,0,0,0" VerticalAlignment="Center">
+              <Button Theme="{StaticResource IconButton}" Classes="fiftoggle" Classes.on="{Binding Files.FindInFiles.MatchCase}" Focusable="False" Command="{Binding Files.FindInFiles.ToggleMatchCaseCommand}" ToolTip.Tip="Match case">
+                <TextBlock Text="Aa" />
+              </Button>
+              <Button Theme="{StaticResource IconButton}" Classes="fiftoggle" Classes.on="{Binding Files.FindInFiles.WholeWord}" Focusable="False" Command="{Binding Files.FindInFiles.ToggleWholeWordCommand}" ToolTip.Tip="Match whole word">
+                <TextBlock Text="ab" TextDecorations="Underline" />
+              </Button>
+              <Button Theme="{StaticResource IconButton}" Classes="fiftoggle" Classes.on="{Binding Files.FindInFiles.UseRegex}" Focusable="False" Command="{Binding Files.FindInFiles.ToggleRegexCommand}" ToolTip.Tip="Use regular expressions">
+                <TextBlock Text=".*" />
+              </Button>
+            </StackPanel>
+            <TextBlock Grid.Column="3"
+                       Text="{Binding Files.FindInFiles.Status}"
+                       Classes="muted"
+                       FontSize="{DynamicResource UiFontSizeSmall}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,14,0" />
+          </Grid>
+          <Border Grid.Row="1" Height="1" Background="{DynamicResource BorderDividerBrush}" IsVisible="{Binding Files.FindInFiles.HasResults}" />
+          <ScrollViewer Grid.Row="2"
+                        Name="FindInFilesScroll"
+                        MaxHeight="520"
+                        HorizontalScrollBarVisibility="Disabled"
+                        IsVisible="{Binding Files.FindInFiles.HasResults}">
+            <ItemsControl Name="FindInFilesList" ItemsSource="{Binding Files.FindInFiles.Results}" Margin="0,0,0,4">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:FindInFilesRow">
+                  <Panel>
+                    <!-- A file: its name, its folder muted, and how many matches. -->
+                    <Border Classes="fiffile" IsVisible="{Binding IsFile}">
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Grid.ColumnSpan="2">
+                          <Run Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" /><Run Text="   " /><Run Text="{Binding Folder}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </TextBlock>
+                        <TextBlock Grid.Column="2" Text="{Binding Count}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" Margin="12,0,2,0" />
+                      </Grid>
+                    </Border>
+                    <!-- A match: its line number, and the line with the match picked out. -->
+                    <Button Theme="{StaticResource RowButton}"
+                            Classes="coderow"
+                            Classes.selected="{Binding IsSelected}"
+                            IsVisible="{Binding IsMatch}"
+                            Focusable="False"
+                            Click="OnFindInFilesResultClick">
+                      <Grid ColumnDefinitions="44,*">
+                        <TextBlock Text="{Binding LineNumber}" Classes="muted fifline" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <TextBlock Grid.Column="1" Classes="fifline" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}">
+                          <Run Text="{Binding Before}" /><Run Text="{Binding Match}" Classes="match" /><Run Text="{Binding After}" />
+                        </TextBlock>
+                      </Grid>
+                    </Button>
+                  </Panel>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

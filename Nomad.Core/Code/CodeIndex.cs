@@ -135,7 +135,7 @@ public sealed class CodeIndex(string root)
     }
 
     // Git's files (tracked and untracked, not ignored) in a repository; otherwise a walk that leaves out build output.
-    private static async Task<List<string>> ListFilesAsync(string root)
+    internal static async Task<List<string>> ListFilesAsync(string root)
     {
         if (await GitInfo.RunAsync(root, "ls-files", "-z", "-co", "--exclude-standard") is { } text)
         {

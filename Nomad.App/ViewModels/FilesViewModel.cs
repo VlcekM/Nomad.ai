@@ -16,6 +16,7 @@ public sealed partial class FilesViewModel : ObservableObject
     public FilesViewModel()
     {
         CodeSearch = new CodeSearchViewModel(this);
+        FindInFiles = new FindInFilesViewModel(this);
         var first = new EditorGroup(this) { IsFocused = true };
         Groups.Add(first);
         ActiveGroup = first;
@@ -26,6 +27,9 @@ public sealed partial class FilesViewModel : ObservableObject
 
     /// <summary>Ctrl+T in the Files view: types, members and files by name.</summary>
     public CodeSearchViewModel CodeSearch { get; }
+
+    /// <summary>Ctrl+Shift+F in the Files view: a text in every file.</summary>
+    public FindInFilesViewModel FindInFiles { get; }
 
     /// <summary>The session's folder: tabs show their file's folder relative to it.</summary>
     public string? Folder { get; private set; }
@@ -47,6 +51,7 @@ public sealed partial class FilesViewModel : ObservableObject
         }
 
         Folder = folder;
+        FindInFiles.Close();
         CodeSearch.Close();
         Tree?.Dispose();
         Tree = null;
@@ -171,7 +176,7 @@ public sealed partial class FilesViewModel : ObservableObject
     }
 
     /// <summary>Opens a file (kept, in the focused group) with the caret at a line and column (0-based), as a Go To does.</summary>
-    public void OpenAt(string path, (int Line, int Column)? at, bool remember = true)
+    public void OpenAt(string path, (int Line, int Column)? at, bool remember = true, int length = 0)
     {
         if (remember)
         {
@@ -181,7 +186,7 @@ public sealed partial class FilesViewModel : ObservableObject
         ActiveGroup.Open(path, keep: true);
         if (at is { } place && ActiveGroup.ActiveTab is { } tab && string.Equals(tab.Path, path, StringComparison.OrdinalIgnoreCase))
         {
-            tab.GoTo(place.Line, place.Column);
+            tab.GoTo(place.Line, place.Column, length);
         }
 
         _ = Tree?.RevealAsync(path);

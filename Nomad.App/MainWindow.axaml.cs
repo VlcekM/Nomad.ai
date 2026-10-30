@@ -142,6 +142,7 @@ public partial class MainWindow : Window
             {
                 if (vm.Current.IsFilesView && !vm.Search.IsOpen && !vm.IsSettingsOpen)
                 {
+                    vm.Current.Files.FindInFiles.Close();
                     codeSearch.Toggle();
                 }
                 else
@@ -152,6 +153,36 @@ public partial class MainWindow : Window
 
                 e.Handled = true;
                 return;
+            }
+
+            // Ctrl+Shift+F in the Files view: find in files, from the text selected in the file shown.
+            var findInFiles = vm.Current.Files.FindInFiles;
+            if (e.Key == Key.F && e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) && vm.Current.IsFilesView &&
+                !vm.Search.IsOpen && !vm.IsSettingsOpen)
+            {
+                codeSearch.Close();
+                string? selected = null;
+                if (vm.Current.Files.ActiveGroup.ActiveTab?.Document is { } doc && doc.Anchor != doc.Caret && doc.Anchor.Line == doc.Caret.Line)
+                {
+                    selected = doc.GetText(doc.Anchor <= doc.Caret ? doc.Anchor : doc.Caret, doc.Anchor <= doc.Caret ? doc.Caret : doc.Anchor);
+                }
+
+                findInFiles.Open(selected);
+                e.Handled = true;
+                return;
+            }
+
+            if (findInFiles.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+            {
+                switch (e.Key)
+                {
+                    case Key.Escape: findInFiles.Close(); e.Handled = true; return;
+                    case Key.Enter: findInFiles.OpenResult(); e.Handled = true; return;
+                    case Key.Down: findInFiles.Move(1); e.Handled = true; return;
+                    case Key.Up: findInFiles.Move(-1); e.Handled = true; return;
+                    case Key.PageDown: findInFiles.Move(12); e.Handled = true; return;
+                    case Key.PageUp: findInFiles.Move(-12); e.Handled = true; return;
+                }
             }
 
             if (codeSearch.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
@@ -169,7 +200,7 @@ public partial class MainWindow : Window
 
             // In the Files view: Ctrl+F and Ctrl+H find and replace in the file shown, F3 and Shift+F3 go to the next
             // and previous match.
-            if (vm.Current.IsFilesView && !vm.Search.IsOpen && !vm.IsSettingsOpen && !codeSearch.IsOpen &&
+            if (vm.Current.IsFilesView && !vm.Search.IsOpen && !vm.IsSettingsOpen && !codeSearch.IsOpen && !findInFiles.IsOpen &&
                 vm.Current.Files.ActiveGroup is { HasTabs: true } findGroup)
             {
                 if (e.Key is Key.F or Key.H && e.KeyModifiers == KeyModifiers.Control)

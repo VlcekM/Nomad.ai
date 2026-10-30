@@ -298,19 +298,34 @@ public sealed partial class FileTab : ObservableObject, IDisposable
     }
 
     // A Go To asked for before the file was read: done once it is.
-    private TextPos? _pendingGoTo;
+    private (TextPos At, int Length)? _pendingGoTo;
     private bool _loaded;
 
-    /// <summary>Puts the caret at a line and column (0-based) and shows it, now or once the file is read.</summary>
-    public void GoTo(int line, int column)
+    /// <summary>
+    /// Puts the caret at a line and column (0-based), selecting that many characters from there (a find's match), and
+    /// shows it, now or once the file is read.
+    /// </summary>
+    public void GoTo(int line, int column, int length = 0)
     {
         if (_loaded && Document != CodeDocument.Empty)
         {
-            Document.GoTo(new TextPos(line, column));
+            Show(Document, new TextPos(line, column), length);
         }
         else
         {
-            _pendingGoTo = new TextPos(line, column);
+            _pendingGoTo = (new TextPos(line, column), length);
+        }
+    }
+
+    private static void Show(CodeDocument doc, TextPos at, int length)
+    {
+        if (length > 0)
+        {
+            doc.Select(at, new TextPos(at.Line, at.Index + length), focus: true);
+        }
+        else
+        {
+            doc.GoTo(at);
         }
     }
 
@@ -348,10 +363,10 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         }
 
         _ = RefreshGitBaseAsync();
-        if (_pendingGoTo is { } pos && doc != CodeDocument.Empty)
+        if (_pendingGoTo is { } pending && doc != CodeDocument.Empty)
         {
             _pendingGoTo = null;
-            Dispatcher.UIThread.Post(() => doc.GoTo(pos), DispatcherPriority.Loaded);
+            Dispatcher.UIThread.Post(() => Show(doc, pending.At, pending.Length), DispatcherPriority.Loaded);
         }
     }
 

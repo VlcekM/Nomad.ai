@@ -231,6 +231,8 @@ public partial class FilesView : UserControl
             _session.PropertyChanged -= OnSessionChanged;
             _session.Files.Prompt.PropertyChanged -= OnPromptChanged;
             _session.Files.Prompt.Cancel();
+            _session.Files.FindInFiles.PropertyChanged -= OnFindInFilesChanged;
+            _session.Files.FindInFiles.Close();
             _session.Files.Show(false);
         }
 
@@ -246,6 +248,7 @@ public partial class FilesView : UserControl
         {
             _session.PropertyChanged += OnSessionChanged;
             _session.Files.Prompt.PropertyChanged += OnPromptChanged;
+            _session.Files.FindInFiles.PropertyChanged += OnFindInFilesChanged;
         }
 
         if (_codeSearch is not null)
@@ -279,6 +282,7 @@ public partial class FilesView : UserControl
             if (_session is { IsFilesView: false })
             {
                 _session.Files.CodeSearch.Close();
+                _session.Files.FindInFiles.Close();
             }
 
             // Back to the chat: typing goes to its composer again, not to the tree fading out.
@@ -374,6 +378,49 @@ public partial class FilesView : UserControl
                     CodeSearchList.ScrollIntoView(index);
                 }
             }, DispatcherPriority.Loaded);
+        }
+    }
+
+    // Find in files opening takes the focus to its box (its text selected); closing gives it back to the tree.
+    private void OnFindInFilesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_session?.Files.FindInFiles is not { } find)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(FindInFilesViewModel.IsOpen))
+        {
+            if (find.IsOpen)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    FindInFilesBox.Focus();
+                    FindInFilesBox.SelectAll();
+                }, DispatcherPriority.Loaded);
+            }
+            else if (FindInFilesBox.IsFocused)
+            {
+                Tree.Focus();
+            }
+        }
+        else if (e.PropertyName == nameof(FindInFilesViewModel.SelectedIndex) && find.SelectedIndex is >= 0 and var index)
+        {
+            Dispatcher.UIThread.Post(() => FindInFilesList.ScrollIntoView(index), DispatcherPriority.Loaded);
+        }
+    }
+
+    private void OnFindInFilesOutsidePressed(object? sender, PointerPressedEventArgs e)
+    {
+        _session?.Files.FindInFiles.Close();
+        e.Handled = true;
+    }
+
+    private void OnFindInFilesResultClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: FindInFilesRow row })
+        {
+            _session?.Files.FindInFiles.OpenResult(row);
         }
     }
 
