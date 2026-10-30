@@ -809,6 +809,12 @@ public partial class MainWindow : Window
             return box.Name == "Composer" && !session.IsCommandMenuOpen && !(session.HasSuggestion && e.KeyModifiers == KeyModifiers.None);
         }
 
+        // Typing in a file: Tab (and Shift+Tab) indent there.
+        if (e.Source is Nomad.App.Ide.CodeView { IsEditable: true } && (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) == 0)
+        {
+            return false;
+        }
+
         return true;
     }
 
@@ -1218,6 +1224,11 @@ public partial class MainWindow : Window
             }
         }
 
+        if (dev.Type is var (typed, typeAt))
+        {
+            DispatcherTimer.RunOnce(() => _ = TypeAsync(typed), TimeSpan.FromSeconds(typeAt));
+        }
+
         if (dev.Key is var (gesture, at))
         {
             DispatcherTimer.RunOnce(() => PressKey(KeyGesture.Parse(gesture)), TimeSpan.FromSeconds(at));
@@ -1348,6 +1359,27 @@ public partial class MainWindow : Window
         } // the pointer stays there: hover styles show as after a real drag
         var focused = FocusManager?.GetFocusedElement();
         Console.Error.WriteLine($"--dev-drag {from} -> {to}: focused {focused?.GetType().Name}, selected \"{(focused as SelectableTextBlock)?.SelectedText}\"");
+    }
+
+    /// <summary><c>--dev-type</c>: characters as text input, and keys in braces pressed, a little apart.</summary>
+    private async Task TypeAsync(string text)
+    {
+        for (var i = 0; i < text.Length; i++)
+        {
+            var close = text[i] == '{' ? text.IndexOf('}', i) : -1;
+            if (close > i + 1)
+            {
+                PressKey(KeyGesture.Parse(text[(i + 1)..close]));
+                i = close;
+            }
+            else
+            {
+                var target = FocusManager?.GetFocusedElement() as Interactive ?? this;
+                target.RaiseEvent(new TextInputEventArgs { RoutedEvent = TextInputEvent, Text = text[i].ToString(), Source = target });
+            }
+
+            await Task.Delay(30);
+        }
     }
 
     /// <summary><c>--dev-key</c>: a key press routed like a real one, from the focused control up.</summary>

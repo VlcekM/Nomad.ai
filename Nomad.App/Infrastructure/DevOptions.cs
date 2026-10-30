@@ -25,6 +25,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width, theme, colorTheme)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
+/// --dev-type "ab{Enter}{Ctrl+Z}" &lt;seconds&gt;  type into the focused control this long after start ({gesture} presses a key)
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
 /// --dev-pick &lt;n&gt;              pick the first n Idle rows (as Ctrl+clicks would) after start; with --dev-menu row, it opens on them
@@ -81,6 +82,9 @@ public sealed class DevOptions
     public List<(string Key, string Value)> Set { get; } = [];
     public double? StopAfterSeconds { get; private set; }
     public (string Gesture, double Seconds)? Key { get; private set; }
+
+    /// <summary><c>--dev-type</c>: text typed into the focused control, a key in braces pressed.</summary>
+    public (string Text, double Seconds)? Type { get; private set; }
     public (double X1, double Y1, double X2, double Y2, double Seconds)? Drag { get; private set; }
 
     /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
@@ -187,6 +191,13 @@ public sealed class DevOptions
                     if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var at))
                     {
                         o.Key = (gesture, at);
+                    }
+                    break;
+                case "--dev-type":
+                    var typed = Next();
+                    if (double.TryParse(Next(), NumberStyles.Float, CultureInfo.InvariantCulture, out var typeAt))
+                    {
+                        o.Type = (typed, typeAt);
                     }
                     break;
                 case "--dev-drag":

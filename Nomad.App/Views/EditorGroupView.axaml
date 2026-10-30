@@ -26,6 +26,7 @@
              Classes.active="{Binding IsActive}"
              Classes.pinned="{Binding IsPinned}"
              Classes.preview="{Binding IsPreview}"
+             Classes.dirty="{Binding IsDirty}"
              ToolTip.Tip="{Binding Path}"
              ToolTip.ShowDelay="700"
              PointerPressed="OnTabPressed"
@@ -48,9 +49,13 @@
             <Button Theme="{StaticResource IconButton}" Classes="tabaction tabpin" Command="{Binding Group.TogglePinCommand}" CommandParameter="{Binding}" ToolTip.Tip="{Binding PinText}">
               <c:Icon Size="11" Data="{StaticResource IconPin}" />
             </Button>
-            <Button Theme="{StaticResource IconButton}" Classes="tabaction tabclose" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" ToolTip.Tip="Close (Ctrl+W)">
-              <c:Icon Size="10" Data="{StaticResource IconClose}" />
-            </Button>
+            <Panel>
+              <!-- Unsaved edits: a dot where the close button is, which hover brings back. -->
+              <Ellipse Classes="dirtydot" Width="8" Height="8" IsHitTestVisible="False" />
+              <Button Theme="{StaticResource IconButton}" Classes="tabaction tabclose" Command="{Binding Group.CloseCommand}" CommandParameter="{Binding}" ToolTip.Tip="Close (Ctrl+W)">
+                <c:Icon Size="10" Data="{StaticResource IconClose}" />
+              </Button>
+            </Panel>
           </StackPanel>
         </StackPanel>
       </Panel>
@@ -130,11 +135,36 @@
     <Style Selector="Panel.tab:pointerover Button.tabaction, Panel.tab.active Button.tabclose, Panel.tab.pinned Button.tabpin">
       <Setter Property="Opacity" Value="1" />
     </Style>
+    <Style Selector="Panel.tab Ellipse.dirtydot">
+      <Setter Property="Fill" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.12" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.tab.dirty:not(:pointerover) Ellipse.dirtydot">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Panel.tab.dirty:not(:pointerover) Button.tabclose">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
     <Style Selector="Panel.tab.pinned Button.tabclose">
       <Setter Property="IsVisible" Value="False" />
     </Style>
     <Style Selector="Panel.tab.pinned Button.tabpin">
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.docbar">
+      <Setter Property="Padding" Value="14,7,8,7" />
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.docbar Button">
+      <Setter Property="Height" Value="26" />
     </Style>
     <Style Selector="Border#Card.flush">
       <Setter Property="CornerRadius" Value="0,10,10,10" />
@@ -197,13 +227,41 @@
               <TextBlock Text="{Binding ActiveTab.Note}" Classes="muted" Margin="10,0,0,0" IsVisible="{Binding ActiveTab.HasNote}" VerticalAlignment="Center" />
             </StackPanel>
           </Border>
+
+          <!-- Closing a tab with unsaved edits asks first. -->
+          <Border DockPanel.Dock="Top" Classes="docbar" IsVisible="{Binding ActiveTab.IsAskingToClose, Mode=OneTime, FallbackValue=False}" c:Fold.IsOpen="{Binding ActiveTab.IsAskingToClose, FallbackValue=False}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                <Button Theme="{StaticResource GhostButton}" Content="Cancel" Command="{Binding CancelCloseCommand}" CommandParameter="{Binding ActiveTab}" />
+                <Button Theme="{StaticResource SecondaryButton}" Content="Don't save" Command="{Binding CloseWithoutSavingCommand}" CommandParameter="{Binding ActiveTab}" />
+                <Button Theme="{StaticResource PrimaryButton}" Content="Save" Command="{Binding SaveAndCloseCommand}" CommandParameter="{Binding ActiveTab}" />
+              </StackPanel>
+              <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="Save your changes to" /> <Run Text="{Binding ActiveTab.Name}" FontWeight="Medium" /><Run Text="?" />
+              </TextBlock>
+            </DockPanel>
+          </Border>
+
+          <!-- Another program wrote the file while it had unsaved edits here. -->
+          <Border DockPanel.Dock="Top" Classes="docbar" IsVisible="{Binding ActiveTab.ChangedOnDisk, Mode=OneTime, FallbackValue=False}" c:Fold.IsOpen="{Binding ActiveTab.ChangedOnDisk, FallbackValue=False}">
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                <Button Theme="{StaticResource SecondaryButton}" Content="Keep mine" Command="{Binding ActiveTab.KeepMineCommand}" ToolTip.Tip="Saving then overwrites the change on disk" />
+                <Button Theme="{StaticResource PrimaryButton}" Content="Reload" Command="{Binding ActiveTab.ReloadCommand}" ToolTip.Tip="Take the file as it is now, dropping your edits" />
+              </StackPanel>
+              <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="The file changed on disk since you started editing it." />
+            </DockPanel>
+          </Border>
+
           <!-- Visual Studio's editor size: 10 pt (13.33 px) on 17 px lines; only the lines in view are drawn. -->
           <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <ide:CodeView Text="{Binding ActiveTab.Text}"
+            <ide:CodeView Name="Code"
+                          Document="{Binding ActiveTab.Document}"
                           FontFamily="{DynamicResource MonoFont}"
                           FontSize="13.333"
                           Foreground="{DynamicResource TextPrimaryBrush}"
                           SelectionBrush="{DynamicResource TextSelectionBrush}"
+                          CaretBrush="{DynamicResource TextCaretBrush}"
                           LineHeight="17"
                           Padding="18,12,18,24" />
           </ScrollViewer>

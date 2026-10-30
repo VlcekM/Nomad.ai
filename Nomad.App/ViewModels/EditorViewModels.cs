@@ -1,18 +1,28 @@
 using System.Collections.ObjectModel;
 using System.Text;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nomad.App.Ide;
 
 namespace Nomad.App.ViewModels;
 
 /// <summary>
 /// An open file in the Files view, as a tab. A preview tab (a single click in the tree) is replaced by the next file
-/// opened that way; double-clicking, pinning or opening it again keeps it.
+/// opened that way; double-clicking, pinning, opening it again or editing it keeps it. Its text is a
+/// <see cref="CodeDocument"/>, saved with Ctrl+S in the file's own encoding and line breaks; a change on disk reloads a
+/// clean tab and is pointed out on an edited one.
 /// </summary>
-public sealed partial class FileTab : ObservableObject
+public sealed partial class FileTab : ObservableObject, IDisposable
 {
-    /// <summary>Larger files show only their first part.</summary>
+    /// <summary>Larger files show only their first part, and can't be edited.</summary>
     private const int PreviewBytes = 256 * 1024;
+
+    private FileSystemWatcher? _watcher;
+    private DispatcherTimer? _settle;
+
+    /// <summary>The file's last write time as this tab last read or wrote it, to tell others' writes from its own.</summary>
+    private DateTime _knownWrite;
 
     public FileTab(string path, string? folder)
     {
@@ -22,6 +32,7 @@ public sealed partial class FileTab : ObservableObject
         var relative = folder is null ? parent : System.IO.Path.GetRelativePath(folder, parent);
         RelativeFolder = relative == "." ? "" : relative.Replace(System.IO.Path.DirectorySeparatorChar, '/');
         _ = LoadAsync();
+        Watch(parent);
     }
 
     public string Path { get; }
@@ -56,11 +67,23 @@ public sealed partial class FileTab : ObservableObject
     [ObservableProperty]
     public partial bool IsFocused { get; set; }
 
-    /// <summary>The file's text (for now plain, until the code view comes).</summary>
+    /// <summary>The file's text, with its caret and undo history; read-only until it has loaded.</summary>
     [ObservableProperty]
-    public partial string Text { get; private set; } = "";
+    public partial CodeDocument Document { get; private set; } = CodeDocument.Empty;
 
-    /// <summary>Instead of the text: why there is none ("Binary file"), or that it is cut short.</summary>
+    /// <summary>Edited since it was loaded or saved.</summary>
+    [ObservableProperty]
+    public partial bool IsDirty { get; private set; }
+
+    /// <summary>Another program (Claude, say) wrote the file while it had unsaved edits here.</summary>
+    [ObservableProperty]
+    public partial bool ChangedOnDisk { get; private set; }
+
+    /// <summary>Closing it, with unsaved edits: the card asks whether to save them first.</summary>
+    [ObservableProperty]
+    public partial bool IsAskingToClose { get; set; }
+
+    /// <summary>Instead of the text: why there is none ("Binary file"), or why it can't be edited.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasNote))]
     public partial string? Note { get; private set; }
@@ -70,33 +93,219 @@ public sealed partial class FileTab : ObservableObject
     /// <summary>Where the file was scrolled to, kept while another tab is shown.</summary>
     public Avalonia.Vector ScrollOffset { get; set; }
 
-    private async Task LoadAsync()
+    partial void OnDocumentChanged(CodeDocument oldValue, CodeDocument newValue)
     {
-        var (text, note) = await Task.Run(() => Read(Path));
-        Text = text;
-        Note = note;
+        oldValue.DirtyChanged -= OnDirtyChanged;
+
+        newValue.DirtyChanged += OnDirtyChanged;
+        IsDirty = newValue.IsDirty;
     }
 
-    private static (string Text, string? Note) Read(string path)
+    private void OnDirtyChanged()
+    {
+        IsDirty = Document.IsDirty;
+
+        // Edited: no longer a preview the next click in the tree would replace.
+        if (IsDirty && IsPreview)
+        {
+            Group?.KeepCommand.Execute(this);
+        }
+    }
+
+    private async Task LoadAsync(bool keepPlace = false)
+    {
+        var (doc, note, written) = await Task.Run(() => Read(Path));
+        if (keepPlace)
+        {
+            doc.Anchor = doc.Clamp(Document.Anchor);
+            doc.Caret = doc.Clamp(Document.Caret);
+        }
+
+        _knownWrite = written;
+        Document = doc;
+        Note = note;
+        ChangedOnDisk = false;
+    }
+
+    private static (CodeDocument Doc, string? Note, DateTime Written) Read(string path)
     {
         try
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var written = File.GetLastWriteTimeUtc(path);
             var buffer = new byte[(int)Math.Min(stream.Length, PreviewBytes)];
             stream.ReadExactly(buffer);
-            var utf16 = buffer.Length >= 2 && (buffer[0], buffer[1]) is (0xFF, 0xFE) or (0xFE, 0xFF);
-            if (!utf16 && Array.IndexOf(buffer, (byte)0, 0, Math.Min(buffer.Length, 8000)) >= 0)
+            var truncated = stream.Length > PreviewBytes;
+
+            var (encoding, bom) = buffer switch
             {
-                return ("", "Binary file");
+                [0xEF, 0xBB, 0xBF, ..] => (new UTF8Encoding(true), 3),
+                [0xFF, 0xFE, ..] => (Encoding.Unicode, 2),
+                [0xFE, 0xFF, ..] => (Encoding.BigEndianUnicode, 2),
+                _ => ((Encoding)new UTF8Encoding(false, throwOnInvalidBytes: true), 0),
+            };
+            if (bom == 0 && Array.IndexOf(buffer, (byte)0, 0, Math.Min(buffer.Length, 8000)) >= 0)
+            {
+                return (CodeDocument.Empty, "Binary file", written);
             }
 
-            var text = new StreamReader(new MemoryStream(buffer), Encoding.UTF8, detectEncodingFromByteOrderMarks: true).ReadToEnd();
-            return (text, stream.Length > PreviewBytes ? $"Showing the first {PreviewBytes / 1024} KB" : null);
+            string text;
+            string? note = truncated ? $"Showing the first {PreviewBytes / 1024} KB, read-only" : null;
+            try
+            {
+                text = encoding.GetString(buffer, bom, buffer.Length - bom);
+            }
+            catch (DecoderFallbackException)
+            {
+                // Another code page: shown as well as UTF-8 can, but saving it would change its bytes.
+                text = Encoding.UTF8.GetString(buffer);
+                note ??= "Not UTF-8, read-only";
+                truncated = true;
+            }
+
+            // A file cut short (mid-character, too) or not UTF-8 is only shown.
+            return (new CodeDocument(text, readOnly: truncated, encoding, bom > 0), note, written);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            return ("", e.Message);
+            return (CodeDocument.Empty, e.Message, default);
         }
+    }
+
+    [RelayCommand]
+    private Task Save() => SaveAsync();
+
+    /// <summary>Writes the edits to the file (through a temporary file beside it, so a failed write leaves it whole).</summary>
+    public async Task<bool> SaveAsync()
+    {
+        var doc = Document;
+        if (doc.IsReadOnly || !doc.IsDirty && !ChangedOnDisk)
+        {
+            return true;
+        }
+
+        var bytes = doc.Encode();
+        var version = doc.Text;
+        try
+        {
+            _knownWrite = await Task.Run(() =>
+            {
+                var temp = Path + ".nomad-save";
+                File.WriteAllBytes(temp, bytes);
+                if (File.Exists(Path))
+                {
+                    File.Replace(temp, Path, null, ignoreMetadataErrors: true);
+                }
+                else
+                {
+                    File.Move(temp, Path);
+                }
+
+                return File.GetLastWriteTimeUtc(Path);
+            });
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Note = "Couldn't save: " + e.Message;
+            return false;
+        }
+
+        // Typing during the write leaves it dirty.
+        if (doc.Text == version)
+        {
+            doc.MarkSaved();
+        }
+
+        ChangedOnDisk = false;
+        if (Note?.StartsWith("Couldn't save", StringComparison.Ordinal) == true)
+        {
+            Note = null;
+        }
+
+        return true;
+    }
+
+    /// <summary>Takes the file as it is on disk now, dropping the edits here.</summary>
+    [RelayCommand]
+    private Task Reload() => LoadAsync(keepPlace: true);
+
+    /// <summary>Keeps the edits here over the change on disk (saving overwrites it).</summary>
+    [RelayCommand]
+    private void KeepMine() => ChangedOnDisk = false;
+
+    // Changes on disk: a clean tab follows them; an edited one says so (saving then overwrites them).
+    private void Watch(string folder)
+    {
+        try
+        {
+            _watcher = new FileSystemWatcher(folder, Name)
+            {
+                NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+                EnableRaisingEvents = true,
+            };
+        }
+        catch (Exception e) when (e is ArgumentException or IOException)
+        {
+            return;
+        }
+
+        FileSystemEventHandler changed = (_, _) => Dispatcher.UIThread.Post(Settle);
+        _watcher.Changed += changed;
+        _watcher.Created += changed;
+        _watcher.Renamed += (_, _) => Dispatcher.UIThread.Post(Settle);
+    }
+
+    // A write comes as several events: act once they stop.
+    private void Settle()
+    {
+        if (_settle is null)
+        {
+            _settle = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _settle.Tick += (_, _) =>
+            {
+                _settle.Stop();
+                OnDiskChanged();
+            };
+        }
+
+        _settle.Stop();
+        _settle.Start();
+    }
+
+    private void OnDiskChanged()
+    {
+        DateTime written;
+        try
+        {
+            written = File.GetLastWriteTimeUtc(Path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        if (written == _knownWrite || !File.Exists(Path))
+        {
+            return;
+        }
+
+        if (IsDirty)
+        {
+            _knownWrite = written;
+            ChangedOnDisk = true;
+        }
+        else
+        {
+            _ = LoadAsync(keepPlace: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
+        _settle?.Stop();
+        Document.DirtyChanged -= OnDirtyChanged;
     }
 }
 
@@ -152,12 +361,16 @@ public sealed partial class EditorGroup : ObservableObject
 
     public void OnSplitChanged() => OnPropertyChanged(nameof(CanSplit));
 
+    /// <summary>Every tab, the preview too.</summary>
+    public IEnumerable<FileTab> AllTabs => PreviewTab is { } preview ? Tabs.Append(preview) : Tabs;
+
     partial void OnActiveTabChanged(FileTab? oldValue, FileTab? newValue)
     {
         if (oldValue is not null)
         {
             oldValue.IsActive = false;
             oldValue.IsFocused = false;
+            oldValue.IsAskingToClose = false;
         }
 
         if (newValue is not null)
@@ -205,6 +418,7 @@ public sealed partial class EditorGroup : ObservableObject
         }
         else
         {
+            PreviewTab?.Dispose();
             PreviewTab = tab;
         }
 
@@ -223,7 +437,7 @@ public sealed partial class EditorGroup : ObservableObject
         owner.Focus(this);
     }
 
-    /// <summary>Keeps the preview tab (a double-click on it, or pinning it): it joins the row's end.</summary>
+    /// <summary>Keeps the preview tab (a double-click on it, pinning or editing it): it joins the row's end.</summary>
     [RelayCommand]
     private void Keep(FileTab tab)
     {
@@ -232,15 +446,48 @@ public sealed partial class EditorGroup : ObservableObject
             return;
         }
 
+        var wasActive = ActiveTab == tab;
         PreviewTab = null;
         tab.IsPreview = false;
         Tabs.Add(tab);
-        ActiveTab = tab;
+        if (wasActive || ActiveTab is null)
+        {
+            ActiveTab = tab;
+        }
     }
 
+    /// <summary>Closes a tab; one with unsaved edits is shown and asks first.</summary>
     [RelayCommand]
     private void Close(FileTab tab)
     {
+        if (tab.IsDirty)
+        {
+            ActiveTab = tab;
+            tab.IsAskingToClose = true;
+            return;
+        }
+
+        Remove(tab);
+    }
+
+    [RelayCommand]
+    private async Task SaveAndClose(FileTab tab)
+    {
+        if (await tab.SaveAsync())
+        {
+            Remove(tab);
+        }
+    }
+
+    [RelayCommand]
+    private void CloseWithoutSaving(FileTab tab) => Remove(tab);
+
+    [RelayCommand]
+    private void CancelClose(FileTab tab) => tab.IsAskingToClose = false;
+
+    private void Remove(FileTab tab)
+    {
+        tab.IsAskingToClose = false;
         if (tab == PreviewTab)
         {
             PreviewTab = null;
@@ -264,23 +511,27 @@ public sealed partial class EditorGroup : ObservableObject
             }
         }
 
+        tab.Dispose();
         if (Tabs.Count == 0 && PreviewTab is null)
         {
             owner.OnGroupEmptied(this);
         }
     }
 
+    /// <summary>Closes the other tabs, except pinned ones and those with unsaved edits.</summary>
     [RelayCommand]
     private void CloseOthers(FileTab tab)
     {
-        foreach (var other in Tabs.Where(t => t != tab && !t.IsPinned).ToList())
+        foreach (var other in Tabs.Where(t => t != tab && !t.IsPinned && !t.IsDirty).ToList())
         {
             Tabs.Remove(other);
+            other.Dispose();
         }
 
-        if (PreviewTab is { } preview && preview != tab)
+        if (PreviewTab is { } preview && preview != tab && !preview.IsDirty)
         {
             PreviewTab = null;
+            preview.Dispose();
         }
 
         ActiveTab = tab;
@@ -303,4 +554,46 @@ public sealed partial class EditorGroup : ObservableObject
     /// <summary>Moves the file to the group beside this one (made if needed); its tab here closes.</summary>
     [RelayCommand]
     private void OpenToSide(FileTab tab) => owner.OpenToSide(this, tab);
+
+    /// <summary>
+    /// Takes in a tab from the other group as it is (its edits, caret and undo with it), at the end of the row.
+    /// </summary>
+    public void Adopt(FileTab tab)
+    {
+        if (Tabs.FirstOrDefault(t => SamePath(t, tab.Path)) is { } open)
+        {
+            ActiveTab = open;
+            return;
+        }
+
+        tab.Group = this;
+        tab.IsPreview = false;
+        tab.IsActive = false;
+        tab.IsFocused = false;
+        Tabs.Add(tab);
+        ActiveTab = tab;
+    }
+
+    /// <summary>Lets a tab go to the other group without closing it (or asking about its edits).</summary>
+    public void Release(FileTab tab)
+    {
+        if (tab == PreviewTab)
+        {
+            PreviewTab = null;
+        }
+        else
+        {
+            Tabs.Remove(tab);
+        }
+
+        if (ActiveTab == tab)
+        {
+            ActiveTab = Tabs.LastOrDefault() ?? PreviewTab;
+        }
+
+        if (Tabs.Count == 0 && PreviewTab is null)
+        {
+            owner.OnGroupEmptied(this);
+        }
+    }
 }

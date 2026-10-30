@@ -2,11 +2,14 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
+using Avalonia.Threading;
 using SkiaSharp;
 
 namespace Nomad.App.Ide;
@@ -14,12 +17,14 @@ namespace Nomad.App.Ide;
 /// <summary>
 /// A file's text, virtualized: it measures to the whole file (inside a ScrollViewer) but lays out and draws only the
 /// lines in view, so a long file opens and scrolls at once. Monospace and light (see CodeWeight), tabs to four columns; a drag
-/// selects (a double-click a word, a triple-click a line), Ctrl+A selects all and Ctrl+C copies.
+/// selects (a double-click a word, a triple-click a line), Ctrl+A selects all and Ctrl+C copies. Unless its
+/// <see cref="CodeDocument"/> is read-only it edits as Visual Studio does: typing, Enter keeping the indent, Tab and
+/// Shift+Tab on whole lines, Ctrl+arrows by word, Ctrl+X/C/V (a whole line with nothing selected), Ctrl+Z/Y.
 /// </summary>
 public sealed class CodeView : Control
 {
-    public static readonly StyledProperty<string?> TextProperty =
-        AvaloniaProperty.Register<CodeView, string?>(nameof(Text));
+    public static readonly StyledProperty<CodeDocument?> DocumentProperty =
+        AvaloniaProperty.Register<CodeView, CodeDocument?>(nameof(Document));
 
     public static readonly StyledProperty<FontFamily> FontFamilyProperty =
         TextElement.FontFamilyProperty.AddOwner<CodeView>();
@@ -36,6 +41,9 @@ public sealed class CodeView : Control
     public static readonly StyledProperty<IBrush?> SelectionBrushProperty =
         AvaloniaProperty.Register<CodeView, IBrush?>(nameof(SelectionBrush));
 
+    public static readonly StyledProperty<IBrush?> CaretBrushProperty =
+        AvaloniaProperty.Register<CodeView, IBrush?>(nameof(CaretBrush), Brushes.White);
+
     public static readonly StyledProperty<Thickness> PaddingProperty =
         AvaloniaProperty.Register<CodeView, Thickness>(nameof(Padding));
 
@@ -44,22 +52,25 @@ public sealed class CodeView : Control
     /// <summary>Longer lines are laid out only where they are in view, not whole.</summary>
     private const int WholeLineLimit = 2000;
 
-    private string[] _raw = [];
-    private string[] _lines = [];
+    private CodeDocument _doc = CodeDocument.Empty;
+    private List<string> _lines = [""];
     private int _longest;
     private double _charWidth;
     private Rect _viewport;
     private readonly Dictionary<int, TextLayout> _layouts = [];
-
-    // The selection, in (line, column) of the tab-expanded text: from where it started to where it is now.
-    private (int Line, int Col) _anchor;
-    private (int Line, int Col) _caret;
     private bool _selecting;
+
+    /// <summary>The column Up and Down keep to, across shorter lines.</summary>
+    private int? _goalCol;
+
+    // The caret blinks while the text has the focus, and its timer runs only then.
+    private readonly DispatcherTimer _blink = new() { Interval = TimeSpan.FromMilliseconds(530) };
+    private bool _caretOn;
 
     static CodeView()
     {
-        AffectsMeasure<CodeView>(TextProperty, FontFamilyProperty, FontSizeProperty, LineHeightProperty, PaddingProperty);
-        AffectsRender<CodeView>(ForegroundProperty, SelectionBrushProperty);
+        AffectsMeasure<CodeView>(DocumentProperty, FontFamilyProperty, FontSizeProperty, LineHeightProperty, PaddingProperty);
+        AffectsRender<CodeView>(ForegroundProperty, SelectionBrushProperty, CaretBrushProperty);
         FocusableProperty.OverrideDefaultValue<CodeView>(true);
     }
 
@@ -71,19 +82,32 @@ public sealed class CodeView : Control
             _viewport = e.EffectiveViewport;
             InvalidateVisual();
         };
+        _blink.Tick += (_, _) =>
+        {
+            _caretOn = !_caretOn;
+            InvalidateVisual();
+        };
 
+        var cut = new MenuItem { Header = "Cut", InputGesture = new KeyGesture(Key.X, KeyModifiers.Control) };
+        cut.Click += (_, _) => _ = CutAsync();
         var copy = new MenuItem { Header = "Copy", InputGesture = new KeyGesture(Key.C, KeyModifiers.Control) };
         copy.Click += (_, _) => _ = CopyAsync();
+        var paste = new MenuItem { Header = "Paste", InputGesture = new KeyGesture(Key.V, KeyModifiers.Control) };
+        paste.Click += (_, _) => _ = PasteAsync();
         var all = new MenuItem { Header = "Select all", InputGesture = new KeyGesture(Key.A, KeyModifiers.Control) };
         all.Click += (_, _) => SelectAll();
-        ContextMenu = new ContextMenu { Items = { copy, all } };
-        ContextMenu.Opening += (_, _) => copy.IsEnabled = HasSelection;
+        ContextMenu = new ContextMenu { Items = { cut, copy, paste, new Separator(), all } };
+        ContextMenu.Opening += (_, _) =>
+        {
+            cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
+            copy.IsEnabled = HasSelection || !_doc.IsReadOnly;
+        };
     }
 
-    public string? Text
+    public CodeDocument? Document
     {
-        get => GetValue(TextProperty);
-        set => SetValue(TextProperty, value);
+        get => GetValue(DocumentProperty);
+        set => SetValue(DocumentProperty, value);
     }
 
     public FontFamily FontFamily
@@ -116,13 +140,22 @@ public sealed class CodeView : Control
         set => SetValue(SelectionBrushProperty, value);
     }
 
+    public IBrush? CaretBrush
+    {
+        get => GetValue(CaretBrushProperty);
+        set => SetValue(CaretBrushProperty, value);
+    }
+
     public Thickness Padding
     {
         get => GetValue(PaddingProperty);
         set => SetValue(PaddingProperty, value);
     }
 
-    private bool HasSelection => _anchor != _caret;
+    /// <summary>Typing goes into the text (so keys like Tab are its own, not the window's).</summary>
+    public bool IsEditable => !_doc.IsReadOnly;
+
+    private bool HasSelection => _doc.Anchor != _doc.Caret;
 
     /// <summary>For fonts Skia doesn't draw (the Claude app's): regular weight whatever the surroundings say.</summary>
     private Typeface Typeface => new(FontFamily, FontStyle.Normal, FontWeight.Normal);
@@ -130,9 +163,14 @@ public sealed class CodeView : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == TextProperty)
+        if (change.Property == DocumentProperty)
         {
-            SetText(Text ?? "");
+            _doc.Changed -= OnDocumentChanged;
+            _doc = Document ?? CodeDocument.Empty;
+            _doc.Changed += OnDocumentChanged;
+            _goalCol = null;
+            Refresh();
+            RestartBlink();
         }
         else if (change.Property == FontFamilyProperty || change.Property == FontSizeProperty)
         {
@@ -146,12 +184,28 @@ public sealed class CodeView : Control
         }
     }
 
-    private void SetText(string text)
+    // The text changed (here, or by undo in another view of it): lay it out again.
+    private void OnDocumentChanged()
     {
-        _raw = text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
-        _lines = _raw.Select(Expand).ToArray();
-        _longest = _lines.Length == 0 ? 0 : _lines.Max(l => l.Length);
-        _anchor = _caret = default;
+        Refresh();
+        InvalidateMeasure();
+        RestartBlink();
+        RevealCaret();
+    }
+
+    private void Refresh()
+    {
+        var lines = _doc.Lines;
+        _lines = new List<string>(lines.Count);
+        var longest = 0;
+        foreach (var raw in lines)
+        {
+            var line = Expand(raw);
+            _lines.Add(line);
+            longest = Math.Max(longest, line.Length);
+        }
+
+        _longest = longest;
         ClearLayouts();
     }
 
@@ -181,7 +235,7 @@ public sealed class CodeView : Control
     /// <summary>The raw line's index for a column of its tab-expanded text.</summary>
     private int RawIndex(int line, int col)
     {
-        var raw = _raw[line];
+        var raw = _doc.Lines[line];
         var at = 0;
         for (var i = 0; i < raw.Length; i++)
         {
@@ -195,6 +249,19 @@ public sealed class CodeView : Control
         }
 
         return raw.Length;
+    }
+
+    /// <summary>The column of the tab-expanded text a raw index of the line stands at.</summary>
+    private int Column(TextPos pos)
+    {
+        var raw = _doc.Lines[pos.Line];
+        var col = 0;
+        for (var i = 0; i < pos.Index && i < raw.Length; i++)
+        {
+            col += raw[i] == '\t' ? TabSize - col % TabSize : 1;
+        }
+
+        return col;
     }
 
     private void ClearLayouts()
@@ -267,23 +334,20 @@ public sealed class CodeView : Control
     protected override Size MeasureOverride(Size availableSize)
     {
         var p = Padding;
-        return new Size(p.Left + _longest * CharWidth + p.Right, p.Top + _lines.Length * LineHeight + p.Bottom);
+
+        // A column more than the longest line, for the caret at its end.
+        return new Size(p.Left + (_longest + 1) * CharWidth + p.Right, p.Top + _lines.Count * LineHeight + p.Bottom);
     }
 
     public override void Render(DrawingContext context)
     {
         // Hit-testable everywhere, so a press beside the text still selects.
         context.FillRectangle(Brushes.Transparent, new Rect(Bounds.Size));
-        if (_lines.Length == 0)
-        {
-            return;
-        }
-
         var p = Padding;
         var height = LineHeight;
         var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
-        var first = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, _lines.Length - 1);
-        var last = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, _lines.Length - 1);
+        var first = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, _lines.Count - 1);
+        var last = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, _lines.Count - 1);
         var charWidth = CharWidth;
 
         if (HasSelection && SelectionBrush is { } selection)
@@ -291,8 +355,8 @@ public sealed class CodeView : Control
             var (from, to) = Ordered();
             for (var line = Math.Max(first, from.Line); line <= Math.Min(last, to.Line); line++)
             {
-                var start = line == from.Line ? from.Col : 0;
-                var end = line == to.Line ? to.Col : _lines[line].Length + 1; // A selected line break shows as a space.
+                var start = line == from.Line ? Column(from) : 0;
+                var end = line == to.Line ? Column(to) : _lines[line].Length + 1; // A selected line break shows as a space.
                 if (end > start)
                 {
                     context.FillRectangle(selection, new Rect(p.Left + start * charWidth, p.Top + line * height, (end - start) * charWidth, height));
@@ -353,6 +417,11 @@ public sealed class CodeView : Control
                 new SKColor(color.R, color.G, color.B, (byte)(color.A * opacity))));
         }
 
+        if (_caretOn && IsEditable && IsFocused && CaretBrush is { } caret)
+        {
+            context.FillRectangle(caret, CaretRect());
+        }
+
         // Laid-out lines far out of view are let go.
         if (_layouts.Count > 600)
         {
@@ -364,33 +433,75 @@ public sealed class CodeView : Control
         }
     }
 
+    private Rect CaretRect()
+    {
+        var p = Padding;
+        var caret = _doc.Caret;
+        return new Rect(Math.Round(p.Left + Column(caret) * CharWidth), p.Top + caret.Line * LineHeight, 1.5, LineHeight);
+    }
+
     private TextLayout Layout(string text) =>
         new(text, Typeface, FontSize, Foreground, lineHeight: LineHeight);
 
-    private ((int Line, int Col) From, (int Line, int Col) To) Ordered() =>
-        _anchor.Line < _caret.Line || (_anchor.Line == _caret.Line && _anchor.Col <= _caret.Col) ? (_anchor, _caret) : (_caret, _anchor);
+    private (TextPos From, TextPos To) Ordered() =>
+        _doc.Anchor <= _doc.Caret ? (_doc.Anchor, _doc.Caret) : (_doc.Caret, _doc.Anchor);
 
-    private (int Line, int Col) HitTest(Point point)
+    // The caret: blinking from on whenever it moves, while the text has the focus.
+    private void RestartBlink()
     {
-        if (_lines.Length == 0)
+        _blink.Stop();
+        _caretOn = true;
+        if (IsFocused && IsEditable)
         {
-            return default;
+            _blink.Start();
         }
 
+        InvalidateVisual();
+    }
+
+    protected override void OnGotFocus(GotFocusEventArgs e)
+    {
+        base.OnGotFocus(e);
+        RestartBlink();
+    }
+
+    protected override void OnLostFocus(RoutedEventArgs e)
+    {
+        base.OnLostFocus(e);
+        _blink.Stop();
+        InvalidateVisual();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        _blink.Stop();
+    }
+
+    /// <summary>Scrolls the caret into view, once the layout has caught up with an edit.</summary>
+    private void RevealCaret() =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            var rect = CaretRect();
+            this.BringIntoView(rect.Inflate(new Thickness(CharWidth * 4, LineHeight, CharWidth * 4, LineHeight)));
+        }, DispatcherPriority.Loaded);
+
+    private TextPos HitTest(Point point)
+    {
         var p = Padding;
-        var line = Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, _lines.Length - 1);
         if (point.Y < p.Top)
         {
-            return (0, 0);
+            return new TextPos(0, 0);
         }
 
-        if (point.Y > p.Top + _lines.Length * LineHeight)
+        if (point.Y > p.Top + _lines.Count * LineHeight)
         {
-            return (_lines.Length - 1, _lines[^1].Length);
+            return _doc.End;
         }
 
+        var line = Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, _lines.Count - 1);
         var col = Math.Clamp((int)Math.Round((point.X - p.Left) / CharWidth), 0, _lines[line].Length);
-        return (line, col);
+        return new TextPos(line, RawIndex(line, col));
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -403,6 +514,8 @@ public sealed class CodeView : Control
         }
 
         Focus();
+        _doc.Seal();
+        _goalCol = null;
         var hit = HitTest(e.GetPosition(this));
         switch (e.ClickCount)
         {
@@ -410,22 +523,22 @@ public sealed class CodeView : Control
                 SelectWord(hit);
                 break;
             case >= 3:
-                _anchor = (hit.Line, 0);
-                _caret = hit.Line + 1 < _lines.Length ? (hit.Line + 1, 0) : (hit.Line, _lines[hit.Line].Length);
+                _doc.Anchor = new TextPos(hit.Line, 0);
+                _doc.Caret = hit.Line + 1 < _lines.Count ? new TextPos(hit.Line + 1, 0) : new TextPos(hit.Line, _doc.Lines[hit.Line].Length);
                 break;
             default:
                 if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift))
                 {
-                    _anchor = hit;
+                    _doc.Anchor = hit;
                 }
 
-                _caret = hit;
+                _doc.Caret = hit;
                 _selecting = true;
                 e.Pointer.Capture(this);
                 break;
         }
 
-        InvalidateVisual();
+        RestartBlink();
         e.Handled = true;
     }
 
@@ -438,9 +551,9 @@ public sealed class CodeView : Control
         }
 
         var point = e.GetPosition(this);
-        _caret = HitTest(point);
+        _doc.Caret = HitTest(point);
         this.BringIntoView(new Rect(point.X - 2, point.Y - 2, 4, 4)); // Dragging past the edge scrolls.
-        InvalidateVisual();
+        RestartBlink();
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -459,11 +572,12 @@ public sealed class CodeView : Control
         _selecting = false;
     }
 
-    private void SelectWord((int Line, int Col) at)
+    private static bool IsWord(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    private void SelectWord(TextPos at)
     {
-        var text = _lines[at.Line];
-        static bool IsWord(char c) => char.IsLetterOrDigit(c) || c == '_';
-        var start = Math.Min(at.Col, text.Length);
+        var text = _doc.Lines[at.Line];
+        var start = Math.Min(at.Index, text.Length);
         var end = start;
         if (start < text.Length && IsWord(text[start]) || start > 0 && IsWord(text[start - 1]))
         {
@@ -482,67 +596,343 @@ public sealed class CodeView : Control
             end = start + 1;
         }
 
-        _anchor = (at.Line, start);
-        _caret = (at.Line, end);
+        _doc.Anchor = at with { Index = start };
+        _doc.Caret = at with { Index = end };
     }
 
     private void SelectAll()
     {
-        if (_lines.Length == 0)
+        _doc.Seal();
+        _doc.Anchor = new TextPos(0, 0);
+        _doc.Caret = _doc.End;
+        RestartBlink();
+    }
+
+    // Where Ctrl+Left / Ctrl+Right go: over any spaces, then over a word (or a run of other characters).
+    private TextPos WordLeft(TextPos p)
+    {
+        if (p.Index == 0)
         {
-            return;
+            return p.Line > 0 ? new TextPos(p.Line - 1, _doc.Lines[p.Line - 1].Length) : p;
         }
 
-        _anchor = (0, 0);
-        _caret = (_lines.Length - 1, _lines[^1].Length);
-        InvalidateVisual();
+        var text = _doc.Lines[p.Line];
+        var i = p.Index;
+        while (i > 0 && char.IsWhiteSpace(text[i - 1]))
+        {
+            i--;
+        }
+
+        if (i > 0)
+        {
+            var word = IsWord(text[i - 1]);
+            while (i > 0 && !char.IsWhiteSpace(text[i - 1]) && IsWord(text[i - 1]) == word)
+            {
+                i--;
+            }
+        }
+
+        return p with { Index = i };
+    }
+
+    private TextPos WordRight(TextPos p)
+    {
+        var text = _doc.Lines[p.Line];
+        if (p.Index >= text.Length)
+        {
+            return p.Line + 1 < _lines.Count ? new TextPos(p.Line + 1, 0) : p;
+        }
+
+        var i = p.Index;
+        if (!char.IsWhiteSpace(text[i]))
+        {
+            var word = IsWord(text[i]);
+            while (i < text.Length && !char.IsWhiteSpace(text[i]) && IsWord(text[i]) == word)
+            {
+                i++;
+            }
+        }
+
+        while (i < text.Length && char.IsWhiteSpace(text[i]))
+        {
+            i++;
+        }
+
+        return p with { Index = i };
+    }
+
+    /// <summary>A line up or down, keeping to the column it started from.</summary>
+    private TextPos Vertical(TextPos p, int lines)
+    {
+        _goalCol ??= Column(p);
+        var line = Math.Clamp(p.Line + lines, 0, _lines.Count - 1);
+        if (line == p.Line)
+        {
+            return lines < 0 ? p with { Index = 0 } : p with { Index = _doc.Lines[line].Length };
+        }
+
+        return new TextPos(line, RawIndex(line, Math.Min(_goalCol.Value, _lines[line].Length)));
+    }
+
+    private int PageLines => Math.Max(1, (int)((_viewport.Height > 0 ? _viewport.Height : Bounds.Height) / LineHeight) - 1);
+
+    /// <summary>Home goes to the line's first non-blank, or from there to its very start.</summary>
+    private TextPos Home(TextPos p)
+    {
+        var text = _doc.Lines[p.Line];
+        var indent = text.Length - text.TrimStart(' ', '\t').Length;
+        return p with { Index = p.Index == indent ? 0 : indent };
+    }
+
+    private void MoveTo(TextPos to, bool extend, bool keepGoal = false)
+    {
+        _doc.Seal();
+        if (!keepGoal)
+        {
+            _goalCol = null;
+        }
+
+        _doc.Caret = to;
+        if (!extend)
+        {
+            _doc.Anchor = to;
+        }
+
+        RestartBlink();
+        RevealCaret();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.KeyModifiers != KeyModifiers.Control)
+        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Alt) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
         {
             return;
         }
 
-        if (e.Key == Key.A)
+        var caret = _doc.Caret;
+        var (from, to) = Ordered();
+        var editable = IsEditable;
+        switch (e.Key)
         {
-            SelectAll();
-            e.Handled = true;
+            case Key.A when ctrl && !shift:
+                SelectAll();
+                break;
+            case Key.C or Key.Insert when ctrl && !shift:
+                _ = CopyAsync();
+                break;
+            case Key.X when ctrl && !shift && editable:
+                _ = CutAsync();
+                break;
+            case Key.V when ctrl && !shift && editable:
+            case Key.Insert when shift && !ctrl && editable:
+                _ = PasteAsync();
+                break;
+            case Key.Z when ctrl && !shift && editable:
+                _doc.Undo();
+                break;
+            case Key.Y when ctrl && !shift && editable:
+            case Key.Z when ctrl && shift && editable:
+                _doc.Redo();
+                break;
+
+            case Key.Left:
+                MoveTo(HasSelection && !shift && !ctrl ? from : ctrl ? WordLeft(caret) : Step(caret, -1), shift);
+                break;
+            case Key.Right:
+                MoveTo(HasSelection && !shift && !ctrl ? to : ctrl ? WordRight(caret) : Step(caret, 1), shift);
+                break;
+            case Key.Up when !ctrl:
+                MoveTo(Vertical(caret, -1), shift, keepGoal: true);
+                break;
+            case Key.Down when !ctrl:
+                MoveTo(Vertical(caret, 1), shift, keepGoal: true);
+                break;
+            case Key.PageUp when !ctrl:
+                MoveTo(Vertical(caret, -PageLines), shift, keepGoal: true);
+                break;
+            case Key.PageDown when !ctrl:
+                MoveTo(Vertical(caret, PageLines), shift, keepGoal: true);
+                break;
+            case Key.Home:
+                MoveTo(ctrl ? new TextPos(0, 0) : Home(caret), shift);
+                break;
+            case Key.End:
+                MoveTo(ctrl ? _doc.End : caret with { Index = _doc.Lines[caret.Line].Length }, shift);
+                break;
+
+            case Key.Back when editable && !shift:
+                _goalCol = null;
+                _doc.Replace(HasSelection ? from : ctrl ? WordLeft(caret) : Step(caret, -1), HasSelection ? to : caret, "");
+                break;
+            case Key.Delete when editable && !shift:
+                _goalCol = null;
+                _doc.Replace(HasSelection ? from : caret, HasSelection ? to : ctrl ? WordRight(caret) : Step(caret, 1), "");
+                break;
+            case Key.Enter when editable && !ctrl:
+                _goalCol = null;
+                _doc.Seal();
+                var line = _doc.Lines[from.Line];
+                var indent = line[..(line.Length - line.TrimStart(' ', '\t').Length)];
+                _doc.Replace(from, to, "\n" + indent[..Math.Min(indent.Length, from.Index)]);
+                _doc.Seal();
+                break;
+            case Key.Tab when editable && !ctrl:
+                _goalCol = null;
+                Indent(outdent: shift);
+                break;
+            default:
+                return;
         }
-        else if (e.Key is Key.C or Key.Insert)
-        {
-            _ = CopyAsync();
-            e.Handled = true;
-        }
+
+        e.Handled = true;
     }
 
-    /// <summary>The selected text, with its tabs and line breaks as in the file.</summary>
-    private string SelectedText()
+    /// <summary>A character left or right, over line ends.</summary>
+    private TextPos Step(TextPos p, int by)
+    {
+        if (by < 0)
+        {
+            return p.Index > 0 ? p with { Index = p.Index - 1 } : p.Line > 0 ? new TextPos(p.Line - 1, _doc.Lines[p.Line - 1].Length) : p;
+        }
+
+        return p.Index < _doc.Lines[p.Line].Length ? p with { Index = p.Index + 1 } : p.Line + 1 < _lines.Count ? new TextPos(p.Line + 1, 0) : p;
+    }
+
+    private string IndentUnit => _doc.IndentWithTabs ? "\t" : new string(' ', TabSize);
+
+    /// <summary>
+    /// Tab: in a line, spaces (or a tab) to the next stop; over lines, each of them indented. Shift+Tab takes a level of
+    /// indent off each line the selection or caret is on. Either way one undo step.
+    /// </summary>
+    private void Indent(bool outdent)
     {
         var (from, to) = Ordered();
-        var sb = new System.Text.StringBuilder();
-        for (var line = from.Line; line <= to.Line; line++)
+        if (!outdent && from.Line == to.Line)
         {
-            var start = line == from.Line ? RawIndex(line, from.Col) : 0;
-            var end = line == to.Line ? RawIndex(line, to.Col) : _raw[line].Length;
-            sb.Append(_raw[line], start, Math.Max(0, end - start));
-            if (line < to.Line)
+            var unit = _doc.IndentWithTabs ? "\t" : new string(' ', TabSize - Column(from) % TabSize);
+            _doc.Seal();
+            _doc.Replace(from, to, unit);
+            _doc.Seal();
+            return;
+        }
+
+        // A selection ending at a line's very start leaves that line alone.
+        var lastLine = to.Line > from.Line && to.Index == 0 ? to.Line - 1 : to.Line;
+        var lines = new List<string>();
+        var shifts = new List<int>();
+        for (var i = from.Line; i <= lastLine; i++)
+        {
+            var text = _doc.Lines[i];
+            if (outdent)
             {
-                sb.Append(Environment.NewLine);
+                var cut = text.StartsWith('\t') ? 1 : text.Length - text.TrimStart(' ').Length is var spaces && spaces > 0 ? Math.Min(spaces, TabSize) : 0;
+                lines.Add(text[cut..]);
+                shifts.Add(-cut);
+            }
+            else
+            {
+                var add = text.Length == 0 ? "" : IndentUnit;
+                lines.Add(add + text);
+                shifts.Add(add.Length);
             }
         }
 
-        return sb.ToString();
+        if (shifts.All(s => s == 0))
+        {
+            return;
+        }
+
+        var anchor = _doc.Anchor;
+        var caret = _doc.Caret;
+        _doc.Seal();
+        _doc.Replace(new TextPos(from.Line, 0), new TextPos(lastLine, _doc.Lines[lastLine].Length), string.Join('\n', lines));
+        _doc.Seal();
+
+        TextPos Shift(TextPos p) =>
+            p.Line < from.Line || p.Line > lastLine ? p : p with { Index = Math.Max(0, p.Index + shifts[p.Line - from.Line]) };
+
+        // Whole lines stay selected, as they were.
+        _doc.Anchor = Shift(anchor);
+        _doc.Caret = Shift(caret);
+        InvalidateVisual();
+    }
+
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+        if (!IsEditable || string.IsNullOrEmpty(e.Text) || e.Text.Any(char.IsControl))
+        {
+            return;
+        }
+
+        var (from, to) = Ordered();
+        _goalCol = null;
+        _doc.Replace(from, to, e.Text);
+        e.Handled = true;
+    }
+
+    /// <summary>The selected text, with line breaks as the clipboard wants them.</summary>
+    private string SelectedText()
+    {
+        var (from, to) = Ordered();
+        return _doc.GetText(from, to).Replace("\n", Environment.NewLine);
+    }
+
+    /// <summary>With nothing selected, Ctrl+C and Ctrl+X take the caret's whole line.</summary>
+    private (TextPos From, TextPos To) LineSpan()
+    {
+        var line = _doc.Caret.Line;
+        return line + 1 < _lines.Count
+            ? (new TextPos(line, 0), new TextPos(line + 1, 0))
+            : (line > 0 ? new TextPos(line - 1, _doc.Lines[line - 1].Length) : new TextPos(line, 0), _doc.End);
     }
 
     private async Task CopyAsync()
     {
-        if (HasSelection && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        if (HasSelection)
         {
             await clipboard.SetTextAsync(SelectedText());
         }
+        else if (IsEditable)
+        {
+            var line = _doc.Lines[_doc.Caret.Line];
+            await clipboard.SetTextAsync(line + Environment.NewLine);
+        }
+    }
+
+    private async Task CutAsync()
+    {
+        if (!IsEditable || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        var (from, to) = HasSelection ? Ordered() : LineSpan();
+        await clipboard.SetTextAsync(HasSelection ? SelectedText() : _doc.Lines[_doc.Caret.Line] + Environment.NewLine);
+        _doc.Seal();
+        _doc.Replace(from, to, "");
+        _doc.Seal();
+    }
+
+    private async Task PasteAsync()
+    {
+        if (!IsEditable || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard || await clipboard.TryGetTextAsync() is not { Length: > 0 } text)
+        {
+            return;
+        }
+
+        var (from, to) = Ordered();
+        _doc.Seal();
+        _doc.Replace(from, to, text);
+        _doc.Seal();
     }
 }
 

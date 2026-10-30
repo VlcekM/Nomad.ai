@@ -41,14 +41,28 @@ public sealed partial class FilesViewModel : ObservableObject
         Folder = folder;
         Tree?.Dispose();
         Tree = null;
+
+        // Tabs with unsaved edits stay (their files are where they were); the rest go.
+        var edited = Groups.SelectMany(g => g.AllTabs).Where(t => t.IsDirty).ToList();
+        foreach (var tab in Groups.SelectMany(g => g.AllTabs).Except(edited).ToList())
+        {
+            tab.Dispose();
+        }
+
         while (Groups.Count > 1)
         {
             Groups.RemoveAt(Groups.Count - 1);
         }
 
-        Groups[0].Tabs.Clear();
-        Groups[0].ActiveTab = null;
-        Focus(Groups[0]);
+        Groups[0] = new EditorGroup(this);
+        foreach (var tab in edited)
+        {
+            Groups[0].Adopt(tab);
+        }
+
+        ActiveGroup = Groups[0];
+        ActiveGroup.IsFocused = true;
+        NotifySplit();
         if (_shown)
         {
             Show(true);
@@ -102,11 +116,10 @@ public sealed partial class FilesViewModel : ObservableObject
             NotifySplit();
         }
 
-        other.Open(tab.Path, keep: true);
+        // Moved, not copied, with its edits: its tab here goes (and this group with it, if that was its last).
+        from.Release(tab);
+        other.Adopt(tab);
         Focus(other);
-
-        // Moved, not copied: its tab here closes (and this group with it, if that was its last).
-        from.CloseCommand.Execute(tab);
     }
 
     /// <summary>A group's last tab closed: the second group goes away (the first stays, empty).</summary>

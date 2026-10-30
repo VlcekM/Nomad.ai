@@ -73,10 +73,17 @@ public partial class FilesView : UserControl
         }
     }
 
-    // Ctrl+W closes the tab shown in the focused group.
+    // Ctrl+W closes the tab shown in the focused group; Ctrl+S saves it.
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.Key == Key.S && e.KeyModifiers == KeyModifiers.Control && _session?.Files.ActiveGroup is { ActiveTab: { } edited })
+        {
+            edited.SaveCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.W && e.KeyModifiers == KeyModifiers.Control && _session?.Files.ActiveGroup is { ActiveTab: { } tab } group)
         {
             group.CloseCommand.Execute(tab);
