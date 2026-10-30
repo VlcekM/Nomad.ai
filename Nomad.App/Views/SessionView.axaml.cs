@@ -887,6 +887,7 @@ public partial class SessionView : UserControl
 
     private void HideMenus()
     {
+        BackendChip.Flyout?.Hide();
         ModelChip.Flyout?.Hide();
         FlyoutBase.GetAttachedFlyout(ModeRow)?.Hide();
         FlyoutBase.GetAttachedFlyout(WorkflowRow)?.Hide();
