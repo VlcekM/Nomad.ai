@@ -58,6 +58,28 @@
     <Style Selector="Panel#CodeSearch.raised Border#CodeSearchCard">
       <Setter Property="RenderTransform" Value="translateY(0px)" />
     </Style>
+    <!-- The C# status chip: its dot eases between the states' colors. -->
+    <Style Selector="Border.csharp TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
+    <Style Selector="Border.csharp Ellipse">
+      <Setter Property="Fill" Value="{DynamicResource TextMutedBrush}" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Fill" Duration="0:0:0.25" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.csharp.working Ellipse">
+      <Setter Property="Fill" Value="#E0A030" />
+    </Style>
+    <Style Selector="Border.csharp.ready Ellipse">
+      <Setter Property="Fill" Value="{DynamicResource DiffAddBrush}" />
+    </Style>
+    <Style Selector="Border.csharp.failed Ellipse">
+      <Setter Property="Fill" Value="{DynamicResource DangerBrush}" />
+    </Style>
+
     <!-- Find in files (Ctrl+Shift+F): as the code search, with the in-file find's toggles. -->
     <Style Selector="Panel#FindInFiles">
       <Setter Property="Opacity" Value="0" />
@@ -186,13 +208,32 @@
               Margin="0,0,0,6"
               Padding="10,2,2,2">
       <Grid ColumnDefinitions="*,Auto" Height="28">
-        <TextBlock Text="{Binding FolderName}"
-                   ToolTip.Tip="{Binding Folder}"
-                   Foreground="{DynamicResource TextChromeBrush}"
-                   FontSize="{DynamicResource UiFontSizeSmall}"
-                   FontWeight="Medium"
-                   TextTrimming="CharacterEllipsis"
-                   VerticalAlignment="Center" />
+        <DockPanel>
+          <!-- The C# language server: amber while it downloads or loads the solution, green once ready, red if it failed. -->
+          <Border DockPanel.Dock="Right"
+                  Classes="csharp"
+                  Classes.working="{Binding Files.Language.IsWorking, FallbackValue=False}"
+                  Classes.ready="{Binding Files.Language.IsLoaded, FallbackValue=False}"
+                  Classes.failed="{Binding Files.Language.IsFailed, FallbackValue=False}"
+                  IsVisible="{Binding Files.Language, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  ToolTip.Tip="{Binding Files.Language.Status}"
+                  Margin="6,0,4,0"
+                  Padding="6,2"
+                  CornerRadius="5"
+                  VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <Ellipse Width="6" Height="6" VerticalAlignment="Center" />
+              <TextBlock Text="C#" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <TextBlock Text="{Binding FolderName}"
+                     ToolTip.Tip="{Binding Folder}"
+                     Foreground="{DynamicResource TextChromeBrush}"
+                     FontSize="{DynamicResource UiFontSizeSmall}"
+                     FontWeight="Medium"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
+        </DockPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
           <Button Theme="{StaticResource IconButton}"
                   Classes="treetool"

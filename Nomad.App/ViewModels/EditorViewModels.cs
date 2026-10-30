@@ -109,6 +109,11 @@ public sealed partial class FileTab : ObservableObject, IDisposable
     private void OnTextChanged()
     {
         _rescan = true;
+        if (_languageOpen)
+        {
+            Language?.Change(Path, Document.Text);
+        }
+
         ScheduleCrumbs(300);
         ScheduleGitHunks();
     }
@@ -191,9 +196,52 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
         newValue.DirtyChanged += OnDirtyChanged;
         IsDirty = newValue.IsDirty;
+        SyncLanguage();
     }
 
     private void OnCaretChanged() => ScheduleCrumbs(80);
+
+    // The C# language server, told of this file while it is open here (C# files only).
+    private bool _languageOpen;
+
+    public Nomad.App.Ide.CSharpLanguage? Language
+    {
+        get;
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            if (_languageOpen)
+            {
+                field?.Close(Path);
+                _languageOpen = false;
+            }
+
+            field = value;
+            SyncLanguage();
+        }
+    }
+
+    private void SyncLanguage()
+    {
+        if (Language is not { } language || !Nomad.App.Ide.CSharpLanguage.Handles(Path) || Document == CodeDocument.Empty)
+        {
+            return;
+        }
+
+        if (_languageOpen)
+        {
+            language.Change(Path, Document.Text);
+        }
+        else
+        {
+            language.Open(Path, Document.Text);
+            _languageOpen = true;
+        }
+    }
 
     // The file as last committed, and how the text differs from it (the gutter's git margin, the diff view).
     private string[]? _gitBase;
@@ -546,6 +594,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        Language = null;
         _watcher?.Dispose();
         _watcher = null;
         _settle?.Stop();
@@ -628,7 +677,7 @@ public sealed record DiffRow(string Kind, string OldNumber, string NewNumber, st
 /// right end of the row the preview tab (a single click in the tree), which the next preview replaces. The Files view
 /// has one group, or two side by side.
 /// </summary>
-public sealed partial class EditorGroup : ObservableObject
+public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeNavigator
 {
     private readonly FilesViewModel owner;
 
@@ -650,25 +699,117 @@ public sealed partial class EditorGroup : ObservableObject
     /// <summary>Find and replace in the file shown (Ctrl+F, Ctrl+H).</summary>
     public FindViewModel Find { get; }
 
-    /// <summary>F12 or Ctrl+click on a name in the code: off to its declaration.</summary>
-    public void GoToDefinition(string name, string? receiver, int line)
+    // ------------------------------------------------------------------ navigation (ICodeNavigator)
+
+    // The C# language server for the file shown, once it has loaded the solution; until then (and for other files)
+    // the code search's guess stands in.
+    private Nomad.App.Ide.CSharpLanguage? Server(FileTab tab) =>
+        Nomad.App.Ide.CSharpLanguage.Handles(tab.Path) && owner.Language is { IsReady: true } language ? language : null;
+
+    private List<Nomad.Core.Code.CodeSymbol> Guess(FileTab tab, Nomad.App.Ide.CodeSpot spot) =>
+        owner.CodeSearch.Resolve(new Nomad.Core.Code.CodeReference(spot.Name, spot.Receiver, tab.Path, spot.Line), tab.Document.Lines);
+
+    public async Task<bool> LeadsSomewhereAsync(Nomad.App.Ide.CodeSpot spot, CancellationToken cancellationToken)
+    {
+        if (ActiveTab is not { } tab)
+        {
+            return false;
+        }
+
+        if (Server(tab) is { } server && await server.DefinitionAsync(tab.Path, spot.Line, spot.Column, cancellationToken) is { } found)
+        {
+            return found.Count > 0;
+        }
+
+        return Guess(tab, spot).Count > 0;
+    }
+
+    public async Task<Nomad.App.Ide.QuickInfoView?> QuickInfoAsync(Nomad.App.Ide.CodeSpot spot, CancellationToken cancellationToken)
+    {
+        if (ActiveTab is not { } tab)
+        {
+            return null;
+        }
+
+        if (Server(tab) is { } server)
+        {
+            var hover = await server.HoverAsync(tab.Path, spot.Line, spot.Column, cancellationToken);
+            return Nomad.Core.Lsp.HoverText.Parse(hover) is { } parsed
+                ? new Nomad.App.Ide.QuickInfoView(parsed.Info.Signature, parsed.Info.Summary, parsed.Kind, tab.Path)
+                : null;
+        }
+
+        var symbols = Guess(tab, spot);
+        if (symbols.Count == 0)
+        {
+            return null;
+        }
+
+        var info = owner.CodeSearch.Describe(symbols[0], tab.Path, tab.Document.Lines);
+        return new Nomad.App.Ide.QuickInfoView(info.Signature, info.Summary, symbols[0].Kind, symbols[0].Path, symbols.Count - 1);
+    }
+
+    /// <summary>F12 or Ctrl+click on a name in the code: off to its declaration (a library's opens decompiled).</summary>
+    public void GoToDefinition(Nomad.App.Ide.CodeSpot spot) => _ = GoToDefinitionAsync(spot);
+
+    private async Task GoToDefinitionAsync(Nomad.App.Ide.CodeSpot spot)
     {
         TakeFocus();
-        if (ActiveTab is { } tab)
+        if (ActiveTab is not { } tab)
         {
-            _ = owner.CodeSearch.GoToDefinitionAsync(new Nomad.Core.Code.CodeReference(name, receiver, tab.Path, line), tab.Document.Lines);
+            return;
+        }
+
+        if (Server(tab) is { } server && await server.DefinitionAsync(tab.Path, spot.Line, spot.Column) is { } found)
+        {
+            // Several for a partial type: its first part, as Visual Studio's F12 does.
+            if (found.Count > 0)
+            {
+                Open(found[0]);
+            }
+
+            return;
+        }
+
+        await owner.CodeSearch.GoToDefinitionAsync(new Nomad.Core.Code.CodeReference(spot.Name, spot.Receiver, tab.Path, spot.Line), tab.Document.Lines);
+    }
+
+    /// <summary>Ctrl+F12: what implements the interface or member (or overrides it); several are listed to pick from.</summary>
+    public void GoToImplementation(Nomad.App.Ide.CodeSpot spot) => _ = GoToImplementationAsync(spot);
+
+    private async Task GoToImplementationAsync(Nomad.App.Ide.CodeSpot spot)
+    {
+        TakeFocus();
+        if (ActiveTab is not { } tab)
+        {
+            return;
+        }
+
+        if (Server(tab) is not { } server)
+        {
+            // Without the server: whatever goes by the name.
+            owner.CodeSearch.Open(spot.Name);
+            return;
+        }
+
+        if (await server.ImplementationAsync(tab.Path, spot.Line, spot.Column) is not { Count: > 0 } found)
+        {
+            return;
+        }
+
+        if (found.Count == 1)
+        {
+            Open(found[0]);
+        }
+        else
+        {
+            owner.FindInFiles.ShowLocations($"Implementations of {spot.Name}", found);
         }
     }
 
-    /// <summary>What a name in the file shown means (for Ctrl+hover's underline and the Quick Info).</summary>
-    public IReadOnlyList<Nomad.Core.Code.CodeSymbol> Resolve(string name, string? receiver, int line) =>
-        ActiveTab is { } tab
-            ? owner.CodeSearch.Resolve(new Nomad.Core.Code.CodeReference(name, receiver, tab.Path, line), tab.Document.Lines)
-            : [];
-
-    /// <summary>A declaration's Quick Info.</summary>
-    public Nomad.Core.Code.QuickInfo Describe(Nomad.Core.Code.CodeSymbol symbol) =>
-        owner.CodeSearch.Describe(symbol, ActiveTab?.Path, ActiveTab?.Document.Lines);
+    private void Open(Nomad.Core.Lsp.LspLocation location) =>
+        owner.OpenAt(location.Path, (location.Line, location.Column),
+            length: location.EndLine == location.Line ? Math.Max(0, location.EndColumn - location.Column) : 0);
 
     /// <summary>"Ask about this" in the file shown: its lines go to the chat's composer.</summary>
     public void AskAbout(int from, int to, string text)
@@ -760,7 +901,7 @@ public sealed partial class EditorGroup : ObservableObject
             return;
         }
 
-        var tab = new FileTab(path, owner.Folder) { IsPreview = !keep, Group = this };
+        var tab = new FileTab(path, owner.Folder) { IsPreview = !keep, Group = this, Language = owner.Language };
         if (keep)
         {
             Tabs.Add(tab);

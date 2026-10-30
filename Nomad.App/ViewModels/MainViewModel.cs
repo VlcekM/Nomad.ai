@@ -67,6 +67,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (dev.LogPath is { } log)
         {
             Nomad.Core.Codex.CodexServer.RawLine = (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
+            Nomad.Core.Lsp.RoslynServer.RawMessage = (text, outgoing) => { lock (log) { File.AppendAllText(log, (outgoing ? "lsp> " : "lsp< ") + (text.Length > 600 ? text[..600] + "…" : text) + Environment.NewLine); } };
         }
         SessionListItemViewModel.MainBackend = settings.MainBackend;
 

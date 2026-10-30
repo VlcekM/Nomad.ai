@@ -118,14 +118,22 @@ public sealed class CodeView : Control
                 RequestDefinition(at);
             }
         };
-        ContextMenu = new ContextMenu { Items = { ask, definition, new Separator(), cut, copy, paste, new Separator(), all } };
+        var implementation = new MenuItem { Header = "Go to implementation", InputGesture = new KeyGesture(Key.F12, KeyModifiers.Control) };
+        implementation.Click += (_, _) =>
+        {
+            if (definitionAt is { } at)
+            {
+                RequestImplementation(at);
+            }
+        };
+        ContextMenu = new ContextMenu { Items = { ask, definition, implementation, new Separator(), cut, copy, paste, new Separator(), all } };
         ContextMenu.Opening += (_, _) =>
         {
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
             copy.IsEnabled = HasSelection || !_doc.IsReadOnly;
             ask.IsVisible = AskRequested is not null;
             definitionAt = HasSelection ? null : ReferenceAt(_doc.Caret);
-            definition.IsVisible = DefinitionRequested is not null && definitionAt is not null;
+            definition.IsVisible = implementation.IsVisible = Navigator is not null && definitionAt is not null;
         };
     }
 
@@ -1144,14 +1152,8 @@ public sealed class CodeView : Control
         InvalidateVisual();
     }
 
-    /// <summary>F12 or Ctrl+click on a name: the name, what it is used on (see <see cref="CodeReference"/>) and its line, to go to its declaration.</summary>
-    public event Action<string, string?, int>? DefinitionRequested;
-
-    /// <summary>What a name (and what it is used on, and its line) means: its declarations, the likeliest first; none for nothing known.</summary>
-    public Func<string, string?, int, IReadOnlyList<CodeSymbol>>? Resolve { get; set; }
-
-    /// <summary>A declaration's Quick Info, for the tooltip a name shows when the pointer rests on it.</summary>
-    public Func<CodeSymbol, QuickInfo?>? Describe { get; set; }
+    /// <summary>Where names lead and what they are (the group's: the C# language server, or a guess without it).</summary>
+    public ICodeNavigator? Navigator { get; set; }
 
     // A name in the text: where it is, and what comes before its dot ("?" for something that isn't a plain name).
     private readonly record struct Reference(string Name, string? Receiver, int Line, int Start, int End);
@@ -1224,7 +1226,11 @@ public sealed class CodeView : Control
         return point.X >= from && point.X <= to ? reference : null;
     }
 
-    private void RequestDefinition(Reference reference) => DefinitionRequested?.Invoke(reference.Name, reference.Receiver, reference.Line);
+    private static CodeSpot Spot(Reference reference) => new(reference.Name, reference.Receiver, reference.Line, reference.Start);
+
+    private void RequestDefinition(Reference reference) => Navigator?.GoToDefinition(Spot(reference));
+
+    private void RequestImplementation(Reference reference) => Navigator?.GoToImplementation(Spot(reference));
 
     // ------------------------------------------------------------------ Ctrl+hover and Quick Info
 
@@ -1234,19 +1240,54 @@ public sealed class CodeView : Control
     // Where the pointer is over the text (null off it).
     private Point? _pointer;
 
-    // With Ctrl held, the name under the pointer that leads somewhere: underlined, and a click goes there.
+    // With Ctrl held, the name under the pointer that leads somewhere: underlined, and a click goes there. The
+    // navigator is asked (it may take a moment); the name under the pointer then is the one asked about.
     private Reference? _link;
+    private Reference? _linkAsked;
+    private CancellationTokenSource? _linkCts;
     private DateTime _linkUtc;
+
+    private static bool Same(Reference? a, Reference? b) => a is { } x && b is { } y && x.Line == y.Line && x.Start == y.Start;
 
     private void UpdateLink(bool ctrl)
     {
-        Reference? link = null;
-        if (ctrl && !_selecting && _pointer is { } point && ReferenceUnder(point) is { } under)
+        var under = ctrl && !_selecting && _pointer is { } point ? ReferenceUnder(point) : null;
+        if (under is not null && (Same(under, _link) || Same(under, _linkAsked)))
         {
-            link = _link is { } old && old.Line == under.Line && old.Start == under.Start ? old
-                : Resolve?.Invoke(under.Name, under.Receiver, under.Line) is { Count: > 0 } ? under : null;
+            return;
         }
 
+        SetLink(null);
+        _linkCts?.Cancel();
+        _linkAsked = under;
+        if (under is { } asked && Navigator is { } navigator)
+        {
+            var cts = _linkCts = new CancellationTokenSource();
+            _ = AskLinkAsync(navigator, asked, cts.Token);
+        }
+    }
+
+    private async Task AskLinkAsync(ICodeNavigator navigator, Reference asked, CancellationToken cancellationToken)
+    {
+        bool leads;
+        try
+        {
+            leads = await navigator.LeadsSomewhereAsync(Spot(asked), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!cancellationToken.IsCancellationRequested && Same(_linkAsked, asked))
+        {
+            _linkAsked = null;
+            SetLink(leads ? asked : null);
+        }
+    }
+
+    private void SetLink(Reference? link)
+    {
         if (link == _link)
         {
             return;
@@ -1270,18 +1311,19 @@ public sealed class CodeView : Control
     private readonly DispatcherTimer _quickTimer = new() { Interval = TimeSpan.FromMilliseconds(450) };
     private Reference? _quickAt;
     private bool _quickShown;
+    private CancellationTokenSource? _quickCts;
 
     private void UpdateQuickInfo()
     {
         var under = !_selecting && _pointer is { } point ? ReferenceUnder(point) : null;
-        if (under is { } u && _quickAt is { } q && u.Line == q.Line && u.Start == q.Start && (_quickTimer.IsEnabled || _quickShown))
+        if (Same(under, _quickAt) && (_quickTimer.IsEnabled || _quickShown || _quickCts is { IsCancellationRequested: false }))
         {
             return;
         }
 
         HideQuickInfo();
         _quickAt = under;
-        if (under is not null && Describe is not null && Resolve is not null)
+        if (under is not null && Navigator is not null)
         {
             _quickTimer.Start();
         }
@@ -1290,6 +1332,8 @@ public sealed class CodeView : Control
     private void HideQuickInfo()
     {
         _quickTimer.Stop();
+        _quickCts?.Cancel();
+        _quickCts = null;
         if (_quickShown)
         {
             _quickShown = false;
@@ -1298,24 +1342,38 @@ public sealed class CodeView : Control
         }
     }
 
-    private void ShowQuickInfo()
+    private async void ShowQuickInfo()
     {
         _quickTimer.Stop();
-        if (_quickAt is not { } at || Resolve?.Invoke(at.Name, at.Receiver, at.Line) is not { Count: > 0 } symbols)
+        if (_quickAt is not { } at || Navigator is not { } navigator)
         {
             return;
         }
 
-        ToolTip.SetTip(this, QuickInfoContent(symbols));
+        var cts = _quickCts = new CancellationTokenSource();
+        QuickInfoView? info;
+        try
+        {
+            info = await navigator.QuickInfoAsync(Spot(at), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested || !Same(_quickAt, at) || info is null)
+        {
+            return;
+        }
+
+        ToolTip.SetTip(this, QuickInfoContent(info));
         ToolTip.SetIsOpen(this, true);
         _quickShown = true;
     }
 
-    // The declaration's signature in the code's colors with its icon, its summary under it, and how many more there are.
-    private Control QuickInfoContent(IReadOnlyList<CodeSymbol> symbols)
+    // The declaration in the code's colors with its icon, its documentation under it, and how many more there are.
+    private Control QuickInfoContent(QuickInfoView info)
     {
-        var symbol = symbols[0];
-        var info = Describe?.Invoke(symbol) ?? new QuickInfo(symbol.Name, null);
         var signature = new TextBlock
         {
             FontFamily = FontFamily,
@@ -1326,7 +1384,7 @@ public sealed class CodeView : Control
         };
         var text = info.Signature;
         var at = 0;
-        var spans = Highlighter.ForFile(symbol.Path) is { } grammar ? Highlighter.Tokenize(grammar, text, null).Spans : [];
+        var spans = Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, text, null).Spans : [];
         foreach (var span in spans.Where(s => s.Length > 0 && s.Start >= at).OrderBy(s => s.Start))
         {
             if (span.Start > at)
@@ -1344,7 +1402,7 @@ public sealed class CodeView : Control
             signature.Inlines!.Add(new Run(text[at..]) { Foreground = Foreground });
         }
 
-        var icon = new CodeSymbolIcon { Kind = symbol.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
+        var icon = new CodeSymbolIcon { Kind = info.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
         TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
         if (info.Summary is { } summary)
@@ -1352,11 +1410,11 @@ public sealed class CodeView : Control
             panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0) });
         }
 
-        if (symbols.Count > 1)
+        if (info.More > 0)
         {
             panel.Children.Add(new TextBlock
             {
-                Text = $"+{symbols.Count - 1} more with this name (Ctrl+click lists them)",
+                Text = $"+{info.More} more with this name (Ctrl+click lists them)",
                 Foreground = ThemeBrush("TextMutedBrush") ?? Foreground,
                 Margin = new Thickness(24, 0, 0, 0),
             });
@@ -1673,6 +1731,13 @@ public sealed class CodeView : Control
                 if (ReferenceAt(caret) is { } reference)
                 {
                     RequestDefinition(reference);
+                }
+
+                break;
+            case Key.F12 when ctrl && !shift:
+                if (ReferenceAt(caret) is { } implemented)
+                {
+                    RequestImplementation(implemented);
                 }
 
                 break;
@@ -2041,4 +2106,26 @@ internal sealed class SkiaScene(Rect bounds, Rect view, List<SceneItem> items, S
         canvas.DrawSurface(target, area.Left, area.Top);
         canvas.Restore();
     }
+}
+
+/// <summary>A name in the code for the <see cref="ICodeNavigator"/>: its text, what is before its dot, and where it starts (0-based).</summary>
+public readonly record struct CodeSpot(string Name, string? Receiver, int Line, int Column);
+
+/// <summary>What a name is, for its Quick Info: its declaration and documentation, its kind (the icon), the file whose language colors it, and how many more share the name.</summary>
+public sealed record QuickInfoView(string Signature, string? Summary, SymbolKind Kind, string Path, int More = 0);
+
+/// <summary>Where the names in a <see cref="CodeView"/> lead and what they are.</summary>
+public interface ICodeNavigator
+{
+    /// <summary>Ctrl over a name: whether a click on it goes anywhere (it is underlined if so).</summary>
+    Task<bool> LeadsSomewhereAsync(CodeSpot spot, CancellationToken cancellationToken);
+
+    /// <summary>The pointer rests on a name: what it is (null for nothing to say).</summary>
+    Task<QuickInfoView?> QuickInfoAsync(CodeSpot spot, CancellationToken cancellationToken);
+
+    /// <summary>F12 or Ctrl+click: off to its declaration.</summary>
+    void GoToDefinition(CodeSpot spot);
+
+    /// <summary>Ctrl+F12: off to what implements it (a list for several).</summary>
+    void GoToImplementation(CodeSpot spot);
 }

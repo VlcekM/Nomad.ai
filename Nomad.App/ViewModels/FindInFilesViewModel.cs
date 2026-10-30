@@ -56,7 +56,16 @@ public sealed partial class FindInFilesViewModel(FilesViewModel files) : Observa
     [ObservableProperty]
     public partial int SelectedIndex { get; private set; } = -1;
 
-    partial void OnQueryChanged(string value) => Run();
+    // A list of places shown under a title (implementations): the title in the box searches nothing.
+    private bool _listing;
+
+    partial void OnQueryChanged(string value)
+    {
+        if (!_listing)
+        {
+            Run();
+        }
+    }
 
     partial void OnMatchCaseChanged(bool value) => Run();
 
@@ -103,6 +112,49 @@ public sealed partial class FindInFilesViewModel(FilesViewModel files) : Observa
             Run(); // The files may have changed since.
         }
 
+        IsOpen = true;
+        IsShown = true;
+        Dispatcher.UIThread.Post(() => IsRaised = IsOpen, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>Opens it on a list of places (what a language server found), under a title, as its results are shown.</summary>
+    public void ShowLocations(string title, IReadOnlyList<Nomad.Core.Lsp.LspLocation> locations)
+    {
+        if (files.Folder is not { } folder)
+        {
+            return;
+        }
+
+        _cts?.Cancel();
+        var hits = new List<TextHit>();
+        foreach (var location in locations.OrderBy(l => l.Path, StringComparer.OrdinalIgnoreCase).ThenBy(l => l.Line))
+        {
+            string text;
+            try
+            {
+                text = File.ReadLines(location.Path).Skip(location.Line).FirstOrDefault() ?? "";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                text = "";
+            }
+
+            var column = Math.Min(location.Column, text.Length);
+            var length = location.EndLine == location.Line ? Math.Clamp(location.EndColumn - column, 0, text.Length - column) : 0;
+            hits.Add(new TextHit(location.Path, location.Line, column, length, text));
+        }
+
+        _listing = true;
+        Query = title;
+        _listing = false;
+        var rows = new List<FindInFilesRow>();
+        foreach (var file in hits.GroupBy(h => h.Path))
+        {
+            rows.Add(FindInFilesRow.ForFile(file.Key, folder, file.Count()));
+            rows.AddRange(file.Select(FindInFilesRow.ForHit));
+        }
+
+        Show(rows, $"{hits.Count} {(hits.Count == 1 ? "place" : "places")}");
         IsOpen = true;
         IsShown = true;
         Dispatcher.UIThread.Post(() => IsRaised = IsOpen, DispatcherPriority.Loaded);

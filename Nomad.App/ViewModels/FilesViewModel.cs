@@ -52,6 +52,8 @@ public sealed partial class FilesViewModel : ObservableObject
 
         Folder = folder;
         FindInFiles.Close();
+        SetLanguage(null);
+        _languageChecked = false;
         CodeSearch.Close();
         Tree?.Dispose();
         Tree = null;
@@ -115,7 +117,42 @@ public sealed partial class FilesViewModel : ObservableObject
         if (shown)
         {
             CodeSearch.Warm();
+            _ = StartLanguageAsync();
         }
+    }
+
+    /// <summary>The folder's C# language server (null when it has no C#, or until the Files view first shows).</summary>
+    [ObservableProperty]
+    public partial CSharpLanguage? Language { get; private set; }
+
+    private bool _languageChecked;
+
+    // The first time the view shows a folder: if it has a solution or projects, its language server starts.
+    private async Task StartLanguageAsync()
+    {
+        if (_languageChecked || Folder is not { } folder)
+        {
+            return;
+        }
+
+        _languageChecked = true;
+        var hasCSharp = await Task.Run(() => Nomad.Core.Lsp.RoslynServer.FindWork(folder) is not null);
+        if (hasCSharp && Folder == folder && Language is null)
+        {
+            SetLanguage(CSharpLanguage.Acquire(folder));
+        }
+    }
+
+    private void SetLanguage(CSharpLanguage? language)
+    {
+        var old = Language;
+        Language = language;
+        foreach (var tab in Groups.SelectMany(g => g.AllTabs))
+        {
+            tab.Language = language;
+        }
+
+        old?.Release();
     }
 
     /// <summary>Opens a file from the tree in the focused group (as a preview unless it is to be kept).</summary>
