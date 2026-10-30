@@ -55,19 +55,13 @@ public static class MarkdownRenderer
             case HeadingBlock heading:
             {
                 var size = heading.Level switch { 1 => style.H1, 2 => style.H2, _ => style.H3 };
-                var tb = NewTextBlock(size, Math.Round(size * 1.35), quoted ? TextSecondary : TextPrimary);
-                tb.FontWeight = FontWeight.SemiBold;
+                var tb = RenderInlines(heading.Inline, size, Math.Round(size * 1.35), quoted ? TextSecondary : TextPrimary, FontWeight.SemiBold);
                 tb.Margin = new Thickness(0, isFirst ? 0 : 8, 0, 0);
-                AddInlines(tb, heading.Inline, default);
                 return tb;
             }
 
             case ParagraphBlock paragraph:
-            {
-                var tb = NewTextBlock(style.BodySize, style.LineHeight, quoted ? TextSecondary : TextPrimary);
-                AddInlines(tb, paragraph.Inline, default);
-                return tb;
-            }
+                return RenderInlines(paragraph.Inline, style.BodySize, style.LineHeight, quoted ? TextSecondary : TextPrimary);
 
             case ListBlock list:
                 return RenderList(list, quoted);
@@ -138,6 +132,81 @@ public static class MarkdownRenderer
         }
     }
 
+    private static Control RenderInlines(ContainerInline? container, double size, double lineHeight, IBrush foreground, FontWeight weight = default)
+    {
+        MarkdownTextBlock NewBlock()
+        {
+            var block = NewTextBlock(size, lineHeight, foreground);
+            block.FontWeight = weight == default ? FontWeight.Normal : weight;
+            return block;
+        }
+
+        var text = NewBlock();
+        if (container is null || !HasImages(container))
+        {
+            AddInlines(text, container, default);
+            return text;
+        }
+
+        // Split at images, including those inside emphasis or links. Controls embedded in selectable text
+        // do not reliably reserve their height while an image loads.
+        var panel = new StackPanel { Spacing = MarkdownStyle.Current.ParagraphSpacing };
+        foreach (var (inline, style) in Flatten(container, default))
+        {
+            if (inline is LinkInline { IsImage: true } image)
+            {
+                FlushText();
+                panel.Children.Add(new Controls.ChatImage { Source = image.GetDynamicUrl?.Invoke() ?? image.Url, Caption = PlainText(image) });
+            }
+            else
+            {
+                var inlines = text.Inlines ??= new InlineCollection();
+                AddInlines(inlines, LinkSupport.GetLinks(text), container, style, inline, inline.NextSibling);
+            }
+        }
+
+        FlushText();
+        return panel;
+
+        void FlushText()
+        {
+            if (text.Inlines is { Count: > 0 })
+            {
+                panel.Children.Add(text);
+                text = NewBlock();
+            }
+        }
+    }
+
+    private static bool HasImages(ContainerInline container) => container.Any(i =>
+        i is LinkInline { IsImage: true } || i is ContainerInline nested && HasImages(nested));
+
+    private static IEnumerable<(MdInline Inline, InlineStyle Style)> Flatten(ContainerInline container, InlineStyle style)
+    {
+        foreach (var inline in container)
+        {
+            if (inline is EmphasisInline emphasis)
+            {
+                var next = emphasis.DelimiterChar switch
+                {
+                    '*' or '_' when emphasis.DelimiterCount >= 2 => style with { Bold = true },
+                    '*' or '_' => style with { Italic = true },
+                    '~' => style with { Strike = true },
+                    _ => style,
+                };
+                foreach (var part in Flatten(emphasis, next)) yield return part;
+            }
+            else if (inline is ContainerInline nested && inline is not LinkInline { IsImage: true } && HasImages(nested))
+            {
+                foreach (var part in Flatten(nested, style)) yield return part;
+            }
+            else
+            {
+                yield return (inline, style);
+            }
+        }
+    }
+
     private static MarkdownTextBlock NewTextBlock(double size, double lineHeight, IBrush foreground)
     {
         var tb = new MarkdownTextBlock
@@ -168,16 +237,17 @@ public static class MarkdownRenderer
         AddInlines(inlines, links, container, style);
     }
 
-    private static void AddInlines(InlineCollection target, List<LinkRange> links, ContainerInline container, InlineStyle style)
+    private static void AddInlines(InlineCollection target, List<LinkRange> links, ContainerInline container, InlineStyle style,
+        MdInline? first = null, MdInline? end = null)
     {
-        for (var inline = container.FirstChild; inline is not null; inline = inline.NextSibling)
+        for (var inline = first ?? container.FirstChild; inline is not null && inline != end; inline = inline.NextSibling)
         {
             switch (inline)
             {
                 case LiteralInline literal:
                     // Markdig may split one stretch of text into several literals, so a URL is looked for across them.
                     var text = new StringBuilder(literal.Content.ToString());
-                    while (inline.NextSibling is LiteralInline next)
+                    while (inline.NextSibling is LiteralInline next && next != end)
                     {
                         text.Append(next.Content.ToString());
                         inline = next;
@@ -202,7 +272,7 @@ public static class MarkdownRenderer
                     AppendCode(target, links, code.Content);
                     break;
                 case LinkInline { IsImage: true } image:
-                    Append(target, "[" + PlainText(image) + "]", style);
+                    AppendLink(target, links, PlainText(image), image.Url, style);
                     break;
                 case LinkInline { IsAutoLink: true } auto when PlainText(auto) is var address && LinkSupport.TrimUrlEnd(address) is var trimmed
                                                                && trimmed.Length < address.Length && trimmed.Length > 0:
@@ -559,16 +629,11 @@ public static class MarkdownRenderer
                     continue;
                 }
 
-                var tb = NewTextBlock(style.BodySize - 1, style.LineHeight - 2, TextPrimary);
-                tb.MaxWidth = 420;
-                if (row.IsHeader)
-                {
-                    tb.FontWeight = FontWeight.SemiBold;
-                }
-
+                var content = new StackPanel { MaxWidth = 420, Spacing = style.ParagraphSpacing };
                 foreach (var para in cell.OfType<ParagraphBlock>())
                 {
-                    AddInlines(tb, para.Inline, default);
+                    content.Children.Add(RenderInlines(para.Inline, style.BodySize - 1, style.LineHeight - 2,
+                        TextPrimary, row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal));
                 }
 
                 var border = new Border
@@ -577,7 +642,7 @@ public static class MarkdownRenderer
                     BorderBrush = row.IsHeader ? BorderLine : SubtleLine,
                     BorderThickness = new Thickness(0, 0, 0, 1),
                     Background = row.IsHeader ? RaisedBg : Brushes.Transparent,
-                    Child = tb,
+                    Child = content,
                 };
                 Grid.SetRow(border, rowIndex);
                 Grid.SetColumn(border, col);

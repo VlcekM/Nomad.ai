@@ -38,6 +38,8 @@ public abstract partial class UsageSource : ObservableObject
 {
     public ObservableCollection<UsageRow> Rows { get; } = [];
 
+    public virtual IEnumerable<UsageRow> DashboardRows => Rows;
+
     /// <summary>The side panel card's heading.</summary>
     public abstract string CardTitle { get; }
 

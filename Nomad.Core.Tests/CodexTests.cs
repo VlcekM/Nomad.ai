@@ -8,6 +8,48 @@ namespace Nomad.Core.Tests;
 /// <summary>Codex's app-server messages against turns captured from codex-cli 0.163.0 (see Fixtures/codex).</summary>
 public class CodexTests
 {
+    [Fact]
+    public void ViewedImagesReachLiveAndReloadedTranscriptsOnce()
+    {
+        using var notification = JsonDocument.Parse("""{"threadId":"t","item":{"id":"picture","type":"imageView","path":"preview.png"}}""");
+        var translator = new CodexTranslator("t", Cwd);
+        var live = Assert.Single(translator.Handle("item/completed", notification.RootElement).OfType<ToolResultEvent>());
+        Assert.Equal([Path.Combine(Cwd, "preview.png")], live.Images);
+        Assert.Empty(translator.Handle("item/completed", notification.RootElement));
+
+        using var thread = JsonDocument.Parse("""{"turns":[{"id":"turn","items":[{"id":"picture","type":"imageView","path":"preview.png"}]}]}""");
+        var history = CodexHistory.FromThread(thread.RootElement, "t", Cwd);
+        Assert.Equal(live.Images, Assert.Single(history.Items.OfType<HistoryToolResult>()).Images);
+    }
+
+    [Fact]
+    public void McpImagesPreserveTextAndStructuredResults()
+    {
+        using var item = JsonDocument.Parse("""
+            {"id":"mcp","type":"mcpToolCall","status":"completed","result":{
+              "content":[{"type":"text","text":"Screenshot"},{"type":"image","mimeType":"image/png","data":"aW1hZ2U="}],
+              "structuredContent":{"ok":true}}}
+            """);
+        var result = Assert.Single(CodexTools.Results(item.RootElement));
+        Assert.Equal("Screenshot", result.Text);
+        Assert.Equal(["data:image/png;base64,aW1hZ2U="], result.Images);
+        Assert.True(result.Structured.GetProperty("ok").GetBoolean());
+    }
+
+    [Fact]
+    public void DynamicImagesPreserveMixedOutputAndErrorState()
+    {
+        using var item = JsonDocument.Parse("""
+            {"id":"dynamic","type":"dynamicToolCall","status":"completed","success":false,
+             "contentItems":[{"type":"inputText","text":"Partial result"},
+                             {"type":"inputImage","imageUrl":"data:image/png;base64,aW1hZ2U="}]}
+            """);
+        var result = Assert.Single(CodexTools.Results(item.RootElement));
+        Assert.Equal("Partial result", result.Text);
+        Assert.Equal(["data:image/png;base64,aW1hZ2U="], result.Images);
+        Assert.True(result.IsError);
+    }
+
     private const string Cwd = @"C:\Users\Admin\AppData\Local\Temp\opencode\nomad\cwd";
 
     private static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "codex", name);

@@ -24,6 +24,9 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
 
     public override string CardTitle => "OpenCode cost";
 
+    // The month total and the three most expensive models; the popup still has the full breakdown.
+    public override IEnumerable<UsageRow> DashboardRows => Rows.Take(4);
+
     public override string? PageUrl => null;
 
     public override string PageToolTip => "";
@@ -105,6 +108,7 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
         }
 
         ChipText = Money(total);
+        OnPropertyChanged(nameof(DashboardRows));
         WeeklyText = $"OpenCode cost this month: {Money(total)}";
         WeeklyResetsText = forecast is { } g ? $"About {Money(g)} by the end of {month}" : "";
         HasUsage = true;

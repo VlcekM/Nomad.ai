@@ -31,6 +31,9 @@ public sealed class NomadSettings
     /// <summary>The ring at the end of the status row (plan usage; spins while a turn runs, opens the usage limits).</summary>
     public bool ShowUsageRing { get; set; } = true;
 
+    /// <summary>Show the three providers' usage cards above the new-session project picker.</summary>
+    public bool ShowNewSessionUsage { get; set; } = true;
+
     /// <summary>The status row shows only the current model's chip; the other models and the effort slider move into its menu.</summary>
     public bool CompactModelPicker { get; set; }
 
@@ -109,6 +112,9 @@ public sealed class NomadSettings
 
     /// <summary>Session id to the folder approved in Nomad, overriding the transcript's original cwd.</summary>
     public Dictionary<string, string> MovedSessionFolders { get; set; } = [];
+
+    /// <summary>Extra workspace folders selected for each chat; the original working directory stays the same.</summary>
+    public Dictionary<string, List<string>> SessionAdditionalDirectories { get; set; } = [];
 
     // Updates (only a Setup install updates itself)
 
@@ -232,7 +238,7 @@ public sealed class NomadSettings
         }
     }
 
-    /// <summary>Moves a folder to the front of the recent list (max 10).</summary>
+    /// <summary>Moves a folder to the front of the recent list (max 12).</summary>
     public void TouchRecentFolder(string folder)
     {
         RecentFolders.RemoveAll(f => string.Equals(f, folder, StringComparison.OrdinalIgnoreCase));
@@ -242,9 +248,9 @@ public sealed class NomadSettings
             RemovedFolders.Remove(key);
         }
 
-        if (RecentFolders.Count > 10)
+        if (RecentFolders.Count > 12)
         {
-            RecentFolders.RemoveRange(10, RecentFolders.Count - 10);
+            RecentFolders.RemoveRange(12, RecentFolders.Count - 12);
         }
     }
 }

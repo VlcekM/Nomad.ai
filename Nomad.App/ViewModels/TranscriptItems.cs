@@ -10,6 +10,12 @@ namespace Nomad.App.ViewModels;
 /// <summary>Base of everything shown in the transcript column.</summary>
 public abstract class TranscriptItem : ObservableObject;
 
+/// <summary>Images returned by a tool stay visible even when its activity is folded away.</summary>
+public sealed class AssistantImagesItem(IReadOnlyList<string> sources) : TranscriptItem
+{
+    public IReadOnlyList<string> Sources { get; } = sources;
+}
+
 /// <summary>A prompt bubble, with its seen mark, time and Copy / Rewind / Fork on hover.</summary>
 public sealed partial class UserMessageItem(string text, string? uuid, DateTime sentUtc, bool seen) : TranscriptItem
 {

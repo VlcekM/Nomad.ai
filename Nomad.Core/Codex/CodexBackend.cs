@@ -16,6 +16,7 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
     private CodexServer? _server;
     private CodexTranslator? _translator;
     private string _directory = "";
+    private IReadOnlyList<string> _additionalDirectories = [];
     private volatile string? _model;
     private volatile string? _effort;
     private volatile string _mode = "default";
@@ -49,6 +50,7 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
         }
 
         _directory = options.WorkingDirectory;
+        _additionalDirectories = options.AdditionalDirectories;
         _model = string.IsNullOrEmpty(options.Model) ? null : options.Model;
         _effort = string.IsNullOrEmpty(options.Effort) ? null : options.Effort;
         _mode = options.PermissionMode ?? "default";
@@ -64,6 +66,9 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
             ["approvalsReviewer"] = reviewer,
             ["sandbox"] = sandbox,
         };
+        // Send an empty string too, so removing the last folder clears instructions saved on the thread.
+        parameters["developerInstructions"] = _additionalDirectories.Count == 0 ? ""
+            : "Additional workspace folders selected by the user:\n" + string.Join("\n", _additionalDirectories);
 
         JsonElement result;
         if (options.ResumeSessionId is { } source && options.ForkSession)
@@ -381,13 +386,13 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
         _ => ("on-request", "read-only", "user"),
     };
 
-    private static JsonObject SandboxPolicy(string mode) => Policy(mode).Sandbox switch
+    private JsonObject SandboxPolicy(string mode) => Policy(mode).Sandbox switch
     {
         "danger-full-access" => new JsonObject { ["type"] = "dangerFullAccess" },
         "workspace-write" => new JsonObject
         {
             ["type"] = "workspaceWrite",
-            ["writableRoots"] = new JsonArray(),
+            ["writableRoots"] = new JsonArray(_additionalDirectories.Prepend(_directory).Select(p => (JsonNode?)JsonValue.Create(p)).ToArray()),
             ["networkAccess"] = false,
             ["excludeTmpdirEnvVar"] = false,
             ["excludeSlashTmp"] = false,

@@ -28,7 +28,10 @@ public sealed record HistoryThinking(string Text) : HistoryItem;
 
 public sealed record HistoryToolCall(string ToolUseId, string Name, JsonElement Input) : HistoryItem;
 
-public sealed record HistoryToolResult(string ToolUseId, bool IsError, string Text, JsonElement Structured) : HistoryItem;
+public sealed record HistoryToolResult(string ToolUseId, bool IsError, string Text, JsonElement Structured) : HistoryItem
+{
+    public IReadOnlyList<string> Images { get; init; } = [];
+}
 
 /// <summary>Muted one-line notices: truncation, interruption, compaction.</summary>
 public sealed record HistoryNotice(string Text) : HistoryItem;

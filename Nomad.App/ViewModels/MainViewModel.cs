@@ -36,6 +36,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The ChatGPT plan's Codex limits (Codex sessions' usage).</summary>
     public CodexUsageViewModel CodexUsage { get; } = new();
 
+    public LocalTokenUsageViewModel LocalTokens { get; } = new();
+
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
 
@@ -98,16 +100,16 @@ public sealed partial class MainViewModel : ObservableObject
         _usageTimer.Tick += (_, _) =>
         {
             _ = Usage.RefreshAsync();
-            if (!Current.IsClaudeCode)
+            if (Current.IsNew || !Current.IsClaudeCode)
             {
-                _ = Current.Usage.RefreshAsync();
+                _ = RefreshVisibleUsageAsync();
             }
         };
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
-        if (!Current.IsClaudeCode)
+        if (Current.IsNew || !Current.IsClaudeCode)
         {
-            _ = Current.Usage.RefreshAsync(force: true);
+            _ = RefreshVisibleUsageAsync(force: true);
         }
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
@@ -541,6 +543,32 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The provider usage cards above recent projects on the new-session screen.</summary>
+    public bool ShowNewSessionUsage
+    {
+        get => Settings.ShowNewSessionUsage;
+        set
+        {
+            if (Settings.ShowNewSessionUsage == value)
+            {
+                return;
+            }
+
+            Settings.ShowNewSessionUsage = value;
+            SaveSettings();
+            OnPropertyChanged();
+            foreach (var session in _open.Values.Append(Current).Distinct())
+            {
+                session.OnShowNewSessionUsageChanged();
+            }
+
+            if (value && Current.IsNew)
+            {
+                _ = RefreshVisibleUsageAsync();
+            }
+        }
+    }
+
     /// <summary>Only the current model's chip on the status row; the rest are in its menu.</summary>
     public bool CompactModelPicker
     {
@@ -852,13 +880,15 @@ public sealed partial class MainViewModel : ObservableObject
     // Leaving a session while its title is being edited keeps the new name.
     partial void OnCurrentChanging(SessionViewModel value) => EndTitleRename(save: true);
 
+    // The new-session dashboard shows all three providers, independent of the selected backend.
+    private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew && ShowNewSessionUsage
+        ? Task.WhenAll(Usage.RefreshAsync(force), CodexUsage.RefreshAsync(force), OpenCodeCost.RefreshAsync(force), LocalTokens.RefreshAsync(force))
+        : Current.Usage.RefreshAsync(force);
+
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
         newValue?.ApplyDefaultMode();
-        if (newValue is { IsClaudeCode: false })
-        {
-            _ = newValue.Usage.RefreshAsync();
-        }
+        _ = RefreshVisibleUsageAsync();
 
         if (oldValue is not null)
         {

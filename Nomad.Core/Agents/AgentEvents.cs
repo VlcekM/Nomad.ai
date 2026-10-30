@@ -102,7 +102,11 @@ public sealed record ToolResultEvent(
     bool IsError,
     string Text,
     JsonElement Structured,
-    string? ParentToolUseId) : AgentEvent;
+    string? ParentToolUseId) : AgentEvent
+{
+    /// <summary>Image URLs, local paths or data URLs returned by the tool, displayed outside folded activity.</summary>
+    public IReadOnlyList<string> Images { get; init; } = [];
+}
 
 public sealed record PermissionRequestedEvent(PermissionRequest Request) : AgentEvent;
 
@@ -189,6 +193,7 @@ public sealed record PermissionDecision(PermissionChoice Choice, string? DenyMes
 public sealed record AgentStartOptions
 {
     public required string WorkingDirectory { get; init; }
+    public IReadOnlyList<string> AdditionalDirectories { get; init; } = [];
     public string? Model { get; init; }
     public string? PermissionMode { get; init; }
     public string? Effort { get; init; }

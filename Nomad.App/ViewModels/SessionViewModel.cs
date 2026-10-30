@@ -484,6 +484,66 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string FolderToolTip => Folder ?? "Claude works in a new scratch folder";
 
+    public ObservableCollection<MenuOption> AdditionalFolders { get; } = [];
+    public string AdditionalFoldersLabel => AdditionalFolders.Count switch
+    {
+        0 => "Add folder",
+        1 => "+1 folder",
+        var count => $"+{count} folders",
+    };
+
+    public void AddFolders(IEnumerable<string> paths)
+    {
+        if (!CanChangeAdditionalFolders()) return;
+        var count = AdditionalFolders.Count;
+        foreach (var path in paths.Where(Directory.Exists).Select(Path.GetFullPath))
+        {
+            if (!IsFolder(path) && !AdditionalFolders.Any(f => string.Equals(f.Id.TrimEnd('\\', '/'), path.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+            {
+                AdditionalFolders.Add(new MenuOption(path, Format.FolderName(path), toolTip: path));
+            }
+        }
+        if (AdditionalFolders.Count != count) AdditionalFoldersChanged();
+    }
+
+    public void RemoveAdditionalFolder(MenuOption folder)
+    {
+        if (!CanChangeAdditionalFolders()) return;
+        if (AdditionalFolders.Remove(folder)) AdditionalFoldersChanged();
+    }
+
+    private bool CanChangeAdditionalFolders()
+    {
+        if (!IsTurnRunning && !HasBackgroundWork && !_movingFolder) return true;
+        Items.Add(new NoticeItem("Wait for the chat and its background tasks to finish before changing folders."));
+        return false;
+    }
+
+    private void AdditionalFoldersChanged()
+    {
+        _restartRequired = true;
+        OnPropertyChanged(nameof(AdditionalFoldersLabel));
+        RememberAdditionalFolders();
+    }
+
+    private void RememberAdditionalFolders()
+    {
+        if (SessionId is not { } id) return;
+        if (AdditionalFolders.Count == 0) _main.Settings.SessionAdditionalDirectories.Remove(id);
+        else _main.Settings.SessionAdditionalDirectories[id] = AdditionalFolders.Select(f => f.Id).ToList();
+        _main.SaveSettings();
+    }
+
+    private void LoadAdditionalFolders(string sessionId)
+    {
+        AdditionalFolders.Clear();
+        foreach (var path in _main.Settings.SessionAdditionalDirectories.GetValueOrDefault(sessionId) ?? [])
+        {
+            AdditionalFolders.Add(new MenuOption(path, Format.FolderName(path), toolTip: path));
+        }
+        OnPropertyChanged(nameof(AdditionalFoldersLabel));
+    }
+
     public bool HasTitle => !IsNew && !string.IsNullOrEmpty(Title);
 
     public string TitleOrPlaceholder => IsNew || string.IsNullOrEmpty(Title) ? "New session" : Title;
@@ -970,8 +1030,8 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         var pinned = _main.Settings.PinnedFolders.Where(Directory.Exists).ToList();
         bool IsPinned(string f) => pinned.Any(p => string.Equals(p.TrimEnd('\\', '/'), f.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
-        var recent = folders.Where(f => !IsPinned(f)).Take(Math.Max(0, 6 - pinned.Count));
-        var wanted = pinned.Concat(recent).Select(_main.ProjectFor).ToList();
+        var recent = folders.Where(f => !IsPinned(f)).Take(Math.Max(0, 12 - pinned.Count));
+        var wanted = pinned.Concat(recent).Take(12).Select(_main.ProjectFor).ToList();
         foreach (var p in wanted)
         {
             p.IsPinned = IsPinned(p.Path);
@@ -1485,6 +1545,10 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The usage ring is shown in the status row (a setting).</summary>
     public bool ShowUsageRing => _main.ShowUsageRing;
 
+    public bool ShowNewSessionUsage => _main.ShowNewSessionUsage;
+
+    public void OnShowNewSessionUsageChanged() => OnPropertyChanged(nameof(ShowNewSessionUsage));
+
     public void OnShowUsageRingChanged() => OnPropertyChanged(nameof(ShowUsageRing));
 
     // ------------------------------------------------------------------ files view
@@ -1922,7 +1986,13 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
-    /// <summary>The ring's popup and the usage card: Claude's plan limits, Codex's ChatGPT plan limits, or on OpenCode the month's API cost.</summary>
+    // All three sources stay visible on the new-session dashboard.
+    public UsageViewModel ClaudeUsage => _main.Usage;
+    public CodexUsageViewModel CodexUsage => _main.CodexUsage;
+    public OpenCodeCostViewModel OpenCodeCost => _main.OpenCodeCost;
+    public LocalTokenUsageViewModel LocalTokens => _main.LocalTokens;
+
+    /// <summary>The ring's popup and the usage card: limits or costs for this session's backend.</summary>
     public UsageSource Usage => Backend switch
     {
         AgentBackends.OpenCode => _main.OpenCodeCost,
@@ -2485,6 +2555,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public void LoadHistory(SessionSummary summary, SessionHistory history)
     {
         SessionId = history.SessionId;
+        LoadAdditionalFolders(history.SessionId);
         Title = summary.Title;
         IsNew = false;
         Folder = _main.Settings.MovedSessionFolders.GetValueOrDefault(SessionId) ?? history.WorkingDirectory ?? summary.WorkingDirectory;
@@ -2545,7 +2616,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     call.SetInput(c.Input);
                     break;
                 case HistoryToolResult r:
-                    CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+                    CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                     break;
                 case HistoryNotice n when n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal) && Workflows.Count > 0:
                     break; // Its card says it ended.
@@ -2727,6 +2798,7 @@ public sealed partial class SessionViewModel : ObservableObject
         await backend.StartAsync(new AgentStartOptions
         {
             WorkingDirectory = Folder,
+            AdditionalDirectories = AdditionalFolders.Select(f => f.Id).ToArray(),
             Model = Model,
             PermissionMode = PermissionMode,
             Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
@@ -2817,6 +2889,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public void PrepareFork(string sessionId, string? resumeAt, IEnumerable<TranscriptItem> items)
     {
         _forkFrom = sessionId;
+        LoadAdditionalFolders(sessionId);
         _resumeAt = resumeAt;
         foreach (var item in items)
         {
@@ -2890,6 +2963,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)
                 {
                     SessionId = s.SessionId;
+                    RememberAdditionalFolders();
                     _main.OnSessionIdentified(this);
                     RememberBridge();
                 }
@@ -3053,7 +3127,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ToolResultEvent r when r.ParentToolUseId is null:
-                CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured);
+                CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                 _main.OnGitHubLinksMentioned(this, r.Text);
 
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
@@ -3298,7 +3372,7 @@ public sealed partial class SessionViewModel : ObservableObject
         return call;
     }
 
-    private void CompleteCall(string toolUseId, bool isError, string text, System.Text.Json.JsonElement structured)
+    private void CompleteCall(string toolUseId, bool isError, string text, System.Text.Json.JsonElement structured, IReadOnlyList<string>? images = null)
     {
         if (!_calls.TryGetValue(toolUseId, out var call))
         {
@@ -3309,6 +3383,12 @@ public sealed partial class SessionViewModel : ObservableObject
         call.ResultText = text.Length > MaxResultChars ? text[..MaxResultChars] + "\n…" : text;
         (call.Added, call.Removed) = isError ? (0, 0) : ToolText.DiffStat(call.Name, structured);
         _groupOfCall[toolUseId].Refresh();
+
+        if (images is { Count: > 0 })
+        {
+            CloseGroup();
+            Items.Add(new AssistantImagesItem(images));
+        }
 
         // Files sent to the user show in the transcript itself, after the activity line (which the next tool reopens).
         if (call.Name == "SendUserFile" && !isError && new SentFilesItem(call.Input, call.Cwd) is { IsEmpty: false } sent)

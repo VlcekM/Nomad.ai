@@ -6,7 +6,25 @@
              xmlns:inf="using:Nomad.App.Infrastructure"
              xmlns:core="using:Nomad.Core.Agents"
              x:Class="Nomad.App.Views.SessionView"
-             x:DataType="vm:SessionViewModel">
+             x:DataType="vm:SessionViewModel"
+             c:ChatImage.BaseDirectory="{Binding Folder}">
+
+  <UserControl.Resources>
+    <DataTemplate x:Key="DashboardUsageTemplate" x:DataType="vm:UsageSource">
+      <StackPanel Spacing="10">
+        <c:Skeleton IsActive="{Binding IsLoading}" Rows="3" RowHeight="8" RowSpacing="16" Widths="0.9,0.7,0.8" Fill="{DynamicResource SkeletonBrush}" />
+        <ItemsControl ItemsSource="{Binding DashboardRows}" c:Fold.IsOpen="{Binding HasUsage}" IsVisible="False" ItemTemplate="{StaticResource UsageRowTemplate}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+        </ItemsControl>
+        <TextBlock Text="{Binding UnavailableText}" c:Fold.IsOpen="{Binding IsUnavailable}" IsVisible="False"
+                   Classes="muted" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeSmall}" />
+        <ContentControl Content="{Binding}" ContentTemplate="{StaticResource UsageStaleTemplate}"
+                        c:Fold.IsOpen="{Binding IsStale}" IsVisible="False" />
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.Resources>
 
   <UserControl.Styles>
     <!-- A workflow run's card; its phase dots: muted while pending, the accent while running, filled when done. -->
@@ -369,7 +387,8 @@
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="14,12,14,11" />
-      <Setter Property="Width" Value="322" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="5" />
       <Setter Property="Height" Value="163" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Stretch" />
@@ -604,6 +623,19 @@
           </Button>
         </StackPanel>
       </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:AssistantImagesItem}" x:DataType="vm:AssistantImagesItem">
+      <ItemsControl ItemsSource="{Binding Sources}" Margin="0,10,0,4">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="x:String">
+            <c:ChatImage Source="{Binding}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
     </DataTemplate>
 
     <!-- Files Claude sent (SendUserFile): the caption, images large (a click opens the viewer), other files as chips. -->
@@ -1291,9 +1323,58 @@
         </StackPanel>
       </Border>
 
-      <!-- New session: the latest projects as cards (click one to work there), then No folder / Open folder…. -->
+      <!-- New session: optional provider usage, followed by up to twelve projects. -->
       <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
+        <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
+          <Border Name="NewSessionUsage" c:Fold.IsOpen="{Binding ShowNewSessionUsage}" IsVisible="False">
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" Margin="0,0,0,26">
+              <Border Grid.Column="0" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
+                <DockPanel>
+                  <TransitioningContentControl DockPanel.Dock="Bottom" Content="{Binding LocalTokens.ClaudeText}" Margin="0,12,0,0"
+                                               ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
+                    <TransitioningContentControl.PageTransition>
+                      <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
+                    </TransitioningContentControl.PageTransition>
+                    <TransitioningContentControl.ContentTemplate>
+                      <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" /></DataTemplate>
+                    </TransitioningContentControl.ContentTemplate>
+                  </TransitioningContentControl>
+                  <StackPanel Spacing="12">
+                    <TextBlock Text="Claude" FontWeight="Medium" />
+                    <ContentControl Content="{Binding ClaudeUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Grid.Column="1" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
+                <DockPanel>
+                  <TransitioningContentControl DockPanel.Dock="Bottom" Content="{Binding LocalTokens.CodexText}" Margin="0,12,0,0"
+                                               ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
+                    <TransitioningContentControl.PageTransition>
+                      <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
+                    </TransitioningContentControl.PageTransition>
+                    <TransitioningContentControl.ContentTemplate>
+                      <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" /></DataTemplate>
+                    </TransitioningContentControl.ContentTemplate>
+                  </TransitioningContentControl>
+                  <StackPanel Spacing="12">
+                    <TextBlock Text="Codex" FontWeight="Medium" />
+                    <ContentControl Content="{Binding CodexUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <Border Grid.Column="2" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
+                <StackPanel Spacing="12">
+                  <TextBlock Text="OpenCode cost" FontWeight="Medium" />
+                  <c:UsageHoverSpace>
+                    <ContentControl Content="{Binding OpenCodeCost}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+                  </c:UsageHoverSpace>
+                </StackPanel>
+              </Border>
+            </Grid>
+          </Border>
           <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
             <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
             <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
@@ -1309,10 +1390,10 @@
               </StackPanel>
             </Button>
           </Grid>
-          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}">
+          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}" Margin="-5">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                <UniformGrid Columns="4" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -1841,6 +1922,35 @@
         Git, for a folder in a repository. New session: the branch (click to switch it, or with Worktree on to pick the
         one the worktree starts from) and the Worktree switch. A started session shows its branch in the title bar.
       -->
+      <Button Name="AdditionalFoldersChip" Theme="{StaticResource ChipButton}" Margin="4,0,0,0"
+              IsEnabled="{Binding IsIdle}" ToolTip.Tip="Additional folders this chat can work in">
+        <TextBlock Classes="status" Text="{Binding AdditionalFoldersLabel}" />
+        <Button.Flyout>
+          <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
+            <StackPanel Width="280">
+              <TextBlock Text="Additional folders" Classes="menuheader" />
+              <ScrollViewer MaxHeight="300">
+                <ItemsControl Name="AdditionalFolderList" ItemsSource="{Binding AdditionalFolders}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MenuOption">
+                      <Grid ColumnDefinitions="*,Auto" Margin="8,4">
+                        <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding ToolTip}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Theme="{StaticResource IconButton}" Click="OnRemoveAdditionalFolderClick" ToolTip.Tip="Remove folder">
+                          <c:Icon Size="12" Data="{StaticResource IconClose}" />
+                        </Button>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <Border Classes="rule" />
+              <Button Theme="{StaticResource MenuItemButton}" Click="OnAddFoldersClick">
+                <TextBlock Text="Add folder…" />
+              </Button>
+            </StackPanel>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
       <StackPanel Orientation="Horizontal" IsVisible="{Binding ShowWorktreeToggle}" Margin="4,0,0,0">
         <Button Name="BranchChip"
                 Theme="{StaticResource ChipButton}"

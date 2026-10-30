@@ -17,6 +17,7 @@ public sealed class OpenCodeBackend : IAgentBackend
     private OpenCodeTranslator? _translator;
     private Task? _events;
     private string _directory = "";
+    private IReadOnlyList<string> _additionalDirectories = [];
     private string? _model;
     private volatile string? _variant;
     private string _mode = "default";
@@ -50,6 +51,7 @@ public sealed class OpenCodeBackend : IAgentBackend
         }
 
         _directory = options.WorkingDirectory;
+        _additionalDirectories = options.AdditionalDirectories;
         _model = IsOpenCodeModel(options.Model) ? options.Model : null;
         _variant = string.IsNullOrEmpty(options.Effort) ? null : options.Effort;
         _mode = options.PermissionMode ?? "default";
@@ -101,7 +103,9 @@ public sealed class OpenCodeBackend : IAgentBackend
         Raise(new TurnStartedEvent(text));
         try
         {
-            await OpenCodeClient.PromptAsync(server, _directory, id, text, images, _model, AgentFor(_mode), null, _variant, cancellationToken).ConfigureAwait(false);
+            var context = _additionalDirectories.Count == 0 ? null
+                : "Additional workspace folders selected by the user:\n" + string.Join("\n", _additionalDirectories);
+            await OpenCodeClient.PromptAsync(server, _directory, id, text, images, _model, AgentFor(_mode), null, _variant, cancellationToken, context).ConfigureAwait(false);
         }
         catch
         {
