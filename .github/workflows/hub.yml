@@ -1,5 +1,5 @@
 # Builds the Nomad Hub image and pushes it to GitHub Container Registry (ghcr.io/vlcekm/nomad-hub) on every push to
-# main that touches the hub. Uses the workflow's own token: no secrets to set up.
+# main that touches the hub (the workflow's own token), then redeploys it on Aquila (secret NOMAD_HUB_DEPLOY_TOKEN).
 name: Hub image
 
 on:
@@ -55,3 +55,14 @@ jobs:
             org.opencontainers.image.title=Nomad Hub
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # The hub on Aquila (/root/proj/nomad-hub, on WireGuard only) pulls the new image.
+      - name: Deploy
+        if: github.ref == 'refs/heads/main'
+        env:
+          DEPLOY_TOKEN: ${{ secrets.NOMAD_HUB_DEPLOY_TOKEN }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-connrefused --max-time 120 \
+            -X POST "https://hooks.cloudovna.eu/hooks/nomad-hub" \
+            -H "X-Deploy-Token: $DEPLOY_TOKEN"
