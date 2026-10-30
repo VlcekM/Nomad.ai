@@ -3,6 +3,16 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.21.0
+
+- Codex joins Claude Code and OpenCode as an agent, on your ChatGPT plan or an API key: pick it in the agent chip.
+  Its models and their reasoning efforts, the five modes (Manual, Accept edits, Auto, Plan, Bypass) mapped onto its
+  sandbox and approvals, its commands and file edits as tool cards with diffs, approvals and questions as cards, its
+  plan as a todo list. Its threads show in the sidebar and open with their history; rename, rewind and fork work.
+- In Codex sessions the usage ring and card show the plan's 5-hour and weekly Codex limits, with pace and forecast,
+  and See all opens chatgpt.com's usage page. A Codex path setting sits beside the OpenCode one.
+- OpenCode's reasoning is written out in the chat as it streams, like a reply, instead of folded into a Thought line.
+
 ## v1.20.2
 
 - OpenCode's cost card and popup show each model's tokens (in, out, thinking, cache read and write) under its row
