@@ -19,6 +19,13 @@ the Claude desktop app from before its late-2026 restyle (see `DESIGN.md`).
 
 ## Run and build
 
+Chat titles accept spaces in both the sidebar and title bar. Use **Add folder** beside the chat's
+working folder to attach more directories (or remove them from that menu). Selections are saved per
+chat and apply on the next prompt; the working directory stays the same. Finish running turns and
+background tasks before changing folders. Claude Code receives `--add-dir`; Codex includes them as
+workspace write roots in Accept edits / Auto; OpenCode receives their paths as context and keeps
+its normal permission prompts.
+
 ```powershell
 dotnet run --project Nomad.App          # debug build
 dotnet test Nomad.Core.Tests            # protocol parsing and session title tests

@@ -76,7 +76,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             ForkSession = options.ForkSession,
             NewSessionId = string.IsNullOrWhiteSpace(options.ResumeSessionId) || options.ForkSession ? Guid.NewGuid().ToString() : null,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
-            ExtraArguments = ["--append-system-prompt", FolderMoveTool.Instructions, .. options.ExtraArguments],
+            ExtraArguments = ["--append-system-prompt", FolderMoveTool.Instructions,
+                .. options.AdditionalDirectories.SelectMany(path => new[] { "--add-dir", path }), .. options.ExtraArguments],
         };
 
         SessionId = options.ForkSession ? null : options.ResumeSessionId;

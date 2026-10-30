@@ -484,6 +484,66 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string FolderToolTip => Folder ?? "Claude works in a new scratch folder";
 
+    public ObservableCollection<MenuOption> AdditionalFolders { get; } = [];
+    public string AdditionalFoldersLabel => AdditionalFolders.Count switch
+    {
+        0 => "Add folder",
+        1 => "+1 folder",
+        var count => $"+{count} folders",
+    };
+
+    public void AddFolders(IEnumerable<string> paths)
+    {
+        if (!CanChangeAdditionalFolders()) return;
+        var count = AdditionalFolders.Count;
+        foreach (var path in paths.Where(Directory.Exists).Select(Path.GetFullPath))
+        {
+            if (!IsFolder(path) && !AdditionalFolders.Any(f => string.Equals(f.Id.TrimEnd('\\', '/'), path.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+            {
+                AdditionalFolders.Add(new MenuOption(path, Format.FolderName(path), toolTip: path));
+            }
+        }
+        if (AdditionalFolders.Count != count) AdditionalFoldersChanged();
+    }
+
+    public void RemoveAdditionalFolder(MenuOption folder)
+    {
+        if (!CanChangeAdditionalFolders()) return;
+        if (AdditionalFolders.Remove(folder)) AdditionalFoldersChanged();
+    }
+
+    private bool CanChangeAdditionalFolders()
+    {
+        if (!IsTurnRunning && !HasBackgroundWork && !_movingFolder) return true;
+        Items.Add(new NoticeItem("Wait for the chat and its background tasks to finish before changing folders."));
+        return false;
+    }
+
+    private void AdditionalFoldersChanged()
+    {
+        _restartRequired = true;
+        OnPropertyChanged(nameof(AdditionalFoldersLabel));
+        RememberAdditionalFolders();
+    }
+
+    private void RememberAdditionalFolders()
+    {
+        if (SessionId is not { } id) return;
+        if (AdditionalFolders.Count == 0) _main.Settings.SessionAdditionalDirectories.Remove(id);
+        else _main.Settings.SessionAdditionalDirectories[id] = AdditionalFolders.Select(f => f.Id).ToList();
+        _main.SaveSettings();
+    }
+
+    private void LoadAdditionalFolders(string sessionId)
+    {
+        AdditionalFolders.Clear();
+        foreach (var path in _main.Settings.SessionAdditionalDirectories.GetValueOrDefault(sessionId) ?? [])
+        {
+            AdditionalFolders.Add(new MenuOption(path, Format.FolderName(path), toolTip: path));
+        }
+        OnPropertyChanged(nameof(AdditionalFoldersLabel));
+    }
+
     public bool HasTitle => !IsNew && !string.IsNullOrEmpty(Title);
 
     public string TitleOrPlaceholder => IsNew || string.IsNullOrEmpty(Title) ? "New session" : Title;
@@ -2485,6 +2545,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public void LoadHistory(SessionSummary summary, SessionHistory history)
     {
         SessionId = history.SessionId;
+        LoadAdditionalFolders(history.SessionId);
         Title = summary.Title;
         IsNew = false;
         Folder = _main.Settings.MovedSessionFolders.GetValueOrDefault(SessionId) ?? history.WorkingDirectory ?? summary.WorkingDirectory;
@@ -2727,6 +2788,7 @@ public sealed partial class SessionViewModel : ObservableObject
         await backend.StartAsync(new AgentStartOptions
         {
             WorkingDirectory = Folder,
+            AdditionalDirectories = AdditionalFolders.Select(f => f.Id).ToArray(),
             Model = Model,
             PermissionMode = PermissionMode,
             Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
@@ -2817,6 +2879,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public void PrepareFork(string sessionId, string? resumeAt, IEnumerable<TranscriptItem> items)
     {
         _forkFrom = sessionId;
+        LoadAdditionalFolders(sessionId);
         _resumeAt = resumeAt;
         foreach (var item in items)
         {
@@ -2890,6 +2953,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)
                 {
                     SessionId = s.SessionId;
+                    RememberAdditionalFolders();
                     _main.OnSessionIdentified(this);
                     RememberBridge();
                 }

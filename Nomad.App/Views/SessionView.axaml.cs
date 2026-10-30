@@ -51,6 +51,8 @@ public partial class SessionView : UserControl
         TrackOpen(ModelChip, ModelChip.Flyout);
         TrackOpen(ModeRow, FlyoutBase.GetAttachedFlyout(ModeRow));
         TrackOpen(FolderChip, FlyoutBase.GetAttachedFlyout(FolderChip));
+        TrackOpen(AdditionalFoldersChip, AdditionalFoldersChip.Flyout);
+        AdditionalFolderList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
         TrackOpen(UsageChip, UsageChip.Flyout);
         if (ModelChip.Flyout is { } models)
         {
@@ -878,6 +880,9 @@ public partial class SessionView : UserControl
             case "folder":
                 FlyoutBase.ShowAttachedFlyout(FolderChip);
                 break;
+            case "additional-folders":
+                AdditionalFoldersChip.Flyout?.ShowAt(AdditionalFoldersChip);
+                break;
             case "plus":
                 PlusButton.Flyout?.ShowAt(PlusButton);
                 break;
@@ -907,6 +912,7 @@ public partial class SessionView : UserControl
         UsageChip.Flyout?.Hide();
         RemoteChip.Flyout?.Hide();
         FlyoutBase.GetAttachedFlyout(FolderChip)?.Hide();
+        AdditionalFoldersChip.Flyout?.Hide();
     }
 
     private void OnFolderChipClick(object? sender, RoutedEventArgs e)
@@ -1091,6 +1097,25 @@ public partial class SessionView : UserControl
         }
 
         FocusComposerSoon();
+    }
+
+    private async void OnAddFoldersClick(object? sender, RoutedEventArgs e)
+    {
+        AdditionalFoldersChip.Flyout?.Hide();
+        if (Vm is not { } vm || TopLevel.GetTopLevel(this) is not { } top) return;
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Add folders to this chat",
+            AllowMultiple = true,
+        });
+        vm.AddFolders(folders.Select(f => f.TryGetLocalPath()).OfType<string>());
+        FocusComposerSoon();
+    }
+
+    private void OnRemoveAdditionalFolderClick(object? sender, RoutedEventArgs e)
+    {
+        AdditionalFoldersChip.Flyout?.Hide();
+        if (sender is Control { DataContext: MenuOption folder }) Vm?.RemoveAdditionalFolder(folder);
     }
 
     /// <summary>The model menu's Mode row: the modes open in a menu of their own beside it.</summary>

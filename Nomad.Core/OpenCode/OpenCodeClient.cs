@@ -101,7 +101,7 @@ public static class OpenCodeClient
     /// <summary>Sends a prompt; the turn runs in the background and reports over the event stream.</summary>
     public static async Task PromptAsync(
         OpenCodeServer server, string directory, string sessionId, string text, IReadOnlyList<PromptImage>? images,
-        string? model, string? agent, string? messageId, string? variant = null, CancellationToken ct = default)
+        string? model, string? agent, string? messageId, string? variant = null, CancellationToken ct = default, string? system = null)
     {
         var parts = new JsonArray((JsonNode)new JsonObject { ["type"] = "text", ["text"] = text });
         foreach (var image in images ?? [])
@@ -115,6 +115,7 @@ public static class OpenCodeClient
         }
 
         var body = new JsonObject { ["parts"] = parts };
+        if (system is not null) body["system"] = system;
         if (messageId is not null)
         {
             body["messageID"] = messageId;

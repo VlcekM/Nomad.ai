@@ -86,12 +86,16 @@ public partial class MainWindow : Window
             _clickModifiers = e.KeyModifiers;
 
             // The rename box sits in the row's button, which would take Enter and Space as a click: Enter saves, Esc keeps
-            // the old name, and Space stops here (the space itself still arrives as text input).
-            if (e.Source is TextBox { DataContext: SessionListItemViewModel { IsRenaming: true } renaming } && e.Key is Key.Enter or Key.Escape or Key.Space)
+            // the old name. Insert Space here because handling KeyDown suppresses Windows text input.
+            if (e.Source is TextBox { DataContext: SessionListItemViewModel { IsRenaming: true } renaming } renameBox && e.Key is Key.Enter or Key.Escape or Key.Space)
             {
                 if (e.Key != Key.Space)
                 {
                     vm.EndRename(renaming, save: e.Key == Key.Enter);
+                }
+                else if (e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+                {
+                    renameBox.SelectedText = " ";
                 }
 
                 e.Handled = true;
@@ -105,6 +109,10 @@ public partial class MainWindow : Window
                 {
                     vm.EndTitleRename(save: e.Key == Key.Enter);
                     this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault()?.FocusComposerSoon();
+                }
+                else if (e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+                {
+                    TitleRenameBox.SelectedText = " ";
                 }
 
                 e.Handled = true;

@@ -189,6 +189,7 @@ public sealed record PermissionDecision(PermissionChoice Choice, string? DenyMes
 public sealed record AgentStartOptions
 {
     public required string WorkingDirectory { get; init; }
+    public IReadOnlyList<string> AdditionalDirectories { get; init; } = [];
     public string? Model { get; init; }
     public string? PermissionMode { get; init; }
     public string? Effort { get; init; }
