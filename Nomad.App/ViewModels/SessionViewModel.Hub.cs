@@ -30,6 +30,7 @@ public sealed partial class SessionViewModel
     {
         DetachRelay();
         _relay = _main.Hub.Publish(Backend, () => SessionId, backend);
+        PublishContext();
     }
 
     private void DetachRelay()
@@ -210,6 +211,32 @@ public sealed partial class SessionViewModel
         _turnToolCount = 0;
         ContentChanged?.Invoke();
         _main.OnSessionActivity(this);
+    }
+
+    /// <summary>The window the context meter measures against: the host's while watching it, else the model's.</summary>
+    private long ContextWindowSize => _relayWindow is { } window && IsRelayViewer ? window : Catalog.ContextWindow(Model);
+
+    private long? _relayWindow;
+
+    /// <summary>The PC running the session sent its context meter.</summary>
+    private void ShowRelayedContext(RelayContextEvent context)
+    {
+        _relayWindow = context.Window > 0 ? context.Window : null;
+        ContextTokens = context.Tokens;
+        ContextFraction = context.Tokens > 0 ? Math.Clamp(context.Tokens / (double)ContextWindowSize, 0, 1) : 0;
+        OnPropertyChanged(nameof(ContextAmountText));
+        OnPropertyChanged(nameof(ContextToolTip));
+    }
+
+    // The meter changed here: the watching PCs show it too.
+    partial void OnContextTokensChanged(long value) => PublishContext();
+
+    private void PublishContext()
+    {
+        if (_relay is { } relay && !IsRelayViewer)
+        {
+            relay.PublishStanding(new RelayContextEvent(ContextTokens, ContextWindowSize));
+        }
     }
 
     /// <summary>A card answered on another PC.</summary>

@@ -16,6 +16,9 @@ namespace Nomad.Core.Hub;
 /// <summary>A permission or question card answered (on the host or by a viewer): the other PCs close theirs.</summary>
 public sealed record RelayAnsweredEvent(string RequestId, string By) : AgentEvent;
 
+/// <summary>The host's context meter: tokens in use after the last turn, of a window this big.</summary>
+public sealed record RelayContextEvent(long Tokens, long Window) : AgentEvent;
+
 /// <summary>A prompt the host's session took (typed there, or relayed from <paramref name="From"/>): a turn is running.</summary>
 public sealed record RelayPromptEvent(string Text, string? Uuid, string? From) : AgentEvent;
 
@@ -56,7 +59,7 @@ public static class RelayCodec
                      c.AssistantMessageStartedEvent, c.BlockStartedEvent, c.TextDeltaEvent, c.ThinkingDeltaEvent, c.BlockCompletedEvent,
                      c.ToolCallEvent, c.ToolResultEvent, c.PermissionRequestedEvent, c.PermissionCancelledEvent, c.FolderMoveApprovedEvent,
                      c.PermissionModeChangedEvent, c.ModelChangedEvent, c.StatusEvent, c.TurnCompletedEvent, c.AgentErrorEvent,
-                     c.ProcessExitedEvent, c.RelayAnsweredEvent, c.RelayPromptEvent,
+                     c.ProcessExitedEvent, c.RelayAnsweredEvent, c.RelayPromptEvent, c.RelayContextEvent,
                  })
         {
             ByType[info.Type] = info;
@@ -434,6 +437,21 @@ public sealed class RelayPublisher : IAsyncDisposable
         }
     }
 
+    private readonly ConcurrentDictionary<Type, string> _standing = new();
+
+    /// <summary>
+    /// Sends a standing event, one that says how things are rather than what happened (the context meter): the newest
+    /// of each kind also heads every turn's buffer, so a viewer joining between turns or mid-turn has it too.
+    /// </summary>
+    public void PublishStanding(AgentEvent e)
+    {
+        if (RelayCodec.Encode(e) is { } json)
+        {
+            _standing[e.GetType()] = json;
+            _queue.Enqueue(json);
+        }
+    }
+
     private async Task LoopAsync()
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(50));
@@ -461,6 +479,7 @@ public sealed class RelayPublisher : IAsyncDisposable
             if (!_client.IsConnected || !_enabled())
             {
                 _queue.Clear(); // Offline or off: nobody can watch; the transcript syncs later anyway.
+                _newTurn = true; // The hub forgot the stream: it starts again, with the standing events.
             }
 
             return;
@@ -483,23 +502,29 @@ public sealed class RelayPublisher : IAsyncDisposable
         {
             if (batch.Count > 0)
             {
-                await _client.PublishAsync(_backend, id, batch.ToArray(), _newTurn, _stop.Token).ConfigureAwait(false);
-                _newTurn = false;
+                await PublishBatchAsync(id, batch).ConfigureAwait(false);
             }
 
             // The turn is in the transcript now (synced soon): a viewer joining from here on starts from that, so the
-            // hub forgets the turn.
+            // hub forgets the turn (all but the standing events).
             if (endsTurn)
             {
                 _newTurn = true;
-                await _client.PublishAsync(_backend, id, [], true, _stop.Token).ConfigureAwait(false);
-                _newTurn = false;
+                await PublishBatchAsync(id, []).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             // The hub went away mid-turn: these are lost to viewers, the transcript isn't.
         }
+    }
+
+    /// <summary>A batch that starts the hub's buffer over leads with the standing events, so every viewer gets them.</summary>
+    private async Task PublishBatchAsync(string id, List<string> batch)
+    {
+        var events = _newTurn ? [.. _standing.Values, .. batch] : batch;
+        await _client.PublishAsync(_backend, id, [.. events], _newTurn, _stop.Token).ConfigureAwait(false);
+        _newTurn = false;
     }
 
     private async Task StopRelayAsync()
@@ -581,5 +606,6 @@ internal sealed class OptionalJsonElementConverter : JsonConverter<JsonElement>
 [JsonSerializable(typeof(ProcessExitedEvent))]
 [JsonSerializable(typeof(RelayAnsweredEvent))]
 [JsonSerializable(typeof(RelayPromptEvent))]
+[JsonSerializable(typeof(RelayContextEvent))]
 [JsonSerializable(typeof(RelayInput))]
 internal sealed partial class RelayJson : JsonSerializerContext;

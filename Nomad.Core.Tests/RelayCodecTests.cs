@@ -39,6 +39,8 @@ public sealed class RelayCodecTests
         new AgentErrorEvent("bad"),
         new ProcessExitedEvent(1, false, "tail"),
         new RelayAnsweredEvent("r", "PC-B"),
+        new RelayPromptEvent("hi", "u", "PC-A"),
+        new RelayContextEvent(23_000, 200_000),
     ];
 
     [Theory]
