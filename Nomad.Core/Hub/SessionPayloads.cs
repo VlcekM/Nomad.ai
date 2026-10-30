@@ -375,22 +375,27 @@ public sealed class OpenCodeFiles(Func<string?> cliPath) : ISessionFiles
 
         try
         {
-            var json = RunAsync("session list --format json", null, ct).GetAwaiter().GetResult();
+            // The server's list has every project's sessions; `opencode session list` only the folder's it runs in.
+            var server = OpenCode.OpenCodeServer.GetAsync(ct).GetAwaiter().GetResult();
+            var json = server.Http.GetStringAsync("experimental/session?limit=5000", ct).GetAwaiter().GetResult();
             using var doc = JsonDocument.Parse(json);
             var result = new List<LocalSession>();
             foreach (var s in doc.RootElement.EnumerateArray())
             {
-                var id = s.GetProperty("id").GetString()!;
-                var updated = s.TryGetProperty("updated", out var u) && u.TryGetInt64(out var ms) ? ms : 0;
-                result.Add(new LocalSession(Backend, id, s.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "",
-                    s.TryGetProperty("directory", out var d) ? d.GetString() : null, null,
+                if (OpenCode.OpenCodeJson.Str(s, "id") is not { } id)
+                {
+                    continue;
+                }
+
+                var updated = OpenCode.OpenCodeJson.Long(OpenCode.OpenCodeJson.Obj(s, "time"), "updated") ?? 0;
+                result.Add(new LocalSession(Backend, id, OpenCode.OpenCodeJson.Str(s, "title") ?? "", OpenCode.OpenCodeJson.Str(s, "directory"), null,
                     DateTimeOffset.FromUnixTimeMilliseconds(updated).UtcDateTime, updated.ToString()));
             }
 
             _last = result;
             return result;
         }
-        catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or System.ComponentModel.Win32Exception or KeyNotFoundException)
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidOperationException or HttpRequestException or System.ComponentModel.Win32Exception or FileNotFoundException)
         {
             return [];
         }

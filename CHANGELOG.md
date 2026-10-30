@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.25.0
+
+- Nomad Hub: a self-hosted server (Docker image `vlcekmato/nomad-hub`) that keeps several PCs' sessions in step.
+  Settings › Hub connects a PC with a one-time token; Claude Code, Codex and OpenCode sessions then sync both
+  ways, into each PC's own folder for the same repository, with archived and pinned.
+- A session runs on one PC at a time. A prompt sent to it on another PC asks the first to hand it over once its turn
+  is done; a copy changed on two PCs at once is kept as a new session, never merged.
+- With a hub connected, the Claude and Codex usage cards count every PC's tokens this month.
+
 ## v1.24.0
 
 - The usage cards appear above recent projects on the new-session screen. Settings → Appearance can hide them.

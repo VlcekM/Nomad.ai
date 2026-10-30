@@ -8,6 +8,8 @@ on:
     paths:
       - "Nomad.Hub/**"
       - "Nomad.Hub.Contracts/**"
+      - "Nomad.Hub.Tests/**"
+      - "Nomad.Core/Hub/**"
       - ".github/workflows/hub.yml"
   workflow_dispatch:
 

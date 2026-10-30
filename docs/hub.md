@@ -12,7 +12,14 @@ Where phase 1 differs from the design below:
 - **Projects without a git remote** are keyed `folder:<name>` on every PC (not per device), so a folder with
   the same name maps across PCs.
 - **State** syncs archived and pinned (diffed from the settings on every save); the rest of the per-session
-  state stays local for now.
+  state stays local for now. A PC's flags as they were before it connected are sent once, on its first sync.
+- **Leases cover Nomad's own processes only**: a session run from a terminal, or started from the phone through a
+  `claude remote-control` server, takes no lease and isn't held back from fetches. Nothing is lost (a copy is
+  replaced only when it is an earlier state of the hub's, otherwise it becomes a fork), but two PCs can run it.
+- **An unreachable hub never holds a prompt up**: taking the lease waits at most 5 s, then the session runs as
+  without a hub; before a run, only that session is fetched.
+- **OpenCode sessions are listed through OpenCode's server** (`experimental/session`): `opencode session list`
+  only shows the project of the folder it runs in.
 
 A small self-hosted server that keeps several workstations' Nomad in step: the same sessions on every PC,
 one place for token use from every provider, and (optionally) a session running on one PC driven live from

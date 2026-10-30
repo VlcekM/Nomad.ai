@@ -44,6 +44,7 @@ public sealed class HubSync : IAsyncDisposable
         _statePath = statePath;
         _isBusy = isBusy;
         _state = Load(statePath, client.BaseUrl);
+        IsFirstSync = _state.Seq == 0 && _state.Sessions.Count == 0;
         client.Changed += _ => Wake(pull: true);
         client.ConnectionChanged += up =>
         {
@@ -60,6 +61,9 @@ public sealed class HubSync : IAsyncDisposable
     public HubClient Client => _client;
 
     public Guid DeviceId => _me;
+
+    /// <summary>This PC hasn't synced with this hub yet (no state file for it).</summary>
+    public bool IsFirstSync { get; }
 
     /// <summary>A session came from the hub (raised on the sync loop's thread).</summary>
     public event Action<PulledSession>? SessionPulled;
@@ -267,6 +271,39 @@ public sealed class HubSync : IAsyncDisposable
     }
 
     /// <summary>Fetches and uploads now (and once more if that turned up more to do), without waiting for the loop.</summary>
+    /// <summary>
+    /// Brings one session up to the hub's version before this PC runs it (the lease is already this PC's, so nobody
+    /// else writes it meanwhile).
+    /// </summary>
+    public async Task PullOneAsync(string backend, string sessionId, CancellationToken ct = default)
+    {
+        if (await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) is not { } remote)
+        {
+            return;
+        }
+
+        await _work.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            lock (_leaseLock)
+            {
+                _leases.Remove(new LeaseKey(backend, sessionId)); // ApplyAsync leaves alone what this PC holds.
+            }
+
+            await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
+            Save();
+        }
+        finally
+        {
+            lock (_leaseLock)
+            {
+                _leases.Add(new LeaseKey(backend, sessionId));
+            }
+
+            _work.Release();
+        }
+    }
+
     public async Task SyncNowAsync(CancellationToken ct = default)
     {
         _pullWanted = _pushWanted = true;

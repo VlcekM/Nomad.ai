@@ -30,7 +30,7 @@ public sealed class HubClient : IAsyncDisposable
     {
         BaseUrl = baseUrl;
         _secret = secret;
-        _http = new HttpClient(handler ?? new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
+        _http = new HttpClient(handler ?? new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.All, PooledConnectionLifetime = TimeSpan.FromMinutes(5), ConnectTimeout = TimeSpan.FromSeconds(10) })
         {
             BaseAddress = baseUrl,
             Timeout = TimeSpan.FromMinutes(10),
@@ -199,6 +199,19 @@ public sealed class HubClient : IAsyncDisposable
 
     public async Task SetProjectFolderAsync(Guid project, string path, CancellationToken ct = default) =>
         (await _http.PutAsJsonAsync($"api/projects/{project}/folder", new ProjectFolderRequest(path), HubJson.Default.ProjectFolderRequest, ct).ConfigureAwait(false)).EnsureSuccessStatusCode();
+
+    /// <summary>One session as the hub has it; null when it doesn't.</summary>
+    public async Task<SessionDto?> SessionAsync(string backend, string sessionId, CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync($"api/sessions/{backend}/{Uri.EscapeDataString(sessionId)}", ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync(HubJson.Default.SessionDto, ct).ConfigureAwait(false);
+    }
 
     public async Task<ChangesDto> ChangesAsync(long since, CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync($"api/changes?since={since}", HubJson.Default.ChangesDto, ct).ConfigureAwait(false))!;

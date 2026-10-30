@@ -140,4 +140,45 @@ public sealed class SyncTests : IDisposable
         await a.Sync.SyncNowAsync();
         Assert.Equal(File.ReadAllText(transcriptB), File.ReadAllText(transcriptA));
     }
+
+    [Fact]
+    public async Task CodexRolloutsAndTheirNamesTravel()
+    {
+        const string thread = "01a18c0e-9dba-71b3-9156-36186f17476f";
+        var homes = new[] { "A", "B" }.Select(n => Path.Combine(_root, n, "codex")).ToArray();
+        var syncs = new List<HubSync>();
+        foreach (var (home, name) in homes.Zip(["A", "B"]))
+        {
+            Directory.CreateDirectory(home);
+            var http = await _hub.EnrollAsync(name);
+            var client = new HubClient(_hub.Server.BaseAddress, http.DefaultRequestHeaders.Authorization!.Parameter!, _hub.Server.CreateHandler());
+            syncs.Add(new HubSync(client, [new CodexFiles(home)], Path.Combine(_root, name, "hub-sync-codex.json"), (_, _) => false));
+        }
+
+        var relative = Path.Combine("sessions", "2026", "10", "30", $"rollout-2026-10-30T10-05-30-{thread}.jsonl");
+        var rolloutA = Path.Combine(homes[0], relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(rolloutA)!);
+        File.WriteAllLines(rolloutA, [
+            $$$"""{"timestamp":"2026-10-30T09:05:32.097Z","type":"session_meta","payload":{"id":"{{{thread}}}","cwd":"R:\\Work\\Repo"}}""",
+            """{"timestamp":"2026-10-30T09:05:33Z","ordinal":1,"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}""",
+            """{"timestamp":"2026-10-30T09:05:34Z","ordinal":2,"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":30},"last_token_usage":{"input_tokens":20,"cached_input_tokens":5,"output_tokens":10}}}}""",
+        ]);
+        File.WriteAllLines(Path.Combine(homes[0], CodexFiles.Index), [$$$"""{"id":"{{{thread}}}","thread_name":"Fix the build","updated_at":"2026-10-30T09:06:00Z"}"""]);
+        File.WriteAllLines(Path.Combine(homes[1], CodexFiles.Index), ["""{"id":"other","thread_name":"Something else"}"""]);
+
+        await syncs[0].SyncNowAsync();
+        await syncs[1].SyncNowAsync();
+
+        Assert.Equal(File.ReadAllText(rolloutA), File.ReadAllText(Path.Combine(homes[1], relative)));
+        var index = File.ReadAllLines(Path.Combine(homes[1], CodexFiles.Index));
+        Assert.Equal(2, index.Length);
+        Assert.Contains("Fix the build", index[1]);
+        Assert.Equal("Fix the build", Assert.Single(new CodexFiles(homes[1]).List(CancellationToken.None), s => s.SessionId == thread).Title);
+
+        // Nothing changes on a second round (the appended index line doesn't count as a change of the session).
+        var version = (await syncs[1].Client.SessionAsync("codex", thread))!.Version;
+        await syncs[1].SyncNowAsync();
+        await syncs[0].SyncNowAsync();
+        Assert.Equal(version, (await syncs[1].Client.SessionAsync("codex", thread))!.Version);
+    }
 }

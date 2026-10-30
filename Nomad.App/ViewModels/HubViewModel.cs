@@ -109,10 +109,16 @@ public sealed partial class HubViewModel : ObservableObject
         _sync.StateChanged += s => Dispatcher.UIThread.Post(() => ApplyState(s));
         _sync.LeaseLost += key => Dispatcher.UIThread.Post(() => _ = _main.OnHubLeaseLostAsync(key.SessionId));
         _sync.HandoffRequested += r => Dispatcher.UIThread.Post(() => _ = _main.OnHubHandoffRequestedAsync(r));
-        _archived = [.. _main.Settings.ArchivedSessions];
-        _pinned = [.. _main.Settings.PinnedSessions];
         _main.LocalTokens.HubTotals = UsageSinceAsync;
         _sync.Start();
+
+        // The flags as they are now are sent once, on the first sync; after that only their changes.
+        _archived = _sync.IsFirstSync ? [] : [.. _main.Settings.ArchivedSessions];
+        _pinned = _sync.IsFirstSync ? [] : [.. _main.Settings.PinnedSessions];
+        if (_sync.IsFirstSync)
+        {
+            OnSettingsSaved();
+        }
     }
 
     public async Task StopAsync()
@@ -220,10 +226,12 @@ public sealed partial class HubViewModel : ObservableObject
             return;
         }
 
-        var lease = await sync.TakeLeaseAsync(backend, sessionId);
+        // Never long: a hub out of reach (a laptop away from home) counts as no hub, and the session runs.
+        using var quick = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var lease = await sync.TakeLeaseAsync(backend, sessionId, quick.Token);
         if (lease is { Granted: false })
         {
-            var asked = await sync.Client.RequestHandoffAsync(backend, sessionId).ConfigureAwait(true);
+            var asked = await sync.Client.RequestHandoffAsync(backend, sessionId, quick.Token).ConfigureAwait(true);
             throw new InvalidOperationException(asked
                 ? $"This session is running on {lease.HolderName}. Nomad asked it to hand the session over; send again in a moment."
                 : $"This session is running on {lease.HolderName}, which is offline. It can be continued here once its hold lapses (two minutes after it was last seen).");
@@ -233,9 +241,10 @@ public sealed partial class HubViewModel : ObservableObject
         {
             try
             {
-                await sync.SyncNowAsync();
+                using var fetch = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await sync.PullOneAsync(backend, sessionId, fetch.Token);
             }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
+            catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
             {
             }
         }
