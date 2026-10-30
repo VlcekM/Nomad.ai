@@ -257,7 +257,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 Inserted(e.OldStartingIndex, e.NewItems!);
                 break;
             default:
-                // Measure starts the heights over.
+                // Measure starts the heights over; the averages stay, as better first guesses than none.
                 RecycleAll();
                 _heights.Clear();
                 _known.Clear();
@@ -413,7 +413,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
         _count = 0;
     }
 
-    // A change the panel could not follow (a reset, a move) starts the heights over.
+    // A change the panel could not follow (a reset, a move) starts the heights over, guessed from the averages so far.
     private void SyncHeights(IReadOnlyList<object?> items)
     {
         if (_heights.Count != items.Count)

@@ -99,8 +99,15 @@ public partial class SessionView : UserControl
                 Controls.Entrance.Play(e.Container);
             }
         };
-        // Showing or leaving out activity changes the items' heights, the ones out of view too.
-        Transcript.Classes.CollectionChanged += (_, _) => (Transcript.ItemsPanelRoot as Controls.TranscriptPanel)?.ForgetHeights();
+        // Showing or leaving out activity changes the items' heights, the ones out of view too. (The list's classes also
+        // hold its pseudoclasses, :pointerover and the like, which change nothing.)
+        Transcript.Classes.CollectionChanged += (_, e) =>
+        {
+            if (e.NewItems?.Contains("quiet") == true || e.OldItems?.Contains("quiet") == true)
+            {
+                (Transcript.ItemsPanelRoot as Controls.TranscriptPanel)?.ForgetHeights();
+            }
+        };
         AttachmentList.ContainerPrepared += (_, e) => Controls.Entrance.Play(e.Container);
         if (PlusButton.Flyout is PopupFlyoutBase plus)
         {
