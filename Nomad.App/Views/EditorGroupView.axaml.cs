@@ -20,6 +20,7 @@ public partial class EditorGroupView : UserControl
         // Any click in the group (the text handles its own) makes it the one files from the tree open in.
         AddHandler(PointerPressedEvent, (_, _) => _group?.TakeFocus(), RoutingStrategies.Tunnel, handledEventsToo: true);
         Code.DefinitionRequested += name => _group?.GoToDefinition(name);
+        Code.AskRequested += (from, to, text) => _group?.AskAbout(from, to, text);
     }
 
     protected override void OnDataContextChanged(EventArgs e)

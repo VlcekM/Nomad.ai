@@ -197,6 +197,21 @@ public sealed partial class FilesViewModel : ObservableObject
         }
     }
 
+    /// <summary>"Ask about this": a quote of the lines, for the chat's composer (the session puts it there and shows the chat).</summary>
+    public event Action<string>? AskRequested;
+
+    /// <summary>Quotes lines of a file (first and last, 0-based) with where they are, for a question in the chat.</summary>
+    public void AskAbout(string path, int from, int to, string text)
+    {
+        var name = Folder is { } folder && Path.GetRelativePath(folder, path) is var relative && !relative.StartsWith("..", StringComparison.Ordinal)
+            ? relative.Replace('\\', '/')
+            : path;
+        var lines = from == to ? $"line {from + 1}" : $"lines {from + 1}–{to + 1}";
+        var fence = text.Contains("```", StringComparison.Ordinal) ? "````" : "```";
+        var language = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+        AskRequested?.Invoke($"`{name}` {lines}:\n{fence}{language}\n{text}\n{fence}\n");
+    }
+
     /// <summary>The toolbar's Sync with Active Document: the tree opens down to the file shown and selects it.</summary>
     [RelayCommand]
     private void SyncWithActive()

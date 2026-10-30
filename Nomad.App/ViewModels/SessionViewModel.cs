@@ -53,6 +53,14 @@ public sealed partial class SessionViewModel : ObservableObject
         Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
         Files.SetFolder(Folder);
+
+        // "Ask about this" in the Files view: the quote joins what is typed, and the chat comes up to ask.
+        Files.AskRequested += quote =>
+        {
+            ComposerText = string.IsNullOrWhiteSpace(ComposerText) ? quote : ComposerText.TrimEnd() + "\n\n" + quote;
+            IsFilesView = false;
+            ComposerEndRequested?.Invoke();
+        };
         RebuildOptions();
         RefreshFolders();
         LoadCatalog();
@@ -1268,6 +1276,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>The view brings a transcript item into view (the side panel's "open" of a workflow run).</summary>
     public event Action<TranscriptItem>? RevealRequested;
+
+    /// <summary>Text was added to the composer for the user to go on from: the view focuses it, the caret at the end.</summary>
+    public event Action? ComposerEndRequested;
 
     [RelayCommand]
     private void OpenWorkflow(WorkflowRunItem run)

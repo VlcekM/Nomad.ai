@@ -99,11 +99,25 @@ public sealed class CodeView : Control
         paste.Click += (_, _) => _ = PasteAsync();
         var all = new MenuItem { Header = "Select all", InputGesture = new KeyGesture(Key.A, KeyModifiers.Control) };
         all.Click += (_, _) => SelectAll();
-        ContextMenu = new ContextMenu { Items = { cut, copy, paste, new Separator(), all } };
+        var ask = new MenuItem { Header = "Ask about this", InputGesture = new KeyGesture(Key.I, KeyModifiers.Control) };
+        ask.Click += (_, _) => Ask();
+        var definition = new MenuItem { Header = "Go to definition", InputGesture = new KeyGesture(Key.F12) };
+        string? definitionName = null;
+        definition.Click += (_, _) =>
+        {
+            if (definitionName is not null)
+            {
+                DefinitionRequested?.Invoke(definitionName);
+            }
+        };
+        ContextMenu = new ContextMenu { Items = { ask, definition, new Separator(), cut, copy, paste, new Separator(), all } };
         ContextMenu.Opening += (_, _) =>
         {
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
             copy.IsEnabled = HasSelection || !_doc.IsReadOnly;
+            ask.IsVisible = AskRequested is not null;
+            definitionName = HasSelection ? null : NameAt(_doc.Caret);
+            definition.IsVisible = DefinitionRequested is not null && definitionName is not null;
         };
     }
 
@@ -1100,6 +1114,19 @@ public sealed class CodeView : Control
     /// <summary>F12 or Ctrl+click on a name: the name, to go to its declaration.</summary>
     public event Action<string>? DefinitionRequested;
 
+    /// <summary>"Ask about this": the selected lines (or the caret's), first and last (0-based), and their text.</summary>
+    public event Action<int, int, string>? AskRequested;
+
+    private void Ask()
+    {
+        var (from, to) = HasSelection ? Ordered() : (new TextPos(_doc.Caret.Line, 0), new TextPos(_doc.Caret.Line, _doc.Lines[_doc.Caret.Line].Length));
+
+        // A selection ending at a line's start doesn't take that line.
+        var last = to.Line > from.Line && to.Index == 0 ? to.Line - 1 : to.Line;
+        var text = string.Join("\n", Enumerable.Range(from.Line, last - from.Line + 1).Select(i => _doc.Lines[i]));
+        AskRequested?.Invoke(from.Line, last, text);
+    }
+
     // The name (letters, digits, '_') at a place, if there is one there.
     private string? NameAt(TextPos at)
     {
@@ -1122,6 +1149,17 @@ public sealed class CodeView : Control
     {
         base.OnPointerPressed(e);
         var props = e.GetCurrentPoint(this).Properties;
+
+        // A right-click with nothing selected puts the caret there first, so the menu is about that place.
+        if (props.IsRightButtonPressed && !HasSelection && e.GetPosition(this).X >= TextLeft)
+        {
+            Focus();
+            _doc.Anchor = _doc.Caret = HitTest(e.GetPosition(this));
+            RestartBlink();
+            InvalidateVisual();
+            return;
+        }
+
         if (!props.IsLeftButtonPressed)
         {
             return;
@@ -1378,6 +1416,9 @@ public sealed class CodeView : Control
                     DefinitionRequested?.Invoke(name);
                 }
 
+                break;
+            case Key.I when ctrl && !shift && AskRequested is not null:
+                Ask();
                 break;
             case Key.A when ctrl && !shift:
                 SelectAll();

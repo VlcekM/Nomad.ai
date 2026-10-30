@@ -642,6 +642,15 @@ public sealed partial class EditorGroup : ObservableObject
         _ = owner.CodeSearch.GoToDefinitionAsync(name);
     }
 
+    /// <summary>"Ask about this" in the file shown: its lines go to the chat's composer.</summary>
+    public void AskAbout(int from, int to, string text)
+    {
+        if (ActiveTab is { } tab)
+        {
+            owner.AskAbout(tab.Path, from, to, text);
+        }
+    }
+
     /// <summary>The kept tabs, pinned ones first.</summary>
     public ObservableCollection<FileTab> Tabs { get; } = [];
 

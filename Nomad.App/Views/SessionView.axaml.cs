@@ -240,6 +240,7 @@ public partial class SessionView : UserControl
         {
             _vm.ContentChanged -= OnContentChanged;
             _vm.RevealRequested -= OnRevealRequested;
+            _vm.ComposerEndRequested -= OnComposerEndRequested;
             _vm.Items.CollectionChanged -= OnItemsChanged;
         }
 
@@ -250,10 +251,18 @@ public partial class SessionView : UserControl
         {
             _vm.ContentChanged += OnContentChanged;
             _vm.RevealRequested += OnRevealRequested;
+            _vm.ComposerEndRequested += OnComposerEndRequested;
             _vm.Items.CollectionChanged += OnItemsChanged;
             Dispatcher.UIThread.Post(() => _animateNew = true, DispatcherPriority.Background);
         }
     }
+
+    private void OnComposerEndRequested() =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            Composer.Focus();
+            Composer.CaretIndex = Composer.Text?.Length ?? 0;
+        }, DispatcherPriority.Loaded);
 
     /// <summary>Brings an item (a workflow's card, from the side panel) into view.</summary>
     private void OnRevealRequested(TranscriptItem item)
