@@ -53,13 +53,26 @@ or not; they leave it only when deleted in Nomad (which deletes them on every PC
 | Backend | Files | Notes |
 |---|---|---|
 | Claude Code | `<project>/<session>.jsonl`, `<project>/<session>/subagents/**` (subagent and workflow transcripts) | Rename's `custom-title` records come along in the file |
-| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*-<id>.jsonl` (and `archived_sessions`) | Resumed with `thread/resume`; check whether Codex keeps an index beside the files |
-| OpenCode | Sessions live in `opencode.db`, not files | Moved with `opencode export <id>` / `opencode import <file>` if those round-trip; otherwise view-only elsewhere (open question) |
+| Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*-<id>.jsonl` (and `archived_sessions`), plus the thread's lines in `session_index.jsonl` (its name) | Files only: Codex's `state_5.sqlite` indexes rollouts on its own |
+| OpenCode | Sessions live in `opencode.db`, not files | Moved as `opencode export <id>` JSON, applied with `opencode import <file>` |
+
+Checked against Codex CLI 0.163.0 and OpenCode 1.19.5, in throwaway homes (`CODEX_HOME`, `XDG_DATA_HOME`):
+
+- **Codex:** a rollout copied into `sessions/` is listed by `thread/list` and opens with `thread/resume`, whether the
+  home is new, already indexed, or the app-server is running when the file arrives. Nothing else has to be written.
+  Resume already passes Nomad's folder as `cwd`, so `MovedSessionFolders` maps it like a Claude Code session.
+- **OpenCode:** export → import is lossless (only JSON key order differs), and the imported session resumes
+  (`opencode run -s <id>` answered on it). The import puts the session in the folder `opencode import` runs in, so
+  Nomad runs it in this PC's folder for the project. Importing over an existing copy adds and updates messages by
+  id and never removes any: a newer export brings a session up to date, an older one can't roll it back. So a
+  Rewind on one PC (which deletes messages) doesn't carry over by import alone; the receiving Nomad has to cut the
+  session back itself through OpenCode's server API (not yet checked).
 
 **Nomad's per-session state**, from `NomadSettings`, syncs last-writer-wins per key with a timestamp:
 `ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `InterruptedSessions`. `MovedSessionFolders` stays local
-(it is per-PC by nature, §3); a move on one PC changes the session's project if the new folder is another project. **Local only:** window and panel sizes, collapsed groups, recent/pinned folders, fonts,
-theme, CLI paths, phone folders, Remote Control bridges.
+(it is per-PC by nature, §3); a move on one PC changes the session's project if the new folder is another project.
+**Local only:** window and panel sizes, collapsed groups, recent/pinned folders, fonts, theme, CLI paths, phone
+folders, Remote Control bridges.
 
 Never synced: `~/.claude.json`, CLI settings and sign-ins, MCP config, `.codex/auth.json`.
 
@@ -69,7 +82,10 @@ Every session has at most one **host**: the PC whose Nomad runs its CLI process,
 its files. Nothing is ever merged.
 
 - Before starting or resuming a CLI process, Nomad takes the session's **lease** from the hub. The host renews it
-  every 30 s; it lapses after 2 min without renewal (the host crashed or went offline).
+  every 30 s over its open connection (free); it lapses after 2 min without renewal (the host crashed, slept or
+  went offline). Shorter would drop leases on a Wi-Fi blip; longer would keep a dead PC's sessions locked.
+- A host that comes back (from sleep, say) and finds its lease taken over stops its CLI process before it sends
+  anything more and becomes a viewer; its unsynced tail, if any, is kept as a separate session (below).
 - The lease belongs to the Nomad that sees a live process for the session on its PC: its own, or one it finds
   (a terminal's, or a phone-started one from its `remote-control --spawn` server). It is released when that
   process ends, the hour's idle timeout included.
@@ -199,7 +215,5 @@ Built and pushed by a GitHub Actions workflow next to the app's release workflow
 
 ## 13. Open questions
 
-1. **OpenCode:** do `opencode export` / `import` round-trip a session so it resumes on another PC? If not,
-   OpenCode sessions are view-only elsewhere.
-2. **Lease timing:** 30 s renewal, 2 min expiry, fine?
-3. **Codex:** does it keep a thread index (state database) beside the rollout files that an imported rollout must be added to?
+None left for the design. Two things to check while building: the SignalR client in `Nomad.App` under
+NativeAOT (§8), and how to carry an OpenCode Rewind to another PC (§4).
