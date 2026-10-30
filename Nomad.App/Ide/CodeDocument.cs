@@ -80,6 +80,16 @@ public sealed class CodeDocument
     /// <summary>Whether it now differs from the file as last saved or loaded.</summary>
     public event Action? DirtyChanged;
 
+    /// <summary>The caret was put somewhere to be shown (<see cref="GoTo"/>): the view scrolls it to the middle and takes the focus.</summary>
+    public event Action? RevealRequested;
+
+    /// <summary>Puts the caret at a place (no selection) and has the view show it, as a Go To does.</summary>
+    public void GoTo(TextPos pos)
+    {
+        Anchor = Caret = Clamp(pos);
+        RevealRequested?.Invoke();
+    }
+
     public bool CanUndo => _undo.Count > 0;
 
     public bool CanRedo => _redo.Count > 0;

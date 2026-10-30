@@ -2,7 +2,9 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Nomad.App.Controls;
 using Nomad.App.ViewModels;
 
@@ -13,6 +15,7 @@ public partial class FilesView : UserControl
     private SessionViewModel? _session;
     private bool _attached;
     private double? _gripOffset;
+    private CodeSearchViewModel? _codeSearch;
 
     public FilesView()
     {
@@ -31,10 +34,22 @@ public partial class FilesView : UserControl
             _session.Files.Show(false);
         }
 
+        _codeSearch?.Close();
+        if (_codeSearch is not null)
+        {
+            _codeSearch.PropertyChanged -= OnCodeSearchChanged;
+        }
+
         _session = DataContext as SessionViewModel;
+        _codeSearch = _session?.Files.CodeSearch;
         if (_session is not null)
         {
             _session.PropertyChanged += OnSessionChanged;
+        }
+
+        if (_codeSearch is not null)
+        {
+            _codeSearch.PropertyChanged += OnCodeSearchChanged;
         }
 
         ApplySide();
@@ -60,6 +75,10 @@ public partial class FilesView : UserControl
         if (e.PropertyName == nameof(SessionViewModel.IsFilesView))
         {
             ApplyShown();
+            if (_session is { IsFilesView: false })
+            {
+                _session.Files.CodeSearch.Close();
+            }
 
             // Back to the chat: typing goes to its composer again, not to the tree fading out.
             if (_session is { IsFilesView: false } && (Parent as Panel)?.Children.OfType<SessionView>().FirstOrDefault() is { } chat)
@@ -88,6 +107,60 @@ public partial class FilesView : UserControl
         {
             group.CloseCommand.Execute(tab);
             e.Handled = true;
+        }
+    }
+
+    // The code search opening takes the focus to its box; closing gives it back to the file (or the tree).
+    private void OnCodeSearchChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_codeSearch is not { } search)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(CodeSearchViewModel.IsOpen))
+        {
+            if (search.IsOpen)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    CodeSearchBox.Focus();
+                    CodeSearchBox.SelectAll();
+                }, DispatcherPriority.Loaded);
+            }
+            else if (CodeSearchBox.IsFocused)
+            {
+                Tree.Focus();
+            }
+        }
+        else if (e.PropertyName == nameof(CodeSearchViewModel.SelectedIndex) && search.SelectedIndex is >= 0 and var index)
+        {
+            // The arrows keep the selected row in sight (the first one scrolls back to the top).
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (index == 0)
+                {
+                    CodeSearchScroll.Offset = default;
+                }
+                else
+                {
+                    CodeSearchList.ScrollIntoView(index);
+                }
+            }, DispatcherPriority.Loaded);
+        }
+    }
+
+    private void OnCodeSearchOutsidePressed(object? sender, PointerPressedEventArgs e)
+    {
+        _codeSearch?.Close();
+        e.Handled = true;
+    }
+
+    private void OnCodeSearchResultClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: CodeSearchResult result })
+        {
+            _codeSearch?.OpenResult(result);
         }
     }
 

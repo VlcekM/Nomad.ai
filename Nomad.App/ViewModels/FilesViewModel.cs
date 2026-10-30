@@ -15,6 +15,7 @@ public sealed partial class FilesViewModel : ObservableObject
 
     public FilesViewModel()
     {
+        CodeSearch = new CodeSearchViewModel(this);
         var first = new EditorGroup(this) { IsFocused = true };
         Groups.Add(first);
         ActiveGroup = first;
@@ -22,6 +23,9 @@ public sealed partial class FilesViewModel : ObservableObject
 
     [ObservableProperty]
     public partial FileTree? Tree { get; private set; }
+
+    /// <summary>Ctrl+T in the Files view: types, members and files by name.</summary>
+    public CodeSearchViewModel CodeSearch { get; }
 
     /// <summary>The session's folder: tabs show their file's folder relative to it.</summary>
     public string? Folder { get; private set; }
@@ -43,6 +47,7 @@ public sealed partial class FilesViewModel : ObservableObject
         }
 
         Folder = folder;
+        CodeSearch.Close();
         Tree?.Dispose();
         Tree = null;
 
@@ -87,6 +92,18 @@ public sealed partial class FilesViewModel : ObservableObject
 
     /// <summary>Opens a file from the tree in the focused group (as a preview unless it is to be kept).</summary>
     public void Open(string path, bool keep) => ActiveGroup.Open(path, keep);
+
+    /// <summary>Opens a file (kept, in the focused group) with the caret at a line and column (0-based), as a Go To does.</summary>
+    public void OpenAt(string path, (int Line, int Column)? at)
+    {
+        ActiveGroup.Open(path, keep: true);
+        if (at is { } place && ActiveGroup.ActiveTab is { } tab && string.Equals(tab.Path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            tab.GoTo(place.Line, place.Column);
+        }
+
+        _ = Tree?.RevealAsync(path);
+    }
 
     /// <summary>The toolbar's Collapse All: folds every folder in the tree.</summary>
     [RelayCommand]

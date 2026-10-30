@@ -32,6 +32,48 @@
     <Style Selector="Button.treetool.on:pointerover">
       <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
     </Style>
+
+    <!-- The code search (Ctrl+T): fades in and drops a little into place, and back out. -->
+    <Style Selector="Panel#CodeSearch">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#CodeSearch.raised">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="IsHitTestVisible" Value="True" />
+    </Style>
+    <Style Selector="Border#CodeSearchCard">
+      <Setter Property="RenderTransform" Value="translateY(-6px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel#CodeSearch.raised Border#CodeSearchCard">
+      <Setter Property="RenderTransform" Value="translateY(0px)" />
+    </Style>
+    <Style Selector="Button.coderow">
+      <Setter Property="Height" Value="26" />
+      <Setter Property="Margin" Value="4,0" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="CornerRadius" Value="5" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Run.match">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Run.type">
+      <Setter Property="Foreground" Value="{DynamicResource CodeTypeBrush}" />
+    </Style>
+    <Style Selector="Run.muted">
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    </Style>
   </UserControl.Styles>
 
   <Grid Name="Layout" ColumnDefinitions="Auto,*,Auto">
@@ -118,5 +160,88 @@
             PointerCaptureLost="OnGripCaptureLost">
       <Border Name="TreeGripLine" HorizontalAlignment="Left" Margin="3,0,0,0" />
     </Border>
+
+    <!-- The code search (Ctrl+T), as Visual Studio's Go To All: a box over the open files with the matches under it.
+         A click anywhere else closes it. -->
+    <Border Grid.ColumnSpan="3"
+            Background="Transparent"
+            IsVisible="{Binding Files.CodeSearch.IsOpen}"
+            PointerPressed="OnCodeSearchOutsidePressed" />
+    <Panel Name="CodeSearch"
+           Grid.Column="1"
+           IsVisible="{Binding Files.CodeSearch.IsShown}"
+           Classes.raised="{Binding Files.CodeSearch.IsRaised}">
+      <Border Name="CodeSearchCard"
+              MaxWidth="860"
+              Margin="20,4,20,24"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Top"
+              CornerRadius="9"
+              ClipToBounds="True"
+              Background="{DynamicResource BgMenuBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="1"
+              BoxShadow="0 12 36 0 #59000000">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <Grid ColumnDefinitions="Auto,*,Auto" Height="40">
+            <c:Icon Size="14" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="14,0,10,0" />
+            <TextBox Grid.Column="1"
+                     Name="CodeSearchBox"
+                     Theme="{StaticResource BareTextBox}"
+                     Watermark="Go to type, member or file"
+                     Text="{Binding Files.CodeSearch.Query}"
+                     VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2"
+                       Text="{Binding Files.CodeSearch.Status}"
+                       Classes="muted"
+                       FontSize="{DynamicResource UiFontSizeSmall}"
+                       VerticalAlignment="Center"
+                       Margin="12,0,14,0" />
+          </Grid>
+          <Border Grid.Row="1" Height="1" Background="{DynamicResource BorderDividerBrush}" IsVisible="{Binding Files.CodeSearch.HasResults}" />
+          <ScrollViewer Grid.Row="2"
+                        Name="CodeSearchScroll"
+                        MaxHeight="468"
+                        HorizontalScrollBarVisibility="Disabled"
+                        IsVisible="{Binding Files.CodeSearch.HasResults}">
+            <ItemsControl Name="CodeSearchList" ItemsSource="{Binding Files.CodeSearch.Results}" Margin="0,4">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <VirtualizingStackPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CodeSearchResult">
+                  <Button Theme="{StaticResource RowButton}"
+                          Classes="coderow"
+                          Classes.selected="{Binding IsSelected}"
+                          Focusable="False"
+                          Click="OnCodeSearchResultClick"
+                          ToolTip.Tip="{Binding ToolTipText}"
+                          ToolTip.ShowDelay="900">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <ide:CodeSymbolIcon Kind="{Binding Symbol.Kind}" Width="16" Height="16" Margin="0,0,8,0" TextElement.Foreground="{DynamicResource TextSecondaryBrush}" />
+                      <ide:CodeSearchText Grid.Column="1"
+                                          Result="{Binding}"
+                                          Foreground="{DynamicResource TextPrimaryBrush}"
+                                          FontWeight="Normal"
+                                          TextTrimming="CharacterEllipsis"
+                                          VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2"
+                                 Text="{Binding Project}"
+                                 Classes="muted"
+                                 FontWeight="Normal"
+                                 FontSize="{DynamicResource UiFontSizeSmall}"
+                                 Margin="16,0,2,0"
+                                 VerticalAlignment="Center" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+    </Panel>
   </Grid>
 </UserControl>

@@ -112,6 +112,23 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         }
     }
 
+    // A Go To asked for before the file was read: done once it is.
+    private TextPos? _pendingGoTo;
+    private bool _loaded;
+
+    /// <summary>Puts the caret at a line and column (0-based) and shows it, now or once the file is read.</summary>
+    public void GoTo(int line, int column)
+    {
+        if (_loaded && Document != CodeDocument.Empty)
+        {
+            Document.GoTo(new TextPos(line, column));
+        }
+        else
+        {
+            _pendingGoTo = new TextPos(line, column);
+        }
+    }
+
     private async Task LoadAsync(bool keepPlace = false)
     {
         var (doc, note, written) = await Task.Run(() => Read(Path));
@@ -130,6 +147,12 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         Document = doc;
         Note = note;
         ChangedOnDisk = false;
+        _loaded = true;
+        if (_pendingGoTo is { } pos && doc != CodeDocument.Empty)
+        {
+            _pendingGoTo = null;
+            Dispatcher.UIThread.Post(() => doc.GoTo(pos), DispatcherPriority.Loaded);
+        }
     }
 
     private static (CodeDocument Doc, string? Note, DateTime Written) Read(string path)

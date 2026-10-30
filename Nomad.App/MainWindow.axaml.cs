@@ -135,12 +135,36 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // Ctrl+T: the session search. While it is open it takes Esc, the arrows and Enter.
+            // Ctrl+T: in the Files view the code search, else the session search. While open they take Esc, the
+            // arrows and Enter.
+            var codeSearch = vm.Current.Files.CodeSearch;
             if (e.Key == Key.T && e.KeyModifiers == KeyModifiers.Control)
             {
-                vm.Search.Toggle();
+                if (vm.Current.IsFilesView && !vm.Search.IsOpen && !vm.IsSettingsOpen)
+                {
+                    codeSearch.Toggle();
+                }
+                else
+                {
+                    codeSearch.Close();
+                    vm.Search.Toggle();
+                }
+
                 e.Handled = true;
                 return;
+            }
+
+            if (codeSearch.IsOpen && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift)
+            {
+                switch (e.Key)
+                {
+                    case Key.Escape: codeSearch.Close(); e.Handled = true; return;
+                    case Key.Enter: codeSearch.OpenResult(); e.Handled = true; return;
+                    case Key.Down: codeSearch.Move(1); e.Handled = true; return;
+                    case Key.Up: codeSearch.Move(-1); e.Handled = true; return;
+                    case Key.PageDown: codeSearch.Move(12); e.Handled = true; return;
+                    case Key.PageUp: codeSearch.Move(-12); e.Handled = true; return;
+                }
             }
 
             // Ctrl+F: find in the chat.

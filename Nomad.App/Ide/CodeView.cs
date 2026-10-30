@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
@@ -170,9 +170,11 @@ public sealed class CodeView : Control
         {
             _doc.Changed -= OnDocumentChanged;
             _doc.Folding.Changed -= OnFoldingChanged;
+            _doc.RevealRequested -= OnRevealRequested;
             _doc = Document ?? CodeDocument.Empty;
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
+            _doc.RevealRequested += OnRevealRequested;
             _chord = false;
             _goalCol = null;
             Refresh();
@@ -781,6 +783,8 @@ public sealed class CodeView : Control
         _doc.Changed += OnDocumentChanged;
         _doc.Folding.Changed -= OnFoldingChanged;
         _doc.Folding.Changed += OnFoldingChanged;
+        _doc.RevealRequested -= OnRevealRequested;
+        _doc.RevealRequested += OnRevealRequested;
         Refresh();
     }
 
@@ -790,6 +794,21 @@ public sealed class CodeView : Control
         _blink.Stop();
         _doc.Changed -= OnDocumentChanged;
         _doc.Folding.Changed -= OnFoldingChanged;
+        _doc.RevealRequested -= OnRevealRequested;
+    }
+
+    // A Go To: the caret's line in the middle of the view, and the focus here to type at it.
+    private void OnRevealRequested()
+    {
+        _goalCol = null;
+        Focus();
+        RestartBlink();
+        Dispatcher.UIThread.Post(() =>
+        {
+            var rect = CaretRect();
+            var half = Math.Max(LineHeight, (_viewport.Height > 0 ? _viewport.Height : Bounds.Height) / 2 - LineHeight);
+            this.BringIntoView(rect.Inflate(new Thickness(CharWidth * 4, half, CharWidth * 4, half)));
+        }, DispatcherPriority.Loaded);
     }
 
     /// <summary>Scrolls the caret into view, once the layout has caught up with an edit.</summary>

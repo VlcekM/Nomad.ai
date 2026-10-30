@@ -1229,7 +1229,7 @@
         <StackPanel Orientation="Horizontal">
           <Button Theme="{StaticResource FlatButton}" Classes="chat" Command="{Binding Current.ShowChatCommand}" ToolTip.Tip="{Binding Current.ChatToolTip}">
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <TextBlock Text="Code" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              <TextBlock Text="Chat" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
               <c:Icon Size="15" Data="{StaticResource IconChat}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
