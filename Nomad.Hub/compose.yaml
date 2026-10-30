@@ -1,0 +1,15 @@
+# Nomad Hub. Put it behind your reverse proxy or a Cloudflare Tunnel for TLS; the first start logs an enrollment
+# token (docker compose logs hub) for Nomad's Settings → Hub.
+services:
+  hub:
+    image: vlcekmato/nomad-hub:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8080"
+    volumes:
+      # The image runs as uid 1654 ("app"): chown the folder to it once (sudo chown 1654:1654 data).
+      - ./data:/data
+    environment:
+      Hub__RelayEnabled: "true"
+      Hub__KeepVersions: "3"
+      Hub__KeepBackups: "7"
