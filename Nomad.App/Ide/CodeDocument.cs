@@ -37,6 +37,7 @@ public sealed class CodeDocument
     {
         _lines = [.. text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None)];
         _changed.AddRange(Enumerable.Repeat(false, _lines.Count));
+        Folding.Attach(_lines);
         var lf = text.IndexOf('\n');
         NewLine = lf > 0 && text[lf - 1] == '\r' ? "\r\n" : lf >= 0 ? "\n" : text.Contains('\r') ? "\r" : "\r\n";
         IndentWithTabs = _lines.Count(l => l.StartsWith('\t')) > _lines.Count(l => l.StartsWith("  ", StringComparison.Ordinal));
@@ -60,6 +61,9 @@ public sealed class CodeDocument
 
     /// <summary>Tab inserts a tab when most indented lines start with one, else spaces.</summary>
     public bool IndentWithTabs { get; }
+
+    /// <summary>Its foldable blocks and which are folded.</summary>
+    public CodeFolding Folding { get; } = new();
 
     /// <summary>Its syntax highlighting, when its language has a grammar.</summary>
     public CodeHighlighting? Highlighting { get; set; }
@@ -131,7 +135,7 @@ public sealed class CodeDocument
         }
 
         var before = (Anchor, Caret);
-        var end = Splice(from, to, text);
+        var (end, flags) = Splice(from, to, text);
         Anchor = Caret = end;
 
         var now = DateTime.UtcNow;
@@ -156,7 +160,7 @@ public sealed class CodeDocument
 
         if (!merged)
         {
-            _undo.Add(new Edit(from, removed, text, end, before, (Anchor, Caret), _version, 0));
+            _undo.Add(new Edit(from, removed, text, end, before, (Anchor, Caret), _version, 0, flags));
         }
 
         _undo[^1] = _undo[^1] with { VersionAfter = Bump() };
@@ -183,7 +187,7 @@ public sealed class CodeDocument
 
         var edit = _undo[^1] with { Sealed = true };
         _undo.RemoveAt(_undo.Count - 1);
-        Splice(edit.Start, edit.InsertedEnd, edit.Removed);
+        Splice(edit.Start, edit.InsertedEnd, edit.Removed, edit.RemovedChanged);
         (Anchor, Caret) = edit.Before;
         _version = edit.VersionBefore;
         _redo.Add(edit);
@@ -212,6 +216,18 @@ public sealed class CodeDocument
         var was = IsDirty;
         _savedVersion = _version;
         Seal();
+
+        // Undoing or redoing past this point now leads away from the saved text: those lines will count as changed.
+        for (var i = 0; i < _undo.Count; i++)
+        {
+            _undo[i] = _undo[i] with { RemovedChanged = null };
+        }
+
+        for (var i = 0; i < _redo.Count; i++)
+        {
+            _redo[i] = _redo[i] with { RemovedChanged = null };
+        }
+
         for (var i = 0; i < _changed.Count; i++)
         {
             _changed[i] = false;
@@ -240,7 +256,11 @@ public sealed class CodeDocument
         DirtyChanged?.Invoke();
     }
 
-    private TextPos Splice(TextPos from, TextPos to, string text)
+    /// <summary>
+    /// Writes <paramref name="text"/> over the range. Its lines count as changed, unless <paramref name="changed"/> says
+    /// otherwise (an undo putting back lines as they were); returns where it ends, and the removed lines' changed marks.
+    /// </summary>
+    private (TextPos End, bool[] Removed) Splice(TextPos from, TextPos to, string text, bool[]? changed = null)
     {
         Highlighting?.Invalidate(from.Line);
         var head = _lines[from.Line][..from.Index];
@@ -252,10 +272,12 @@ public sealed class CodeDocument
         parts[^1] += tail;
         _lines.InsertRange(from.Line, parts);
 
-        // The lines it wrote are changed ones now (the change bar).
+        // The change bar: the lines it wrote are changed ones now (or as they were, for an undo).
+        var removedChanged = _changed.GetRange(from.Line, to.Line - from.Line + 1).ToArray();
         _changed.RemoveRange(from.Line, to.Line - from.Line + 1);
-        _changed.InsertRange(from.Line, Enumerable.Repeat(true, parts.Length));
-        return new TextPos(from.Line + parts.Length - 1, endIndex);
+        _changed.InsertRange(from.Line, changed is { } marks && marks.Length == parts.Length ? marks : Enumerable.Repeat(true, parts.Length));
+        Folding.OnSplice(from.Line, to.Line - from.Line + 1, parts.Length);
+        return (new TextPos(from.Line + parts.Length - 1, endIndex), removedChanged);
     }
 
     private readonly List<bool> _changed = [];
@@ -280,5 +302,6 @@ public sealed class CodeDocument
         (TextPos Anchor, TextPos Caret) After,
         int VersionBefore,
         int VersionAfter,
+        bool[]? RemovedChanged,
         bool Sealed = false);
 }

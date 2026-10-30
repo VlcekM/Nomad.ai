@@ -78,7 +78,6 @@
       <Color x:Key="CodeAttributeColor">#92CAF4</Color>
       <Color x:Key="CodeLineNumberColor">#858585</Color>
       <Color x:Key="CodeCurrentLineColor">#272727</Color>
-      <Color x:Key="CodeLineMarkerColor">#9184EE</Color>
       <Color x:Key="CodeChangeColor">#9184EE</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
@@ -168,7 +167,6 @@
       <SolidColorBrush x:Key="CodeAttributeBrush" Color="#92CAF4" />
       <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#858585" />
       <SolidColorBrush x:Key="CodeCurrentLineBrush" Color="#272727" />
-      <SolidColorBrush x:Key="CodeLineMarkerBrush" Color="#9184EE" />
       <SolidColorBrush x:Key="CodeChangeBrush" Color="#9184EE" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#3A3A38" />
@@ -265,7 +263,6 @@
       <Color x:Key="CodeAttributeColor">#FF0000</Color>
       <Color x:Key="CodeLineNumberColor">#2B91AF</Color>
       <Color x:Key="CodeCurrentLineColor">#EFEFF4</Color>
-      <Color x:Key="CodeLineMarkerColor">#7B6FD6</Color>
       <Color x:Key="CodeChangeColor">#7B6FD6</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
@@ -355,7 +352,6 @@
       <SolidColorBrush x:Key="CodeAttributeBrush" Color="#FF0000" />
       <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#2B91AF" />
       <SolidColorBrush x:Key="CodeCurrentLineBrush" Color="#EFEFF4" />
-      <SolidColorBrush x:Key="CodeLineMarkerBrush" Color="#7B6FD6" />
       <SolidColorBrush x:Key="CodeChangeBrush" Color="#7B6FD6" />
       <SolidColorBrush x:Key="CaptionCloseHoverBrush" Color="#C42B1C" />
       <SolidColorBrush x:Key="BarTrackBrush" Color="#E3E1D8" />

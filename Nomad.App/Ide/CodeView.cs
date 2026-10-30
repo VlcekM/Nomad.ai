@@ -169,8 +169,11 @@ public sealed class CodeView : Control
         if (change.Property == DocumentProperty)
         {
             _doc.Changed -= OnDocumentChanged;
+            _doc.Folding.Changed -= OnFoldingChanged;
             _doc = Document ?? CodeDocument.Empty;
             _doc.Changed += OnDocumentChanged;
+            _doc.Folding.Changed += OnFoldingChanged;
+            _chord = false;
             _goalCol = null;
             Refresh();
             RestartBlink();
@@ -338,8 +341,8 @@ public sealed class CodeView : Control
     {
         var p = Padding;
 
-        // A column more than the longest line, for the caret at its end.
-        return new Size(TextLeft + (_longest + 1) * CharWidth + p.Right, p.Top + _lines.Count * LineHeight + p.Bottom);
+        // A column more than the longest line, for the caret at its end; a row per line shown (folded blocks hide theirs).
+        return new Size(TextLeft + (_longest + 1) * CharWidth + p.Right, p.Top + Rows.Count * LineHeight + p.Bottom);
     }
 
     // The line numbers, as Visual Studio sets them: right-aligned in a column of at least three digits, 40 px in, and
@@ -353,12 +356,25 @@ public sealed class CodeView : Control
     private const double BarLeft = 6;
     private const double RowLeft = 10;
 
+    // The fold box (Visual Studio's [-] and [+]): 9 px, centered this far right of the line numbers.
+    private const double FoldBox = 9;
+    private const double FoldCenter = 16;
+
     private int Digits => Math.Max(3, _lines.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
 
     private double NumbersRight => Padding.Left + GutterInset + Digits * CharWidth;
 
     /// <summary>Where column 0 of the text is.</summary>
     private double TextLeft => NumbersRight + GutterGap;
+
+    /// <summary>The document lines shown, one per row (folded blocks leave out all but their first line).</summary>
+    private IReadOnlyList<int> Rows => _doc.Folding.Rows;
+
+    private double RowTop(int row) => Padding.Top + row * LineHeight;
+
+    /// <summary>Where a folded line's "..." box is, after its text.</summary>
+    private Rect FoldedBox(int line, int row) =>
+        new(TextLeft + (_lines[line].Length + 1) * CharWidth, RowTop(row) + 1, CharWidth * 3 + 6, LineHeight - 2);
 
     public override void Render(DrawingContext context)
     {
@@ -367,14 +383,16 @@ public sealed class CodeView : Control
         var p = Padding;
         var left = TextLeft;
         var height = LineHeight;
+        var rows = Rows;
         var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
-        var first = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, _lines.Count - 1);
-        var last = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, _lines.Count - 1);
+        var firstRow = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, rows.Count - 1);
+        var lastRow = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, rows.Count - 1);
         var charWidth = CharWidth;
+        var folding = _doc.Folding;
 
         // Syntax colors: the lines in view are tokenized (and those above them, a frame's worth at a time).
         var highlighting = _doc.Highlighting;
-        if (highlighting is not null && !highlighting.Advance(_doc.Lines, last, TimeSpan.FromMilliseconds(8)))
+        if (highlighting is not null && !highlighting.Advance(_doc.Lines, rows[lastRow], TimeSpan.FromMilliseconds(8)))
         {
             Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
         }
@@ -385,10 +403,11 @@ public sealed class CodeView : Control
         using var skiaFont = skia is null ? null : new SKFont(skia, (float)FontSize);
         var scene = skia is null ? null : new List<SceneItem>();
         var background = ThemeBrush("CodeBackgroundBrush");
+        var numbers = ThemeBrush("CodeLineNumberBrush") ?? Foreground;
 
         void Fill(Rect rect, IBrush? brush)
         {
-            if (brush is null)
+            if (brush is null || rect.Width <= 0 || rect.Height <= 0)
             {
                 return;
             }
@@ -403,6 +422,27 @@ public sealed class CodeView : Control
             }
         }
 
+        void Frame(Rect rect, IBrush? brush)
+        {
+            Fill(new Rect(rect.X, rect.Y, rect.Width, 1), brush);
+            Fill(new Rect(rect.X, rect.Bottom - 1, rect.Width, 1), brush);
+            Fill(new Rect(rect.X, rect.Y, 1, rect.Height), brush);
+            Fill(new Rect(rect.Right - 1, rect.Y, 1, rect.Height), brush);
+        }
+
+        void Label(string text, double x, double y, IBrush? brush)
+        {
+            if (scene is not null)
+            {
+                scene.Add(new SceneItem(SceneKind.Text, new SKRect((float)x, (float)y, 0, 0), text, SkColor(brush)));
+            }
+            else
+            {
+                using var layout = new TextLayout(text, Typeface, FontSize, brush, lineHeight: LineHeight);
+                layout.Draw(context, new Point(x, y));
+            }
+        }
+
         if (scene is not null && background is not null)
         {
             Fill(view, background);
@@ -410,34 +450,52 @@ public sealed class CodeView : Control
 
         // The caret's line, filled across the view from just right of the change bar (under the selection and text).
         var caretLine = _doc.Caret.Line;
-        var row = IsEditable && !HasSelection && caretLine >= first && caretLine <= last ? ThemeBrush("CodeCurrentLineBrush") : null;
-        var rowRect = new Rect(view.Left + RowLeft, p.Top + caretLine * height, Math.Max(0, view.Width - RowLeft), height);
+        var caretRow = folding.RowOf(caretLine);
+        var caretShown = IsEditable && caretRow >= firstRow && caretRow <= lastRow;
+        var row = caretShown && !HasSelection ? ThemeBrush("CodeCurrentLineBrush") : null;
+        var rowRect = new Rect(view.Left + RowLeft, RowTop(caretRow), Math.Max(0, view.Width - RowLeft), height);
         Fill(rowRect, row);
 
         if (HasSelection && SelectionBrush is { } selection)
         {
             var (from, to) = Ordered();
-            for (var line = Math.Max(first, from.Line); line <= Math.Min(last, to.Line); line++)
+            for (var r = firstRow; r <= lastRow; r++)
             {
+                var line = rows[r];
+                if (line < from.Line || line > to.Line)
+                {
+                    continue;
+                }
+
                 var start = line == from.Line ? Column(from) : 0;
                 var end = line == to.Line ? Column(to) : _lines[line].Length + 1; // A selected line break shows as a space.
                 if (end > start)
                 {
-                    Fill(new Rect(left + start * charWidth, p.Top + line * height, (end - start) * charWidth, height), selection);
+                    Fill(new Rect(left + start * charWidth, RowTop(r), (end - start) * charWidth, height), selection);
                 }
             }
         }
 
         var plain = SkColor(Foreground);
-        for (var line = first; line <= last; line++)
+        for (var r = firstRow; r <= lastRow; r++)
         {
+            var line = rows[r];
             var text = _lines[line];
+            var y = RowTop(r);
+
+            // A folded block: a box with "..." after its first line, as Visual Studio's.
+            if (folding.IsFolded(line))
+            {
+                var box = FoldedBox(line, r);
+                Frame(box, numbers);
+                Label("...", box.X + 3, y, numbers);
+            }
+
             if (text.Length == 0)
             {
                 continue;
             }
 
-            var y = p.Top + line * height;
             var runs = text.Length <= WholeLineLimit ? Runs(line, highlighting) : null;
             if (scene is not null && skiaFont!.ContainsGlyphs(text))
             {
@@ -501,44 +559,38 @@ public sealed class CodeView : Control
         }
 
         // The gutter, over text scrolled under it, as Visual Studio's: the caret line's fill carried through it, a thin
-        // bar beside lines changed since the file was opened or saved, a wider marker beside the caret's line, and the
-        // line numbers (the caret's brighter).
+        // bar beside lines changed since the file was opened or saved, a marker in the accent color beside the caret's
+        // line, the line numbers (the caret's brighter) and the fold boxes.
         var gutter = new Rect(view.Left, view.Top, TextLeft - 2, view.Height);
         Fill(gutter, background);
         Fill(rowRect.Intersect(gutter), row);
-        if (IsEditable && ThemeBrush("CodeChangeBrush") is { } change)
+        var change = IsEditable ? ThemeBrush("CodeChangeBrush") : null;
+        for (var r = firstRow; r <= lastRow; r++)
         {
-            for (var line = first; line <= last; line++)
+            var line = rows[r];
+            if (change is not null && _doc.IsLineChanged(line))
             {
-                if (_doc.IsLineChanged(line))
+                Fill(new Rect(view.Left + BarLeft, RowTop(r), 1, height), change);
+            }
+
+            var number = (line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Label(number, view.Left + NumbersRight - number.Length * charWidth, RowTop(r), line == caretLine && IsEditable ? Foreground : numbers);
+
+            if (folding.RegionAt(line) is not null)
+            {
+                var box = FoldBoxRect(view, r);
+                Frame(box, numbers);
+                Fill(new Rect(box.X + 2, box.Y + 4, box.Width - 4, 1), numbers);
+                if (folding.IsFolded(line))
                 {
-                    Fill(new Rect(view.Left + BarLeft, p.Top + line * height, 1, height), change);
+                    Fill(new Rect(box.X + 4, box.Y + 2, 1, box.Height - 4), numbers);
                 }
             }
         }
 
-        if (IsEditable && caretLine >= first && caretLine <= last)
+        if (caretShown)
         {
-            Fill(new Rect(view.Left + BarLeft, p.Top + caretLine * height, RowLeft - BarLeft, height), ThemeBrush("CodeLineMarkerBrush"));
-        }
-
-        var numbers = ThemeBrush("CodeLineNumberBrush") ?? Foreground;
-        var current = Foreground;
-        for (var line = first; line <= last; line++)
-        {
-            var number = (line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
-            var x = view.Left + NumbersRight - number.Length * charWidth;
-            var y = p.Top + line * height;
-            var brush = line == caretLine && IsEditable ? current : numbers;
-            if (scene is not null)
-            {
-                scene.Add(new SceneItem(SceneKind.Text, new SKRect((float)x, (float)y, 0, 0), number, SkColor(brush)));
-            }
-            else
-            {
-                using var layout = new TextLayout(number, Typeface, FontSize, brush, lineHeight: LineHeight);
-                layout.Draw(context, new Point(x, y));
-            }
+            Fill(new Rect(view.Left + BarLeft, RowTop(caretRow), RowLeft - BarLeft, height), ThemeBrush("AccentBrush"));
         }
 
         if (scene is not null)
@@ -554,12 +606,21 @@ public sealed class CodeView : Control
         // Laid-out lines far out of view are let go.
         if (_layouts.Count > 600)
         {
+            var (first, last) = (rows[firstRow], rows[lastRow]);
             foreach (var key in _layouts.Keys.Where(k => k < first - 100 || k > last + 100).ToList())
             {
                 _layouts[key].Layout.Dispose();
                 _layouts.Remove(key);
             }
         }
+    }
+
+    /// <summary>A row's fold box, in the gutter (which stays put as the text scrolls sideways).</summary>
+    private Rect FoldBoxRect(Rect view, int row)
+    {
+        var x = Math.Round(view.Left + NumbersRight + FoldCenter - FoldBox / 2);
+        var y = Math.Round(RowTop(row) + (LineHeight - FoldBox) / 2);
+        return new Rect(x, y, FoldBox, FoldBox);
     }
 
     private static SKColor SkColor(IBrush? brush)
@@ -640,7 +701,7 @@ public sealed class CodeView : Control
     {
         var p = Padding;
         var caret = _doc.Caret;
-        return new Rect(Math.Round(TextLeft + Column(caret) * CharWidth), p.Top + caret.Line * LineHeight, 1.5, LineHeight);
+        return new Rect(Math.Round(TextLeft + Column(caret) * CharWidth), RowTop(_doc.Folding.RowOf(caret.Line)), 1.5, LineHeight);
     }
 
     private TextLayout Layout(string text, List<(int From, int To, CodeKind Kind)>? runs = null) =>
@@ -655,6 +716,8 @@ public sealed class CodeView : Control
     // The caret: blinking from on whenever it moves, while the text has the focus.
     private void RestartBlink()
     {
+        // The caret never sits in a folded block: whatever hides its line unfolds.
+        _doc.Folding.Reveal(_doc.Caret.Line);
         _blink.Stop();
         _caretOn = true;
         if (IsFocused && IsEditable)
@@ -684,6 +747,8 @@ public sealed class CodeView : Control
         base.OnAttachedToVisualTree(e);
         _doc.Changed -= OnDocumentChanged;
         _doc.Changed += OnDocumentChanged;
+        _doc.Folding.Changed -= OnFoldingChanged;
+        _doc.Folding.Changed += OnFoldingChanged;
         Refresh();
     }
 
@@ -692,6 +757,7 @@ public sealed class CodeView : Control
         base.OnDetachedFromVisualTree(e);
         _blink.Stop();
         _doc.Changed -= OnDocumentChanged;
+        _doc.Folding.Changed -= OnFoldingChanged;
     }
 
     /// <summary>Scrolls the caret into view, once the layout has caught up with an edit.</summary>
@@ -710,14 +776,70 @@ public sealed class CodeView : Control
             return new TextPos(0, 0);
         }
 
-        if (point.Y > p.Top + _lines.Count * LineHeight)
+        var rows = Rows;
+        if (point.Y > p.Top + rows.Count * LineHeight)
         {
             return _doc.End;
         }
 
-        var line = Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, _lines.Count - 1);
+        var line = rows[Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, rows.Count - 1)];
         var col = Math.Clamp((int)Math.Round((point.X - TextLeft) / CharWidth), 0, _lines[line].Length);
         return new TextPos(line, RawIndex(line, col));
+    }
+
+    /// <summary>Ctrl+M was pressed: the next key finishes the chord.</summary>
+    private bool _chord;
+
+    /// <summary>A click on a fold box (in the gutter) or on a folded block's "..." toggles it; false if it was neither.</summary>
+    private bool FoldClick(Point point)
+    {
+        var rows = Rows;
+        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        if (row < 0 || row >= rows.Count)
+        {
+            return false;
+        }
+
+        var line = rows[row];
+        var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
+        var onBox = _doc.Folding.RegionAt(line) is not null && FoldBoxRect(view, row).Inflate(4).Contains(point);
+        var onDots = _doc.Folding.IsFolded(line) && FoldedBox(line, row).Contains(point);
+        if (!onBox && !onDots)
+        {
+            return false;
+        }
+
+        ToggleFold(line);
+        return true;
+    }
+
+    private void ToggleFold(int line)
+    {
+        _doc.Seal();
+        if (_doc.Folding.Toggle(line))
+        {
+            HideCaretFromFolds();
+        }
+    }
+
+    /// <summary>A block folded over the caret: it goes to the end of the block's first line, as in Visual Studio.</summary>
+    private void HideCaretFromFolds()
+    {
+        var rows = Rows;
+        var shown = rows[_doc.Folding.RowOf(_doc.Caret.Line)];
+        if (shown != _doc.Caret.Line)
+        {
+            _doc.Anchor = _doc.Caret = new TextPos(shown, _doc.Lines[shown].Length);
+        }
+
+        _goalCol = null;
+        RestartBlink();
+    }
+
+    private void OnFoldingChanged()
+    {
+        InvalidateMeasure();
+        InvalidateVisual();
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -730,6 +852,12 @@ public sealed class CodeView : Control
         }
 
         Focus();
+        if (e.ClickCount == 1 && FoldClick(e.GetPosition(this)))
+        {
+            e.Handled = true;
+            return;
+        }
+
         _doc.Seal();
         _goalCol = null;
         var hit = HitTest(e.GetPosition(this));
@@ -881,7 +1009,8 @@ public sealed class CodeView : Control
     private TextPos Vertical(TextPos p, int lines)
     {
         _goalCol ??= Column(p);
-        var line = Math.Clamp(p.Line + lines, 0, _lines.Count - 1);
+        var rows = Rows;
+        var line = rows[Math.Clamp(_doc.Folding.RowOf(p.Line) + lines, 0, rows.Count - 1)];
         if (line == p.Line)
         {
             return lines < 0 ? p with { Index = 0 } : p with { Index = _doc.Lines[line].Length };
@@ -928,11 +1057,32 @@ public sealed class CodeView : Control
             return;
         }
 
+        // Visual Studio's outlining chords: Ctrl+M, Ctrl+M folds or unfolds the block at the caret; Ctrl+M, Ctrl+L all of them.
+        if (_chord)
+        {
+            _chord = false;
+            if (ctrl && e.Key == Key.M && _doc.Folding.Innermost(_doc.Caret.Line) is { } block)
+            {
+                ToggleFold(block.Start);
+            }
+            else if (ctrl && e.Key == Key.L)
+            {
+                _doc.Folding.ToggleAll();
+                HideCaretFromFolds();
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         var caret = _doc.Caret;
         var (from, to) = Ordered();
         var editable = IsEditable;
         switch (e.Key)
         {
+            case Key.M when ctrl && !shift:
+                _chord = true;
+                break;
             case Key.A when ctrl && !shift:
                 SelectAll();
                 break;
@@ -1011,10 +1161,18 @@ public sealed class CodeView : Control
     {
         if (by < 0)
         {
-            return p.Index > 0 ? p with { Index = p.Index - 1 } : p.Line > 0 ? new TextPos(p.Line - 1, _doc.Lines[p.Line - 1].Length) : p;
+            return p.Index > 0 ? p with { Index = p.Index - 1 } : Neighbor(p.Line, -1) is { } above ? new TextPos(above, _doc.Lines[above].Length) : p;
         }
 
-        return p.Index < _doc.Lines[p.Line].Length ? p with { Index = p.Index + 1 } : p.Line + 1 < _lines.Count ? new TextPos(p.Line + 1, 0) : p;
+        return p.Index < _doc.Lines[p.Line].Length ? p with { Index = p.Index + 1 } : Neighbor(p.Line, 1) is { } below ? new TextPos(below, 0) : p;
+    }
+
+    /// <summary>The line shown above or below this one (over a folded block, as Visual Studio steps over it).</summary>
+    private int? Neighbor(int line, int by)
+    {
+        var rows = Rows;
+        var row = _doc.Folding.RowOf(line) + by;
+        return row >= 0 && row < rows.Count ? rows[row] : null;
     }
 
     private string IndentUnit => _doc.IndentWithTabs ? "\t" : new string(' ', TabSize);

@@ -133,7 +133,6 @@ public static class Themes
         new("CodeAttribute", "Code", "Attributes and keys"),
         new("CodeLineNumber", "Code", "Line numbers"),
         new("CodeCurrentLine", "Code", "Current line"),
-        new("CodeLineMarker", "Code", "Current line marker"),
         new("CodeChange", "Code", "Changed lines"),
     ];
 
