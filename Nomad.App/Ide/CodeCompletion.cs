@@ -35,6 +35,9 @@ internal sealed class CodeCompletion
     private bool _incomplete;
     private bool _waiting;
     private bool _reasked;
+
+    // What the server said of the completions chosen so far (their usings), for putting them in at once.
+    private readonly Dictionary<LspCompletion, LspResolvedCompletion> _resolved = [];
     private string _askedTyped = "";
 
     // The name being completed: its line and where it starts (it runs to the caret).
@@ -318,6 +321,7 @@ internal sealed class CodeCompletion
         _waiting = false;
         _detailTimer.Stop();
         _items = [];
+        _resolved.Clear();
         if (_popup.IsOpen)
         {
             _card.Opacity = 0;
@@ -412,7 +416,8 @@ internal sealed class CodeCompletion
         }
     }
 
-    // The chosen completion goes in for the name typed so far; then the usings and such it needs, as the same undo step.
+    // The chosen completion goes in for the name typed so far, with the usings and such it needs as the same undo step
+    // when they are known already (the chosen one is asked about as it is chosen); else they follow as a step of their own.
     private void Commit(LspCompletion? item)
     {
         item ??= _list.Selected;
@@ -431,17 +436,22 @@ internal sealed class CodeCompletion
             end++; // The rest of the name, as Visual Studio replaces.
         }
 
+        // From where the server says the completion goes (it may take in a character before the name), else the name.
+        var start = item.Edit is { } edit && edit.Line == _line && edit.Column <= caret.Index ? edit.Column : _start;
+        var resolved = _resolved.GetValueOrDefault(item);
         Close();
         doc.BeginGroup();
-        doc.Replace(new TextPos(_line, _start), new TextPos(_line, end), item.InsertText);
+        doc.Replace(new TextPos(_line, start), new TextPos(_line, end), item.InsertText);
+        if (resolved is { AdditionalEdits.Count: > 0 })
+        {
+            doc.ApplyEdits(resolved.AdditionalEdits, group: false);
+        }
+
+        doc.EndGroup();
         _view.Committed();
-        if (_view.Navigator is { } navigator)
+        if (resolved is null && _view.Navigator is { } navigator)
         {
             _ = AddUsingsAsync(navigator, item, doc);
-        }
-        else
-        {
-            doc.EndGroup();
         }
     }
 
@@ -452,15 +462,11 @@ internal sealed class CodeCompletion
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             if (await navigator.ResolveCompletionAsync(item, timeout.Token) is { AdditionalEdits.Count: > 0 } resolved)
             {
-                doc.ApplyEdits(resolved.AdditionalEdits, group: false);
+                doc.ApplyEdits(resolved.AdditionalEdits);
             }
         }
         catch (OperationCanceledException)
         {
-        }
-        finally
-        {
-            doc.EndGroup();
         }
     }
 
@@ -475,6 +481,11 @@ internal sealed class CodeCompletion
         try
         {
             var resolved = await navigator.ResolveCompletionAsync(item, _cts?.Token ?? default);
+            if (resolved is not null)
+            {
+                _resolved[item] = resolved;
+            }
+
             if (_list.Selected == item)
             {
                 var signature = HoverText.Parse(resolved?.Documentation) is { } parsed ? parsed.Info.Signature : resolved?.Detail ?? item.Detail;
