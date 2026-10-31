@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.26.1
+
+- Sessions go idle after an hour without activity again: Remote Control, on by default, had kept every session alive.
+- Sessions fetched from Nomad Hub keep their last activity time instead of showing as "just now".
+
 ## v1.26.0
 
 - Code editor: signature help shows the declaration in the code's colors (keywords, types, the method's name), with
