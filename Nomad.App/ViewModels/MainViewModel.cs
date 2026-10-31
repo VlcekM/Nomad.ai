@@ -1146,9 +1146,9 @@ public sealed partial class MainViewModel : ObservableObject
         var now = DateTime.UtcNow;
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {
-            // Remote Control sessions stay up: without a process the phone cannot reach them. So do ones with a subagent
-            // or background command still at work, which would die with the process, and pinned ones.
-            if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasRemoteControlUrl && !session.HasBackgroundWork
+            // Ones with a subagent or background command still at work stay up, as these would die with the process, and
+            // pinned ones. Remote Control ones idle too: it is on by default, so sparing them would spare every session.
+            if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasBackgroundWork
                 && !(session.SessionId is { } id && Settings.PinnedSessions.Contains(id))
                 && now - session.LastActivityUtc > IdleTimeout)
             {
