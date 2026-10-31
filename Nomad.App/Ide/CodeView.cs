@@ -12,6 +12,7 @@ using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
 using Nomad.Core.Code;
+using TextMateSharp.Grammars;
 using SkiaSharp;
 
 namespace Nomad.App.Ide;
@@ -1921,26 +1922,7 @@ public sealed class CodeView : Control
             MaxWidth = 620,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
-        var text = info.Signature;
-        var at = 0;
-        var spans = Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, text, null).Spans : [];
-        foreach (var span in spans.Where(s => s.Length > 0 && s.Start >= at).OrderBy(s => s.Start))
-        {
-            if (span.Start > at)
-            {
-                signature.Inlines!.Add(new Run(text[at..span.Start]) { Foreground = Foreground });
-            }
-
-            var end = Math.Min(text.Length, span.Start + span.Length);
-            signature.Inlines!.Add(new Run(text[span.Start..end]) { Foreground = KindBrush(span.Kind) });
-            at = end;
-        }
-
-        if (at < text.Length)
-        {
-            signature.Inlines!.Add(new Run(text[at..]) { Foreground = Foreground });
-        }
-
+        AddCode(signature.Inlines!, info.Signature, Highlighter.ForFile(info.Path));
         var icon = new CodeSymbolIcon { Kind = info.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
         TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
@@ -1960,6 +1942,33 @@ public sealed class CodeView : Control
         }
 
         return panel;
+    }
+
+    /// <summary>Code as runs in the code's colors, with the characters from <paramref name="boldFrom"/> to <paramref name="boldTo"/> in bold.</summary>
+    internal void AddCode(InlineCollection inlines, string text, IGrammar? grammar, int boldFrom = 0, int boldTo = 0)
+    {
+        void Add(int from, int to, IBrush? brush)
+        {
+            foreach (var (a, b) in new[] { (from, Math.Min(to, boldFrom)), (Math.Max(from, boldFrom), Math.Min(to, boldTo)), (Math.Max(from, boldTo), to) })
+            {
+                if (b > a)
+                {
+                    inlines.Add(new Run(text[a..b]) { Foreground = brush, FontWeight = a >= boldFrom && b <= boldTo ? FontWeight.Bold : FontWeight.Normal });
+                }
+            }
+        }
+
+        var at = 0;
+        var spans = grammar is not null ? Highlighter.Tokenize(grammar, text, null).Spans : [];
+        foreach (var span in spans.Where(s => s.Length > 0 && s.Start >= at).OrderBy(s => s.Start))
+        {
+            Add(at, span.Start, Foreground);
+            var end = Math.Min(text.Length, span.Start + span.Length);
+            Add(span.Start, end, KindBrush(span.Kind));
+            at = end;
+        }
+
+        Add(at, text.Length, Foreground);
     }
 
     /// <summary>"Ask about this": the selected lines (or the caret's), first and last (0-based), and their text.</summary>

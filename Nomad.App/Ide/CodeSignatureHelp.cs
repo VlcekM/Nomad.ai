@@ -277,15 +277,14 @@ internal sealed class CodeSignatureHelp
         }
 
         var label = signature.Label;
+        var grammar = Highlighter.ForLanguage("csharp");
         if (active >= 0 && active < signature.Parameters.Count && signature.Parameters[active] is var (start, end, _) && end > start && end <= label.Length)
         {
-            declaration.Inlines!.Add(new Run(label[..start]));
-            declaration.Inlines.Add(new Run(label[start..end]) { FontWeight = FontWeight.Bold });
-            declaration.Inlines.Add(new Run(label[end..]));
+            _view.AddCode(declaration.Inlines!, label, grammar, start, end);
         }
         else
         {
-            declaration.Inlines!.Add(new Run(label));
+            _view.AddCode(declaration.Inlines!, label, grammar);
         }
 
         var panel = new StackPanel { Spacing = 4, Children = { declaration } };
