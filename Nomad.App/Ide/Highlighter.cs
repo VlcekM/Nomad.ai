@@ -187,6 +187,12 @@ public static class Highlighter
     /// <summary>A token's kind: the innermost of its scopes that maps to one.</summary>
     public static CodeKind KindOf(IList<string> scopes, ReadOnlySpan<char> text)
     {
+        // Everything in a comment is the comment's (a doc comment's <summary> tags, JSDoc's @param), all one green.
+        if (scopes.Any(s => s.StartsWith("comment", StringComparison.Ordinal) && (s.Length == 7 || s[7] == '.')))
+        {
+            return CodeKind.Comment;
+        }
+
         for (var i = scopes.Count - 1; i >= 0; i--)
         {
             if (Map(scopes[i], text) is { } kind)

@@ -312,7 +312,8 @@ internal sealed class CodeSignatureHelp
 
     // The declaration's colors: read as a member inside a class (so its types are types), with the method's name a
     // method's (the grammar takes "AL.GetSourceProperty" for an interface's member, all of it a type) or, for a
-    // constructor (no return type before it), a type's.
+    // constructor (no return type before it), a type's. Namespaces ("System.Text." before a type) are plain, as in
+    // Visual Studio.
     private static List<CodeSpan> Spans(string label)
     {
         if (Highlighter.ForLanguage("csharp") is not { } grammar)
@@ -322,13 +323,49 @@ internal sealed class CodeSignatureHelp
 
         _inClass ??= Highlighter.Tokenize(grammar, "class C {", null).State;
         var spans = Highlighter.Tokenize(grammar, label, _inClass).Spans.ToList();
-        if (Name(label) is not var (from, to))
+        var name = Name(label);
+
+        // A name followed by a '.' qualifies what follows: a namespace, but for the method's own type (AL in AL.Get…).
+        for (var i = 0; i < label.Length; i++)
+        {
+            if (!IsNameStart(label[i]) || i > 0 && IsNamePart(label[i - 1]))
+            {
+                continue;
+            }
+
+            var end = i;
+            while (end < label.Length && IsNamePart(label[end]))
+            {
+                end++;
+            }
+
+            if (end < label.Length && label[end] == '.' && !(name is var (from, _) && end + 1 == from))
+            {
+                spans = Carve(spans, i, end + 1);
+            }
+
+            i = end;
+        }
+
+        if (name is not var (start, to))
         {
             return spans;
         }
 
         // A qualifier's '.' before the name goes with neither.
-        var cut = from > 0 && label[from - 1] == '.' ? from - 1 : from;
+        spans = Carve(spans, start > 0 && label[start - 1] == '.' ? start - 1 : start, to);
+        var constructor = !label[..start].Trim().Contains(' ');
+        spans.Add(new CodeSpan(start, to - start, constructor ? CodeKind.Type : CodeKind.Function));
+        return spans;
+    }
+
+    private static bool IsNameStart(char c) => char.IsLetter(c) || c == '_';
+
+    private static bool IsNamePart(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    // The spans with the characters from one place to another taken out of them (left plain).
+    private static List<CodeSpan> Carve(List<CodeSpan> spans, int cut, int to)
+    {
         var result = new List<CodeSpan>();
         foreach (var span in spans)
         {
@@ -350,8 +387,6 @@ internal sealed class CodeSignatureHelp
             }
         }
 
-        var constructor = !label[..from].Trim().Contains(' ');
-        result.Add(new CodeSpan(from, to - from, constructor ? CodeKind.Type : CodeKind.Function));
         return result;
     }
 
