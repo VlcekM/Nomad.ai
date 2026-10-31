@@ -107,7 +107,7 @@ public sealed class CodeSymbolIcon : Control
     private static readonly Geometry EnumMemberShape = StreamGeometry.Parse("M3,5 L13,5 L13,11 L3,11 Z M6,8 L10,8");
     private static readonly Geometry DelegateShape = StreamGeometry.Parse("M2,8 L10,8 M7,5 L10,8 L7,11 M12.75,4 L12.75,12");
     private static readonly Geometry MethodShape = StreamGeometry.Parse("M8,1.75 L14,5 L14,11 L8,14.25 L2,11 L2,5 Z M2,5 L8,8.25 L14,5 M8,8.25 L8,14.25");
-    private static readonly Geometry PropertyShape = StreamGeometry.Parse("M10.2,2.2 C11.6,1.7 13.2,2.1 14,3.3 L11.6,5.6 L10.4,5.6 L10.4,4.4 L12.7,2 M10.4,5.6 L3.3,12.7 C2.8,13.2 2.8,13.9 3.3,14.4 C3.8,14.9 4.5,14.9 5,14.4 L12.1,7.3 C13.3,7.6 14.6,7 15,5.8");
+    private static readonly Geometry PropertyShape = StreamGeometry.Parse("M8.7,9.07 A4,4 0 0 0 14.18,3.94 L11.56,6.56 L9.44,4.44 L12.06,1.82 A4,4 0 0 0 6.93,7.3 L2.42,11.82 A1.25,1.25 0 0 0 4.18,13.58 Z");
     private static readonly Geometry FieldShape = StreamGeometry.Parse("M2,8 L8,2.5 L14,8 L8,13.5 Z");
     private static readonly Geometry ConstantShape = StreamGeometry.Parse("M2.5,4 L13.5,4 L13.5,12 L2.5,12 Z M5.5,7 L10.5,7 M5.5,9 L10.5,9");
     private static readonly Geometry EventShape = StreamGeometry.Parse("M9.5,1.5 L4,9 L8,9 L6.5,14.5 L12,7 L8,7 Z");
