@@ -55,6 +55,7 @@ internal sealed class CodeSignatureHelp
         };
         _popup = new Popup
         {
+            Cursor = new Cursor(StandardCursorType.Arrow),
             Child = _card,
             PlacementTarget = view,
             Placement = PlacementMode.AnchorAndGravity,

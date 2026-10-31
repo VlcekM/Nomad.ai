@@ -150,6 +150,9 @@ public sealed class CodeView : Control
             }
         };
         ContextMenu = new ContextMenu { Items = { ask, quick, definition, implementation, references, rename, new Separator(), cut, copy, paste, new Separator(), all } };
+
+        // The menu and the popups would take the text's I-beam from the view: theirs is the arrow.
+        ContextMenu.Cursor = GutterCursor;
         ContextMenu.Opening += (_, _) =>
         {
             cut.IsVisible = paste.IsVisible = !_doc.IsReadOnly;
@@ -1814,6 +1817,7 @@ public sealed class CodeView : Control
             {
                 _quickPopup = new Popup
                 {
+                    Cursor = GutterCursor,
                     Child = _quickCard,
                     PlacementTarget = this,
                     Placement = PlacementMode.AnchorAndGravity,

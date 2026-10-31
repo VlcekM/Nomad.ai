@@ -71,6 +71,7 @@ internal sealed class CodeCompletion
         };
         _popup = new Popup
         {
+            Cursor = new Cursor(StandardCursorType.Arrow),
             Child = _card,
             PlacementTarget = view,
             Placement = PlacementMode.AnchorAndGravity,

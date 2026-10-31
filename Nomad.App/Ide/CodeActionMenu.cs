@@ -49,6 +49,7 @@ internal sealed class CodeActionMenu
         };
         _popup = new Popup
         {
+            Cursor = new Cursor(StandardCursorType.Arrow),
             Child = _card,
             PlacementTarget = view,
             Placement = PlacementMode.AnchorAndGravity,
@@ -123,7 +124,7 @@ internal sealed class CodeActionMenu
             }
 
             text.Inlines!.Add(new Run(action.Title));
-            var row = new Border { Child = text, Padding = new Thickness(8, 4), CornerRadius = new CornerRadius(4), Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand) };
+            var row = new Border { Child = text, Padding = new Thickness(8, 4), CornerRadius = new CornerRadius(4), Background = Brushes.Transparent };
             var index = _items.Count;
             row.PointerEntered += (_, _) => Select(index);
             row.PointerPressed += (_, e) =>
