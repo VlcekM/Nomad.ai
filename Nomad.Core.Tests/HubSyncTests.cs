@@ -12,6 +12,25 @@ public sealed class HubSyncTests
     public void RemotesNormaliseToOneKey(string url, string key) => Assert.Equal(key, ProjectKeys.Normalise(url));
 
     [Fact]
+    public void FetchedFilesKeepTheSessionsLastActivityAsTheirTime()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "nomad-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            var from = Path.Combine(dir, "download");
+            File.WriteAllText(from, "{}");
+            var last = new DateTime(2026, 10, 31, 12, 1, 49, DateTimeKind.Utc);
+            Stamps.Copy(from, Path.Combine(dir, "s", "session.jsonl"), last);
+            Assert.Equal(last, File.GetLastWriteTimeUtc(Path.Combine(dir, "s", "session.jsonl")));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void CodexUsageIsPerCallWithCachedInputSplitOff()
     {
         var file = Path.GetTempFileName();

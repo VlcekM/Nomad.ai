@@ -68,11 +68,20 @@ internal static class Stamps
         return sb.ToString();
     }
 
-    public static void Copy(string from, string to)
+    /// <summary>
+    /// Puts a fetched file in place, dated when the session was last active: the session list reads its age from the
+    /// file's time, so a fetch must not make it look just used.
+    /// </summary>
+    public static void Copy(string from, string to, DateTime lastActivityUtc)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(to)!);
         var temp = to + ".nomad-hub";
         File.Copy(from, temp, overwrite: true);
+        if (lastActivityUtc > DateTime.UnixEpoch && lastActivityUtc <= DateTime.UtcNow)
+        {
+            File.SetLastWriteTimeUtc(temp, lastActivityUtc);
+        }
+
         File.Move(temp, to, overwrite: true);
     }
 }
@@ -135,7 +144,7 @@ public sealed class ClaudeCodeFiles(SessionStore store) : ISessionFiles
                 continue; // Never outside the session's own files.
             }
 
-            Stamps.Copy(downloaded, target);
+            Stamps.Copy(downloaded, target, remote.LastActivityUtc);
         }
 
         return Task.FromResult(StampOf(remote.SessionId));
@@ -322,7 +331,7 @@ public sealed class CodexFiles(string codexHome) : ISessionFiles
                 || target.StartsWith(Path.Combine(codexHome, "archived_sessions") + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
             if (inside && IdOf(target) == remote.SessionId)
             {
-                Stamps.Copy(downloaded, target);
+                Stamps.Copy(downloaded, target, remote.LastActivityUtc);
             }
         }
 
