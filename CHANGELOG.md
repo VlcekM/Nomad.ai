@@ -3,6 +3,17 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.26.0
+
+- Code editor: signature help shows the declaration in the code's colors (keywords, types, the method's name), with
+  namespaces left plain as in Visual Studio. Its documentation and Quick Info's are in smaller text, and both cards
+  have a slight drop shadow.
+- Completion opens after the space following a ',' where an enum goes, with that enum selected, and keeps the
+  server's pick selected while its name is typed.
+- Everything inside a comment is comment-green, the tags of `///` doc comments included.
+- The property icon is a clean wrench.
+- Open in Visual Studio opens Visual Studio, not SQL Server Management Studio when both are installed.
+
 ## v1.25.0
 
 - Nomad Hub: a self-hosted server (container image `ghcr.io/vlcekm/nomad-hub`) that keeps several PCs' sessions in step.
