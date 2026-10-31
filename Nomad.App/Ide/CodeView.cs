@@ -97,6 +97,7 @@ public sealed class CodeView : Control
         ResourcesChanged += (_, _) => OnThemeChanged(); // Another color theme, or dark and light.
         ActualThemeVariantChanged += (_, _) => OnThemeChanged();
         _quickTimer.Tick += (_, _) => ShowQuickInfo();
+        _bulbTimer.Tick += (_, _) => AskBulb();
         _blink.Tick += (_, _) =>
         {
             _caretOn = !_caretOn;
@@ -230,9 +231,9 @@ public sealed class CodeView : Control
             _doc.Folding.Changed -= OnFoldingChanged;
             _doc.CaretChanged -= OnCaretMoved;
             _doc.RevealRequested -= OnRevealRequested;
-            _doc.MarksChanged -= InvalidateVisual;
+            _doc.MarksChanged -= OnMarksChanged;
             _doc = Document ?? CodeDocument.Empty;
-            _doc.MarksChanged += InvalidateVisual;
+            _doc.MarksChanged += OnMarksChanged;
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
             _doc.RevealRequested += OnRevealRequested;
@@ -876,7 +877,7 @@ public sealed class CodeView : Control
 
             // The fold button: a chevron, down for an open block and right for a folded one, on a rounded backdrop
             // that eases in under the pointer.
-            if (folding.RegionAt(line) is not null)
+            if (folding.RegionAt(line) is not null && !(line == _bulbLine && BulbRect(view) is { } bulb && bulb.X < TextLeft + view.Left - 10))
             {
                 var button = FoldButtonRect(view, r);
                 var hovered = line == _hoverFoldLine ? _hoverLevel : 0;
@@ -899,6 +900,8 @@ public sealed class CodeView : Control
         {
             context.Custom(new SkiaScene(new Rect(Bounds.Size), view, scene, skia!, (float)FontSize, (float)height, SkColor(background), _surface));
         }
+
+        DrawBulb(context, view);
 
         if (_caretOn && IsEditable && IsFocused && CaretBrush is { } caret)
         {
@@ -1054,11 +1057,13 @@ public sealed class CodeView : Control
     {
         base.OnGotFocus(e);
         RestartBlink();
+        ScheduleBulb();
     }
 
     protected override void OnLostFocus(RoutedEventArgs e)
     {
         base.OnLostFocus(e);
+        ScheduleBulb();
         _completion.Close();
         _signature.Close();
         _actions.Close();
@@ -1078,8 +1083,8 @@ public sealed class CodeView : Control
         _doc.RevealRequested += OnRevealRequested;
         _doc.CaretChanged -= OnCaretMoved;
         _doc.CaretChanged += OnCaretMoved;
-        _doc.MarksChanged -= InvalidateVisual;
-        _doc.MarksChanged += InvalidateVisual;
+        _doc.MarksChanged -= OnMarksChanged;
+        _doc.MarksChanged += OnMarksChanged;
         Refresh();
     }
 
@@ -1091,7 +1096,7 @@ public sealed class CodeView : Control
         _doc.Folding.Changed -= OnFoldingChanged;
         _doc.RevealRequested -= OnRevealRequested;
         _doc.CaretChanged -= OnCaretMoved;
-        _doc.MarksChanged -= InvalidateVisual;
+        _doc.MarksChanged -= OnMarksChanged;
         _completion.Close();
         _signature.Close();
         _actions.Close();
@@ -1311,6 +1316,7 @@ public sealed class CodeView : Control
         _completion.Update();
         _signature.Update();
         _actions.Update();
+        ScheduleBulb();
     }
 
     /// <summary>Where a name starts on its line, in this view's coordinates (the completion list hangs below it).</summary>
@@ -1340,6 +1346,148 @@ public sealed class CodeView : Control
         _doc.Highlighting?.Spans(at.Line) is { } spans &&
         spans.Any(s => s.Start < at.Index && at.Index <= s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String);
 
+    // ------------------------------------------------------------------ the light bulb
+
+    private const double BulbFadeMs = 150;
+    private static readonly Geometry BulbShape = StreamGeometry.Parse("M6,10.5 C4.3,9.5 3.5,8 3.5,6.5 A4.5,4.5 0 1 1 12.5,6.5 C12.5,8 11.7,9.5 10,10.5 L10,12 L6,12 Z M6.5,14 L9.5,14");
+    private static readonly IBrush BulbFixBrush = new SolidColorBrush(Color.FromRgb(0xE8, 0xB3, 0x3C));
+    private readonly DispatcherTimer _bulbTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
+    private CancellationTokenSource? _bulbCts;
+
+    // The line it shows on, whether the actions there include fixes (amber) or are only refactorings (muted), and since when.
+    private int _bulbLine = -1;
+    private bool _bulbFix;
+    private DateTime _bulbUtc;
+
+    // The caret moved or the text changed: the bulb goes, and the place is asked about once the caret rests.
+    // Find matches, git changes, diagnostics: repainted; new diagnostics may bring fixes for the caret's place.
+    private void OnMarksChanged()
+    {
+        InvalidateVisual();
+        if (IsFocused && !_bulbTimer.IsEnabled)
+        {
+            ScheduleBulb(keep: true);
+        }
+    }
+
+    private void ScheduleBulb() => ScheduleBulb(keep: false);
+
+    // (Kept: the diagnostics changed under a resting caret, so its place is asked about again without the bulb going.)
+    private void ScheduleBulb(bool keep)
+    {
+        _bulbCts?.Cancel();
+        if (_bulbLine >= 0 && !keep)
+        {
+            _bulbLine = -1;
+            InvalidateVisual();
+        }
+
+        _bulbTimer.Stop();
+        if (Navigator is not null && !_doc.IsReadOnly && IsFocused)
+        {
+            _bulbTimer.Start();
+        }
+    }
+
+    private async void AskBulb()
+    {
+        _bulbTimer.Stop();
+        if (Navigator is not { } navigator || _actions.IsOpen || _completion.IsOpen)
+        {
+            return;
+        }
+
+        var cts = _bulbCts = new CancellationTokenSource();
+        var doc = _doc;
+        var caret = doc.Caret;
+        var (from, to) = Ordered();
+        IReadOnlyList<Nomad.Core.Lsp.LspCodeAction>? actions;
+        try
+        {
+            actions = await navigator.CodeActionsAsync(from, to, cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested || _doc != doc || doc.Caret != caret || actions is null)
+        {
+            return;
+        }
+
+        if (actions.Count == 0)
+        {
+            _bulbLine = -1;
+            InvalidateVisual();
+            return;
+        }
+
+        var fix = actions.Any(a => a.Kind is null || a.Kind.StartsWith("quickfix", StringComparison.Ordinal));
+        if (_bulbLine != caret.Line || _bulbFix != fix)
+        {
+            _bulbUtc = DateTime.UtcNow;
+        }
+
+        _bulbLine = caret.Line;
+        _bulbFix = fix;
+        InvalidateVisual();
+    }
+
+    // Where it is drawn: in the line's indent, as Visual Studio's; on a line with none, in the fold column.
+    private Rect? BulbRect(Rect view)
+    {
+        if (_bulbLine < 0 || _bulbLine >= _lines.Count || _doc.Folding.RowOf(_bulbLine) is var row && Rows[row] != _bulbLine)
+        {
+            return null;
+        }
+
+        var text = _doc.Lines[_bulbLine];
+        var indent = Column(new TextPos(_bulbLine, text.Length - text.TrimStart().Length));
+        var top = Math.Round(RowTop(row) + (LineHeight - 16) / 2);
+        var x = indent * CharWidth >= 20
+            ? TextLeft + indent * CharWidth - 19
+            : view.Left + NumbersRight + FoldCenter - 8;
+        return new Rect(Math.Round(x), top, 16, 16);
+    }
+
+    private void DrawBulb(DrawingContext context, Rect view)
+    {
+        if (BulbRect(view) is not { } rect)
+        {
+            return;
+        }
+
+        var fade = Math.Min(1, (DateTime.UtcNow - _bulbUtc).TotalMilliseconds / BulbFadeMs);
+        var eased = 1 - Math.Pow(1 - fade, 3);
+        var color = _bulbFix ? BulbFixBrush : ThemeBrush("TextMutedBrush") ?? Foreground;
+        if (color is not ISolidColorBrush solid)
+        {
+            return;
+        }
+
+        var stroke = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(solid.Color, solid.Opacity * eased);
+        var fill = new Avalonia.Media.Immutable.ImmutableSolidColorBrush(solid.Color, solid.Opacity * eased * 0.25);
+        if (_bulbHover && ThemeBrush("BgHoverBrush") is ISolidColorBrush hover)
+        {
+            context.DrawRectangle(new Avalonia.Media.Immutable.ImmutableSolidColorBrush(hover.Color, hover.Opacity * eased), null, rect.Inflate(2), 3, 3);
+        }
+
+        using (context.PushTransform(Matrix.CreateTranslation(rect.X, rect.Y)))
+        {
+            context.DrawGeometry(fill, new Pen(stroke, 1.25, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), BulbShape);
+        }
+
+        if (fade < 1)
+        {
+            TopLevel.GetTopLevel(this)?.RequestAnimationFrame(_ => InvalidateVisual());
+        }
+    }
+
+    private bool _bulbHover;
+
+    private bool OnBulb(Point point) => BulbRect(_viewport.Height > 0 ? _viewport : new Rect(Bounds.Size)) is { } rect && rect.Inflate(2).Contains(point);
+
     // ------------------------------------------------------------------ code actions
 
     private CancellationTokenSource? _actionsCts;
@@ -1347,7 +1495,10 @@ public sealed class CodeView : Control
     private readonly CodeActionMenu _actions;
 
     /// <summary>Ctrl+.: the fixes and refactorings for the caret (or the selection), as a menu at it, as Visual Studio's light bulb.</summary>
-    private async void ShowCodeActions()
+    private void ShowCodeActions() => ShowCodeActions(null);
+
+    // (From the bulb: the menu hangs under it.)
+    private async void ShowCodeActions(Rect? under)
     {
         if (Navigator is not { } navigator || _doc.IsReadOnly)
         {
@@ -1377,7 +1528,7 @@ public sealed class CodeView : Control
             return;
         }
 
-        _actions.Show(actions);
+        _actions.Show(actions, under);
     }
 
     /// <summary>Where names lead and what they are (the group's: the C# language server, or a guess without it).</summary>
@@ -1842,6 +1993,13 @@ public sealed class CodeView : Control
         }
 
         Focus();
+        if (e.ClickCount == 1 && OnBulb(e.GetPosition(this)))
+        {
+            ShowCodeActions(BulbRect(_viewport.Height > 0 ? _viewport : new Rect(Bounds.Size)));
+            e.Handled = true;
+            return;
+        }
+
         if (e.ClickCount == 1 && FoldClick(e.GetPosition(this)))
         {
             e.Handled = true;
@@ -1898,6 +2056,18 @@ public sealed class CodeView : Control
             if (_link is not null)
             {
                 Cursor = LinkCursor; // Hover set the text's own.
+            }
+
+            var onBulb = OnBulb(_pointer.Value);
+            if (onBulb != _bulbHover)
+            {
+                _bulbHover = onBulb;
+                InvalidateVisual();
+            }
+
+            if (onBulb)
+            {
+                Cursor = LinkCursor;
             }
 
             UpdateLink(e.KeyModifiers.HasFlag(KeyModifiers.Control));

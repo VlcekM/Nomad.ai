@@ -71,7 +71,7 @@ internal sealed class CodeActionMenu
     public bool IsOpen { get; private set; }
 
     /// <summary>Shows the actions at the caret (or says there are none).</summary>
-    public void Show(IReadOnlyList<LspCodeAction> actions)
+    public void Show(IReadOnlyList<LspCodeAction> actions, Rect? under = null)
     {
         _rows.Children.Clear();
         _items.Clear();
@@ -140,7 +140,7 @@ internal sealed class CodeActionMenu
         _closeTimer.Stop();
         _card.Background = _view.Theme("BgMenuBrush");
         _card.BorderBrush = _view.Theme("BorderCardBrush");
-        (_popup.PlacementTarget, _popup.PlacementRect) = _view.WindowAnchor(_view.NameRect(_caret.Line, _caret.Index));
+        (_popup.PlacementTarget, _popup.PlacementRect) = _view.WindowAnchor(under ?? _view.NameRect(_caret.Line, _caret.Index));
         _popup.HorizontalOffset = -4;
         _popup.VerticalOffset = 2;
         Select(0);
