@@ -46,6 +46,8 @@ internal sealed class CodeSignatureHelp
             CornerRadius = new CornerRadius(6),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(10, 7),
+            Margin = CodeView.ShadowRoom,
+            BoxShadow = CodeView.CardShadow,
             MaxWidth = 720,
             Opacity = 0,
             IsHitTestVisible = false,
@@ -217,8 +219,8 @@ internal sealed class CodeSignatureHelp
         _card.Background = _view.Theme("BgMenuBrush");
         _card.BorderBrush = _view.Theme("BorderCardBrush");
         (_popup.PlacementTarget, _popup.PlacementRect) = _view.WindowAnchor(_view.NameRect(_anchor.Line, _anchor.Index));
-        _popup.HorizontalOffset = -12;
-        _popup.VerticalOffset = -2;
+        _popup.HorizontalOffset = -12 - CodeView.ShadowRoom.Left;
+        _popup.VerticalOffset = -2 + CodeView.ShadowRoom.Bottom;
         if (!_popup.IsOpen || opening)
         {
             _card.Opacity = 0;
@@ -291,13 +293,13 @@ internal sealed class CodeSignatureHelp
         var panel = new StackPanel { Spacing = 4, Children = { declaration } };
         if (Plain(signature.Documentation) is { } summary)
         {
-            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, Foreground = muted });
+            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, Foreground = muted, FontSize = _view.SmallFontSize });
         }
 
         if (active >= 0 && active < signature.Parameters.Count && signature.Parameters[active] is var (from, to, doc) && Plain(doc) is { } about)
         {
             var name = to > from && to <= label.Length ? label[from..to].Split(' ', StringSplitOptions.RemoveEmptyEntries)[^1] : null;
-            var line = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = muted };
+            var line = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = muted, FontSize = _view.SmallFontSize };
             if (name is not null)
             {
                 line.Inlines!.Add(new Run(name + ": ") { FontWeight = FontWeight.SemiBold, Foreground = _view.Foreground });

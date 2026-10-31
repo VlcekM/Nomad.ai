@@ -72,7 +72,8 @@ public static class VisualStudio
         return false;
     }
 
-    // The newest Visual Studio's devenv.exe (previews too).
+    // The newest Visual Studio's devenv.exe (previews too). Its editions by name: SQL Server Management Studio and the
+    // like register with vswhere as well, newer by version.
     private static string? FindDevenv()
     {
         if (!IsInstalled)
@@ -84,7 +85,12 @@ public static class VisualStudio
         {
             var start = new ProcessStartInfo(VsWhere)
             {
-                ArgumentList = { "-latest", "-prerelease", "-products", "*", "-property", "productPath", "-utf8" },
+                ArgumentList =
+                {
+                    "-latest", "-prerelease",
+                    "-products", "Microsoft.VisualStudio.Product.Community", "Microsoft.VisualStudio.Product.Professional", "Microsoft.VisualStudio.Product.Enterprise",
+                    "-property", "productPath", "-utf8",
+                },
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,

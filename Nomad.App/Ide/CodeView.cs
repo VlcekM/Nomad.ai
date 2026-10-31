@@ -1792,12 +1792,23 @@ public sealed class CodeView : Control
         }
     }
 
+    /// <summary>A slight drop shadow under the code's popup cards (Quick Info, signature help).</summary>
+    internal static readonly BoxShadows CardShadow = BoxShadows.Parse("0 4 14 0 #73000000");
+
+    /// <summary>Room around a card inside its popup for its shadow to show.</summary>
+    internal static readonly Thickness ShadowRoom = new(12, 4, 12, 18);
+
+    /// <summary>The UI's smaller text size (a popup's documentation under its code).</summary>
+    internal double SmallFontSize => this.TryFindResource("UiFontSizeSmall", ActualThemeVariant, out var size) && size is double d ? d : 12;
+
     // Quick Info's own popup (not a tooltip: placed under the name, as wide as it needs), fading in and out.
     private readonly Border _quickCard = new()
     {
         CornerRadius = new CornerRadius(6),
         BorderThickness = new Thickness(1),
         Padding = new Thickness(10, 8),
+        Margin = ShadowRoom,
+        BoxShadow = CardShadow,
         MaxWidth = 680,
         Opacity = 0,
         IsHitTestVisible = false,
@@ -1867,8 +1878,8 @@ public sealed class CodeView : Control
         _quickCard.BorderBrush = ThemeBrush("BorderCardBrush");
         _quickCard.Child = QuickInfoContent(info, problems);
         (QuickPopup.PlacementTarget, QuickPopup.PlacementRect) = WindowAnchor(NameRect(at.Line, at.Start).WithWidth(Math.Max(1, (at.End - at.Start) * CharWidth)));
-        QuickPopup.HorizontalOffset = -11;
-        QuickPopup.VerticalOffset = 2;
+        QuickPopup.HorizontalOffset = -11 - ShadowRoom.Left;
+        QuickPopup.VerticalOffset = 2 - ShadowRoom.Top;
         QuickPopup.IsOpen = true;
         _quickShown = true;
         Dispatcher.UIThread.Post(() => _quickCard.Opacity = _quickShown ? 1 : 0, DispatcherPriority.Loaded);
@@ -1927,7 +1938,7 @@ public sealed class CodeView : Control
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
         if (info.Summary is { } summary)
         {
-            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0) });
+            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0), FontSize = SmallFontSize });
         }
 
         if (info.More > 0)
@@ -1937,6 +1948,7 @@ public sealed class CodeView : Control
                 Text = $"+{info.More} more with this name (Ctrl+click lists them)",
                 Foreground = ThemeBrush("TextMutedBrush") ?? Foreground,
                 Margin = new Thickness(24, 0, 0, 0),
+                FontSize = SmallFontSize,
             });
         }
 
