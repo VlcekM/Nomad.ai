@@ -12,7 +12,6 @@ using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
 using Nomad.Core.Code;
-using TextMateSharp.Grammars;
 using SkiaSharp;
 
 namespace Nomad.App.Ide;
@@ -1922,7 +1921,7 @@ public sealed class CodeView : Control
             MaxWidth = 620,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
-        AddCode(signature.Inlines!, info.Signature, Highlighter.ForFile(info.Path));
+        AddCode(signature.Inlines!, info.Signature, Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, info.Signature, null).Spans : []);
         var icon = new CodeSymbolIcon { Kind = info.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
         TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
@@ -1944,8 +1943,8 @@ public sealed class CodeView : Control
         return panel;
     }
 
-    /// <summary>Code as runs in the code's colors, with the characters from <paramref name="boldFrom"/> to <paramref name="boldTo"/> in bold.</summary>
-    internal void AddCode(InlineCollection inlines, string text, IGrammar? grammar, int boldFrom = 0, int boldTo = 0)
+    /// <summary>Code as runs in the code's colors (its <paramref name="spans"/>), with the characters from <paramref name="boldFrom"/> to <paramref name="boldTo"/> in bold.</summary>
+    internal void AddCode(InlineCollection inlines, string text, IEnumerable<CodeSpan> spans, int boldFrom = 0, int boldTo = 0)
     {
         void Add(int from, int to, IBrush? brush)
         {
@@ -1959,7 +1958,6 @@ public sealed class CodeView : Control
         }
 
         var at = 0;
-        var spans = grammar is not null ? Highlighter.Tokenize(grammar, text, null).Spans : [];
         foreach (var span in spans.Where(s => s.Length > 0 && s.Start >= at).OrderBy(s => s.Start))
         {
             Add(at, span.Start, Foreground);
@@ -2744,6 +2742,9 @@ public interface ICodeNavigator
 
     /// <summary>F2: a new name for it, everywhere.</summary>
     void Rename(CodeSpot spot);
+
+    /// <summary>Whether a character typed asks for completions (the language server's trigger characters).</summary>
+    bool IsCompletionTrigger(string text);
 
     /// <summary>What could be typed at a place (null: no language server to ask).</summary>
     Task<Nomad.Core.Lsp.LspCompletionList?> CompleteAsync(int line, int column, string? trigger, CancellationToken cancellationToken);

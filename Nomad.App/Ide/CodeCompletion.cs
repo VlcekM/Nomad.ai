@@ -176,7 +176,11 @@ internal sealed class CodeCompletion
         }
 
         _waiting = false;
-        if (found is null || found.Items.Count == 0)
+
+        // After a '(', ',' or space the server offers everything: shown only when it picked something to go there (the
+        // enum an argument takes), as Visual Studio does.
+        var unasked = trigger is { Length: 1 } t && t != "." && !IsWord(t[0]) && _view.Doc.Caret.Index == _start;
+        if (found is null || found.Items.Count == 0 || unasked && !found.Items.Any(i => i.Preselect))
         {
             Close();
             return;
@@ -395,9 +399,11 @@ internal sealed class CodeCompletion
     /// <summary>A character was typed: a '.' or a name begun asks for completions.</summary>
     public void AfterTyping(string text)
     {
-        if (text == ".")
+        // The server's trigger characters ('.', the space after a ',' where an enum goes…): it answers with nothing
+        // where they don't fit.
+        if (text == "." || text.Length == 1 && !IsWord(text[0]) && _view.Navigator?.IsCompletionTrigger(text) == true)
         {
-            Start(".");
+            Start(text);
             return;
         }
 

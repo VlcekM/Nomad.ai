@@ -227,4 +227,15 @@ public class CompletionFilterTests
         Assert.Equal(["b", "a"], ranked.Select(r => r.Item.Label));
         Assert.Equal(1, CompletionFilter.Best(ranked, ""));
     }
+
+    [Fact]
+    public void TypingKeepsThePreselectionWhenItFitsAsWell()
+    {
+        var items = new[] { Item("GetBufferInteger"), Item("GetSourceInteger", preselect: true), Item("gain", preselect: false) };
+        Assert.Equal("GetSourceInteger", CompletionFilter.Rank(items, "G")[CompletionFilter.Best(CompletionFilter.Rank(items, "G"), "G")].Item.Label);
+
+        // A worse fit than the first doesn't win.
+        var others = new[] { Item("Gain"), Item("BigSource", preselect: true) };
+        Assert.Equal("Gain", CompletionFilter.Rank(others, "G")[CompletionFilter.Best(CompletionFilter.Rank(others, "G"), "G")].Item.Label);
+    }
 }

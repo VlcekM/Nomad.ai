@@ -51,9 +51,16 @@ public static class CompletionFilter
             return Math.Max(0, preselected);
         }
 
-        // The exact name typed, if it is there (in either case), else the first.
+        // The exact name typed, if it is there (in either case), else the one the server picked (the enum an argument
+        // takes) if it fits as well as the first, else the first.
         var exact = ranked.FindIndex(r => string.Equals(r.Item.FilterText, typed, StringComparison.OrdinalIgnoreCase));
-        return Math.Max(0, exact);
+        if (exact >= 0)
+        {
+            return exact;
+        }
+
+        var picked = ranked.FindIndex(r => r.Item.Preselect && r.Score == ranked[0].Score);
+        return Math.Max(0, picked);
     }
 
     // 0: starts with it in the same case, 1: in another case, 2: its capitals, 3: contains it; null: doesn't fit.

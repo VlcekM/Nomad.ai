@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Nomad.Core.Lsp;
+using TextMateSharp.Grammars;
 
 namespace Nomad.App.Ide;
 
@@ -277,14 +278,14 @@ internal sealed class CodeSignatureHelp
         }
 
         var label = signature.Label;
-        var grammar = Highlighter.ForLanguage("csharp");
+        var spans = Spans(label);
         if (active >= 0 && active < signature.Parameters.Count && signature.Parameters[active] is var (start, end, _) && end > start && end <= label.Length)
         {
-            _view.AddCode(declaration.Inlines!, label, grammar, start, end);
+            _view.AddCode(declaration.Inlines!, label, spans, start, end);
         }
         else
         {
-            _view.AddCode(declaration.Inlines!, label, grammar);
+            _view.AddCode(declaration.Inlines!, label, spans);
         }
 
         var panel = new StackPanel { Spacing = 4, Children = { declaration } };
@@ -308,6 +309,81 @@ internal sealed class CodeSignatureHelp
 
         _card.Child = panel;
     }
+
+    // The declaration's colors: read as a member inside a class (so its types are types), with the method's name a
+    // method's (the grammar takes "AL.GetSourceProperty" for an interface's member, all of it a type) or, for a
+    // constructor (no return type before it), a type's.
+    private static List<CodeSpan> Spans(string label)
+    {
+        if (Highlighter.ForLanguage("csharp") is not { } grammar)
+        {
+            return [];
+        }
+
+        _inClass ??= Highlighter.Tokenize(grammar, "class C {", null).State;
+        var spans = Highlighter.Tokenize(grammar, label, _inClass).Spans.ToList();
+        if (Name(label) is not var (from, to))
+        {
+            return spans;
+        }
+
+        // A qualifier's '.' before the name goes with neither.
+        var cut = from > 0 && label[from - 1] == '.' ? from - 1 : from;
+        var result = new List<CodeSpan>();
+        foreach (var span in spans)
+        {
+            var end = span.Start + span.Length;
+            if (end <= cut || span.Start >= to)
+            {
+                result.Add(span);
+                continue;
+            }
+
+            if (span.Start < cut)
+            {
+                result.Add(span with { Length = cut - span.Start });
+            }
+
+            if (end > to)
+            {
+                result.Add(span with { Start = to, Length = end - to });
+            }
+        }
+
+        var constructor = !label[..from].Trim().Contains(' ');
+        result.Add(new CodeSpan(from, to - from, constructor ? CodeKind.Type : CodeKind.Function));
+        return result;
+    }
+
+    // The method's name: the word before the parameters' '(' (and before its type parameters' '<…>').
+    private static (int From, int To)? Name(string label)
+    {
+        var open = label.IndexOf('(');
+        var to = open;
+        if (to > 0 && label[to - 1] == '>')
+        {
+            var depth = 0;
+            while (to > 0)
+            {
+                to--;
+                depth += label[to] switch { '>' => 1, '<' => -1, _ => 0 };
+                if (depth == 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        var from = to;
+        while (from > 0 && (char.IsLetterOrDigit(label[from - 1]) || label[from - 1] == '_'))
+        {
+            from--;
+        }
+
+        return to > from ? (from, to) : null;
+    }
+
+    private static IStateStack? _inClass;
 
     // Documentation as plain text (a code block's fences, markdown's escapes and emphasis gone); null for none.
     private static string? Plain(string? markdown)

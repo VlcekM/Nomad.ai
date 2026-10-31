@@ -38,6 +38,9 @@ public sealed class RoslynServer : IAsyncDisposable
     /// <summary>The solution or projects opened, for the status ("Nomad.slnx", "3 projects").</summary>
     public string? Opened { get; private set; }
 
+    /// <summary>The characters that, typed, ask for completions where they fit (a '.', the space after a ',' for an enum…).</summary>
+    public IReadOnlySet<string> CompletionTriggers { get; private set; } = new HashSet<string> { "." };
+
     /// <summary>The solution's projects are loaded: answers are complete from now on.</summary>
     public bool IsLoaded => _loaded.Task.IsCompleted;
 
@@ -235,7 +238,7 @@ public sealed class RoslynServer : IAsyncDisposable
         try
         {
             var rootUri = Uri(root);
-            await connection.CallAsync("initialize", new JsonObject
+            var initialized = await connection.CallAsync("initialize", new JsonObject
             {
                 ["processId"] = Environment.ProcessId,
                 ["clientInfo"] = new JsonObject { ["name"] = "Nomad" },
@@ -293,6 +296,12 @@ public sealed class RoslynServer : IAsyncDisposable
                     },
                 },
             }, cancellationToken, TimeSpan.FromSeconds(60)).ConfigureAwait(false);
+            if (initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("capabilities", out var capabilities) &&
+                capabilities.TryGetProperty("completionProvider", out var completion) && completion.TryGetProperty("triggerCharacters", out var triggers) && triggers.ValueKind == JsonValueKind.Array)
+            {
+                server.CompletionTriggers = triggers.EnumerateArray().Select(t => t.GetString()).OfType<string>().ToHashSet();
+            }
+
             await connection.NotifyAsync("initialized", new JsonObject()).ConfigureAwait(false);
 
             switch (FindWork(root))

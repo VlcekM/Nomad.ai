@@ -60,6 +60,11 @@ public sealed partial class CSharpLanguage : ObservableObject
 
     public bool IsReady => State == CSharpState.Ready && _server is { IsRunning: true };
 
+    /// <summary>The characters that, typed, ask for completions (only '.' until the server says).</summary>
+    public IReadOnlySet<string> CompletionTriggers => _server?.CompletionTriggers ?? DotOnly;
+
+    private static readonly HashSet<string> DotOnly = ["."];
+
     /// <summary>The folder's language server (started if this is the first to ask), for as long as it is not released.</summary>
     public static CSharpLanguage Acquire(string root)
     {

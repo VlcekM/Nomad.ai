@@ -887,6 +887,8 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
         });
     }
 
+    public bool IsCompletionTrigger(string text) => ActiveTab is { } tab && Server(tab) is { } server ? server.CompletionTriggers.Contains(text) : text == ".";
+
     public async Task<Nomad.Core.Lsp.LspCompletionList?> CompleteAsync(int line, int column, string? trigger, CancellationToken cancellationToken) =>
         ActiveTab is { } tab && Server(tab) is { } server ? await server.CompletionAsync(tab.Path, line, column, trigger, cancellationToken) : null;
 
