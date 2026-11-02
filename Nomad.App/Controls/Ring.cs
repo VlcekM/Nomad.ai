@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace Nomad.App.Controls;
 
@@ -37,13 +36,23 @@ public sealed class Ring : Control
     private const double PendingDelayMs = 250;
     private const double PendingFadeMs = 200;
 
-    private DispatcherTimer? _timer;
+    // Degrees per millisecond: a turn in 0.96 s spinning, half that speed pending.
+    private const double SpinRate = 6 / 16.0;
+    private const double PendingRate = 3 / 16.0;
+
+    private readonly FrameLoop _frames;
     private readonly System.Diagnostics.Stopwatch _pending = new();
     private double _angle;
+    private TimeSpan? _lastFrame;
 
     static Ring()
     {
         AffectsRender<Ring>(FractionProperty, TrackBrushProperty, ArcBrushProperty, SpinBrushProperty, StrokeWidthProperty);
+    }
+
+    public Ring()
+    {
+        _frames = new FrameLoop(this, Advance);
     }
 
     public bool IsSpinning
@@ -112,24 +121,28 @@ public sealed class Ring : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _timer?.Stop();
+        _frames.Stop();
+        _lastFrame = null;
     }
 
     private void UpdateTimer()
     {
-        if ((IsSpinning || IsPending) && VisualRoot is not null)
+        var moving = (IsSpinning || IsPending) && VisualRoot is not null;
+        if (!moving)
         {
-            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
-            {
-                _angle = (_angle + (IsSpinning ? 6 : 3)) % 360;
-                InvalidateVisual();
-            });
-            _timer.Start();
+            _lastFrame = null;
         }
-        else
-        {
-            _timer?.Stop();
-        }
+
+        _frames.Update(moving);
+    }
+
+    // A frame long after the last one (the window was busy) moves the arc a frame's worth, not a jump.
+    private void Advance(TimeSpan time)
+    {
+        var elapsed = _lastFrame is { } last ? Math.Clamp((time - last).TotalMilliseconds, 0, 50) : 16;
+        _lastFrame = time;
+        _angle = (_angle + elapsed * (IsSpinning ? SpinRate : PendingRate)) % 360;
+        InvalidateVisual();
     }
 
     public override void Render(DrawingContext context)

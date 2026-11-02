@@ -8,6 +8,8 @@ grow or move ease in rather than pop, and never call attention to themselves.
 - 120–250 ms, `CubicEaseOut` (or the same curve by hand); fades and small slides, no bounces.
 - Never make input wait on an animation; a new value interrupts and retargets the running one.
 - Timers that drive animation run only while something is moving or visible, and stop when idle.
+- Anything that redraws continuously (a spinner, a sweep) runs on `FrameLoop` (`Nomad.App/Controls/FrameLoop.cs`, one callback per
+  render frame, so it matches the display), never on a `DispatcherTimer`: 16 ms ticks land on the 15.6 ms system tick and give ~45 fps.
 - New streamed text fades in; rows that come and go fold their height and fade.
 - Check animations mid-flight with `--dev-key` (see below), not only their end states.
 

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
-using Avalonia.Threading;
 using Nomad.App.Infrastructure;
 
 namespace Nomad.App.Controls;
@@ -22,7 +21,7 @@ public sealed class ClayMark : Control
     private static readonly TimeSpan SpinnerPeriod = TimeSpan.FromMilliseconds(1100);
 
     private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private DispatcherTimer? _timer;
+    private readonly FrameLoop _frames;
     private ClayPlayer? _player;
 
     static ClayMark()
@@ -33,6 +32,7 @@ public sealed class ClayMark : Control
     public ClayMark()
     {
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality);
+        _frames = new FrameLoop(this, _ => InvalidateVisual());
     }
 
     /// <summary>"think", "read", "search", "code", "write", "compose", "blocked" or "default".</summary>
@@ -62,7 +62,7 @@ public sealed class ClayMark : Control
     {
         base.OnDetachedFromVisualTree(e);
         WorkingMarkSheets.Loaded -= OnSheetsLoaded;
-        _timer?.Stop();
+        _frames.Stop();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -85,15 +85,7 @@ public sealed class ClayMark : Control
     {
         var running = IsVisible && VisualRoot is not null;
         _player = running && WorkingMarkSheets.Current is { } sheets ? new ClayPlayer(sheets, Activity, Now) : null;
-        if (running)
-        {
-            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) => InvalidateVisual());
-            _timer.Start();
-        }
-        else
-        {
-            _timer?.Stop();
-        }
+        _frames.Update(running);
     }
 
     private double Now => _clock.Elapsed.TotalMilliseconds;

@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Threading;
 
 namespace Nomad.App.Controls;
 
@@ -25,7 +24,7 @@ public enum SessionMark
 
 /// <summary>
 /// A sidebar row's state on its right: a spinning circle while working, circling dots for subagents, or a dot. A change
-/// crossfades (200 ms, cubic ease-out, retargeting mid-flight); the timer runs only while fading or animating.
+/// crossfades (200 ms, cubic ease-out, retargeting mid-flight); it redraws on render frames only while fading or animating.
 /// </summary>
 public sealed class StatusMark : Control
 {
@@ -49,12 +48,21 @@ public sealed class StatusMark : Control
     private const double SpinnerStroke = 1.8;
 
     private readonly DateTime _start = DateTime.UtcNow;
-    private DispatcherTimer? _timer;
+    private readonly FrameLoop _frames;
 
     // The mark fading out, and how far the one fading in had come when the change came.
     private SessionMark _from;
     private double _fromOpacity;
     private DateTime _changed = DateTime.MinValue;
+
+    public StatusMark()
+    {
+        _frames = new FrameLoop(this, _ =>
+        {
+            InvalidateVisual();
+            Update();
+        });
+    }
 
     public SessionMark Mark
     {
@@ -95,7 +103,7 @@ public sealed class StatusMark : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _timer?.Stop();
+        _frames.Stop();
     }
 
     // A recycled row taking another session's state: no fade.
@@ -149,19 +157,7 @@ public sealed class StatusMark : Control
     private void Update()
     {
         var moving = IsVisible && VisualRoot is not null && (Mark is SessionMark.Working or SessionMark.Subagents || Progress() < 1);
-        if (moving)
-        {
-            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) =>
-            {
-                InvalidateVisual();
-                Update();
-            });
-            _timer.Start();
-        }
-        else
-        {
-            _timer?.Stop();
-        }
+        _frames.Update(moving);
     }
 
     public override void Render(DrawingContext context)

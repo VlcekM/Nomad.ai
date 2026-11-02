@@ -2,7 +2,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.Threading;
 
 namespace Nomad.App.Controls;
 
@@ -18,11 +17,16 @@ public sealed class PixelSpinner : Control
     private static readonly TimeSpan Period = TimeSpan.FromMilliseconds(1100);
 
     private readonly DateTime _start = DateTime.UtcNow;
-    private DispatcherTimer? _timer;
+    private readonly FrameLoop _frames;
 
     static PixelSpinner()
     {
         AffectsRender<PixelSpinner>(ForegroundProperty);
+    }
+
+    public PixelSpinner()
+    {
+        _frames = new FrameLoop(this, _ => InvalidateVisual());
     }
 
     public IBrush? Foreground
@@ -42,7 +46,7 @@ public sealed class PixelSpinner : Control
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _timer?.Stop();
+        _frames.Stop();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -54,18 +58,7 @@ public sealed class PixelSpinner : Control
         }
     }
 
-    private void Update()
-    {
-        if (IsVisible && VisualRoot is not null)
-        {
-            _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) => InvalidateVisual());
-            _timer.Start();
-        }
-        else
-        {
-            _timer?.Stop();
-        }
-    }
+    private void Update() => _frames.Update(IsVisible && VisualRoot is not null);
 
     public override void Render(DrawingContext context)
     {
