@@ -29,6 +29,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-close &lt;seconds&gt;       close the window (as its X does) this long after start
 /// --dev-drag x1,y1,x2,y2 &lt;seconds&gt;  drag the mouse (left button) between two window points this long after start
 /// --dev-drag-ctrl               hold Ctrl during --dev-drag (a Ctrl+click when it doesn't move)
+/// --dev-drag-middle             drag with the middle button instead, and keep it held at the end (autoscroll)
 /// --dev-pick &lt;n&gt;              pick the first n Idle rows (as Ctrl+clicks would) after start; with --dev-menu row, it opens on them
 /// --dev-compose "&lt;text&gt;"     put this text in the composer after start (\n for new lines)
 /// --dev-sandbox composer        only the composer, in a window of its own (Enter renders what was typed)
@@ -98,6 +99,9 @@ public sealed class DevOptions
 
     /// <summary><c>--dev-drag-ctrl</c>: the drag holds Ctrl (a Ctrl+click when it doesn't move).</summary>
     public bool DragCtrl { get; private set; }
+
+    /// <summary><c>--dev-drag-middle</c>: the drag uses the middle button and leaves it held (autoscroll mid-flight).</summary>
+    public bool DragMiddle { get; private set; }
 
     /// <summary><c>--dev-pick n</c>: the first n Idle rows are picked.</summary>
     public int Pick { get; private set; }
@@ -226,6 +230,7 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-drag-ctrl": o.DragCtrl = true; break;
+                case "--dev-drag-middle": o.DragMiddle = true; break;
                 case "--dev-pick": o.Pick = int.TryParse(Next(), out var pick) ? pick : 0; break;
                 case "--dev-compose": o.Compose = Next().Replace("\\n", "\n"); break;
                 case "--dev-sandbox": o.Sandbox = Next(); break;

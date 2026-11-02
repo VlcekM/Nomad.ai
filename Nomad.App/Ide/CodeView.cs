@@ -2599,17 +2599,20 @@ internal enum SceneKind : byte
 /// <summary>A fill (its rectangle) or a piece of text (at the rectangle's left and top) in one color.</summary>
 internal readonly record struct SceneItem(SceneKind Kind, SKRect Rect, string? Text, SKColor Color);
 
-/// <summary>The offscreen surface a <see cref="SkiaScene"/> draws on, made again only when its size changes.</summary>
+/// <summary>
+/// The offscreen surface a <see cref="SkiaScene"/> draws on, made again only when its size changes. One per rendering
+/// thread: a screenshot (drawn on the UI thread) must not draw into the one the compositor is drawing into.
+/// </summary>
 internal sealed class SceneSurface
 {
-    private SKSurface? _surface;
-    private SKSizeI _size;
+    private readonly ThreadLocal<(SKSurface? Surface, SKSizeI Size)> _surfaces = new();
 
     public SKSurface? Get(SKSizeI size)
     {
-        if (_surface is null || _size != size)
+        var (surface, made) = _surfaces.Value;
+        if (surface is null || made != size)
         {
-            _surface?.Dispose();
+            surface?.Dispose();
 
             // In memory and in the platform's own BGRA: Skia smooths text into subpixels only there (in RGBA, or on the
             // GPU, it quietly goes grey). Only the part in view is drawn, so handing it to the GPU each frame is cheap.
@@ -2617,11 +2620,11 @@ internal sealed class SceneSurface
 
             // RGB stripes, as nearly every screen has: Skia smooths text into them (ClearType's subpixel smoothing).
             var props = new SKSurfaceProperties(SKPixelGeometry.RgbHorizontal);
-            _surface = SKSurface.Create(info, props);
-            _size = size;
+            surface = SKSurface.Create(info, props);
+            _surfaces.Value = (surface, size);
         }
 
-        return _surface;
+        return surface;
     }
 }
 

@@ -1525,8 +1525,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        const uint mouseMove = 0x0200, buttonDown = 0x0201, buttonUp = 0x0202;
-        var leftButton = 0x0001;
+        const uint mouseMove = 0x0200;
+        var middle = _vm.Dev.DragMiddle;
+        var buttonDown = middle ? 0x0207u : 0x0201u;
+        var buttonUp = middle ? 0x0208u : 0x0202u;
+        var button = middle ? 0x0010 : 0x0001; // MK_MBUTTON or MK_LBUTTON
         var ctrl = _vm.Dev.DragCtrl ? 0x0008 : 0; // MK_CONTROL
         var scale = RenderScaling;
         void Send(uint message, Point at, int keys)
@@ -1547,15 +1550,19 @@ public partial class MainWindow : Window
         }
 
         Send(mouseMove, from, ctrl);
-        Send(buttonDown, from, leftButton | ctrl);
+        Send(buttonDown, from, button | ctrl);
         for (var i = 1; i <= 10; i++)
         {
             await Task.Delay(16);
-            Send(mouseMove, from + ((to - from) * (i / 10.0)), leftButton | ctrl);
+            Send(mouseMove, from + ((to - from) * (i / 10.0)), button | ctrl);
         }
 
-        Send(buttonUp, to, ctrl);
-        Send(mouseMove, to, ctrl);
+        if (!middle)
+        {
+            Send(buttonUp, to, ctrl);
+            Send(mouseMove, to, ctrl);
+        }
+
         if (ctrl != 0)
         {
             SetKeyboardState(keys);
