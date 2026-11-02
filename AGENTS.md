@@ -31,7 +31,7 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
   `--dev-side-panel` the right-hand panel; `--dev-files [a|b|…]` a chat's Files view, with those files open in tabs (`--dev-files-split` opens the last to the side too).
 - `--dev-compose "/co"` types into the composer, `--dev-paste-image <file>` attaches an image or file, and
   `--dev-drag x1,y1,x2,y2 <seconds>` (repeatable) drags the mouse inside the window (clicks, text selection, a hover at the end; add
-  `--dev-drag-ctrl` for a Ctrl+click).
+  `--dev-drag-ctrl` for a Ctrl+click, `--dev-drag-middle` for a middle-button autoscroll left held).
 - `--dev-key Ctrl+B <seconds>` presses a key on the focused control. Every capture waits 600 ms
   after `--dev-after`, so to catch an animation press the key about that long after it.
   `--dev-type "abc{Enter}{Ctrl+S}" <seconds>` types into the focused control (keys in braces are pressed, `{Wait}` pauses 1.5 s); click
