@@ -48,6 +48,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         InterfaceFont = s.InterfaceFont;
         CodeFont = s.CodeFont;
+        EditorFontSize = s.EditorFontSize;
         TextSize = s.TextSize;
         InterfaceTextSize = s.InterfaceTextSize;
         TranscriptWidth = s.TranscriptWidth;
@@ -86,6 +87,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<string> UiFonts { get; }
 
     public IReadOnlyList<string> CodeFonts { get; }
+
+    /// <summary>The code editor's sizes on offer, in points.</summary>
+    public IReadOnlyList<int> EditorFontSizes { get; } = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24];
 
     public IReadOnlyList<ModelOption> Models => Catalog.Models;
 
@@ -139,6 +143,9 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial string CodeFont { get; set; }
+
+    [ObservableProperty]
+    public partial int EditorFontSize { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsTextSmall), nameof(IsTextMedium), nameof(IsTextLarge))]
@@ -217,6 +224,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnInterfaceFontChanged(string value) => Apply(s => s.InterfaceFont = string.IsNullOrWhiteSpace(value) ? "Inter" : value, appearance: true);
 
     partial void OnCodeFontChanged(string value) => Apply(s => s.CodeFont = string.IsNullOrWhiteSpace(value) ? "Cascadia Mono" : value, appearance: true);
+
+    partial void OnEditorFontSizeChanged(int value) => Apply(s => s.EditorFontSize = value > 0 ? value : 10, appearance: true);
 
     partial void OnTextSizeChanged(string value) => Apply(s => s.TextSize = value, appearance: true);
 

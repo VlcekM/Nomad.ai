@@ -361,6 +361,15 @@
               <Border Classes="rowline" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Editor text size" Classes="rowlabel" />
+                  <TextBlock Text="Size of the code in the Files view's editor, in points." Classes="rowhint" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding EditorFontSize}" />
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <TextBlock Text="Interface text size" Classes="rowlabel" VerticalAlignment="Center" />
                 <Border Grid.Column="1" Classes="segments">
                   <StackPanel Orientation="Horizontal">

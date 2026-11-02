@@ -22,7 +22,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-expand                  expand every tool group (to screenshot rows)
 /// --dev-answer allow|session|deny|pick   answer every permission request automatically
 ///                               (questions get their first options; pick only selects them)
-/// --dev-set textSize=Large      change an appearance setting live, after start (textSize, width, theme, colorTheme)
+/// --dev-set textSize=Large      change an appearance setting live, after start (textSize, editorFontSize, width, theme, colorTheme)
 /// --dev-stop-after &lt;seconds&gt;   press Stop this long after the dev prompt was sent
 /// --dev-key Ctrl+B &lt;seconds&gt;  press a key on the focused control this long after start
 /// --dev-type "ab{Enter}{Ctrl+Z}" &lt;seconds&gt;  type into the focused control this long after start ({gesture} presses a key)

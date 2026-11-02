@@ -396,5 +396,7 @@
   <x:Double x:Key="BodyFontSize">15</x:Double>
   <x:Double x:Key="BodyLineHeight">21</x:Double>
   <x:Double x:Key="CodeFontSize">13</x:Double>
+  <x:Double x:Key="EditorFontSize">13.333</x:Double>
+  <x:Double x:Key="EditorLineHeight">17</x:Double>
   <x:Double x:Key="ColumnMaxWidth">1280</x:Double>
 </ResourceDictionary>

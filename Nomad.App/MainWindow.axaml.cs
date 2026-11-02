@@ -1630,6 +1630,7 @@ public partial class MainWindow : Window
                 switch (key)
                 {
                     case "textSize": page.TextSize = value; break;
+                    case "editorFontSize": page.EditorFontSize = int.TryParse(value, out var points) ? points : 10; break;
                     case "width": page.TranscriptWidth = value; break;
                     case "theme": page.Theme = value; break;
                     case "colorTheme": page.SelectedColorTheme = page.ColorThemes.FirstOrDefault(c => c.Id == value) ?? page.SelectedColorTheme; break;

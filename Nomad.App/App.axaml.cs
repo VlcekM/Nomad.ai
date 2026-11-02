@@ -110,6 +110,11 @@ public partial class App : Application
         Set("BodyLineHeight", style.LineHeight);
         Set("CodeFontSize", style.CodeSize);
 
+        // The code editor's size in points, as Visual Studio's; its lines keep VS's 17 px to 10 pt spacing.
+        var editorSize = Math.Clamp(settings.EditorFontSize, 6, 32) * 4 / 3.0;
+        Set("EditorFontSize", editorSize);
+        Set("EditorLineHeight", Math.Round(editorSize * 1.275));
+
         // Theme: the palette's resources follow at once; rendered markdown (brushes picked in code) is rebuilt.
         var theme = settings.Theme switch
         {

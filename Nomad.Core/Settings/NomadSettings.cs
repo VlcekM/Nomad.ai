@@ -13,6 +13,9 @@ public sealed class NomadSettings
     /// <summary>Small | Medium | Large (transcript body 13 / 14 / 15 px).</summary>
     public string TextSize { get; set; } = "Medium";
 
+    /// <summary>The code editor's text size in points (Visual Studio's 10 by default).</summary>
+    public int EditorFontSize { get; set; } = 10;
+
     /// <summary>Small | Medium | Large (sidebar, menus, status row: 12 / 13 / 14 px).</summary>
     public string InterfaceTextSize { get; set; } = "Medium";
 
