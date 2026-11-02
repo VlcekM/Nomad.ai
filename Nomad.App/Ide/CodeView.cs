@@ -24,7 +24,7 @@ namespace Nomad.App.Ide;
 /// <see cref="CodeDocument"/> is read-only it edits as Visual Studio does: typing, Enter keeping the indent, Tab and
 /// Shift+Tab on whole lines, Ctrl+arrows by word, Ctrl+X/C/V (a whole line with nothing selected), Ctrl+Z/Y.
 /// </summary>
-public sealed class CodeView : Control
+public sealed partial class CodeView : Control
 {
     public static readonly StyledProperty<CodeDocument?> DocumentProperty =
         AvaloniaProperty.Register<CodeView, CodeDocument?>(nameof(Document));
@@ -235,8 +235,11 @@ public sealed class CodeView : Control
             _doc.CaretChanged -= OnCaretMoved;
             _doc.RevealRequested -= OnRevealRequested;
             _doc.MarksChanged -= OnMarksChanged;
+            _doc.LensesChanged -= OnLensesChanged;
             _doc = Document ?? CodeDocument.Empty;
             _doc.MarksChanged += OnMarksChanged;
+            _doc.LensesChanged += OnLensesChanged;
+            _lensList?.Close();
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
             _doc.RevealRequested += OnRevealRequested;
@@ -254,6 +257,7 @@ public sealed class CodeView : Control
             _charWidth = 0;
             _skiaResolved = false;
             ClearLayouts();
+            ClearLensLayouts();
         }
         else if (change.Property == ForegroundProperty || change.Property == LineHeightProperty)
         {
@@ -413,7 +417,7 @@ public sealed class CodeView : Control
         var p = Padding;
 
         // A column more than the longest line, for the caret at its end; a row per line shown (folded blocks hide theirs).
-        return new Size(TextLeft + (_longest + 1) * CharWidth + p.Right, p.Top + Rows.Count * LineHeight + p.Bottom);
+        return new Size(TextLeft + (_longest + 1) * CharWidth + p.Right, p.Top + Rows.Count * LineHeight + LensTotal + p.Bottom);
     }
 
     // The line numbers, as Visual Studio sets them: right-aligned in a column of at least three digits, 40 px in, and
@@ -451,7 +455,7 @@ public sealed class CodeView : Control
     /// <summary>The document lines shown, one per row (folded blocks leave out all but their first line).</summary>
     private IReadOnlyList<int> Rows => _doc.Folding.Rows;
 
-    private double RowTop(int row) => Padding.Top + row * LineHeight;
+    private double RowTop(int row) => Padding.Top + row * LineHeight + LensAbove(row);
 
     /// <summary>Where a folded line's "..." box is, after its text.</summary>
     private Rect FoldedBox(int line, int row) =>
@@ -466,8 +470,8 @@ public sealed class CodeView : Control
         var height = LineHeight;
         var rows = Rows;
         var view = _viewport.Height > 0 ? _viewport : new Rect(Bounds.Size);
-        var firstRow = Math.Clamp((int)Math.Floor((view.Top - p.Top) / height), 0, rows.Count - 1);
-        var lastRow = Math.Clamp((int)Math.Ceiling((view.Bottom - p.Top) / height), 0, rows.Count - 1);
+        var firstRow = Math.Clamp(RowAt(view.Top), 0, rows.Count - 1);
+        var lastRow = Math.Clamp(RowAt(view.Bottom), 0, rows.Count - 1);
         var charWidth = CharWidth;
         var folding = _doc.Folding;
 
@@ -904,6 +908,8 @@ public sealed class CodeView : Control
             context.Custom(new SkiaScene(new Rect(Bounds.Size), view, scene, skia!, (float)FontSize, (float)height, SkColor(background), _surface));
         }
 
+        DrawLenses(context, view, firstRow, lastRow);
+
         DrawBulb(context, view);
 
         if (_caretOn && IsEditable && IsFocused && CaretBrush is { } caret)
@@ -998,6 +1004,7 @@ public sealed class CodeView : Control
         _kindBrushes = null;
         _themeBrushes.Clear();
         ClearLayouts();
+        ClearLensLayouts();
     }
 
     /// <summary>A line's colored runs in columns of its tab-expanded text, or null if it hasn't been tokenized.</summary>
@@ -1088,6 +1095,8 @@ public sealed class CodeView : Control
         _doc.CaretChanged += OnCaretMoved;
         _doc.MarksChanged -= OnMarksChanged;
         _doc.MarksChanged += OnMarksChanged;
+        _doc.LensesChanged -= OnLensesChanged;
+        _doc.LensesChanged += OnLensesChanged;
         Refresh();
     }
 
@@ -1100,9 +1109,12 @@ public sealed class CodeView : Control
         _doc.RevealRequested -= OnRevealRequested;
         _doc.CaretChanged -= OnCaretMoved;
         _doc.MarksChanged -= OnMarksChanged;
+        _doc.LensesChanged -= OnLensesChanged;
         _completion.Close();
         _signature.Close();
         _actions.Close();
+        _lensList?.Close();
+        StopLensTip();
     }
 
     // A Go To (or a find's match): the caret's line in the middle of the view, and the focus here to type at it.
@@ -1140,12 +1152,12 @@ public sealed class CodeView : Control
         }
 
         var rows = Rows;
-        if (point.Y > p.Top + rows.Count * LineHeight)
+        if (point.Y > RowTop(rows.Count - 1) + LineHeight)
         {
             return _doc.End;
         }
 
-        var line = rows[Math.Clamp((int)Math.Floor((point.Y - p.Top) / LineHeight), 0, rows.Count - 1)];
+        var line = rows[Math.Clamp(RowAt(point.Y), 0, rows.Count - 1)];
         var col = Math.Clamp((int)Math.Round((point.X - TextLeft) / CharWidth), 0, _lines[line].Length);
         return new TextPos(line, RawIndex(line, col));
     }
@@ -1175,7 +1187,7 @@ public sealed class CodeView : Control
 
         var line = -1;
         var rows = Rows;
-        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        var row = TextRowAt(point.Y);
         if (inGutter && row >= 0 && row < rows.Count && _doc.Folding.RegionAt(rows[row]) is not null &&
             FoldButtonRect(view, row).Inflate(1).Contains(point))
         {
@@ -1250,13 +1262,19 @@ public sealed class CodeView : Control
         {
             FadeHover(0);
         }
+
+        if (_lensHoverLine >= 0 && Program.Dev.ScreenshotPath is null)
+        {
+            FadeLensHover(0);
+            StopLensTip();
+        }
     }
 
     /// <summary>A click on a fold box (in the gutter) or on a folded block's "..." toggles it; false if it was neither.</summary>
     private bool FoldClick(Point point)
     {
         var rows = Rows;
-        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        var row = TextRowAt(point.Y);
         if (row < 0 || row >= rows.Count)
         {
             return false;
@@ -1601,7 +1619,7 @@ public sealed class CodeView : Control
     private Reference? ReferenceUnder(Point point)
     {
         var rows = Rows;
-        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        var row = TextRowAt(point.Y);
         if (row < 0 || row >= rows.Count || point.X < TextLeft || _doc.Folding.IsFolded(rows[row]) && point.X > TextLeft + Column(new TextPos(rows[row], _doc.Lines[rows[row]].Length)) * CharWidth)
         {
             return null;
@@ -1734,7 +1752,7 @@ public sealed class CodeView : Control
     private List<Nomad.Core.Lsp.LspDiagnostic> DiagnosticsUnder(Point point)
     {
         var rows = Rows;
-        var row = (int)Math.Floor((point.Y - Padding.Top) / LineHeight);
+        var row = TextRowAt(point.Y);
         if (_doc.Diagnostics.Count == 0 || row < 0 || row >= rows.Count || point.X < TextLeft)
         {
             return [];
@@ -2029,6 +2047,12 @@ public sealed class CodeView : Control
             return;
         }
 
+        if (e.ClickCount == 1 && e.KeyModifiers == KeyModifiers.None && LensClick(e.GetPosition(this)))
+        {
+            e.Handled = true;
+            return;
+        }
+
         // Ctrl+click on a name: its declaration (the caret goes there first, as in Visual Studio).
         if (e.ClickCount == 1 && e.KeyModifiers == KeyModifiers.Control && e.GetPosition(this).X >= TextLeft &&
             (_link ?? ReferenceUnder(e.GetPosition(this))) is { } clicked)
@@ -2079,6 +2103,11 @@ public sealed class CodeView : Control
             if (_link is not null)
             {
                 Cursor = LinkCursor; // Hover set the text's own.
+            }
+
+            if (HoverLens(_pointer.Value))
+            {
+                Cursor = LinkCursor;
             }
 
             var onBulb = OnBulb(_pointer.Value);
@@ -2271,6 +2300,12 @@ public sealed class CodeView : Control
         }
 
         HideQuickInfo();
+        if (e.Key == Key.Escape && CloseLensList())
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (_actions.HandleKey(e) || _completion.HandleKey(e) || _signature.HandleKey(e))
         {
             e.Handled = true;
@@ -2775,4 +2810,16 @@ public interface ICodeNavigator
 
     /// <summary>Makes a chosen code action's changes.</summary>
     void ApplyCodeAction(Nomad.Core.Lsp.LspCodeAction action);
+
+    /// <summary>The folder the code is in (the reference list shows paths from it).</summary>
+    string? Root { get; }
+
+    /// <summary>Where the name declared at a place is used, its declaration left out, with each line's text (null: no server).</summary>
+    Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken);
+
+    /// <summary>Off to a place in the code (a line of a reference list).</summary>
+    void GoTo(Nomad.Core.Code.TextHit hit);
+
+    /// <summary>A reference list moved to the Find results pane.</summary>
+    void ListUses(string name, IReadOnlyList<Nomad.Core.Code.TextHit> hits);
 }

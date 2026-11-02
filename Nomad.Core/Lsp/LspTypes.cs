@@ -123,6 +123,12 @@ public sealed record LspSignature(string Label, string? Documentation, IReadOnly
 public sealed record LspSignatureHelp(IReadOnlyList<LspSignature> Signatures, int ActiveSignature, int ActiveParameter);
 
 /// <summary>
+/// A declaration's reference count (a code lens, as Visual Studio shows over it): where the declared name is, and the
+/// lens as sent, to resolve into its title ("7 references").
+/// </summary>
+public sealed record LspCodeLens(int Line, int Column, string Raw);
+
+/// <summary>
 /// A fix or refactoring offered at a place (a code action): its title, kind ("quickfix", "refactor.extract"…), whether
 /// it is the one to pick, its edits if already known (else resolved when chosen), the choices it groups, and itself as sent.
 /// </summary>

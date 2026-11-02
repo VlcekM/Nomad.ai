@@ -81,6 +81,14 @@ public class RoslynServerTests
         Assert.True(references.Count > 2, $"{references.Count} references");
         Assert.Contains(references, r => !string.Equals(r.Path, file, StringComparison.OrdinalIgnoreCase));
 
+        // Reference counts over the declarations, as Visual Studio's code lens.
+        var lenses = await server.CodeLensAsync(file);
+        Assert.NotEmpty(lenses);
+        var lens = lenses.First(l => lines[l.Line].Contains("IsDirectory", StringComparison.Ordinal));
+        var title = await server.ResolveAsync(lens);
+        Console.WriteLine($"{lenses.Count} lenses; IsDirectory: {title} at {lens.Line}:{lens.Column} {lens.Raw}");
+        Assert.Matches(@"^\d+ references?$", title);
+
         var prepared = await server.PrepareRenameAsync(file, line, column);
         Assert.NotNull(prepared);
         var rename = await server.RenameAsync(file, line, column, "IsFolder");

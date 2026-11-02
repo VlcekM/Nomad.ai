@@ -181,6 +181,72 @@ public sealed class CodeDocument
         Diagnostics = shifted;
     }
 
+    /// <summary>The reference counts over declarations (Visual Studio's code lens), by line.</summary>
+    public IReadOnlyList<CodeLensMark> Lenses { get; private set; } = [];
+
+    /// <summary>Lenses came, went or were counted: the view lays out its rows again.</summary>
+    public event Action? LensesChanged;
+
+    /// <summary>
+    /// The server's lenses for the file. One on a line that had one keeps its count (until counted again) and its time,
+    /// so the counts don't flicker and its row doesn't grow in again.
+    /// </summary>
+    public void SetLenses(IReadOnlyList<Nomad.Core.Lsp.LspCodeLens> lenses)
+    {
+        var old = Lenses.ToDictionary(l => l.Line);
+        var now = DateTime.UtcNow;
+        Lenses = [.. lenses
+            .Where(l => l.Line < _lines.Count)
+            .DistinctBy(l => l.Line)
+            .OrderBy(l => l.Line)
+            .Select(l => old.TryGetValue(l.Line, out var was)
+                ? was with { Column = l.Column, Source = l }
+                : new CodeLensMark(l.Line, l.Column, null, now, now, l))];
+        LensesChanged?.Invoke();
+    }
+
+    /// <summary>A lens counted: its title ("7 references").</summary>
+    public void SetLensTitle(Nomad.Core.Lsp.LspCodeLens source, string title)
+    {
+        var list = Lenses.ToList();
+        var index = list.FindIndex(l => ReferenceEquals(l.Source, source));
+        if (index < 0 || list[index].Title == title)
+        {
+            return;
+        }
+
+        var lens = list[index];
+        list[index] = lens with { Title = title, Counted = lens.Title is null ? DateTime.UtcNow : lens.Counted };
+        Lenses = list;
+        LensesChanged?.Invoke();
+    }
+
+    // An edit moves the lenses after it along (until the server's next ones come); one whose name it rewrote goes.
+    private void ShiftLenses(TextPos from, TextPos to, TextPos end)
+    {
+        if (Lenses.Count == 0)
+        {
+            return;
+        }
+
+        var shifted = new List<CodeLensMark>(Lenses.Count);
+        foreach (var lens in Lenses)
+        {
+            var at = new TextPos(lens.Line, lens.Column);
+            if (at < from)
+            {
+                shifted.Add(lens);
+            }
+            else if (at >= to)
+            {
+                var moved = at.Line == to.Line ? new TextPos(end.Line, end.Index + at.Index - to.Index) : new TextPos(at.Line + end.Line - to.Line, at.Index);
+                shifted.Add(lens with { Line = moved.Line, Column = moved.Index });
+            }
+        }
+
+        Lenses = shifted;
+    }
+
     /// <summary>Lines another program just changed (the file reloaded under the editor): they flash, and count as changed.</summary>
     public IReadOnlyList<int> FlashLines { get; private set; } = [];
 
@@ -469,6 +535,7 @@ public sealed class CodeDocument
         _changed.InsertRange(from.Line, changed is { } marks && marks.Length == parts.Length ? marks : Enumerable.Repeat(true, parts.Length));
         Folding.OnSplice(from.Line, to.Line - from.Line + 1, parts.Length);
         ShiftDiagnostics(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
+        ShiftLenses(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
         return (new TextPos(from.Line + parts.Length - 1, endIndex), removedChanged);
     }
 
@@ -498,3 +565,9 @@ public sealed class CodeDocument
         bool Sealed = false,
         int Group = 0);
 }
+
+/// <summary>
+/// A declaration's reference count over it (a code lens): the declared name's line and column, its title once counted
+/// ("7 references"), when its row showed (it grows in) and when it was counted (its text fades in), and the server's lens.
+/// </summary>
+public sealed record CodeLensMark(int Line, int Column, string? Title, DateTime Since, DateTime Counted, Nomad.Core.Lsp.LspCodeLens Source);

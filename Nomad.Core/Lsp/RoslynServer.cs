@@ -252,6 +252,7 @@ public sealed class RoslynServer : IAsyncDisposable
                         ["configuration"] = true,
                         ["workspaceEdit"] = new JsonObject { ["documentChanges"] = true },
                         ["diagnostics"] = new JsonObject { ["refreshSupport"] = true },
+                        ["codeLens"] = new JsonObject { ["refreshSupport"] = true },
                     },
                     ["textDocument"] = new JsonObject
                     {
@@ -260,6 +261,7 @@ public sealed class RoslynServer : IAsyncDisposable
                         ["definition"] = new JsonObject { ["linkSupport"] = false },
                         ["implementation"] = new JsonObject { ["linkSupport"] = false },
                         ["references"] = new JsonObject(),
+                        ["codeLens"] = new JsonObject { ["dynamicRegistration"] = false },
                         ["codeAction"] = new JsonObject
                         {
                             ["codeActionLiteralSupport"] = new JsonObject
@@ -347,6 +349,11 @@ public sealed class RoslynServer : IAsyncDisposable
             DiagnosticsStale?.Invoke();
         }
 
+        if (method == "workspace/codeLens/refresh")
+        {
+            CodeLensStale?.Invoke();
+        }
+
         return null;
     }
 
@@ -365,6 +372,9 @@ public sealed class RoslynServer : IAsyncDisposable
 
     /// <summary>The server says what it found before may be out of date (another file changed, the projects loaded): ask again.</summary>
     public event Action? DiagnosticsStale;
+
+    /// <summary>The reference counts over declarations may be out of date (code elsewhere changed): ask again.</summary>
+    public event Action? CodeLensStale;
 
     /// <summary>The server sent a file's diagnostics on its own (servers that push them rather than being asked).</summary>
     public event Action<string, IReadOnlyList<LspDiagnostic>>? DiagnosticsPublished;
@@ -501,6 +511,32 @@ public sealed class RoslynServer : IAsyncDisposable
         var parameters = At(path, line, column);
         parameters["context"] = new JsonObject { ["includeDeclaration"] = true };
         return Locations(await _connection.CallAsync("textDocument/references", parameters, cancellationToken, TimeSpan.FromSeconds(60)).ConfigureAwait(false));
+    }
+
+    /// <summary>The declarations in a file that show a reference count; <see cref="ResolveAsync(LspCodeLens, CancellationToken)"/> counts one.</summary>
+    public async Task<IReadOnlyList<LspCodeLens>> CodeLensAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var parameters = new JsonObject { ["textDocument"] = new JsonObject { ["uri"] = Uri(path) } };
+        var result = await _connection.CallAsync("textDocument/codeLens", parameters, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        if (result.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return [.. result.EnumerateArray()
+            .Where(lens => lens.ValueKind == JsonValueKind.Object && lens.TryGetProperty("range", out _))
+            .Select(lens =>
+            {
+                var (line, column, _, _) = LspJson.Range(lens.GetProperty("range"));
+                return new LspCodeLens(line, column, lens.GetRawText());
+            })];
+    }
+
+    /// <summary>A code lens's title ("7 references"), or null when the server has none for it.</summary>
+    public async Task<string?> ResolveAsync(LspCodeLens lens, CancellationToken cancellationToken = default)
+    {
+        var result = await _connection.CallAsync("codeLens/resolve", JsonNode.Parse(lens.Raw), cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("command", out var command) ? LspJson.String(command, "title") : null;
     }
 
     /// <summary>The name at a place that a rename would change (its range and text), or null when it can't be renamed.</summary>

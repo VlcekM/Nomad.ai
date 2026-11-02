@@ -143,6 +143,7 @@ public sealed partial class CSharpLanguage : ObservableObject
 
             _server = server;
             server.DiagnosticsStale += () => Dispatcher.UIThread.Post(ScheduleDiagnostics);
+            server.CodeLensStale += () => Dispatcher.UIThread.Post(() => CodeLensStale?.Invoke());
             server.DiagnosticsPublished += (path, found) => Dispatcher.UIThread.Post(() => SetDiagnostics(path, found));
             Status = $"C#: loading {server.Opened ?? "the solution"}…";
             server.Exited += () => Dispatcher.UIThread.Post(() =>
@@ -316,6 +317,17 @@ public sealed partial class CSharpLanguage : ObservableObject
     /// <summary>The hover markdown at a place; null for nothing, or no answer yet.</summary>
     public Task<string?> HoverAsync(string path, int line, int column, CancellationToken cancellationToken = default) =>
         AskAsync<string>(async s => (await s.HoverAsync(path, line, column, cancellationToken))!);
+
+    /// <summary>The declarations in a file that show a reference count (null: no answer yet).</summary>
+    public Task<IReadOnlyList<LspCodeLens>?> CodeLensAsync(string path, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyList<LspCodeLens>>(s => s.CodeLensAsync(path, cancellationToken));
+
+    /// <summary>A declaration's reference count, as its title ("7 references"); null for none.</summary>
+    public Task<string?> ResolveAsync(LspCodeLens lens, CancellationToken cancellationToken = default) =>
+        AskAsync<string>(async s => (await s.ResolveAsync(lens, cancellationToken))!);
+
+    /// <summary>The reference counts may have changed (code elsewhere did): the open files ask again.</summary>
+    public event Action? CodeLensStale;
 
     public Task<IReadOnlyList<LspLocation>?> ReferencesAsync(string path, int line, int column, CancellationToken cancellationToken = default) =>
         AskAsync<IReadOnlyList<LspLocation>>(s => s.ReferencesAsync(path, line, column, cancellationToken));

@@ -218,6 +218,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             if (field is not null)
             {
                 field.DiagnosticsChanged -= OnDiagnosticsChanged;
+                field.CodeLensStale -= ScheduleLenses;
             }
 
             if (_languageOpen)
@@ -230,6 +231,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             if (field is not null)
             {
                 field.DiagnosticsChanged += OnDiagnosticsChanged;
+                field.CodeLensStale += ScheduleLenses;
             }
 
             SyncLanguage();
@@ -241,7 +243,71 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         if (string.Equals(path, Path, StringComparison.OrdinalIgnoreCase) && Language is { } language && Document != CodeDocument.Empty)
         {
             Document.SetDiagnostics(language.DiagnosticsOf(Path));
+            ScheduleLenses();
         }
+    }
+
+    // ------------------------------------------------------------------ reference counts (code lens)
+
+    private static readonly TimeSpan LensDelay = TimeSpan.FromMilliseconds(700);
+    private const int LensWorkers = 4;
+    private DispatcherTimer? _lensTimer;
+    private CancellationTokenSource? _lensCts;
+
+    // Asked for a moment after the diagnostics (which follow the typing), or when the server says they're stale.
+    private void ScheduleLenses()
+    {
+        if (_lensTimer is null)
+        {
+            _lensTimer = new DispatcherTimer { Interval = LensDelay };
+            _lensTimer.Tick += (_, _) =>
+            {
+                _lensTimer.Stop();
+                _ = RefreshLensesAsync();
+            };
+        }
+
+        _lensTimer.Stop();
+        _lensTimer.Start();
+    }
+
+    private async Task RefreshLensesAsync()
+    {
+        _lensCts?.Cancel();
+        var cts = _lensCts = new CancellationTokenSource();
+        var doc = Document;
+        if (Language is not { IsReady: true } language || !Nomad.App.Ide.CSharpLanguage.Handles(Path) || doc == CodeDocument.Empty)
+        {
+            return;
+        }
+
+        if (await language.CodeLensAsync(Path, cts.Token) is not { } lenses || cts.IsCancellationRequested || doc != Document)
+        {
+            return;
+        }
+
+        doc.SetLenses(lenses);
+        await CountLensesAsync(language, doc, lenses, cts.Token);
+    }
+
+    // Counted a few at a time, the ones nearest the caret first (a count that fails keeps the one shown).
+    private async Task CountLensesAsync(Nomad.App.Ide.CSharpLanguage language, CodeDocument doc, IReadOnlyList<Nomad.Core.Lsp.LspCodeLens> lenses, CancellationToken cancellationToken)
+    {
+        var caret = doc.Caret.Line;
+        var queue = new Queue<Nomad.Core.Lsp.LspCodeLens>(lenses.OrderBy(l => Math.Abs(l.Line - caret)));
+        async Task Work()
+        {
+            while (!cancellationToken.IsCancellationRequested && queue.TryDequeue(out var lens))
+            {
+                var title = await language.ResolveAsync(lens, cancellationToken);
+                if (title is not null && !cancellationToken.IsCancellationRequested && doc == Document)
+                {
+                    doc.SetLensTitle(lens, title);
+                }
+            }
+        }
+
+        await Task.WhenAll(Enumerable.Range(0, LensWorkers).Select(_ => Work()));
     }
 
     private void SyncLanguage()
@@ -900,6 +966,58 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
 
     public async Task<IReadOnlyList<Nomad.Core.Lsp.LspCodeAction>?> CodeActionsAsync(Nomad.App.Ide.TextPos from, Nomad.App.Ide.TextPos to, CancellationToken cancellationToken) =>
         ActiveTab is { } tab && Server(tab) is { } server ? await server.CodeActionsAsync(tab.Path, from.Line, from.Index, to.Line, to.Index, cancellationToken) : null;
+
+    public string? Root => owner.Folder;
+
+    /// <summary>A code lens clicked: where its declaration is used, each place with its line (the open file's as edited).</summary>
+    public async Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken)
+    {
+        if (ActiveTab is not { } tab || Server(tab) is not { } server ||
+            await server.ReferencesAsync(tab.Path, line, column, cancellationToken) is not { } found)
+        {
+            return null;
+        }
+
+        var uses = found.Where(l => !(string.Equals(l.Path, tab.Path, StringComparison.OrdinalIgnoreCase) && l.Line == line && l.Column == column));
+        var hits = new List<Nomad.Core.Code.TextHit>();
+        foreach (var file in uses.GroupBy(l => l.Path, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var lines = LinesOf(file.Key, tab);
+            foreach (var use in file.OrderBy(l => l.Line).ThenBy(l => l.Column))
+            {
+                var text = use.Line < lines.Count ? lines[use.Line] : "";
+                var start = Math.Min(use.Column, text.Length);
+                var length = use.EndLine == use.Line ? Math.Clamp(use.EndColumn - start, 0, text.Length - start) : 0;
+                hits.Add(new Nomad.Core.Code.TextHit(file.Key, use.Line, start, length, text));
+            }
+        }
+
+        return hits;
+    }
+
+    // A file's lines: the open tab's as edited, else as on disk.
+    private static IReadOnlyList<string> LinesOf(string path, FileTab tab)
+    {
+        if (string.Equals(path, tab.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            return tab.Document.Lines;
+        }
+
+        try
+        {
+            return File.ReadAllLines(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    public void GoTo(Nomad.Core.Code.TextHit hit) => owner.OpenAt(hit.Path, (hit.Line, hit.Column), length: hit.Length);
+
+    public void ListUses(string name, IReadOnlyList<Nomad.Core.Code.TextHit> hits) =>
+        owner.FindInFiles.ShowLocations($"References to {name}",
+            [.. hits.Select(h => new Nomad.Core.Lsp.LspLocation(h.Path, h.Line, h.Column, h.Line, h.Column + h.Length))]);
 
     /// <summary>A code action chosen from Ctrl+.: its edits worked out, then made (open files as an undo step, the rest on disk).</summary>
     public void ApplyCodeAction(Nomad.Core.Lsp.LspCodeAction action) => _ = ApplyCodeActionAsync(action);
