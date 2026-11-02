@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.27.0
+
+- Settings: an editor text size for the code editor and its diff view, in points (10 by default, as Visual Studio's).
+- Middle-button autoscroll also scrolls sideways where the content is wider than the view (long lines in the code
+  editor), and its marker sits right under the pointer.
+
 ## v1.26.1
 
 - Sessions go idle after an hour without activity again: Remote Control, on by default, had kept every session alive.
