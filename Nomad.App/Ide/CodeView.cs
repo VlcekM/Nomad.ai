@@ -11,6 +11,7 @@ using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
+using Nomad.App.Controls;
 using Nomad.Core.Code;
 using SkiaSharp;
 
@@ -439,7 +440,7 @@ public sealed partial class CodeView : Control
 
     // Lines another program just changed: an accent wash fading out over this long.
     private const double FlashMs = 1600;
-    private DispatcherTimer? _flashTimer;
+    private FrameLoop? _flash;
     private const double RowLeft = 10;
 
     // The fold button: 16 px, centered this far right of the line numbers, its chevron 10 px.
@@ -585,24 +586,16 @@ public sealed partial class CodeView : Control
                 }
             }
 
-            // Repainted until it has faded (the timer stops itself then).
-            if (_flashTimer is null)
+            // Repainted every frame until it has faded (the loop stops itself then).
+            _flash ??= new FrameLoop(this, _ =>
             {
-                _flashTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-                _flashTimer.Tick += (_, _) =>
+                InvalidateVisual();
+                if ((DateTime.UtcNow - _doc.FlashedUtc).TotalMilliseconds >= FlashMs)
                 {
-                    InvalidateVisual();
-                    if ((DateTime.UtcNow - _doc.FlashedUtc).TotalMilliseconds >= FlashMs)
-                    {
-                        _flashTimer.Stop();
-                    }
-                };
-            }
-
-            if (!_flashTimer.IsEnabled)
-            {
-                _flashTimer.Start();
-            }
+                    _flash!.Stop();
+                }
+            });
+            _flash.Update(true);
         }
 
         // The find's matches in view (they are in document order: the first in view is found by halving).
@@ -1233,7 +1226,7 @@ public sealed partial class CodeView : Control
     private double _hoverFrom;
     private double _hoverTarget;
     private long _hoverStart;
-    private DispatcherTimer? _hoverTimer;
+    private FrameLoop? _hover;
     private const double HoverMs = 120;
 
     // The pointer over the text or the gutter: an I-beam over the text, an arrow over the gutter (as in Visual Studio),
@@ -1280,28 +1273,23 @@ public sealed partial class CodeView : Control
         _hoverFrom = _hoverLevel;
         _hoverTarget = target;
         _hoverStart = System.Diagnostics.Stopwatch.GetTimestamp();
-        if (_hoverTimer is null)
+        _hover ??= new FrameLoop(this, _ =>
         {
-            _hoverTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-            _hoverTimer.Tick += (_, _) =>
+            var t = Math.Min(1, System.Diagnostics.Stopwatch.GetElapsedTime(_hoverStart).TotalMilliseconds / HoverMs);
+            var eased = 1 - Math.Pow(1 - t, 3); // Cubic ease-out.
+            _hoverLevel = _hoverFrom + (_hoverTarget - _hoverFrom) * eased;
+            if (t >= 1)
             {
-                var t = Math.Min(1, System.Diagnostics.Stopwatch.GetElapsedTime(_hoverStart).TotalMilliseconds / HoverMs);
-                var eased = 1 - Math.Pow(1 - t, 3); // Cubic ease-out.
-                _hoverLevel = _hoverFrom + (_hoverTarget - _hoverFrom) * eased;
-                if (t >= 1)
+                _hover!.Stop();
+                if (_hoverTarget == 0)
                 {
-                    _hoverTimer!.Stop();
-                    if (_hoverTarget == 0)
-                    {
-                        _hoverFoldLine = -1;
-                    }
+                    _hoverFoldLine = -1;
                 }
+            }
 
-                InvalidateVisual();
-            };
-        }
-
-        _hoverTimer.Start();
+            InvalidateVisual();
+        });
+        _hover.Update(true);
     }
 
     protected override void OnPointerExited(PointerEventArgs e)

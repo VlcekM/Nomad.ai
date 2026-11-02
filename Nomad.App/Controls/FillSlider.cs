@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace Nomad.App.Controls;
 
@@ -57,7 +56,7 @@ public sealed class FillSlider : Control
     private double _shown;
     private double _glideFrom;
     private DateTime _glideStart;
-    private DispatcherTimer? _timer;
+    private FrameLoop? _glide;
 
     static FillSlider()
     {
@@ -144,8 +143,7 @@ public sealed class FillSlider : Control
             {
                 _glideFrom = _shown;
                 _glideStart = DateTime.UtcNow;
-                _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(15), DispatcherPriority.Render, (_, _) => Glide());
-                _timer.Start();
+                (_glide ??= new FrameLoop(this, _ => Glide())).Update(true);
             }
         }
     }
@@ -157,7 +155,7 @@ public sealed class FillSlider : Control
         _shown = _glideFrom + (Value - _glideFrom) * eased;
         if (t >= 1)
         {
-            _timer?.Stop();
+            _glide?.Stop();
         }
 
         InvalidateVisual();
@@ -171,7 +169,7 @@ public sealed class FillSlider : Control
             return;
         }
 
-        _timer?.Stop();
+        _glide?.Stop();
         _dragging = true;
         e.Pointer.Capture(this);
         SetFromPointer(e);

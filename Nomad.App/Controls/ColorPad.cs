@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Media;
-using Avalonia.Threading;
 
 namespace Nomad.App.Controls;
 
@@ -51,7 +50,7 @@ public sealed class ColorPad : Control
     private (double H, double S, double V, double A) _shown;
     private (double H, double S, double V, double A) _glideFrom;
     private DateTime _glideStart;
-    private DispatcherTimer? _timer;
+    private FrameLoop? _glide;
     private Part _dragging;
     private bool _setting;
 
@@ -103,8 +102,7 @@ public sealed class ColorPad : Control
 
         _glideFrom = _shown;
         _glideStart = DateTime.UtcNow;
-        _timer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(15), DispatcherPriority.Render, (_, _) => Glide());
-        _timer.Start();
+        (_glide ??= new FrameLoop(this, _ => Glide())).Update(true);
     }
 
     private void Glide()
@@ -115,7 +113,7 @@ public sealed class ColorPad : Control
         _shown = (Lerp(_glideFrom.H, _hsva.H), Lerp(_glideFrom.S, _hsva.S), Lerp(_glideFrom.V, _hsva.V), Lerp(_glideFrom.A, _hsva.A));
         if (t >= 1)
         {
-            _timer?.Stop();
+            _glide?.Stop();
         }
 
         InvalidateVisual();
@@ -131,7 +129,7 @@ public sealed class ColorPad : Control
 
         var p = e.GetPosition(this);
         _dragging = p.Y <= Square.Bottom + Gap / 2 ? Part.Square : p.Y <= HueStrip.Bottom + Gap / 2 ? Part.Hue : Part.Alpha;
-        _timer?.Stop();
+        _glide?.Stop();
         e.Pointer.Capture(this);
         SetFromPointer(p);
         e.Handled = true;

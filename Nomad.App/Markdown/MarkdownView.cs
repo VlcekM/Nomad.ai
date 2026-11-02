@@ -4,6 +4,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.LogicalTree;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Nomad.App.Controls;
 
 namespace Nomad.App.Markdown;
 
@@ -187,7 +188,7 @@ public sealed class MarkdownView : StackPanel
     }
 
     private readonly List<Fade> _fades = [];
-    private DispatcherTimer? _fadeTimer;
+    private FrameLoop? _fadeFrames;
 
     /// <summary>
     /// The rebuilt block replaces <paramref name="old"/>: the text past the old one's length is new
@@ -211,8 +212,7 @@ public sealed class MarkdownView : StackPanel
 
         if (_fades.Count > 0)
         {
-            _fadeTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, (_, _) => StepFades());
-            _fadeTimer.Start();
+            (_fadeFrames ??= new FrameLoop(this, _ => StepFades())).Update(true);
         }
     }
 
@@ -230,7 +230,7 @@ public sealed class MarkdownView : StackPanel
         _fades.RemoveAll(f => f.Progress >= 1);
         if (_fades.Count == 0)
         {
-            _fadeTimer?.Stop();
+            _fadeFrames?.Stop();
         }
     }
 
