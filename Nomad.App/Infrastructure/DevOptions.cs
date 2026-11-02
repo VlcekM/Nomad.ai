@@ -14,6 +14,8 @@ namespace Nomad.App.Infrastructure;
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)
 /// --dev-wait-turn               … or as soon as the first turn finished (capped by --dev-after)
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
+/// --dev-overlays [fps,render,layout,dirty]  Avalonia's renderer overlays in the window's corner: the FPS counter and the render / layout
+///                               frame-time graphs (the default three), dirty rects
 /// --dev-menu model|mode|folder|branch|plus|workflows|usage|remote|update|list|alivelist|row|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's or folder heading's context menu) before the screenshot
 /// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
@@ -58,6 +60,9 @@ public sealed class DevOptions
     public (int Width, int Height)? Size { get; private set; }
     public string? Menu { get; private set; }
     public bool SettingsOpen { get; private set; }
+
+    /// <summary><c>--dev-overlays</c>: the renderer overlays to show (fps, render, layout, dirty); empty for none.</summary>
+    public IReadOnlyList<string> Overlays { get; private set; } = [];
 
     /// <summary><c>--dev-queue "text"</c>: prompts put in the queue above the composer, as if typed while Claude worked.</summary>
     public List<string> Queue { get; } = [];
@@ -162,6 +167,14 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-menu": o.Menu = Next(); break;
+                case "--dev-overlays":
+                    o.Overlays = ["fps", "render", "layout"];
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                    {
+                        o.Overlays = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    }
+
+                    break;
                 case "--dev-side-panel": o.SidePanel = true; break;
                 case "--dev-files-split": o.FilesSplit = true; break;
                 case "--dev-files":

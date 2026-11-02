@@ -7,9 +7,11 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Rendering;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Nomad.App.Infrastructure;
 using Nomad.App.ViewModels;
 using Nomad.App.Views;
 using Nomad.Core.Agents;
@@ -363,6 +365,11 @@ public partial class MainWindow : Window
         Sidebar.PointerCaptureLost += (_, _) => EndRowDrag(drop: false);
 
         var settings = vm.Settings;
+        if (vm.Dev.Overlays.Count > 0)
+        {
+            RendererDiagnostics.DebugOverlays = DevOverlays(vm.Dev.Overlays);
+        }
+
         if (vm.Dev.Size is { } size)
         {
             Width = size.Width;
@@ -1622,6 +1629,25 @@ public partial class MainWindow : Window
         Console.Error.WriteLine($"--dev-key {gesture} on {target.GetType().Name}");
     }
 
+    /// <summary><c>--dev-overlays</c>: Avalonia's renderer overlays by name (fps, render, layout, dirty).</summary>
+    private static RendererDebugOverlays DevOverlays(IEnumerable<string> names)
+    {
+        var overlays = RendererDebugOverlays.None;
+        foreach (var name in names)
+        {
+            overlays |= name switch
+            {
+                "fps" => RendererDebugOverlays.Fps,
+                "render" => RendererDebugOverlays.RenderTimeGraph,
+                "layout" => RendererDebugOverlays.LayoutTimeGraph,
+                "dirty" => RendererDebugOverlays.DirtyRects,
+                _ => RendererDebugOverlays.None,
+            };
+        }
+
+        return overlays;
+    }
+
     /// <summary><c>--dev-screenshot</c>: waits, opens what was asked for, renders the window to a PNG and exits.</summary>
     private async Task CaptureAndExitAsync(string path)
     {
@@ -1747,6 +1773,12 @@ public partial class MainWindow : Window
 
     private void SaveScreenshot(string path)
     {
+        // The renderer overlays exist on the window's surface only: that is what gets saved then.
+        if (_vm.Dev.Overlays.Count > 0 && WindowCapture.TrySave(this, path))
+        {
+            return;
+        }
+
         var scaling = RenderScaling;
         var pixelSize = new PixelSize(Math.Max(1, (int)(Bounds.Width * scaling)), Math.Max(1, (int)(Bounds.Height * scaling)));
         using var bitmap = new RenderTargetBitmap(pixelSize, new Vector(96 * scaling, 96 * scaling));
