@@ -3,6 +3,18 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.29.0
+
+- Smooth at the display's rate: spinners, the streamed-text fade, the editor's flash and fold hover, and the slider and
+  colour glides redraw on render frames instead of 16 ms timers, which capped them at ~45 fps.
+- Chat scrolling no longer stalls: a layout pass builds the rows in view and the rest within 4 ms per frame, and rows
+  leaving the view keep their containers for a quick return.
+- Waiting on background work has its own loader in the sidebar and a shimmering "Waiting for…" row in the chat.
+- Quick Info: names are links to their declarations, and the card stays while the pointer moves onto it.
+- Chat: a name in inline code declared in the folder opens at its declaration in Files.
+- Editor: structs, interfaces and enums in Visual Studio's greens; a click on the git margin peeks the change.
+- Dev: `--dev-overlays` draws Avalonia's FPS counter and frame-time graphs.
+
 ## v1.28.0
 
 - Code editor: reference counts over declarations, as Visual Studio's code lens ("7 references"); a click lists the
