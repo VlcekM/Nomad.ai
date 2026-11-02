@@ -1301,8 +1301,15 @@ public sealed partial class CodeView : Control
         {
             _pointer = null;
             UpdateLink(false);
-            HideQuickInfo();
-            _quickAt = null;
+            if (_quickShown)
+            {
+                LeaveQuickInfo(); // Perhaps onto the card.
+            }
+            else
+            {
+                HideQuickInfo();
+                _quickAt = null;
+            }
         }
 
         if (_hoverFoldLine >= 0)
@@ -1783,6 +1790,14 @@ public sealed partial class CodeView : Control
 
         if (Same(under, _quickAt) && (_quickTimer.IsEnabled || _quickShown || _quickCts is { IsCancellationRequested: false }))
         {
+            _quickLeaveTimer?.Stop();
+            return;
+        }
+
+        // Off the name with its card up: it waits a moment for the pointer to come onto it.
+        if (_quickShown)
+        {
+            LeaveQuickInfo();
             return;
         }
 
@@ -1840,6 +1855,7 @@ public sealed partial class CodeView : Control
     private void HideQuickInfo()
     {
         _quickTimer.Stop();
+        _quickLeaveTimer?.Stop();
         _quickCts?.Cancel();
         _quickCts = null;
         if (_quickShown)
@@ -1876,7 +1892,6 @@ public sealed partial class CodeView : Control
         BoxShadow = CardShadow,
         MaxWidth = 680,
         Opacity = 0,
-        IsHitTestVisible = false,
         Transitions =
         [
             new Avalonia.Animation.DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(130), Easing = new Avalonia.Animation.Easings.CubicEaseOut() },
@@ -1901,8 +1916,9 @@ public sealed partial class CodeView : Control
                     PlacementGravity = Avalonia.Controls.Primitives.PopupPositioning.PopupGravity.BottomRight,
                     IsLightDismissEnabled = false,
                     Focusable = false,
-                    IsHitTestVisible = false,
                 };
+                _quickCard.PointerEntered += OnQuickCardEntered;
+                _quickCard.PointerExited += OnQuickCardExited;
                 LogicalChildren.Add(_quickPopup);
             }
 
@@ -1941,7 +1957,8 @@ public sealed partial class CodeView : Control
         // Under the name (or the squiggle), as Visual Studio's; above it when there's no room below.
         _quickCard.Background = ThemeBrush("BgMenuBrush");
         _quickCard.BorderBrush = ThemeBrush("BorderCardBrush");
-        _quickCard.Child = QuickInfoContent(info, problems);
+        TextElement.SetFontSize(_quickCard, SmallFontSize);
+        _quickCard.Child = QuickInfoContent(info, problems, at.Name.Length > 0 ? Spot(at) : null);
         (QuickPopup.PlacementTarget, QuickPopup.PlacementRect) = WindowAnchor(NameRect(at.Line, at.Start).WithWidth(Math.Max(1, (at.End - at.Start) * CharWidth)));
         QuickPopup.HorizontalOffset = -11 - ShadowRoom.Left;
         QuickPopup.VerticalOffset = 2 - ShadowRoom.Top;
@@ -1951,7 +1968,7 @@ public sealed partial class CodeView : Control
     }
 
     // The problems at the place (each with its severity's mark), then what the name is.
-    private Control QuickInfoContent(QuickInfoView? info, IReadOnlyList<Nomad.Core.Lsp.LspDiagnostic> problems)
+    private Control QuickInfoContent(QuickInfoView? info, IReadOnlyList<Nomad.Core.Lsp.LspDiagnostic> problems, CodeSpot? self)
     {
         var panel = new StackPanel { Spacing = 6 };
         foreach (var problem in problems)
@@ -1980,7 +1997,7 @@ public sealed partial class CodeView : Control
                 panel.Children.Add(new Border { Height = 1, Background = ThemeBrush("BorderDividerBrush") ?? Brushes.Gray, Margin = new Thickness(0, 2) });
             }
 
-            panel.Children.Add(QuickInfoContent(info));
+            panel.Children.Add(QuickInfoContent(info, self));
         }
 
         return panel;
@@ -1988,7 +2005,7 @@ public sealed partial class CodeView : Control
 
     // The declaration in the code's colors with its icon, its documentation under it, and how many more there are;
     // in the UI's font, as Visual Studio's Quick Info.
-    private Control QuickInfoContent(QuickInfoView info)
+    private Control QuickInfoContent(QuickInfoView info, CodeSpot? self)
     {
         var signature = new TextBlock
         {
@@ -2000,12 +2017,13 @@ public sealed partial class CodeView : Control
         };
         var spans = Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, info.Signature, null).Spans : [];
         AddCode(signature.Inlines!, info.Signature, TypeSpans(info.Signature, info.Kind) ?? (IEnumerable<CodeSpan>)spans);
+        LinkSignature(signature, info, self);
         var icon = new CodeSymbolIcon { Kind = info.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
         TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
         if (info.Summary is { } summary)
         {
-            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0), FontSize = SmallFontSize });
+            panel.Children.Add(new TextBlock { Text = summary, TextWrapping = TextWrapping.Wrap, MaxWidth = 620, Margin = new Thickness(24, 0, 0, 0) });
         }
 
         if (info.More > 0)
@@ -2909,6 +2927,9 @@ public interface ICodeNavigator
 
     /// <summary>The file's whole diff with the last commit, in place of its text.</summary>
     void ShowDiff();
+
+    /// <summary>A type named in Quick Info: off to its declaration (a list when several share the name).</summary>
+    void GoToType(string name);
 
     /// <summary>Where the name declared at a place is used, its declaration left out, with each line's text (null: no server).</summary>
     Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken);

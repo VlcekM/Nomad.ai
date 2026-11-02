@@ -1027,6 +1027,15 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
 
     public void ShowDiff() => ActiveTab?.RequestDiff();
 
+    public void GoToType(string name)
+    {
+        TakeFocus();
+        if (ActiveTab is { } tab)
+        {
+            _ = owner.CodeSearch.GoToDefinitionAsync(new Nomad.Core.Code.CodeReference(name, null, tab.Path, tab.Document.Caret.Line), tab.Document.Lines);
+        }
+    }
+
     /// <summary>A code lens clicked: where its declaration is used, each place with its line (the open file's as edited).</summary>
     public async Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken)
     {
