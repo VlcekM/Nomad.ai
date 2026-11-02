@@ -3,6 +3,18 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.28.0
+
+- Code editor: reference counts over declarations, as Visual Studio's code lens ("7 references"); a click lists the
+  references by file, each line with the name marked, and goes to the one clicked.
+- A wide scroll bar that stays, with the changed lines marked beside its thumb: outlined while unsaved, filled once
+  saved. Problems and find matches are marked on its other side.
+- The mouse's back and forward buttons go back and forward between the files shown in the Files view.
+- Quick Info in the UI's font, as Visual Studio's; a type's keywords blue, its namespace plain, a struct's name in
+  its own green, with Visual Studio's struct icon.
+- Doc comments in Visual Studio's darker green, and the code at whole pixels as Visual Studio draws it (10 pt is
+  13 px), so its columns line up with Visual Studio's.
+
 ## v1.27.0
 
 - Settings: an editor text size for the code editor and its diff view, in points (10 by default, as Visual Studio's).
