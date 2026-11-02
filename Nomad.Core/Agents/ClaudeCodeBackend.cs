@@ -530,6 +530,10 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
                 Raise(new StatusEvent(system.Status));
                 break;
+            // A /compact turn makes no further call, so the turn would otherwise end on the pre-compaction size.
+            case "compact_boundary" when system.CompactMetadata?.PostTokens is long post and > 0:
+                _contextTokens = post;
+                break;
             case "bridge_state" when !string.IsNullOrEmpty(system.State):
                 Raise(new RemoteControlStateEvent(system.State));
                 break;

@@ -124,6 +124,15 @@ public sealed class SystemLine : CliLine
 
     /// <summary>For <c>task_updated</c>: what changed (its status, when it ended).</summary>
     [JsonPropertyName("patch")] public WireTaskPatch? Patch { get; set; }
+
+    /// <summary>For <c>compact_boundary</c>: the context before and after compacting.</summary>
+    [JsonPropertyName("compact_metadata")] public WireCompactMetadata? CompactMetadata { get; set; }
+}
+
+public sealed class WireCompactMetadata
+{
+    [JsonPropertyName("pre_tokens")] public long PreTokens { get; set; }
+    [JsonPropertyName("post_tokens")] public long? PostTokens { get; set; }
 }
 
 public sealed class WireTaskUsage
