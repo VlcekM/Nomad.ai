@@ -193,7 +193,12 @@ public sealed class CodeDocument
     /// </summary>
     public void SetLenses(IReadOnlyList<Nomad.Core.Lsp.LspCodeLens> lenses)
     {
-        var old = Lenses.ToDictionary(l => l.Line);
+        var old = new Dictionary<int, CodeLensMark>();
+        foreach (var lens in Lenses)
+        {
+            old.TryAdd(lens.Line, lens);
+        }
+
         var now = DateTime.UtcNow;
         Lenses = [.. lenses
             .Where(l => l.Line < _lines.Count)
@@ -229,6 +234,7 @@ public sealed class CodeDocument
             return;
         }
 
+        // Two lines joined: of two lenses that land on one line, the first stays.
         var shifted = new List<CodeLensMark>(Lenses.Count);
         foreach (var lens in Lenses)
         {
@@ -240,7 +246,10 @@ public sealed class CodeDocument
             else if (at >= to)
             {
                 var moved = at.Line == to.Line ? new TextPos(end.Line, end.Index + at.Index - to.Index) : new TextPos(at.Line + end.Line - to.Line, at.Index);
-                shifted.Add(lens with { Line = moved.Line, Column = moved.Index });
+                if (shifted.Count == 0 || shifted[^1].Line != moved.Line)
+                {
+                    shifted.Add(lens with { Line = moved.Line, Column = moved.Index });
+                }
             }
         }
 

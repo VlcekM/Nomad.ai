@@ -59,6 +59,15 @@ public sealed partial class FileTab : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsActive { get; set; }
 
+    // A tab coming to the front counts its lenses (those behind it don't, as the code changes).
+    partial void OnIsActiveChanged(bool value)
+    {
+        if (value)
+        {
+            ScheduleLenses();
+        }
+    }
+
     /// <summary>The leftmost tab, flush with the card's edge.</summary>
     [ObservableProperty]
     public partial bool IsFirst { get; set; }
@@ -218,7 +227,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             if (field is not null)
             {
                 field.DiagnosticsChanged -= OnDiagnosticsChanged;
-                field.CodeLensStale -= ScheduleLenses;
+                field.CodeLensStale -= OnLensesStale;
             }
 
             if (_languageOpen)
@@ -231,7 +240,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             if (field is not null)
             {
                 field.DiagnosticsChanged += OnDiagnosticsChanged;
-                field.CodeLensStale += ScheduleLenses;
+                field.CodeLensStale += OnLensesStale;
             }
 
             SyncLanguage();
@@ -251,12 +260,29 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
     private static readonly TimeSpan LensDelay = TimeSpan.FromMilliseconds(700);
     private const int LensWorkers = 4;
+
+    /// <summary>Counted again after an edit: those this near the caret (the code in view, likely); all of them when the server says so.</summary>
+    private const int LensRecountLines = 150;
     private DispatcherTimer? _lensTimer;
     private CancellationTokenSource? _lensCts;
+    private bool _recountAll = true;
 
-    // Asked for a moment after the diagnostics (which follow the typing), or when the server says they're stale.
+    private void OnLensesStale()
+    {
+        _recountAll = true;
+        ScheduleLenses();
+    }
+
+    // Asked for a moment after the diagnostics (which follow the typing), or when the server says they're stale; only
+    // for the tab in front (one behind is asked when it comes back).
     private void ScheduleLenses()
     {
+        if (!IsActive)
+        {
+            _recountAll = true;
+            return;
+        }
+
         if (_lensTimer is null)
         {
             _lensTimer = new DispatcherTimer { Interval = LensDelay };
@@ -287,7 +313,14 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         }
 
         doc.SetLenses(lenses);
-        await CountLensesAsync(language, doc, lenses, cts.Token);
+
+        // The ones not counted yet, and those near the caret (an edit changes the counts there, mostly).
+        var all = _recountAll;
+        _recountAll = false;
+        var caret = doc.Caret.Line;
+        var counted = doc.Lenses.Where(l => l.Title is not null).Select(l => l.Line).ToHashSet();
+        var due = all ? lenses : [.. lenses.Where(l => !counted.Contains(l.Line) || Math.Abs(l.Line - caret) <= LensRecountLines)];
+        await CountLensesAsync(language, doc, due, cts.Token);
     }
 
     // Counted a few at a time, the ones nearest the caret first (a count that fails keeps the one shown).

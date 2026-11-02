@@ -240,6 +240,7 @@ public sealed partial class CodeView : Control
             _doc.MarksChanged += OnMarksChanged;
             _doc.LensesChanged += OnLensesChanged;
             _lensList?.Close();
+            (_lensHoverLine, _lensHoverLevel) = (-1, 0);
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
             _doc.RevealRequested += OnRevealRequested;
