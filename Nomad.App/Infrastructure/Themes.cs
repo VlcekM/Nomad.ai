@@ -46,6 +46,8 @@ public static class Themes
         ["BgHover"] = ("TextPrimary", "TextPrimary"),
         ["CodeDocComment"] = ("CodeComment", "CodeComment"),
         ["CodeStruct"] = ("CodeType", "CodeType"),
+        ["CodeInterface"] = ("CodeType", "CodeType"),
+        ["CodeEnum"] = ("CodeType", "CodeType"),
         ["BgPressed"] = ("TextPrimary", "TextPrimary"),
         ["BgSearch"] = ("BgInput", "BgMain"),
         ["BgCode"] = ("BgMain", "BgRaised"),

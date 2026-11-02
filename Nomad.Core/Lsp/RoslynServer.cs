@@ -544,8 +544,8 @@ public sealed class RoslynServer : IAsyncDisposable
             })];
     }
 
-    // The semantic token types that name a struct, from the legend the server gave (empty: it has none).
-    private HashSet<int> _structTypes = [];
+    // The semantic token types that name a struct, an interface or an enum, from the legend the server gave (empty: it has none).
+    private Dictionary<int, LspTypeKind> _typeKinds = [];
 
     private void ReadTokenLegend(JsonElement initialized)
     {
@@ -553,14 +553,14 @@ public sealed class RoslynServer : IAsyncDisposable
             capabilities.TryGetProperty("semanticTokensProvider", out var provider) && provider.ValueKind == JsonValueKind.Object &&
             provider.TryGetProperty("legend", out var legend) && legend.TryGetProperty("tokenTypes", out var types) && types.ValueKind == JsonValueKind.Array)
         {
-            _structTypes = SemanticTokens.StructTypes([.. types.EnumerateArray().Select(t => t.GetString() ?? "")]);
+            _typeKinds = SemanticTokens.TypeKinds([.. types.EnumerateArray().Select(t => t.GetString() ?? "")]);
         }
     }
 
-    /// <summary>Where the file names a struct (declared or used), which the grammar alone can't tell from a class.</summary>
-    public async Task<IReadOnlyList<LspToken>> StructNamesAsync(string path, CancellationToken cancellationToken = default)
+    /// <summary>Where the file names a struct, an interface or an enum (declared or used), which the grammar alone can't tell from a class.</summary>
+    public async Task<IReadOnlyList<LspToken>> TypeNamesAsync(string path, CancellationToken cancellationToken = default)
     {
-        if (_structTypes.Count == 0)
+        if (_typeKinds.Count == 0)
         {
             return [];
         }
@@ -572,7 +572,7 @@ public sealed class RoslynServer : IAsyncDisposable
             return [];
         }
 
-        return SemanticTokens.Decode([.. data.EnumerateArray().Select(n => n.GetInt32())], _structTypes);
+        return SemanticTokens.Decode([.. data.EnumerateArray().Select(n => n.GetInt32())], _typeKinds);
     }
 
     /// <summary>A code lens's title ("7 references"), or null when the server has none for it.</summary>

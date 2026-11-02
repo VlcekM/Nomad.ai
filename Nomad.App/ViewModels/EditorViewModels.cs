@@ -289,7 +289,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             _lensTimer.Tick += (_, _) =>
             {
                 _lensTimer.Stop();
-                _ = RefreshStructNamesAsync();
+                _ = RefreshTypeNamesAsync();
                 _ = RefreshLensesAsync();
             };
         }
@@ -324,13 +324,14 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         await CountLensesAsync(language, doc, due, cts.Token);
     }
 
-    // Where structs are named, asked with the lenses (the server's classification; the grammar can't tell them from classes).
-    private CancellationTokenSource? _structCts;
+    // Where structs, interfaces and enums are named, asked with the lenses (the server's classification; the grammar
+    // can't tell them from classes).
+    private CancellationTokenSource? _typeNamesCts;
 
-    private async Task RefreshStructNamesAsync()
+    private async Task RefreshTypeNamesAsync()
     {
-        _structCts?.Cancel();
-        var cts = _structCts = new CancellationTokenSource();
+        _typeNamesCts?.Cancel();
+        var cts = _typeNamesCts = new CancellationTokenSource();
         var doc = Document;
         if (Language is not { IsReady: true } language || !Nomad.App.Ide.CSharpLanguage.Handles(Path) || doc == CodeDocument.Empty)
         {
@@ -339,9 +340,9 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
         // Dropped when the text changed meanwhile: they'd be for the text before (the next ones follow the typing).
         var version = doc.Version;
-        if (await language.StructNamesAsync(Path, cts.Token) is { } names && !cts.IsCancellationRequested && doc == Document && doc.Version == version)
+        if (await language.TypeNamesAsync(Path, cts.Token) is { } names && !cts.IsCancellationRequested && doc == Document && doc.Version == version)
         {
-            doc.SetStructNames(names);
+            doc.SetTypeNames(names);
         }
     }
 

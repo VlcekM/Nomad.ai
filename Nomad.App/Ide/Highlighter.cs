@@ -24,6 +24,12 @@ public enum CodeKind : byte
 
     /// <summary>A struct's name, a paler green than a class's in Visual Studio (Quick Info knows it, the grammar doesn't).</summary>
     Struct,
+
+    /// <summary>An interface's name, paler still in Visual Studio.</summary>
+    Interface,
+
+    /// <summary>An enum's name, as an interface's in Visual Studio.</summary>
+    Enum,
 }
 
 /// <summary>A run of a line, by index into its text, and its kind.</summary>
@@ -272,6 +278,16 @@ public static class Highlighter
         if (Is(scope, "entity.name.type.struct"))
         {
             return CodeKind.Struct;
+        }
+
+        if (Is(scope, "entity.name.type.interface"))
+        {
+            return CodeKind.Interface;
+        }
+
+        if (Is(scope, "entity.name.type.enum"))
+        {
+            return CodeKind.Enum;
         }
 
         if (Is(scope, "entity.name.type") || Is(scope, "entity.name.class") || Is(scope, "entity.other.inherited-class") ||

@@ -1020,7 +1020,7 @@ public sealed partial class CodeView : Control
         var raw = _doc.Lines[line];
         var runs = new List<(int, int, CodeKind)>(spans.Length);
         var tabs = raw.Contains('\t');
-        foreach (var span in WithStructs(spans, _doc.StructNamesOn(line), raw.Length))
+        foreach (var span in WithTypeNames(spans, _doc.TypeNamesOn(line), raw.Length))
         {
             var end = Math.Min(span.Start + span.Length, raw.Length);
             if (span.Start >= end)
@@ -1034,11 +1034,11 @@ public sealed partial class CodeView : Control
         return runs;
     }
 
-    // The grammar's runs with the language server's struct names laid over them (a struct used reads as any type to the
-    // grammar). Only plain or type text turns struct-colored; the runs stay in order.
-    private static IEnumerable<CodeSpan> WithStructs(CodeSpan[] spans, IEnumerable<Nomad.Core.Lsp.LspToken> names, int length)
+    // The grammar's runs with the language server's struct, interface and enum names laid over them (one used reads as
+    // any type to the grammar). Only plain or type text takes their colors; the runs stay in order.
+    private static IEnumerable<CodeSpan> WithTypeNames(CodeSpan[] spans, IEnumerable<Nomad.Core.Lsp.LspToken> names, int length)
     {
-        var marks = names.Select(t => (From: t.Column, To: Math.Min(length, t.Column + t.Length))).Where(m => m.To > m.From).OrderBy(m => m.From).ToList();
+        var marks = names.Select(t => (From: t.Column, To: Math.Min(length, t.Column + t.Length), Kind: KindOf(t.Kind))).Where(m => m.To > m.From).ToList();
         if (marks.Count == 0)
         {
             return spans;
@@ -1050,16 +1050,23 @@ public sealed partial class CodeView : Control
             Array.Fill(kinds, span.Kind, span.Start, Math.Max(0, Math.Min(length, span.Start + span.Length) - span.Start));
         }
 
-        foreach (var (from, to) in marks)
+        foreach (var (from, to, kind) in marks)
         {
             if (Enumerable.Range(from, to - from).All(i => kinds[i] is CodeKind.Plain or CodeKind.Type))
             {
-                Array.Fill(kinds, CodeKind.Struct, from, to - from);
+                Array.Fill(kinds, kind, from, to - from);
             }
         }
 
         return SpansOf(kinds);
     }
+
+    private static CodeKind KindOf(Nomad.Core.Lsp.LspTypeKind kind) => kind switch
+    {
+        Nomad.Core.Lsp.LspTypeKind.Interface => CodeKind.Interface,
+        Nomad.Core.Lsp.LspTypeKind.Enum => CodeKind.Enum,
+        _ => CodeKind.Struct,
+    };
 
     // Runs of one kind from a kind a character (plain ones left out).
     private static List<CodeSpan> SpansOf(CodeKind[] kinds)
@@ -2045,7 +2052,14 @@ public sealed partial class CodeView : Control
 
         var name = match.Groups[2];
         var start = name.Index + name.Value.LastIndexOf('.') + 1;
-        spans.Add(new CodeSpan(start, name.Index + name.Length - start, kind == SymbolKind.Struct ? CodeKind.Struct : CodeKind.Type));
+        var nameKind = kind switch
+        {
+            SymbolKind.Struct => CodeKind.Struct,
+            SymbolKind.Interface => CodeKind.Interface,
+            SymbolKind.Enum => CodeKind.Enum,
+            _ => CodeKind.Type,
+        };
+        spans.Add(new CodeSpan(start, name.Index + name.Length - start, nameKind));
         return spans;
     }
 
