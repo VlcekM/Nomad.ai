@@ -404,6 +404,7 @@ public partial class SessionView : UserControl
         }
 
         var selected = Transcript.GetVisualDescendants().OfType<SelectableTextBlock>()
+            .Where(b => b.IsEffectivelyVisible)
             .Select(b => b.SelectedText)
             .FirstOrDefault(t => t is { Length: > 0 and <= 100 } && !t.Contains('\n'));
         var wasOpen = IsFindOpen;

@@ -18,6 +18,12 @@ namespace Nomad.App.Controls;
 /// then its real height. The items not yet built are measured a few at a time while the app is idle, so the heights
 /// are soon all real; a change above the view is taken up by the scroll viewer's anchoring, so the view stays put.
 /// </summary>
+/// <remarks>
+/// Building an item (its template, styles, text layouts) is what costs, so no layout pass builds many: the items in
+/// view are built whatever that takes, those beyond it for <see cref="BuildBudget"/> per pass, the rest on the frames
+/// after. An item leaving the built range keeps its container (out of the visual tree, in the logical one), so it
+/// costs little when it comes back (or, built ahead only to be measured, when it first scrolls in).
+/// </remarks>
 public sealed class TranscriptPanel : VirtualizingPanel
 {
     // Built beyond the viewport on either side, in viewports.
@@ -28,6 +34,12 @@ public sealed class TranscriptPanel : VirtualizingPanel
 
     // Time to spend measuring ahead per idle turn.
     private static readonly TimeSpan AheadBudget = TimeSpan.FromMilliseconds(8);
+
+    // Time to spend building items beyond the view per layout pass.
+    private static readonly TimeSpan BuildBudget = TimeSpan.FromMilliseconds(4);
+
+    // Containers kept whole for items out of the built range; past this many, the farthest from the view goes.
+    private const int ParkLimit = 32;
 
     private static readonly AttachedProperty<object?> RecycleKeyProperty =
         AvaloniaProperty.RegisterAttached<TranscriptPanel, Control, object?>("RecycleKey");
@@ -56,8 +68,13 @@ public sealed class TranscriptPanel : VirtualizingPanel
     private Rect _extended;
     private bool _isInLayout;
     private bool _aheadPosted;
+    private bool _continuePosted;
+    private bool _scrollingUp;
     private Control? _realizing;
     private int _realizingIndex = -1;
+
+    // The parked containers by item, with the item's index when parked (for the distance from the view).
+    private readonly Dictionary<object, (Control Container, int Index)> _parked = [];
 
     public TranscriptPanel()
     {
@@ -100,67 +117,112 @@ public sealed class TranscriptPanel : VirtualizingPanel
             }
 
             var childSize = new Size(width, double.PositiveInfinity);
-            var start = _extended.Top;
-            var end = Math.Max(_extended.Bottom, start + 1);
+            var clock = Stopwatch.StartNew();
 
-            // The item at the top of the area to build, and where the heights put it.
+            // The view (its items are built whatever that costs) inside the area to build (the rest within the budget).
+            var view = _viewport.Height > 0 ? _viewport : _extended;
+            var viewBottom = Math.Max(view.Bottom, view.Top + 1);
+            var start = Math.Min(_extended.Top, view.Top);
+            var end = Math.Max(_extended.Bottom, viewBottom);
+
+            // The item at the top of the view, and where the heights put it.
             var anchor = 0;
             var anchorU = 0.0;
-            while (anchor < items.Count - 1 && anchorU + _heights[anchor] <= start)
+            while (anchor < items.Count - 1 && anchorU + _heights[anchor] <= view.Top)
             {
                 anchorU += _heights[anchor];
                 anchor++;
             }
 
-            // Out of the built range altogether: recycle first, so the new items can reuse the containers.
+            // Out of the built range altogether: everything built is parked first, for the new items to find there.
             var old = new List<Control?>(_elements);
             var oldFirst = _first;
             if (anchor < oldFirst || anchor > oldFirst + old.Count - 1)
             {
-                RecycleRange(old);
+                ParkRange(old, oldFirst);
             }
 
             _elements.Clear();
             var maxWidth = 0.0;
+            var unfinished = false;
 
-            // Forwards from the anchor to the end of the area...
+            Control Build(int at)
+            {
+                var element = Realize(items, at, old, oldFirst);
+                element.Measure(childSize);
+                Remember(items, at, element.DesiredSize.Height);
+                maxWidth = Math.Max(maxWidth, element.DesiredSize.Width);
+                return element;
+            }
+
+            // Already built (or parked): taking it costs nothing, budget or no budget.
+            bool Cheap(int at) => IsBuilt(at, old, oldFirst) || clock.Elapsed < BuildBudget;
+
+            // Down through the view...
+            var below = new List<Control>();
             var index = anchor;
             var u = anchorU;
-            var below = new List<Control>();
             do
             {
-                var element = Realize(items, index, old, oldFirst);
-                element.Measure(childSize);
-                Remember(items, index, element.DesiredSize.Height);
-                maxWidth = Math.Max(maxWidth, element.DesiredSize.Width);
+                var element = Build(index);
                 below.Add(element);
                 u += element.DesiredSize.Height;
                 index++;
             }
-            while (u < end && index < items.Count);
+            while (u < viewBottom && index < items.Count);
 
-            // ...and backwards from it to the start.
-            var above = new List<Control>();
-            index = anchor - 1;
-            u = anchorU;
-            while (u > start && index >= 0)
+            // ...then beyond it on either side, the way the view is going first.
+            void ExtendDown()
             {
-                var element = Realize(items, index, old, oldFirst);
-                element.Measure(childSize);
-                Remember(items, index, element.DesiredSize.Height);
-                maxWidth = Math.Max(maxWidth, element.DesiredSize.Width);
-                above.Add(element);
-                u -= element.DesiredSize.Height;
-                index--;
+                while (u < end && index < items.Count && Cheap(index))
+                {
+                    var element = Build(index);
+                    below.Add(element);
+                    u += element.DesiredSize.Height;
+                    index++;
+                }
+
+                unfinished |= u < end && index < items.Count;
+            }
+
+            var above = new List<Control>();
+            var top = anchor - 1;
+            var topU = anchorU;
+            void ExtendUp()
+            {
+                while (topU > start && top >= 0 && Cheap(top))
+                {
+                    var element = Build(top);
+                    above.Add(element);
+                    topU -= element.DesiredSize.Height;
+                    top--;
+                }
+
+                unfinished |= topU > start && top >= 0;
+            }
+
+            if (_scrollingUp)
+            {
+                ExtendUp();
+                ExtendDown();
+            }
+            else
+            {
+                ExtendDown();
+                ExtendUp();
             }
 
             above.Reverse();
-            _first = index + 1;
+            _first = top + 1;
             _elements.AddRange(above);
             _elements.AddRange(below);
 
-            // Whatever was built before and is not now goes back to the pool.
-            RecycleRange(old);
+            // Whatever was built before and is not now is parked.
+            ParkRange(old, oldFirst);
+            if (unfinished)
+            {
+                ContinueSoon();
+            }
 
             // The items above the built ones have not changed, so the built ones start where they did; those that
             // changed height move what is under them, and the scroll viewer's anchoring keeps the view on it.
@@ -462,6 +524,10 @@ public sealed class TranscriptPanel : VirtualizingPanel
         for (var i = 0; i < count; i++)
         {
             Unremember(removed[i], index + i);
+            if (removed[i] is { } gone && _parked.Remove(gone, out var parked))
+            {
+                Recycle(parked.Container);
+            }
         }
 
         _heights.RemoveRange(index, count);
@@ -504,6 +570,28 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 ItemContainerGenerator!.ItemContainerIndexChanged(element, _first + i - delta, _first + i);
             }
         }
+    }
+
+    // The budget ran out with items of the area still to build: the next frame goes on.
+    private void ContinueSoon()
+    {
+        if (_continuePosted || TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        _continuePosted = true;
+        top.RequestAnimationFrame(_ =>
+        {
+            _continuePosted = false;
+            InvalidateMeasure();
+        });
+    }
+
+    private bool IsBuilt(int index, List<Control?> old, int oldFirst)
+    {
+        var i = index - oldFirst;
+        return (i >= 0 && i < old.Count && old[i] is not null) || (Items[index] is { } item && _parked.ContainsKey(item));
     }
 
     private void MeasureAheadSoon()
@@ -560,7 +648,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 element.Measure(childSize);
                 var before = _heights[index];
                 Remember(items, index, element.DesiredSize.Height);
-                Recycle(element);
+                Park(element, index);
                 measured = true;
                 if (index < _first)
                 {
@@ -606,7 +694,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 if (!own.IsSet(RecycleKeyProperty))
                 {
                     generator.PrepareItemContainer(own, own, index);
-                    AddInternalChild(own);
+                    InsertInternalChild(0, own);
                     own.SetValue(RecycleKeyProperty, ItemIsItsOwnContainer);
                     generator.ItemContainerPrepared(own, item, index);
                 }
@@ -615,13 +703,25 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 return own;
             }
 
+            if (item is not null && _parked.Remove(item, out var parked))
+            {
+                _realizing = parked.Container;
+                if (parked.Container.GetVisualParent() is null)
+                {
+                    VisualChildren.Add(parked.Container);
+                }
+
+                generator.ItemContainerPrepared(parked.Container, item, index);
+                return parked.Container;
+            }
+
             if (recycleKey is not null && _recyclePool.TryGetValue(recycleKey, out var pool) && pool.Count > 0)
             {
                 var recycled = pool.Pop();
                 _realizing = recycled;
                 recycled.SetCurrentValue(IsVisibleProperty, true);
                 generator.PrepareItemContainer(recycled, item, index);
-                AddInternalChild(recycled);
+                InsertInternalChild(0, recycled);
                 generator.ItemContainerPrepared(recycled, item, index);
                 return recycled;
             }
@@ -630,7 +730,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
             _realizing = container;
             container.SetValue(RecycleKeyProperty, recycleKey);
             generator.PrepareItemContainer(container, item, index);
-            AddInternalChild(container);
+            InsertInternalChild(0, container);
             generator.ItemContainerPrepared(container, item, index);
             return container;
         }
@@ -641,24 +741,81 @@ public sealed class TranscriptPanel : VirtualizingPanel
         }
     }
 
-    private void RecycleRange(List<Control?> elements)
+    private void ParkRange(List<Control?> elements, int first)
     {
         for (var i = 0; i < elements.Count; i++)
         {
             if (elements[i] is { } element)
             {
                 elements[i] = null;
-                Recycle(element);
+                Park(element, first + i);
             }
         }
     }
 
+    // Out of the built range: the container stays whole until its item is back or the park is full. It leaves the
+    // visual tree (the compositor walks even hidden visuals every frame) but not the logical tree, so its styles, its
+    // bindings and its text layouts all stay.
+    private void Park(Control element, int index)
+    {
+        _anchorProvider?.UnregisterAnchorCandidate(element);
+        var item = index >= 0 && index < Items.Count ? Items[index] : null;
+        if (element.GetValue(RecycleKeyProperty) is null || item is null || _parked.ContainsKey(item))
+        {
+            Recycle(element);
+            return;
+        }
+
+        if (element.GetValue(RecycleKeyProperty) == ItemIsItsOwnContainer)
+        {
+            element.SetCurrentValue(IsVisibleProperty, false);
+            return;
+        }
+
+        // Still one of Children (whose adds therefore go at index 0: Panel inserts into the visual children at the
+        // same index, and a parked element has none).
+        VisualChildren.Remove(element);
+        _parked[item] = (element, index);
+        if (_parked.Count > ParkLimit)
+        {
+            EvictFarthest();
+        }
+    }
+
+    private void EvictFarthest()
+    {
+        var center = _first + _elements.Count / 2;
+        var farthest = _parked.MaxBy(p => Math.Abs(p.Value.Index - center));
+        _parked.Remove(farthest.Key);
+        Recycle(farthest.Value.Container);
+    }
+
+    private void ClearPark()
+    {
+        foreach (var (_, parked) in _parked)
+        {
+            Recycle(parked.Container);
+        }
+
+        _parked.Clear();
+    }
+
     private void RecycleAll()
     {
-        RecycleRange(_elements);
+        for (var i = 0; i < _elements.Count; i++)
+        {
+            if (_elements[i] is { } element)
+            {
+                _elements[i] = null;
+                _anchorProvider?.UnregisterAnchorCandidate(element);
+                Recycle(element);
+            }
+        }
+
         _elements.Clear();
         _first = 0;
         _startU = 0;
+        ClearPark();
     }
 
     private void Recycle(Control element)
@@ -689,6 +846,11 @@ public sealed class TranscriptPanel : VirtualizingPanel
     {
         var viewport = e.EffectiveViewport.Intersect(new Rect(Bounds.Size));
         var resized = !MathUtilities.AreClose(_viewport.Height, viewport.Height);
+        if (!MathUtilities.AreClose(viewport.Top, _viewport.Top))
+        {
+            _scrollingUp = viewport.Top < _viewport.Top;
+        }
+
         _viewport = viewport;
         var buffer = _viewport.Height * CacheLength;
         var top = Math.Max(0, _viewport.Top - buffer);
