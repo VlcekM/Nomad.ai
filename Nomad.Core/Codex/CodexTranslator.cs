@@ -441,13 +441,15 @@ public sealed class CodexTranslator
     private IEnumerable<AgentEvent> TokenUsage(JsonElement usage)
     {
         var total = Usage.Of(CodexJson.Obj(usage, "total"));
-        var last = Usage.Of(CodexJson.Obj(usage, "last"));
+        var lastCall = CodexJson.Obj(usage, "last");
+        var last = Usage.Of(lastCall);
 
         // Before this turn's first model call, the thread had used its total less that call.
         _baseline ??= total - last;
         _turnUsage = total - _baseline.Value;
         _steps++;
-        var context = last.Input + last.Output;
+        // After a compaction "last" is the compacted history: only its total is set, input and output are 0.
+        var context = CodexJson.Long(lastCall, "totalTokens") ?? last.Input + last.Output;
         if (context > 0 && context != ContextTokens)
         {
             ContextTokens = context;

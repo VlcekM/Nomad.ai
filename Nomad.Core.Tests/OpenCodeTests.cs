@@ -78,6 +78,29 @@ public class OpenCodeTests
     }
 
     [Fact]
+    public void CompactionEstimatesTheCompactedContext()
+    {
+        var translator = new OpenCodeTranslator("ses_1", Cwd);
+        string[] lines =
+        [
+            """{"type":"message.updated","properties":{"info":{"id":"msg_1","sessionID":"ses_1","role":"assistant","agent":"build"}}}""",
+            """{"type":"message.part.updated","properties":{"part":{"id":"p1","messageID":"msg_1","sessionID":"ses_1","type":"step-finish","tokens":{"input":2000,"output":500,"cache":{"read":47500,"write":0}}}}}""",
+            """{"type":"message.updated","properties":{"info":{"id":"msg_2","sessionID":"ses_1","role":"assistant","agent":"compaction","summary":true}}}""",
+            """{"type":"message.part.updated","properties":{"part":{"id":"p2","messageID":"msg_2","sessionID":"ses_1","type":"step-finish","tokens":{"input":38000,"output":1200,"cache":{"read":0,"write":0}}}}}""",
+        ];
+
+        var events = new List<AgentEvent>();
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            events.AddRange(translator.Handle(doc.RootElement));
+        }
+
+        // 50k before; the summarising call read 38k of history, so 12k was system prompt and tools, plus the 1.2k summary.
+        Assert.Equal([50_000, 12_000 + 1_200], events.OfType<ContextUsageEvent>().Select(e => e.Tokens));
+    }
+
+    [Fact]
     public void PermissionForAnUnseenCallShowsTheDiff()
     {
         using var doc = JsonDocument.Parse("""

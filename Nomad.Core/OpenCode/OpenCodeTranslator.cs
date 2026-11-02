@@ -27,6 +27,9 @@ public sealed class OpenCodeTranslator
 
     private readonly Dictionary<string, PermissionRequest> _pending = new(StringComparer.Ordinal);
 
+    // Assistant messages that summarise the session (a compaction), not a step of the conversation.
+    private readonly HashSet<string> _compactions = new(StringComparer.Ordinal);
+
     private DateTime _turnStartedUtc;
     private string? _turnError;
     private int _steps;
@@ -113,6 +116,11 @@ public sealed class OpenCodeTranslator
         if (role != "assistant")
         {
             yield break;
+        }
+
+        if (OpenCodeJson.Str(info, "agent") == "compaction" || OpenCodeJson.Str(info, "mode") == "compaction")
+        {
+            _compactions.Add(id);
         }
 
         if (_announcedMessages.Add(id))
@@ -211,7 +219,7 @@ public sealed class OpenCodeTranslator
                 _cacheWrite += write;
                 _cost += OpenCodeJson.Double(part, "cost") ?? 0;
                 _steps++;
-                var context = input + read + write + output;
+                var context = _compactions.Contains(messageId) ? CompactedContext(input + read + write, output) : input + read + write + output;
                 if (context > 0 && context != ContextTokens)
                 {
                     ContextTokens = context;
@@ -222,6 +230,12 @@ public sealed class OpenCodeTranslator
             }
         }
     }
+
+    /// <summary>
+    /// The context after a compaction, which OpenCode doesn't report: the summary, plus what the history didn't hold (the
+    /// system prompt and tools), i.e. the context before less what the summarising call read (the history).
+    /// </summary>
+    private long CompactedContext(long historyRead, long summary) => Math.Max(0, ContextTokens - historyRead) + summary;
 
     private IEnumerable<AgentEvent> PartDelta(JsonElement p)
     {

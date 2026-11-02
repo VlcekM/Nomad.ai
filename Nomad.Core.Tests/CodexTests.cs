@@ -23,6 +23,24 @@ public class CodexTests
     }
 
     [Fact]
+    public void CompactionReportsTheCompactedContext()
+    {
+        var translator = new CodexTranslator("t", Cwd);
+        using var call = JsonDocument.Parse("""
+            {"threadId":"t","tokenUsage":{"total":{"totalTokens":16922,"inputTokens":16915,"cachedInputTokens":11776,"outputTokens":7},
+             "last":{"totalTokens":16922,"inputTokens":16915,"cachedInputTokens":11776,"outputTokens":7}}}
+            """);
+        Assert.Equal(16922, Assert.Single(translator.Handle("thread/tokenUsage/updated", call.RootElement).OfType<ContextUsageEvent>()).Tokens);
+
+        // After compacting, "last" holds only the compacted history's total.
+        using var compacted = JsonDocument.Parse("""
+            {"threadId":"t","tokenUsage":{"total":{"totalTokens":16922,"inputTokens":16915,"cachedInputTokens":11776,"outputTokens":7},
+             "last":{"totalTokens":9952,"inputTokens":0,"cachedInputTokens":0,"outputTokens":0}}}
+            """);
+        Assert.Equal(9952, Assert.Single(translator.Handle("thread/tokenUsage/updated", compacted.RootElement).OfType<ContextUsageEvent>()).Tokens);
+    }
+
+    [Fact]
     public void McpImagesPreserveTextAndStructuredResults()
     {
         using var item = JsonDocument.Parse("""
