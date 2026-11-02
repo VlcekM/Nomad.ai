@@ -2018,6 +2018,15 @@ public sealed partial class SessionViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ContextAmountText))]
     public partial long ContextTokens { get; set; }
 
+    private void SetContext(long tokens)
+    {
+        if (tokens > 0)
+        {
+            ContextTokens = tokens;
+            ContextFraction = Math.Clamp(tokens / (double)ContextWindowSize, 0, 1);
+        }
+    }
+
     public string ContextToolTip => ContextTokens > 0
         ? $"Context: {Format.Tokens(ContextTokens)} of {Format.Tokens(ContextWindowSize)} ({ContextFraction:P0})"
         : "Context: empty";
@@ -3162,6 +3171,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 ContentChanged?.Invoke();
                 break;
 
+            case ContextUsageEvent usage:
+                SetContext(usage.Tokens);
+                break;
+
             case RemoteControlStateEvent bridge:
                 RemoteControlState = bridge.State;
                 break;
@@ -3627,12 +3640,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         AgentMeta = string.Join(" · ", parts);
-        var context = result.ContextTokens;
-        if (context > 0)
-        {
-            ContextTokens = context;
-            ContextFraction = Math.Clamp(context / (double)ContextWindowSize, 0, 1);
-        }
+        SetContext(result.ContextTokens);
 
         ContentChanged?.Invoke();
         if (_pendingFolderMove is { } destination)

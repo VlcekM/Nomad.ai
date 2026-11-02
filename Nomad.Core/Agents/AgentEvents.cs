@@ -123,6 +123,9 @@ public sealed record ModelChangedEvent(string Model) : AgentEvent;
 /// <summary>Coarse status: "requesting", "compacting", or null when idle.</summary>
 public sealed record StatusEvent(string? Status) : AgentEvent;
 
+/// <summary>The context in use changed mid-turn: a new call of the main conversation, or a compaction.</summary>
+public sealed record ContextUsageEvent(long Tokens) : AgentEvent;
+
 public sealed record TurnCompletedEvent(TurnResult Result) : AgentEvent;
 
 /// <summary>A problem outside the normal turn flow (failed write, unsupported request, …).</summary>

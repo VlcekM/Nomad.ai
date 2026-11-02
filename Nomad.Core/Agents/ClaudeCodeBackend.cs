@@ -531,8 +531,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                 Raise(new StatusEvent(system.Status));
                 break;
             // A /compact turn makes no further call, so the turn would otherwise end on the pre-compaction size.
-            case "compact_boundary" when system.CompactMetadata?.PostTokens is long post and > 0:
-                _contextTokens = post;
+            case "compact_boundary" when system.CompactMetadata?.PostTokens is long post:
+                SetContextTokens(post);
                 break;
             case "bridge_state" when !string.IsNullOrEmpty(system.State):
                 Raise(new RemoteControlStateEvent(system.State));
@@ -567,6 +567,18 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     /// <summary>Tokens the latest main-conversation API call read (input incl. cache): the context in use.</summary>
     private long _contextTokens;
 
+    /// <summary>Records the context in use and tells the host at once, so its counter follows the turn live.</summary>
+    private void SetContextTokens(long tokens)
+    {
+        if (tokens <= 0 || tokens == _contextTokens)
+        {
+            return;
+        }
+
+        _contextTokens = tokens;
+        Raise(new ContextUsageEvent(tokens));
+    }
+
     private void HandleStreamEvent(StreamEventLine line)
     {
         var e = line.Event;
@@ -586,10 +598,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                 if (parent is null && e.Message?.Usage is { } started)
                 {
                     var read = (started.InputTokens ?? 0) + (started.CacheReadInputTokens ?? 0) + (started.CacheCreationInputTokens ?? 0);
-                    if (read > 0)
-                    {
-                        _contextTokens = read;
-                    }
+                    SetContextTokens(read);
                 }
 
                 Raise(new AssistantMessageStartedEvent(_messageId, e.Message?.Model, parent));
