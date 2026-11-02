@@ -938,13 +938,12 @@ public partial class MainWindow : Window
                 _titleMeasure = measure;
             }
 
-            var children = TitleContent.Children.Where(c => c.IsVisible).ToArray();
             var titleWidth = SessionTitleButton.IsVisible
                 ? Math.Min(SessionTitleButton.MaxWidth, Math.Max(_vm.IsTitleRenaming ? TitleRenameBox.MinWidth : 0,
                     _titleTextWidth) + SessionTitleButton.Padding.Left + SessionTitleButton.Padding.Right)
                 : 0;
             var naturalWidth = TitleNavigation.DesiredSize.Width + TitleContent.Margin.Left + TitleContent.Margin.Right
-                + titleWidth + children.Where(c => c != SessionTitleButton).Sum(c => c.DesiredSize.Width)
+                + titleWidth + TitleChipsWidth()
                 + (TitleContent.ColumnDefinitions.Count - 1) * TitleContent.ColumnSpacing;
             var centered = Math.Floor((WindowContent.Bounds.Width - ViewSwitch.Bounds.Width) / 2);
             var rightmost = Math.Floor(buttonsAt.X - ViewSwitch.Bounds.Width - 12);
@@ -978,6 +977,21 @@ public partial class MainWindow : Window
         {
             TitleArea.MaxWidth = max;
         }
+    }
+
+    /// <summary>The visible title-row chips beside the title button; a loop, as this runs on every layout pass.</summary>
+    private double TitleChipsWidth()
+    {
+        var width = 0.0;
+        foreach (var child in TitleContent.Children)
+        {
+            if (child.IsVisible && child != SessionTitleButton)
+            {
+                width += child.DesiredSize.Width;
+            }
+        }
+
+        return width;
     }
 
     /// <summary>

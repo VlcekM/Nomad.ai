@@ -12,6 +12,7 @@ internal sealed class FrameLoop
 {
     private readonly Control _owner;
     private readonly Action<TimeSpan> _frame;
+    private readonly Action<TimeSpan> _step;
     private bool _wanted;
     private bool _scheduled;
 
@@ -19,6 +20,7 @@ internal sealed class FrameLoop
     {
         _owner = owner;
         _frame = frame;
+        _step = Step; // One delegate for every frame, not a new one per request.
 
         // Wanted before the control was in a window: it starts once there is one.
         owner.AttachedToVisualTree += (_, _) => Update(_wanted);
@@ -31,7 +33,7 @@ internal sealed class FrameLoop
         if (wanted && !_scheduled && TopLevel.GetTopLevel(_owner) is { } top)
         {
             _scheduled = true;
-            top.RequestAnimationFrame(Step);
+            top.RequestAnimationFrame(_step);
         }
     }
 
@@ -50,7 +52,7 @@ internal sealed class FrameLoop
         if (_wanted && !_scheduled && TopLevel.GetTopLevel(_owner) is { } top)
         {
             _scheduled = true;
-            top.RequestAnimationFrame(Step);
+            top.RequestAnimationFrame(_step);
         }
     }
 }
