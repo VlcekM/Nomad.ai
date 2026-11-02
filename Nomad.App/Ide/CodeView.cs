@@ -1940,18 +1940,20 @@ public sealed partial class CodeView : Control
         return panel;
     }
 
-    // The declaration in the code's colors with its icon, its documentation under it, and how many more there are.
+    // The declaration in the code's colors with its icon, its documentation under it, and how many more there are;
+    // in the UI's font, as Visual Studio's Quick Info.
     private Control QuickInfoContent(QuickInfoView info)
     {
         var signature = new TextBlock
         {
-            FontFamily = FontFamily,
-            FontSize = FontSize,
+            FontFamily = this.TryFindResource("UiFont", ActualThemeVariant, out var font) && font is FontFamily ui ? ui : FontFamily,
+            FontFeatures = [FontFeature.Parse("-calt"), FontFeature.Parse("-liga")],
             TextWrapping = TextWrapping.Wrap,
             MaxWidth = 620,
             VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
         };
-        AddCode(signature.Inlines!, info.Signature, Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, info.Signature, null).Spans : []);
+        var spans = Highlighter.ForFile(info.Path) is { } grammar ? Highlighter.Tokenize(grammar, info.Signature, null).Spans : [];
+        AddCode(signature.Inlines!, info.Signature, TypeSpans(info.Signature, info.Kind) ?? (IEnumerable<CodeSpan>)spans);
         var icon = new CodeSymbolIcon { Kind = info.Kind, Width = 16, Height = 16, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top, Margin = new Thickness(0, 1, 0, 0) };
         TextElement.SetForeground(icon, ThemeBrush("TextSecondaryBrush") ?? Foreground);
         var panel = new StackPanel { Spacing = 6, Children = { new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { icon, signature } } } };
@@ -1972,6 +1974,28 @@ public sealed partial class CodeView : Control
         }
 
         return panel;
+    }
+
+    // A type's declaration as Visual Studio shows it: its keywords blue, its namespace plain and its name in its kind's
+    // color ("struct SharpMetal.Metal.MTLCommandBuffer"); null for anything else.
+    private static List<CodeSpan>? TypeSpans(string signature, SymbolKind kind)
+    {
+        if (kind is not (SymbolKind.Class or SymbolKind.Record or SymbolKind.Struct or SymbolKind.Interface or SymbolKind.Enum) ||
+            System.Text.RegularExpressions.Regex.Match(signature, @"^((?:[a-z]+ +)+)([\w.]+)") is not { Success: true } match)
+        {
+            return null;
+        }
+
+        var spans = new List<CodeSpan>();
+        foreach (System.Text.RegularExpressions.Match word in System.Text.RegularExpressions.Regex.Matches(match.Groups[1].Value, "[a-z]+"))
+        {
+            spans.Add(new CodeSpan(word.Index, word.Length, CodeKind.Keyword));
+        }
+
+        var name = match.Groups[2];
+        var start = name.Index + name.Value.LastIndexOf('.') + 1;
+        spans.Add(new CodeSpan(start, name.Index + name.Length - start, kind == SymbolKind.Struct ? CodeKind.Struct : CodeKind.Type));
+        return spans;
     }
 
     /// <summary>Code as runs in the code's colors (its <paramref name="spans"/>), with the characters from <paramref name="boldFrom"/> to <paramref name="boldTo"/> in bold.</summary>

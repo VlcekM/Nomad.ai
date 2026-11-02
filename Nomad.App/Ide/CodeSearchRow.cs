@@ -96,12 +96,15 @@ public sealed class CodeSymbolIcon : Control
     private static readonly IBrush Orange = new SolidColorBrush(Color.FromRgb(0xE8, 0xA3, 0x3D));
     private static readonly IBrush Purple = new SolidColorBrush(Color.FromRgb(0xB1, 0x80, 0xD7));
     private static readonly IBrush Blue = new SolidColorBrush(Color.FromRgb(0x3C, 0x9C, 0xDC));
-    private static readonly IBrush Teal = new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0));
     private static readonly IBrush Gold = new SolidColorBrush(Color.FromRgb(0xDC, 0xB3, 0x3C));
     private static readonly IBrush Grey = new SolidColorBrush(Color.FromRgb(0xA0, 0xA0, 0xA0));
 
     private static readonly Geometry ClassShape = StreamGeometry.Parse("M2.5,2.5 L6.5,2.5 L6.5,6.5 L2.5,6.5 Z M9.5,9.5 L13.5,9.5 L13.5,13.5 L9.5,13.5 Z M4.5,6.5 L4.5,11.5 L9.5,11.5 M6.5,4.5 L11.5,4.5 L11.5,9.5");
-    private static readonly Geometry StructShape = StreamGeometry.Parse("M3,3 L13,3 L13,13 L3,13 Z M3,8 L13,8 M8,3 L8,13");
+    // Visual Studio's: two blocks, the front one over the back one's corner (filled).
+    private static readonly Geometry StructShape = StreamGeometry.Parse(
+        "M2,3 A1,1 0 0 1 3,2 L9,2 A1,1 0 0 1 10,3 L10,4.5 L5.5,4.5 A1,1 0 0 0 4.5,5.5 L4.5,10 L3,10 A1,1 0 0 1 2,9 Z " +
+        "M6,7 A1,1 0 0 1 7,6 L13,6 A1,1 0 0 1 14,7 L14,13 A1,1 0 0 1 13,14 L7,14 A1,1 0 0 1 6,13 Z");
+    private static readonly IBrush StructBlue = new SolidColorBrush(Color.FromRgb(0x58, 0xB6, 0xFF));
     private static readonly Geometry InterfaceShape = StreamGeometry.Parse("M8,8 L14.5,8 M8,8 A3,3 0 1 1 2,8 A3,3 0 1 1 8,8 Z");
     private static readonly Geometry EnumShape = StreamGeometry.Parse("M2.5,2.5 L10.5,2.5 L10.5,6.5 L2.5,6.5 Z M5.5,9.5 L13.5,9.5 L13.5,13.5 L5.5,13.5 Z");
     private static readonly Geometry EnumMemberShape = StreamGeometry.Parse("M3,5 L13,5 L13,11 L3,11 Z M6,8 L10,8");
@@ -135,7 +138,7 @@ public sealed class CodeSymbolIcon : Control
         var (shape, brush, filled) = kind switch
         {
             SymbolKind.Class or SymbolKind.Record => (ClassShape, Orange, false),
-            SymbolKind.Struct => (StructShape, Teal, false),
+            SymbolKind.Struct => (StructShape, StructBlue, true),
             SymbolKind.Interface => (InterfaceShape, Blue, false),
             SymbolKind.Enum => (EnumShape, Gold, false),
             SymbolKind.EnumMember => (EnumMemberShape, Blue, false),

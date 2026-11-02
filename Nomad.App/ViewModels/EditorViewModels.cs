@@ -1134,6 +1134,11 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
             newValue.IsFocused = IsFocused;
         }
 
+        if (oldValue is not null && newValue is not null)
+        {
+            owner.Left(oldValue);
+        }
+
         Find.OnActiveTabChanged();
     }
 

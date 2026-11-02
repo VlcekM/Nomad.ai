@@ -431,7 +431,7 @@
 
           <Panel>
           <!-- The editor size from the settings (Visual Studio's 10 pt, 13 px on 17 px lines, by default); only the lines in view are drawn. -->
-          <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <ScrollViewer Name="Scroller" Classes="editor" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
             <ide:CodeView Name="Code"
                           Document="{Binding ActiveTab.Document}"
                           FontFamily="{DynamicResource MonoFont}"
@@ -440,7 +440,7 @@
                           SelectionBrush="{DynamicResource TextSelectionBrush}"
                           CaretBrush="{DynamicResource TextCaretBrush}"
                           LineHeight="{DynamicResource EditorLineHeight}"
-                          Padding="0,12,18,24" />
+                          Padding="0,12,38,24" />
           </ScrollViewer>
 
           <!-- The diff with the last commit: removed lines red, added green, unchanged runs folded. -->
@@ -469,8 +469,8 @@
             </ScrollViewer>
           </Border>
 
-          <!-- The find's matches beside the scroll bar. -->
-          <ide:CodeMarkerBar Document="{Binding ActiveTab.Document}" Width="6" HorizontalAlignment="Right" Margin="0,2,2,14" />
+          <!-- Over the scroll bar, either side of its thumb: changed lines, problems and the find's matches. -->
+          <ide:CodeMarkerBar Document="{Binding ActiveTab.Document}" Width="20" HorizontalAlignment="Right" Margin="0,2,0,12" />
 
           <!-- Find and replace (Ctrl+F, Ctrl+H), over the code's top right as in Visual Studio. -->
           <Border Name="FindBox"

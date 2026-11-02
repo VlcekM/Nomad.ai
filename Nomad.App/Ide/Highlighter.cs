@@ -21,6 +21,9 @@ public enum CodeKind : byte
 
     /// <summary>Keywords that steer the flow (if, return, for, import), which Visual Studio colors apart.</summary>
     Control,
+
+    /// <summary>A struct's name, a paler green than a class's in Visual Studio (Quick Info knows it, the grammar doesn't).</summary>
+    Struct,
 }
 
 /// <summary>A run of a line, by index into its text, and its kind.</summary>

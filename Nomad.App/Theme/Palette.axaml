@@ -70,6 +70,7 @@
       <Color x:Key="CodeKeywordColor">#569CD6</Color>
       <Color x:Key="CodeControlColor">#D8A0DF</Color>
       <Color x:Key="CodeTypeColor">#4EC9B0</Color>
+      <Color x:Key="CodeStructColor">#86C691</Color>
       <Color x:Key="CodeFunctionColor">#DCDCAA</Color>
       <Color x:Key="CodeStringColor">#D69D85</Color>
       <Color x:Key="CodeNumberColor">#B5CEA8</Color>
@@ -162,6 +163,7 @@
       <SolidColorBrush x:Key="CodeKeywordBrush" Color="#569CD6" />
       <SolidColorBrush x:Key="CodeControlBrush" Color="#D8A0DF" />
       <SolidColorBrush x:Key="CodeTypeBrush" Color="#4EC9B0" />
+      <SolidColorBrush x:Key="CodeStructBrush" Color="#86C691" />
       <SolidColorBrush x:Key="CodeFunctionBrush" Color="#DCDCAA" />
       <SolidColorBrush x:Key="CodeStringBrush" Color="#D69D85" />
       <SolidColorBrush x:Key="CodeNumberBrush" Color="#B5CEA8" />
@@ -179,6 +181,8 @@
       <SolidColorBrush x:Key="SliderTickBrush" Color="#66FFFFFF" />
       <SolidColorBrush x:Key="SwitchOffBrush" Color="#4A4A48" />
       <SolidColorBrush x:Key="ScrollThumbBrush" Color="#1FFFFFFF" />
+      <SolidColorBrush x:Key="EditorScrollThumbBrush" Color="#4DFFFFFF" />
+      <SolidColorBrush x:Key="EditorScrollThumbHoverBrush" Color="#80FFFFFF" />
       <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#33FFFFFF" />
       <SolidColorBrush x:Key="JumpFillBrush" Color="#E6262626" />
       <SolidColorBrush x:Key="JumpEdgeBrush" Color="#5A5A5A" />
@@ -259,6 +263,7 @@
       <Color x:Key="CodeKeywordColor">#0000FF</Color>
       <Color x:Key="CodeControlColor">#8F08C4</Color>
       <Color x:Key="CodeTypeColor">#2B91AF</Color>
+      <Color x:Key="CodeStructColor">#2B91AF</Color>
       <Color x:Key="CodeFunctionColor">#74531F</Color>
       <Color x:Key="CodeStringColor">#A31515</Color>
       <Color x:Key="CodeNumberColor">#000000</Color>
@@ -351,6 +356,7 @@
       <SolidColorBrush x:Key="CodeKeywordBrush" Color="#0000FF" />
       <SolidColorBrush x:Key="CodeControlBrush" Color="#8F08C4" />
       <SolidColorBrush x:Key="CodeTypeBrush" Color="#2B91AF" />
+      <SolidColorBrush x:Key="CodeStructBrush" Color="#2B91AF" />
       <SolidColorBrush x:Key="CodeFunctionBrush" Color="#74531F" />
       <SolidColorBrush x:Key="CodeStringBrush" Color="#A31515" />
       <SolidColorBrush x:Key="CodeNumberBrush" Color="#000000" />
@@ -368,6 +374,8 @@
       <SolidColorBrush x:Key="SliderTickBrush" Color="#59000000" />
       <SolidColorBrush x:Key="SwitchOffBrush" Color="#C9C7BE" />
       <SolidColorBrush x:Key="ScrollThumbBrush" Color="#26000000" />
+      <SolidColorBrush x:Key="EditorScrollThumbBrush" Color="#47000000" />
+      <SolidColorBrush x:Key="EditorScrollThumbHoverBrush" Color="#73000000" />
       <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#40000000" />
       <SolidColorBrush x:Key="JumpFillBrush" Color="#F2FFFFFF" />
       <SolidColorBrush x:Key="JumpEdgeBrush" Color="#CFCDC4" />

@@ -113,6 +113,12 @@
     <Setter Property="Opacity" Value="1" />
   </Style>
 
+  <!-- The code editor's vertical one stays (it carries the change, problem and find marks), as Visual Studio's. -->
+  <Style Selector="ScrollViewer.editor /template/ ScrollBar:vertical">
+    <Setter Property="Theme" Value="{StaticResource EditorScrollBar}" />
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
   <!-- Popup menus -->
   <Style Selector="FlyoutPresenter.menu">
     <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />

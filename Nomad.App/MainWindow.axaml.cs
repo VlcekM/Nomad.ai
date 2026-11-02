@@ -59,10 +59,26 @@ public partial class MainWindow : Window
             session,
             session.PendingPermission is QuestionItem ? "Claude has a question for you" : session.PendingPermission?.Title ?? "Needs your answer");
 
-        // The mouse's back and forward buttons go back and forward between sessions, as the title bar's arrows do.
+        // The mouse's back and forward buttons go back and forward between sessions, as the title bar's arrows do; in
+        // the Files view, between the files (and places) shown, as Ctrl+- does.
         AddHandler(PointerPressedEvent, (_, e) =>
         {
             var button = e.GetCurrentPoint(this).Properties.PointerUpdateKind;
+            if (vm.Current.IsFilesView && button is PointerUpdateKind.XButton1Pressed or PointerUpdateKind.XButton2Pressed)
+            {
+                if (button == PointerUpdateKind.XButton1Pressed)
+                {
+                    vm.Current.Files.NavigateBack();
+                }
+                else
+                {
+                    vm.Current.Files.NavigateForward();
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             var command = button switch
             {
                 PointerUpdateKind.XButton1Pressed => vm.GoBackCommand,

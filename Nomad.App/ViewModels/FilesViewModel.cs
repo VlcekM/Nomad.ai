@@ -164,6 +164,7 @@ public sealed partial class FilesViewModel : ObservableObject
     private const int MaxHistory = 100;
     private readonly List<Place> _back = [];
     private readonly List<Place> _forward = [];
+    private bool _navigating;
 
     private Place? Here() =>
         ActiveGroup.ActiveTab is { } tab ? new Place(tab.Path, tab.Document.Caret.Line, tab.Document.Caret.Index) : null;
@@ -171,7 +172,24 @@ public sealed partial class FilesViewModel : ObservableObject
     // A jump leaves where the caret was on the Back list (and a new jump forgets what Forward had).
     private void Remember()
     {
-        if (Here() is { } here && (_back.Count == 0 || _back[^1] != here))
+        if (Here() is { } here)
+        {
+            Remember(here);
+        }
+    }
+
+    /// <summary>Another file came to the front (a tab clicked, a file opened): Back returns to the one left.</summary>
+    internal void Left(FileTab tab)
+    {
+        if (!_navigating)
+        {
+            Remember(new Place(tab.Path, tab.Document.Caret.Line, tab.Document.Caret.Index));
+        }
+    }
+
+    private void Remember(Place here)
+    {
+        if (_back.Count == 0 || _back[^1] != here)
         {
             _back.Add(here);
             if (_back.Count > MaxHistory)
@@ -203,7 +221,15 @@ public sealed partial class FilesViewModel : ObservableObject
             to.Add(here);
         }
 
-        OpenAt(place.Path, (place.Line, place.Column), remember: false);
+        _navigating = true;
+        try
+        {
+            OpenAt(place.Path, (place.Line, place.Column), remember: false);
+        }
+        finally
+        {
+            _navigating = false;
+        }
     }
 
     /// <summary>Ctrl+G: the caret to a line (1-based) of the file shown.</summary>

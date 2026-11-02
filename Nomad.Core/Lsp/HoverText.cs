@@ -57,7 +57,13 @@ public static partial class HoverText
             };
         }
 
+        // "record struct" is a struct, "record class" (or a plain "record") a class's kind.
         var words = signature.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Take(4).Contains("struct"))
+        {
+            return SymbolKind.Struct;
+        }
+
         foreach (var word in words.Take(4))
         {
             switch (word)

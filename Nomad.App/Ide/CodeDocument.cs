@@ -37,6 +37,7 @@ public sealed class CodeDocument
     {
         _lines = [.. text.Split(["\r\n", "\r", "\n"], StringSplitOptions.None)];
         _changed.AddRange(Enumerable.Repeat(false, _lines.Count));
+        _saved.AddRange(Enumerable.Repeat(false, _lines.Count));
         Folding.Attach(_lines);
         var lf = text.IndexOf('\n');
         NewLine = lf > 0 && text[lf - 1] == '\r' ? "\r\n" : lf >= 0 ? "\n" : text.Contains('\r') ? "\r" : "\r\n";
@@ -496,6 +497,7 @@ public sealed class CodeDocument
 
         for (var i = 0; i < _changed.Count; i++)
         {
+            _saved[i] |= _changed[i];
             _changed[i] = false;
         }
 
@@ -542,6 +544,8 @@ public sealed class CodeDocument
         var removedChanged = _changed.GetRange(from.Line, to.Line - from.Line + 1).ToArray();
         _changed.RemoveRange(from.Line, to.Line - from.Line + 1);
         _changed.InsertRange(from.Line, changed is { } marks && marks.Length == parts.Length ? marks : Enumerable.Repeat(true, parts.Length));
+        _saved.RemoveRange(from.Line, to.Line - from.Line + 1);
+        _saved.InsertRange(from.Line, Enumerable.Repeat(false, parts.Length));
         Folding.OnSplice(from.Line, to.Line - from.Line + 1, parts.Length);
         ShiftDiagnostics(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
         ShiftLenses(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
@@ -550,8 +554,14 @@ public sealed class CodeDocument
 
     private readonly List<bool> _changed = [];
 
+    // Lines changed and saved since the file was opened (the scroll bar's filled marks).
+    private readonly List<bool> _saved = [];
+
     /// <summary>Edited since the file was opened or last saved (the editor's change bar).</summary>
     public bool IsLineChanged(int line) => line < _changed.Count && _changed[line];
+
+    /// <summary>Changed and saved since the file was opened (not changed again since).</summary>
+    public bool IsLineSaved(int line) => line < _saved.Count && _saved[line];
 
     private static TextPos EndOf(TextPos start, string text)
     {
