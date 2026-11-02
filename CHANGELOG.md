@@ -3,6 +3,16 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.30.0
+
+- The context counter follows the turn live, after each model call, on Claude Code, OpenCode and Codex.
+- It drops after a compaction too: `/compact` and auto-compaction show the compacted size (an estimate on OpenCode,
+  which doesn't report it) instead of the size before.
+- Sending a prompt no longer freezes the window for a second: the CLI, usage servers and Remote Control start off the
+  UI thread, and git runs three at a time.
+- Lighter background work: the scan for sessions running elsewhere allocates a tenth of what it did, and render frames
+  and the title row's layout allocate less.
+
 ## v1.29.0
 
 - Smooth at the display's rate: spinners, the streamed-text fade, the editor's flash and fold hover, and the slider and
