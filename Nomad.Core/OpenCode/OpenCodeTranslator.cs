@@ -211,7 +211,13 @@ public sealed class OpenCodeTranslator
                 _cacheWrite += write;
                 _cost += OpenCodeJson.Double(part, "cost") ?? 0;
                 _steps++;
-                ContextTokens = input + read + write + output;
+                var context = input + read + write + output;
+                if (context > 0 && context != ContextTokens)
+                {
+                    ContextTokens = context;
+                    yield return new ContextUsageEvent(context);
+                }
+
                 break;
             }
         }

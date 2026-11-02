@@ -124,6 +124,11 @@ public class CodexTests
         Assert.Equal(156928, done.CacheReadTokens);
         Assert.Equal(170218 - 156928, done.InputTokens);
         Assert.Equal(19821 + 24, done.ContextTokens);
+
+        // Each model call reports the context as it goes, so the counter follows the turn.
+        var usages = events.OfType<ContextUsageEvent>().ToList();
+        Assert.True(usages.Count > 1);
+        Assert.Equal(done.ContextTokens, usages[^1].Tokens);
         Assert.False(translator.IsTurnRunning);
         Assert.Equal(475000, CodexServer.ContextWindows["gpt-6.1-sol"]);
     }

@@ -447,13 +447,17 @@ public sealed class CodexTranslator
         _baseline ??= total - last;
         _turnUsage = total - _baseline.Value;
         _steps++;
-        ContextTokens = last.Input + last.Output;
+        var context = last.Input + last.Output;
+        if (context > 0 && context != ContextTokens)
+        {
+            ContextTokens = context;
+            yield return new ContextUsageEvent(context);
+        }
+
         if (Model is not null && CodexJson.Long(usage, "modelContextWindow") is { } window and > 0)
         {
             CodexServer.ContextWindows[Model] = window;
         }
-
-        yield break;
     }
 
     private IEnumerable<AgentEvent> Withdrawn(string key)

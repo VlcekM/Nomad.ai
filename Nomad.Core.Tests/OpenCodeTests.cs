@@ -70,6 +70,11 @@ public class OpenCodeTests
         Assert.False(done.Interrupted);
         Assert.Equal(4, done.NumTurns);
         Assert.Equal(12337, done.ContextTokens);
+
+        // Each step reports the context as it goes, so the counter follows the turn.
+        var usages = events.OfType<ContextUsageEvent>().ToList();
+        Assert.True(usages.Count > 1);
+        Assert.Equal(done.ContextTokens, usages[^1].Tokens);
     }
 
     [Fact]
