@@ -1224,6 +1224,24 @@
             </StackPanel>
           </Border>
 
+          <!-- Waiting row: the turn is over but its background work runs on ("Waiting for 6 background commands"),
+               with the waiting mark and the words pulsing left to right; folds away when the last of it ends. -->
+          <Border Classes="working"
+                  Classes.on="{Binding IsAwaitingBackground}"
+                  Padding="14,0,10,0"
+                  ClipToBounds="True">
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,14,0,0" Height="22">
+              <c:WaitMark Foreground="{DynamicResource AccentBrush}" Margin="-3,0,-3,0" VerticalAlignment="Center"
+                          IsActive="{Binding IsAwaitingBackground}" />
+              <c:Shimmer Text="{Binding AwaitingText}"
+                         IsActive="{Binding IsAwaitingBackground}"
+                         TextTrimming="CharacterEllipsis"
+                         FontWeight="SemiBold"
+                         MaxWidth="600"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+
           <!-- Subagents at work, one pulsing line each: "Opus 5.5: its latest thought", and for how long. They stay
                after the turn while background ones run, and fold away as each ends; a click opens its conversation. -->
           <ItemsControl ItemsSource="{Binding Subagents}" Padding="14,0,10,0">

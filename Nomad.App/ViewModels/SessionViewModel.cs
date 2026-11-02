@@ -1088,7 +1088,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void OnSubagentsRunningChanged()
     {
         OnPropertyChanged(nameof(HasRunningSubagents));
-        _main.OnSubagentsChanged(this);
+        UpdateAwaiting();
     }
 
     private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input)
@@ -1222,7 +1222,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void OnWorkflowsRunningChanged()
     {
         OnPropertyChanged(nameof(HasRunningWorkflows));
-        _main.OnSubagentsChanged(this);
+        UpdateAwaiting();
 
         // Elapsed times tick once a second, only while one runs.
         if (HasRunningWorkflows)
@@ -1332,6 +1332,14 @@ public sealed partial class SessionViewModel : ObservableObject
         _backgroundTaskById[toolUseId] = task;
         BackgroundTasks.Insert(0, task);
         OnPropertyChanged(nameof(HasBackgroundTasks));
+        task.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(BackgroundTaskViewModel.IsRunning))
+            {
+                UpdateAwaiting();
+            }
+        };
+        UpdateAwaiting();
 
         // Durations tick once a second, only while one runs.
         _backgroundTaskTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickBackgroundTasks());
@@ -1873,6 +1881,7 @@ public sealed partial class SessionViewModel : ObservableObject
     partial void OnIsTurnRunningChanged(bool value)
     {
         Files.IsAgentWorking = value;
+        UpdateAwaiting();
         if (value)
         {
             _turnStartUtc = DateTime.UtcNow;
@@ -2016,6 +2025,52 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>When the CLI process last started or sent anything; drives the idle timeout.</summary>
     public DateTime LastActivityUtc { get; private set; } = DateTime.UtcNow;
+
+    /// <summary>The turn is over but work it started runs on: the chat's waiting row, and the sidebar's waiting mark.</summary>
+    [ObservableProperty]
+    public partial bool IsAwaitingBackground { get; private set; }
+
+    /// <summary>What it waits for: "Waiting for 6 background commands", "Waiting for an agent and a workflow".</summary>
+    [ObservableProperty]
+    public partial string AwaitingText { get; private set; } = "";
+
+    private void UpdateAwaiting()
+    {
+        var commands = BackgroundTasks.Count(t => t.IsRunning);
+        var agents = Subagents.Count(a => a.IsRunning);
+        var workflows = Workflows.Count(w => w.IsRunning);
+        if (commands + agents + workflows > 0)
+        {
+            AwaitingText = WaitingFor(commands, agents, workflows);
+        }
+
+        IsAwaitingBackground = !IsTurnRunning && commands + agents + workflows > 0;
+        _main.OnSubagentsChanged(this);
+    }
+
+    private static string WaitingFor(int commands, int agents, int workflows)
+    {
+        static string Count(int n, string what) => n == 1 ? (what[0] is 'a' ? "an " : "a ") + what : $"{n} {what}s";
+
+        List<string> parts = [];
+        if (commands > 0)
+        {
+            parts.Add(Count(commands, "background command"));
+        }
+
+        if (agents > 0)
+        {
+            parts.Add(Count(agents, "agent"));
+        }
+
+        if (workflows > 0)
+        {
+            parts.Add(Count(workflows, "workflow"));
+        }
+
+        var list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
+        return "Waiting for " + list;
+    }
 
     /// <summary>A subagent or background command is still at work, so the idle timeout leaves the process alone.</summary>
     public bool HasBackgroundWork => BackgroundTasks.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning) || HasRunningWorkflows;

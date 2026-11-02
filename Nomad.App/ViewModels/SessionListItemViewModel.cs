@@ -158,14 +158,20 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Mark))]
     public partial bool HasRunningSubagents { get; set; }
 
+    /// <summary>Its turn is over but background work of it runs (commands, agents, workflows): the waiting mark.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Mark))]
+    public partial bool IsAwaiting { get; set; }
+
     /// <summary>A workflow of it runs (in the background, maybe long after the turn): a spinner on the row's left.</summary>
     [ObservableProperty]
     public partial bool HasRunningWorkflows { get; set; }
 
-    /// <summary>The mark on the right: asking beats subagents, subagents beat working, working beats unread.</summary>
+    /// <summary>The mark on the right: asking first; a turn's work (with subagents, or not); waiting for background work; unread.</summary>
     public SessionMark Mark => IsWaiting ? SessionMark.Waiting
+        : IsRunning ? HasRunningSubagents ? SessionMark.Subagents : SessionMark.Working
+        : IsAwaiting ? SessionMark.Awaiting
         : HasRunningSubagents ? SessionMark.Subagents
-        : IsRunning ? SessionMark.Working
         : IsUnread ? SessionMark.Unread
         : SessionMark.None;
 

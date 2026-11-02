@@ -15,6 +15,9 @@ public enum SessionMark
     /// <summary>Subagents are at work: three dots circling.</summary>
     Subagents,
 
+    /// <summary>The turn is over but its background work runs (commands, agents, workflows): dots pulsing left to right.</summary>
+    Awaiting,
+
     /// <summary>Claude asks something (a permission or a question): a yellow dot.</summary>
     Waiting,
 
@@ -156,7 +159,7 @@ public sealed class StatusMark : Control
 
     private void Update()
     {
-        var moving = IsVisible && VisualRoot is not null && (Mark is SessionMark.Working or SessionMark.Subagents || Progress() < 1);
+        var moving = IsVisible && VisualRoot is not null && (Mark is SessionMark.Working or SessionMark.Subagents or SessionMark.Awaiting || Progress() < 1);
         _frames.Update(moving);
     }
 
@@ -185,6 +188,9 @@ public sealed class StatusMark : Control
                 break;
             case SessionMark.Subagents when WorkingBrush is ISolidColorBrush brush:
                 DrawOrbit(context, brush.Color, (DateTime.UtcNow - _start) / OrbitPeriod % 1, opacity);
+                break;
+            case SessionMark.Awaiting when WorkingBrush is ISolidColorBrush brush:
+                WaitDots.Draw(context, new Point(Bounds.Width / 2, Bounds.Height / 2 + 0.5), brush.Color, (DateTime.UtcNow - _start) / WaitDots.Period % 1, opacity);
                 break;
             case SessionMark.Waiting when WaitingBrush is ISolidColorBrush brush:
                 DrawDot(context, brush.Color, opacity);
