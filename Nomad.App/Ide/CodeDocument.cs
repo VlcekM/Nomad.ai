@@ -89,6 +89,9 @@ public sealed class CodeDocument
 
     public bool IsDirty => _version != _savedVersion;
 
+    /// <summary>Which text this is: an edit gives a new number, an undo back to a text gives its number again.</summary>
+    public int Version => _version;
+
     /// <summary>The text changed (an edit, undo or redo).</summary>
     public event Action? Changed;
 
@@ -134,9 +137,13 @@ public sealed class CodeDocument
     /// <summary>How the text differs from the file as last committed (the gutter's git margin); null outside git.</summary>
     public IReadOnlyList<Nomad.Core.Code.DiffHunk>? GitHunks { get; private set; }
 
-    public void SetGitHunks(IReadOnlyList<Nomad.Core.Code.DiffHunk>? hunks)
+    /// <summary>The file as last committed, which <see cref="GitHunks"/> compare with (the git peek's removed lines).</summary>
+    public IReadOnlyList<string>? GitBase { get; private set; }
+
+    public void SetGitHunks(IReadOnlyList<Nomad.Core.Code.DiffHunk>? hunks, IReadOnlyList<string>? head = null)
     {
         GitHunks = hunks;
+        GitBase = hunks is null ? null : head;
         MarksChanged?.Invoke();
     }
 
@@ -180,6 +187,46 @@ public sealed class CodeDocument
         }
 
         Diagnostics = shifted;
+    }
+
+    // Where the language server says a struct is named (colored apart from classes, as Visual Studio does), by line.
+    private ILookup<int, Nomad.Core.Lsp.LspToken> _structNames = Array.Empty<Nomad.Core.Lsp.LspToken>().ToLookup(t => t.Line);
+
+    /// <summary>The struct names on a line.</summary>
+    public IEnumerable<Nomad.Core.Lsp.LspToken> StructNamesOn(int line) => _structNames[line];
+
+    /// <summary>The server's struct names for the file; the view draws them in their color.</summary>
+    public void SetStructNames(IReadOnlyList<Nomad.Core.Lsp.LspToken> names)
+    {
+        _structNames = names.ToLookup(t => t.Line);
+        MarksChanged?.Invoke();
+    }
+
+    // An edit moves the struct names after it along (until the server's next ones come); those it touches go.
+    private void ShiftStructNames(TextPos from, TextPos to, TextPos end)
+    {
+        if (_structNames.Count == 0)
+        {
+            return;
+        }
+
+        var shifted = new List<Nomad.Core.Lsp.LspToken>();
+        foreach (var token in _structNames.SelectMany(g => g))
+        {
+            var (start, stop) = (new TextPos(token.Line, token.Column), new TextPos(token.Line, token.Column + token.Length));
+            if (stop <= from)
+            {
+                shifted.Add(token);
+            }
+            else if (start >= to)
+            {
+                shifted.Add(start.Line == to.Line
+                    ? new Nomad.Core.Lsp.LspToken(end.Line, end.Index + token.Column - to.Index, token.Length)
+                    : token with { Line = token.Line + end.Line - to.Line });
+            }
+        }
+
+        _structNames = shifted.ToLookup(t => t.Line);
     }
 
     /// <summary>The reference counts over declarations (Visual Studio's code lens), by line.</summary>
@@ -549,6 +596,7 @@ public sealed class CodeDocument
         Folding.OnSplice(from.Line, to.Line - from.Line + 1, parts.Length);
         ShiftDiagnostics(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
         ShiftLenses(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
+        ShiftStructNames(from, to, new TextPos(from.Line + parts.Length - 1, endIndex));
         return (new TextPos(from.Line + parts.Length - 1, endIndex), removedChanged);
     }
 

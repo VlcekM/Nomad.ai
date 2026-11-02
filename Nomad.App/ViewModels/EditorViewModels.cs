@@ -289,6 +289,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
             _lensTimer.Tick += (_, _) =>
             {
                 _lensTimer.Stop();
+                _ = RefreshStructNamesAsync();
                 _ = RefreshLensesAsync();
             };
         }
@@ -321,6 +322,27 @@ public sealed partial class FileTab : ObservableObject, IDisposable
         var counted = doc.Lenses.Where(l => l.Title is not null).Select(l => l.Line).ToHashSet();
         var due = all ? lenses : [.. lenses.Where(l => !counted.Contains(l.Line) || Math.Abs(l.Line - caret) <= LensRecountLines)];
         await CountLensesAsync(language, doc, due, cts.Token);
+    }
+
+    // Where structs are named, asked with the lenses (the server's classification; the grammar can't tell them from classes).
+    private CancellationTokenSource? _structCts;
+
+    private async Task RefreshStructNamesAsync()
+    {
+        _structCts?.Cancel();
+        var cts = _structCts = new CancellationTokenSource();
+        var doc = Document;
+        if (Language is not { IsReady: true } language || !Nomad.App.Ide.CSharpLanguage.Handles(Path) || doc == CodeDocument.Empty)
+        {
+            return;
+        }
+
+        // Dropped when the text changed meanwhile: they'd be for the text before (the next ones follow the typing).
+        var version = doc.Version;
+        if (await language.StructNamesAsync(Path, cts.Token) is { } names && !cts.IsCancellationRequested && doc == Document && doc.Version == version)
+        {
+            doc.SetStructNames(names);
+        }
     }
 
     // Counted a few at a time, the ones nearest the caret first (a count that fails keeps the one shown).
@@ -448,7 +470,7 @@ public sealed partial class FileTab : ObservableObject, IDisposable
 
         var lines = doc.Lines.ToList();
         var hunks = Nomad.Core.Code.LineDiff.Compute(head, lines);
-        doc.SetGitHunks(hunks);
+        doc.SetGitHunks(hunks, head);
         DiffRows = ShowDiff ? DiffRow.Build(head, lines, hunks) : [];
     }
 
@@ -1001,6 +1023,8 @@ public sealed partial class EditorGroup : ObservableObject, Nomad.App.Ide.ICodeN
         ActiveTab is { } tab && Server(tab) is { } server ? await server.CodeActionsAsync(tab.Path, from.Line, from.Index, to.Line, to.Index, cancellationToken) : null;
 
     public string? Root => owner.Folder;
+
+    public void ShowDiff() => ActiveTab?.RequestDiff();
 
     /// <summary>A code lens clicked: where its declaration is used, each place with its line (the open file's as edited).</summary>
     public async Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken)

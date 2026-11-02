@@ -418,7 +418,8 @@ public sealed partial class CodeView
         var line = _lines[mark.Line];
         var name = new string([.. line[Math.Min(mark.Column, line.Length)..].TakeWhile(c => char.IsLetterOrDigit(c) || c == '_')]);
         var anchor = WindowAnchor(LensRect(row, mark));
-        LensList.Show(anchor, name, navigator, navigator.UsesAsync(mark.Line, mark.Column, CancellationToken.None));
+        var isStruct = _doc.StructNamesOn(mark.Line).Any(t => t.Column == mark.Column);
+        LensList.Show(anchor, name, isStruct, navigator, navigator.UsesAsync(mark.Line, mark.Column, CancellationToken.None));
         return true;
     }
 

@@ -240,6 +240,7 @@ public sealed partial class CodeView : Control
             _doc.MarksChanged += OnMarksChanged;
             _doc.LensesChanged += OnLensesChanged;
             _lensList?.Close();
+            _gitPeek?.Close();
             (_lensHoverLine, _lensHoverLevel) = (-1, 0);
             _doc.Changed += OnDocumentChanged;
             _doc.Folding.Changed += OnFoldingChanged;
@@ -1019,7 +1020,7 @@ public sealed partial class CodeView : Control
         var raw = _doc.Lines[line];
         var runs = new List<(int, int, CodeKind)>(spans.Length);
         var tabs = raw.Contains('\t');
-        foreach (var span in spans)
+        foreach (var span in WithStructs(spans, _doc.StructNamesOn(line), raw.Length))
         {
             var end = Math.Min(span.Start + span.Length, raw.Length);
             if (span.Start >= end)
@@ -1031,6 +1032,56 @@ public sealed partial class CodeView : Control
         }
 
         return runs;
+    }
+
+    // The grammar's runs with the language server's struct names laid over them (a struct used reads as any type to the
+    // grammar). Only plain or type text turns struct-colored; the runs stay in order.
+    private static IEnumerable<CodeSpan> WithStructs(CodeSpan[] spans, IEnumerable<Nomad.Core.Lsp.LspToken> names, int length)
+    {
+        var marks = names.Select(t => (From: t.Column, To: Math.Min(length, t.Column + t.Length))).Where(m => m.To > m.From).OrderBy(m => m.From).ToList();
+        if (marks.Count == 0)
+        {
+            return spans;
+        }
+
+        var kinds = new CodeKind[length];
+        foreach (var span in spans)
+        {
+            Array.Fill(kinds, span.Kind, span.Start, Math.Max(0, Math.Min(length, span.Start + span.Length) - span.Start));
+        }
+
+        foreach (var (from, to) in marks)
+        {
+            if (Enumerable.Range(from, to - from).All(i => kinds[i] is CodeKind.Plain or CodeKind.Type))
+            {
+                Array.Fill(kinds, CodeKind.Struct, from, to - from);
+            }
+        }
+
+        return SpansOf(kinds);
+    }
+
+    // Runs of one kind from a kind a character (plain ones left out).
+    private static List<CodeSpan> SpansOf(CodeKind[] kinds)
+    {
+        var spans = new List<CodeSpan>();
+        for (var i = 0; i < kinds.Length;)
+        {
+            var j = i + 1;
+            while (j < kinds.Length && kinds[j] == kinds[i])
+            {
+                j++;
+            }
+
+            if (kinds[i] != CodeKind.Plain)
+            {
+                spans.Add(new CodeSpan(i, j - i, kinds[i]));
+            }
+
+            i = j;
+        }
+
+        return spans;
     }
 
     private Rect CaretRect()
@@ -1998,8 +2049,11 @@ public sealed partial class CodeView : Control
         return spans;
     }
 
-    /// <summary>Code as runs in the code's colors (its <paramref name="spans"/>), with the characters from <paramref name="boldFrom"/> to <paramref name="boldTo"/> in bold.</summary>
-    internal void AddCode(InlineCollection inlines, string text, IEnumerable<CodeSpan> spans, int boldFrom = 0, int boldTo = 0)
+    /// <summary>
+    /// Code as runs in the code's colors (its <paramref name="spans"/>), with the characters from <paramref name="boldFrom"/>
+    /// to <paramref name="boldTo"/> in bold, or on <paramref name="markBrush"/> when one is given.
+    /// </summary>
+    internal void AddCode(InlineCollection inlines, string text, IEnumerable<CodeSpan> spans, int boldFrom = 0, int boldTo = 0, IBrush? markBrush = null)
     {
         void Add(int from, int to, IBrush? brush)
         {
@@ -2007,7 +2061,13 @@ public sealed partial class CodeView : Control
             {
                 if (b > a)
                 {
-                    inlines.Add(new Run(text[a..b]) { Foreground = brush, FontWeight = a >= boldFrom && b <= boldTo ? FontWeight.Bold : FontWeight.Normal });
+                    var marked = a >= boldFrom && b <= boldTo;
+                    inlines.Add(new Run(text[a..b])
+                    {
+                        Foreground = brush,
+                        FontWeight = marked && markBrush is null ? FontWeight.Bold : FontWeight.Normal,
+                        Background = marked ? markBrush : null,
+                    });
                 }
             }
         }
@@ -2062,6 +2122,12 @@ public sealed partial class CodeView : Control
         if (e.ClickCount == 1 && OnBulb(e.GetPosition(this)))
         {
             ShowCodeActions(BulbRect(_viewport.Height > 0 ? _viewport : new Rect(Bounds.Size)));
+            e.Handled = true;
+            return;
+        }
+
+        if (e.ClickCount == 1 && GitClick(e.GetPosition(this)))
+        {
             e.Handled = true;
             return;
         }
@@ -2325,7 +2391,7 @@ public sealed partial class CodeView : Control
         }
 
         HideQuickInfo();
-        if (e.Key == Key.Escape && CloseLensList())
+        if (e.Key == Key.Escape && (CloseLensList() || CloseGitPeek()))
         {
             e.Handled = true;
             return;
@@ -2838,6 +2904,9 @@ public interface ICodeNavigator
 
     /// <summary>The folder the code is in (the reference list shows paths from it).</summary>
     string? Root { get; }
+
+    /// <summary>The file's whole diff with the last commit, in place of its text.</summary>
+    void ShowDiff();
 
     /// <summary>Where the name declared at a place is used, its declaration left out, with each line's text (null: no server).</summary>
     Task<IReadOnlyList<Nomad.Core.Code.TextHit>?> UsesAsync(int line, int column, CancellationToken cancellationToken);

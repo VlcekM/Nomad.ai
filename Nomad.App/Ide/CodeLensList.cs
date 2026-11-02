@@ -34,6 +34,7 @@ internal sealed class CodeLensList
     private ICodeNavigator? _navigator;
     private IReadOnlyList<TextHit> _hits = [];
     private string _name = "";
+    private bool _isStruct;
     private int _serial;
 
     public CodeLensList(CodeView view)
@@ -103,11 +104,11 @@ internal sealed class CodeLensList
 
     public bool IsOpen => _popup.IsOpen;
 
-    /// <summary>Opens under the lens (window coordinates), "Finding references…" until the places come.</summary>
-    public async void Show((Control Target, Rect Rect) anchor, string name, ICodeNavigator navigator, Task<IReadOnlyList<TextHit>?> uses)
+    /// <summary>Opens under the lens (window coordinates), "Finding references…" until the places come; a struct's name is in its color.</summary>
+    public async void Show((Control Target, Rect Rect) anchor, string name, bool isStruct, ICodeNavigator navigator, Task<IReadOnlyList<TextHit>?> uses)
     {
         var serial = ++_serial;
-        (_navigator, _name, _hits) = (navigator, name, []);
+        (_navigator, _name, _isStruct, _hits) = (navigator, name, isStruct, []);
         _card.Background = Resource<IBrush>("BgMenuBrush");
         TextElement.SetFontSize(_card, _view.SmallFontSize);
         _card.BorderBrush = Resource<IBrush>("BorderCardBrush");
@@ -188,7 +189,7 @@ internal sealed class CodeLensList
         return new StackPanel { Children = { heading, rows } };
     }
 
-    // "41 : the code", the name marked as Visual Studio marks it, lit under the pointer; a click goes there.
+    // "41 : the code" in the code's colors, the name marked as Visual Studio marks it, lit under the pointer; a click goes there.
     private Control Row(TextHit hit)
     {
         var text = hit.Text.TrimStart(' ', '\t');
@@ -203,9 +204,13 @@ internal sealed class CodeLensList
             FontFeatures = [FontFeature.Parse("-calt"), FontFeature.Parse("-liga")],
         };
         line.Inlines!.Add(new Run($"{hit.Line + 1} : ") { Foreground = Resource<IBrush>("TextSecondaryBrush") });
-        line.Inlines.Add(new Run(text[..start]));
-        line.Inlines.Add(new Run(text[start..end]) { Background = Resource<IBrush>("TextSelectionBrush") });
-        line.Inlines.Add(new Run(text[end..]));
+        IEnumerable<CodeSpan> spans = Highlighter.ForFile(hit.Path) is { } grammar ? Highlighter.Tokenize(grammar, text, null).Spans : [];
+        if (_isStruct)
+        {
+            spans = [.. spans.Where(s => s.Start + s.Length <= start || s.Start >= end), new CodeSpan(start, end - start, CodeKind.Struct)];
+        }
+
+        _view.AddCode(line.Inlines, text, spans, start, end, Resource<IBrush>("TextSelectionBrush"));
 
         var row = new Border
         {

@@ -269,6 +269,11 @@ public static class Highlighter
             return CodeKind.Tag;
         }
 
+        if (Is(scope, "entity.name.type.struct"))
+        {
+            return CodeKind.Struct;
+        }
+
         if (Is(scope, "entity.name.type") || Is(scope, "entity.name.class") || Is(scope, "entity.other.inherited-class") ||
             Is(scope, "support.class") || Is(scope, "support.type"))
         {
@@ -292,6 +297,9 @@ public sealed class CodeHighlighting(IGrammar grammar)
 {
     private readonly List<CodeSpan[]> _spans = [];
     private readonly List<IStateStack?> _states = [];
+
+    /// <summary>The grammar it tokenizes with (other text in the file's language, as the git peek's).</summary>
+    public IGrammar Grammar => grammar;
 
     /// <summary>Lines tokenized from the top.</summary>
     public int Count => _spans.Count;

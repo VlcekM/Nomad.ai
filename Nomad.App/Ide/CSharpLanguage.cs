@@ -322,6 +322,10 @@ public sealed partial class CSharpLanguage : ObservableObject
     public Task<IReadOnlyList<LspCodeLens>?> CodeLensAsync(string path, CancellationToken cancellationToken = default) =>
         AskAsync<IReadOnlyList<LspCodeLens>>(s => s.CodeLensAsync(path, cancellationToken));
 
+    /// <summary>Where the file names a struct (null: no answer yet).</summary>
+    public Task<IReadOnlyList<LspToken>?> StructNamesAsync(string path, CancellationToken cancellationToken = default) =>
+        AskAsync<IReadOnlyList<LspToken>>(s => s.StructNamesAsync(path, cancellationToken));
+
     /// <summary>A declaration's reference count, as its title ("7 references"); null for none.</summary>
     public Task<string?> ResolveAsync(LspCodeLens lens, CancellationToken cancellationToken = default) =>
         AskAsync<string>(async s => (await s.ResolveAsync(lens, cancellationToken))!);

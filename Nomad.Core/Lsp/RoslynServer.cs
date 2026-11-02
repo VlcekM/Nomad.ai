@@ -283,6 +283,16 @@ public sealed class RoslynServer : IAsyncDisposable
                             ["contextSupport"] = true,
                         },
                         ["rename"] = new JsonObject { ["prepareSupport"] = true },
+                        ["semanticTokens"] = new JsonObject
+                        {
+                            ["requests"] = new JsonObject { ["range"] = true, ["full"] = true },
+                            ["tokenTypes"] = new JsonArray("namespace", "type", "class", "enum", "interface", "struct", "typeParameter", "parameter", "variable",
+                                "property", "enumMember", "event", "function", "method", "macro", "keyword", "modifier", "comment", "string", "number", "regexp", "operator"),
+                            ["tokenModifiers"] = new JsonArray(),
+                            ["formats"] = new JsonArray("relative"),
+                            ["multilineTokenSupport"] = false,
+                            ["overlappingTokenSupport"] = false,
+                        },
                         ["diagnostic"] = new JsonObject { ["dynamicRegistration"] = false, ["relatedDocumentSupport"] = false },
                         ["publishDiagnostics"] = new JsonObject { ["relatedInformation"] = false },
                         ["completion"] = new JsonObject
@@ -303,6 +313,8 @@ public sealed class RoslynServer : IAsyncDisposable
             {
                 server.CompletionTriggers = triggers.EnumerateArray().Select(t => t.GetString()).OfType<string>().ToHashSet();
             }
+
+            server.ReadTokenLegend(initialized);
 
             await connection.NotifyAsync("initialized", new JsonObject()).ConfigureAwait(false);
 
@@ -530,6 +542,37 @@ public sealed class RoslynServer : IAsyncDisposable
                 var (line, column, _, _) = LspJson.Range(lens.GetProperty("range"));
                 return new LspCodeLens(line, column, lens.GetRawText());
             })];
+    }
+
+    // The semantic token types that name a struct, from the legend the server gave (empty: it has none).
+    private HashSet<int> _structTypes = [];
+
+    private void ReadTokenLegend(JsonElement initialized)
+    {
+        if (initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("capabilities", out var capabilities) &&
+            capabilities.TryGetProperty("semanticTokensProvider", out var provider) && provider.ValueKind == JsonValueKind.Object &&
+            provider.TryGetProperty("legend", out var legend) && legend.TryGetProperty("tokenTypes", out var types) && types.ValueKind == JsonValueKind.Array)
+        {
+            _structTypes = SemanticTokens.StructTypes([.. types.EnumerateArray().Select(t => t.GetString() ?? "")]);
+        }
+    }
+
+    /// <summary>Where the file names a struct (declared or used), which the grammar alone can't tell from a class.</summary>
+    public async Task<IReadOnlyList<LspToken>> StructNamesAsync(string path, CancellationToken cancellationToken = default)
+    {
+        if (_structTypes.Count == 0)
+        {
+            return [];
+        }
+
+        var parameters = new JsonObject { ["textDocument"] = new JsonObject { ["uri"] = Uri(path) } };
+        var result = await _connection.CallAsync("textDocument/semanticTokens/full", parameters, cancellationToken, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+        if (result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        return SemanticTokens.Decode([.. data.EnumerateArray().Select(n => n.GetInt32())], _structTypes);
     }
 
     /// <summary>A code lens's title ("7 references"), or null when the server has none for it.</summary>
