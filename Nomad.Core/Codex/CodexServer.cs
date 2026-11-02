@@ -231,12 +231,16 @@ public sealed partial class CodexServer : IAsyncDisposable
         psi.Environment["NO_COLOR"] = "1";
 
         var process = new System.Diagnostics.Process { StartInfo = psi, EnableRaisingEvents = true };
-        if (!process.Start())
+        await Task.Run(() =>
         {
-            throw new InvalidOperationException("Codex did not start.");
-        }
+            // Off the caller's (UI) thread: CreateProcess takes tens of milliseconds and waits for any other start in progress.
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("Codex did not start.");
+            }
 
-        ChildProcessJob.TryAssign(process);
+            ChildProcessJob.TryAssign(process);
+        }, cancellationToken).ConfigureAwait(false);
         var server = new CodexServer(process);
         _ = Task.Run(server.ReadStdoutAsync);
         _ = Task.Run(server.ReadStderrAsync);

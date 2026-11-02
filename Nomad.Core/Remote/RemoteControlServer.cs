@@ -85,26 +85,34 @@ public sealed class RemoteControlServer : IAsyncDisposable
         process.StderrLine += OnOutput;
         process.Exited += code => OnExited(process, code);
         Set(RemoteControlServerState.Starting, null);
+        _process = process;
+        _ = StartProcessAsync(process);
+    }
+
+    /// <summary>Starts the CLI off the caller's (UI) thread, then counts it up once it has stayed alive a few seconds.</summary>
+    private async Task StartProcessAsync(ClaudeCliProcess process)
+    {
         try
         {
-            _process = process;
-            process.Start();
+            await Task.Run(process.Start).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _process = null;
-            Set(RemoteControlServerState.Failed, ex.Message);
+            if (ReferenceEquals(_process, process))
+            {
+                _process = null;
+                Set(RemoteControlServerState.Failed, ex.Message);
+            }
+
             return;
         }
 
         // The server prints nothing reliable once it is up; still alive after a few seconds is up.
-        _ = Task.Delay(TimeSpan.FromSeconds(4)).ContinueWith(_ =>
+        await Task.Delay(TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+        if (ReferenceEquals(_process, process) && process.IsRunning && State == RemoteControlServerState.Starting)
         {
-            if (ReferenceEquals(_process, process) && process.IsRunning && State == RemoteControlServerState.Starting)
-            {
-                Set(RemoteControlServerState.Running, null);
-            }
-        }, TaskScheduler.Default);
+            Set(RemoteControlServerState.Running, null);
+        }
     }
 
     public async Task StopAsync()

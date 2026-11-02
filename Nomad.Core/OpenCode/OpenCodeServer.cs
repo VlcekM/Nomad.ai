@@ -143,12 +143,16 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
         psi.Environment["OPENCODE_SERVER_PASSWORD"] = password;
 
         var process = new System.Diagnostics.Process { StartInfo = psi };
-        if (!process.Start())
+        await Task.Run(() =>
         {
-            throw new InvalidOperationException("OpenCode did not start.");
-        }
+            // Off the caller's (UI) thread: CreateProcess takes tens of milliseconds and waits for any other start in progress.
+            if (!process.Start())
+            {
+                throw new InvalidOperationException("OpenCode did not start.");
+            }
 
-        ChildProcessJob.TryAssign(process);
+            ChildProcessJob.TryAssign(process);
+        }, cancellationToken).ConfigureAwait(false);
 
         // It prints "opencode server listening on http://127.0.0.1:<port>" once it serves.
         var listening = new TaskCompletionSource<Uri>(TaskCreationOptions.RunContinuationsAsynchronously);

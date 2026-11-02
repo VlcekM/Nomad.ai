@@ -55,7 +55,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     /// <summary>Every raw protocol line; the flag is true for lines we wrote to stdin.</summary>
     public event Action<string, bool>? RawLine;
 
-    public Task StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default)
+    public async Task StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default)
     {
         if (_cli is not null)
         {
@@ -93,11 +93,12 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         cli.StdoutLine += HandleLine;
         cli.Exited += OnExited;
         _cli = cli;
-        cli.Start();
+
+        // Off the caller's (UI) thread: CreateProcess takes tens of milliseconds and waits for any other start in progress.
+        await Task.Run(cli.Start, cancellationToken).ConfigureAwait(false);
 
         // The SDK always opens with initialize; it also gives us the account and model catalogue.
         _ = InitializeAsync(options);
-        return Task.CompletedTask;
     }
 
     public async Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default)

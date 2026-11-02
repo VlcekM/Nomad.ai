@@ -22,6 +22,10 @@ public static class GitInfo
 {
     private static readonly TimeSpan Fresh = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(4);
+
+    // .NET serializes every Process.Start on one lock: a dozen project cards each starting two git processes at once
+    // would queue anyone else's start (the Claude CLI, a usage server) behind them for a second.
+    private static readonly SemaphoreSlim Starts = new(3);
     private static readonly Dictionary<string, (DateTime At, Task<GitStatus?> Task)> Cache = new(StringComparer.OrdinalIgnoreCase);
 
     public static Task<GitStatus?> GetAsync(string folder, int commits = 5, bool refresh = false)
@@ -279,7 +283,7 @@ public static class GitInfo
 
         try
         {
-            using var process = System.Diagnostics.Process.Start(start);
+            using var process = await StartThrottledAsync(start).ConfigureAwait(false);
             if (process is null)
             {
                 return (false, "", "");
@@ -303,6 +307,19 @@ public static class GitInfo
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or OperationCanceledException)
         {
             return (false, "", ex.Message);
+        }
+    }
+
+    private static async Task<System.Diagnostics.Process?> StartThrottledAsync(ProcessStartInfo start)
+    {
+        await Starts.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return System.Diagnostics.Process.Start(start);
+        }
+        finally
+        {
+            Starts.Release();
         }
     }
 }
