@@ -13,6 +13,9 @@ public enum CodeKind : byte
     String,
     Number,
     Comment,
+
+    /// <summary>A documentation comment (C#'s <c>///</c>), a darker green in Visual Studio.</summary>
+    DocComment,
     Tag,
     Attribute,
 
@@ -190,7 +193,7 @@ public static class Highlighter
         // Everything in a comment is the comment's (a doc comment's <summary> tags, JSDoc's @param), all one green.
         if (scopes.Any(s => s.StartsWith("comment", StringComparison.Ordinal) && (s.Length == 7 || s[7] == '.')))
         {
-            return CodeKind.Comment;
+            return scopes.Any(s => s.StartsWith("comment.block.documentation", StringComparison.Ordinal)) ? CodeKind.DocComment : CodeKind.Comment;
         }
 
         for (var i = scopes.Count - 1; i >= 0; i--)

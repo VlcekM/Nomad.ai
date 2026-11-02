@@ -1347,7 +1347,7 @@ public sealed class CodeView : Control
     /// <summary>In a comment or a string (no completions there).</summary>
     internal bool InCommentOrString(TextPos at) =>
         _doc.Highlighting?.Spans(at.Line) is { } spans &&
-        spans.Any(s => s.Start < at.Index && at.Index <= s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.String);
+        spans.Any(s => s.Start < at.Index && at.Index <= s.Start + s.Length && s.Kind is CodeKind.Comment or CodeKind.DocComment or CodeKind.String);
 
     // ------------------------------------------------------------------ the light bulb
 
@@ -1569,7 +1569,7 @@ public sealed class CodeView : Control
         // Not in a comment or a string, and not a keyword (those that name a type, as string or var, lead to it).
         if (_doc.Highlighting?.Spans(at.Line) is { } spans &&
             spans.Any(s => s.Start <= start && start < s.Start + s.Length &&
-                (s.Kind is CodeKind.Comment or CodeKind.String or CodeKind.Control ||
+                (s.Kind is CodeKind.Comment or CodeKind.DocComment or CodeKind.String or CodeKind.Control ||
                  s.Kind == CodeKind.Keyword && !TypeKeywords.Contains(text[start..end]))))
         {
             return null;

@@ -44,6 +44,7 @@ public static class Themes
     private static readonly Dictionary<string, (string From, string To)> Followers = new()
     {
         ["BgHover"] = ("TextPrimary", "TextPrimary"),
+        ["CodeDocComment"] = ("CodeComment", "CodeComment"),
         ["BgPressed"] = ("TextPrimary", "TextPrimary"),
         ["BgSearch"] = ("BgInput", "BgMain"),
         ["BgCode"] = ("BgMain", "BgRaised"),

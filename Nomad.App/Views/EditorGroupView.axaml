@@ -430,7 +430,7 @@
           </Border>
 
           <Panel>
-          <!-- The editor size from the settings (Visual Studio's 10 pt, 13.33 px on 17 px lines, by default); only the lines in view are drawn. -->
+          <!-- The editor size from the settings (Visual Studio's 10 pt, 13 px on 17 px lines, by default); only the lines in view are drawn. -->
           <ScrollViewer Name="Scroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
             <ide:CodeView Name="Code"
                           Document="{Binding ActiveTab.Document}"

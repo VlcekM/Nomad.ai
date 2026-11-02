@@ -74,6 +74,7 @@
       <Color x:Key="CodeStringColor">#D69D85</Color>
       <Color x:Key="CodeNumberColor">#B5CEA8</Color>
       <Color x:Key="CodeCommentColor">#57A64A</Color>
+      <Color x:Key="CodeDocCommentColor">#608B4E</Color>
       <Color x:Key="CodeTagColor">#569CD6</Color>
       <Color x:Key="CodeAttributeColor">#92CAF4</Color>
       <Color x:Key="CodeLineNumberColor">#858585</Color>
@@ -165,6 +166,7 @@
       <SolidColorBrush x:Key="CodeStringBrush" Color="#D69D85" />
       <SolidColorBrush x:Key="CodeNumberBrush" Color="#B5CEA8" />
       <SolidColorBrush x:Key="CodeCommentBrush" Color="#57A64A" />
+      <SolidColorBrush x:Key="CodeDocCommentBrush" Color="#608B4E" />
       <SolidColorBrush x:Key="CodeTagBrush" Color="#569CD6" />
       <SolidColorBrush x:Key="CodeAttributeBrush" Color="#92CAF4" />
       <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#858585" />
@@ -261,6 +263,7 @@
       <Color x:Key="CodeStringColor">#A31515</Color>
       <Color x:Key="CodeNumberColor">#000000</Color>
       <Color x:Key="CodeCommentColor">#008000</Color>
+      <Color x:Key="CodeDocCommentColor">#008000</Color>
       <Color x:Key="CodeTagColor">#A31515</Color>
       <Color x:Key="CodeAttributeColor">#FF0000</Color>
       <Color x:Key="CodeLineNumberColor">#2B91AF</Color>
@@ -352,6 +355,7 @@
       <SolidColorBrush x:Key="CodeStringBrush" Color="#A31515" />
       <SolidColorBrush x:Key="CodeNumberBrush" Color="#000000" />
       <SolidColorBrush x:Key="CodeCommentBrush" Color="#008000" />
+      <SolidColorBrush x:Key="CodeDocCommentBrush" Color="#008000" />
       <SolidColorBrush x:Key="CodeTagBrush" Color="#A31515" />
       <SolidColorBrush x:Key="CodeAttributeBrush" Color="#FF0000" />
       <SolidColorBrush x:Key="CodeLineNumberBrush" Color="#2B91AF" />
@@ -396,7 +400,7 @@
   <x:Double x:Key="BodyFontSize">15</x:Double>
   <x:Double x:Key="BodyLineHeight">21</x:Double>
   <x:Double x:Key="CodeFontSize">13</x:Double>
-  <x:Double x:Key="EditorFontSize">13.333</x:Double>
+  <x:Double x:Key="EditorFontSize">13</x:Double>
   <x:Double x:Key="EditorLineHeight">17</x:Double>
   <x:Double x:Key="ColumnMaxWidth">1280</x:Double>
 </ResourceDictionary>
