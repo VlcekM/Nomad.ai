@@ -220,6 +220,39 @@ public sealed partial class CodeSearchViewModel(FilesViewModel files) : Observab
         return index.IsReady || at.Receiver is null ? CodeLookup.Resolve(index.Named, at, lines) : [];
     }
 
+    /// <summary>
+    /// The declarations a name in the chat means (<c>ActionState</c>, <c>ActionState.Held</c>, <c>Held()</c>): by its
+    /// last part, narrowed by the type before it, types before their constructors. Empty until the folder is indexed
+    /// (which this starts).
+    /// </summary>
+    public List<CodeSymbol> Find(string reference)
+    {
+        if (Index() is not { } index)
+        {
+            return [];
+        }
+
+        if (!index.IsReady)
+        {
+            Warm();
+            return [];
+        }
+
+        var parts = reference.Trim().TrimEnd(')').TrimEnd('(').Split('.');
+        var found = index.Named(parts[^1]).Where(s => s.Kind != SymbolKind.File).ToList();
+        if (parts.Length > 1)
+        {
+            found = [.. found.Where(s => s.Container == parts[^2] || s.Container.EndsWith("." + parts[^2], StringComparison.Ordinal))];
+        }
+
+        if (found.Any(s => s.IsType))
+        {
+            found.RemoveAll(s => s.Kind == SymbolKind.Constructor);
+        }
+
+        return found;
+    }
+
     private readonly Dictionary<string, (DateTime Written, string[] Lines)> _fileLines = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>A declaration's Quick Info (the lines of the file it is in come from the editor when it is open there).</summary>

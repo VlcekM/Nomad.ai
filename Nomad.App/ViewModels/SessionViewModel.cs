@@ -1592,6 +1592,29 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public void ToggleFilesView() => IsFilesView = !IsFilesView && CanShowFiles;
 
+    /// <summary>Whether a name in the chat (<c>ActionState.Held</c>) is declared in the folder's code.</summary>
+    public bool KnowsSymbol(string reference) => CanShowFiles && Files.CodeSearch.Find(reference).Count > 0;
+
+    /// <summary>A name clicked in the chat: the Files view, at its declaration (Go To with the name when several match).</summary>
+    public void OpenSymbol(string reference)
+    {
+        var found = CanShowFiles ? Files.CodeSearch.Find(reference) : [];
+        if (found.Count == 0)
+        {
+            return;
+        }
+
+        IsFilesView = true;
+        if (found.Count == 1)
+        {
+            Files.OpenAt(found[0].Path, (found[0].Line, found[0].Column), length: found[0].Name.Length);
+        }
+        else
+        {
+            Files.CodeSearch.Open(found[0].Name);
+        }
+    }
+
     public string ChatToolTip => _main.FilesViewGesture is { } key ? $"Chat ({key})" : "Chat";
 
     public string FilesToolTip => _main.FilesViewGesture is { } key ? $"Files ({key})" : "Files";

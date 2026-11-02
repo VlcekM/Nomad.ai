@@ -379,8 +379,9 @@ public static class MarkdownRenderer
         }
     }
 
-    // Real text, so its letters select like the rest; MarkdownTextBlock draws the pill behind it. A URL or a file
-    // path in it can be opened (LinkSupport: a click on a URL, Ctrl+click or right-click on a path).
+    // Real text, so its letters select like the rest; MarkdownTextBlock draws the pill behind it. A URL, a file path or
+    // a name declared in the session's code in it can be opened (LinkSupport: a click on a URL or a name, Ctrl+click
+    // or right-click on a path).
     private static void AppendCode(InlineCollection target, List<LinkRange> links, string code)
     {
         if (code.Length == 0)
@@ -403,7 +404,13 @@ public static class MarkdownRenderer
         LinkSupport.Advance(target, code.Length);
         if (LinkSupport.CodeTarget(code) is { } kind)
         {
-            links.Add(new LinkRange(start, start + code.Length, kind == CodeLinkKind.Url ? code.Trim() : LinkSupport.PathPrefix + code.Trim()));
+            var prefix = kind switch
+            {
+                CodeLinkKind.Url => "",
+                CodeLinkKind.Symbol => LinkSupport.SymbolPrefix,
+                _ => LinkSupport.PathPrefix,
+            };
+            links.Add(new LinkRange(start, start + code.Length, prefix + code.Trim()));
             if (kind is CodeLinkKind.Url or CodeLinkKind.AbsolutePath)
             {
                 run.TextDecorations = TextDecorations.Underline;
@@ -751,6 +758,9 @@ public enum CodeLinkKind
     Url,
     AbsolutePath,
     RelativePath,
+
+    /// <summary>A name (<c>ActionState</c>, <c>ActionState.Held</c>): a declaration in the session's code, or a file (<c>App.cs</c>).</summary>
+    Symbol,
 }
 
 /// <summary>
@@ -788,6 +798,34 @@ public static partial class LinkSupport
     /// <summary>Marks a link that is a file path from inline code (opened in Explorer, not the browser).</summary>
     public const string PathPrefix = "path:";
 
+    /// <summary>Marks a link that is a name from inline code (opened at its declaration in the Files view, or as a file).</summary>
+    public const string SymbolPrefix = "symbol:";
+
+    // What a link opens: a web address, an existing file or folder, or a name declared in the session's code.
+    private readonly record struct LinkTarget(string? Url, string? Path, string? Symbol);
+
+    // Null: nothing (a path that isn't there, a name the code doesn't declare).
+    private static LinkTarget? Resolve(SelectableTextBlock block, LinkRange link)
+    {
+        if (link.Url.StartsWith(SymbolPrefix, StringComparison.Ordinal))
+        {
+            var name = link.Url[SymbolPrefix.Length..];
+            return ResolvePath(block, PathPrefix + name) is { } file ? new LinkTarget(null, file, null)
+                : Session(block)?.KnowsSymbol(name) == true ? new LinkTarget(null, null, name)
+                : null;
+        }
+
+        if (link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+        {
+            return ResolvePath(block, link.Url) is { } path ? new LinkTarget(null, path, null) : null;
+        }
+
+        return new LinkTarget(link.Url, null, null);
+    }
+
+    private static Nomad.App.ViewModels.SessionViewModel? Session(Control block) =>
+        block.FindAncestorOfType<Nomad.App.Views.SessionView>()?.DataContext as Nomad.App.ViewModels.SessionViewModel;
+
     public static void Attach(SelectableTextBlock block)
     {
         // Seen on the way down (before the text block starts a selection) and whether or not it handled them.
@@ -803,8 +841,7 @@ public static partial class LinkSupport
 
             // Ctrl on a path: the click is the link's, so no selection starts (and nothing gets selected).
             if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.GetCurrentPoint(block).Properties.IsLeftButtonPressed &&
-                Hit(block, pressedAt.Value) is { } link && link.Url.StartsWith(PathPrefix, StringComparison.Ordinal) &&
-                ResolvePath(block, link.Url) is { } path)
+                Hit(block, pressedAt.Value) is { } link && Resolve(block, link) is { Path: { } path })
             {
                 ctrlPath = path;
                 block.ClearSelection();
@@ -827,23 +864,12 @@ public static partial class LinkSupport
                 return;
             }
 
-            // A plain click (not a drag that selects) opens a URL, or a path with its app; Ctrl+click shows a path in Explorer.
-            if (!moved && e.InitialPressMouseButton == MouseButton.Left && Hit(block, at) is { } link)
+            // A plain click (not a drag that selects) opens a URL, a path with its app, or a name at its declaration in
+            // the Files view; Ctrl+click shows a path in Explorer.
+            if (!moved && e.InitialPressMouseButton == MouseButton.Left && Hit(block, at) is { } link && Resolve(block, link) is { } target)
             {
-                if (!link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
-                {
-                    Open(link.Url);
-                }
-                else if (ResolvePath(block, link.Url) is { } file)
-                {
-                    block.ClearSelection();
-                    OpenWithShell(file);
-                }
-                else
-                {
-                    return;
-                }
-
+                block.ClearSelection();
+                OpenTarget(block, target);
                 e.Handled = true;
             }
         }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
@@ -855,11 +881,14 @@ public static partial class LinkSupport
                 return;
             }
 
-            var link = Hit(block, e.GetPosition(block));
-            var path = link?.Url.StartsWith(PathPrefix, StringComparison.Ordinal) == true ? ResolvePath(block, link.Url) : null;
-            var hand = link is not null && (path is not null || !link.Url.StartsWith(PathPrefix, StringComparison.Ordinal));
-            block.Cursor = hand ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
-            var tip = path is not null ? "Click to open · Ctrl+click to show in Explorer · right-click for more" : null;
+            var target = Hit(block, e.GetPosition(block)) is { } link ? Resolve(block, link) : null;
+            block.Cursor = target is not null ? new Cursor(StandardCursorType.Hand) : new Cursor(StandardCursorType.Ibeam);
+            var tip = target switch
+            {
+                { Path: not null } => "Click to open · Ctrl+click to show in Explorer · right-click for more",
+                { Symbol: not null } => "Click to go to its declaration in Files",
+                _ => null,
+            };
             if (!Equals(ToolTip.GetTip(block), tip))
             {
                 ToolTip.SetTip(block, tip);
@@ -869,19 +898,19 @@ public static partial class LinkSupport
         // Right-click on a path or URL in inline code: open it, show it in Explorer, copy it.
         block.ContextRequested += (_, e) =>
         {
-            if (!e.TryGetPosition(block, out var at) || Hit(block, at) is not { } link)
+            if (!e.TryGetPosition(block, out var at) || Hit(block, at) is not { } link || Resolve(block, link) is not { } target)
             {
                 return;
             }
 
             var menu = new ContextMenu();
-            if (link.Url.StartsWith(PathPrefix, StringComparison.Ordinal))
+            if (target.Symbol is { } name)
             {
-                if (ResolvePath(block, link.Url) is not { } path)
-                {
-                    return;
-                }
-
+                menu.Items.Add(Item("Go to declaration", () => Session(block)?.OpenSymbol(name)));
+                menu.Items.Add(Item("Copy", () => _ = TopLevel.GetTopLevel(block)?.Clipboard?.SetTextAsync(name)));
+            }
+            else if (target.Path is { } path)
+            {
                 menu.Items.Add(Item("Show in Explorer", () => ShowInExplorer(path)));
                 menu.Items.Add(Item(Directory.Exists(path) ? "Open folder" : "Open", () => OpenWithShell(path)));
                 menu.Items.Add(Item("Copy path", () => _ = TopLevel.GetTopLevel(block)?.Clipboard?.SetTextAsync(path)));
@@ -895,6 +924,22 @@ public static partial class LinkSupport
             menu.Open(block);
             e.Handled = true;
         };
+    }
+
+    private static void OpenTarget(SelectableTextBlock block, LinkTarget target)
+    {
+        if (target.Url is { } url)
+        {
+            Open(url);
+        }
+        else if (target.Path is { } path)
+        {
+            OpenWithShell(path);
+        }
+        else if (target.Symbol is { } name)
+        {
+            Session(block)?.OpenSymbol(name);
+        }
     }
 
     private static MenuItem Item(string header, Action action)
@@ -928,6 +973,12 @@ public static partial class LinkSupport
             return CodeLinkKind.AbsolutePath;
         }
 
+        // A name, dotted or called ("ActionState.Held", "Held()"): a declaration, or a file named so ("App.cs").
+        if (SymbolName().IsMatch(text))
+        {
+            return CodeLinkKind.Symbol;
+        }
+
         // Commands and code ("git push", "a = b", "Foo()") are not paths.
         if (text.IndexOfAny([' ', '(', ')', '=', '<', '>', '|', '"', '*', '?', ';']) >= 0)
         {
@@ -954,7 +1005,7 @@ public static partial class LinkSupport
         {
             if (!Path.IsPathRooted(text))
             {
-                var folder = (block.FindAncestorOfType<Nomad.App.Views.SessionView>()?.DataContext as Nomad.App.ViewModels.SessionViewModel)?.Folder;
+                var folder = Session(block)?.Folder;
                 if (folder is null)
                 {
                     return null;
@@ -971,6 +1022,9 @@ public static partial class LinkSupport
             return null;
         }
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*(\(\))?$")]
+    private static partial System.Text.RegularExpressions.Regex SymbolName();
 
     [System.Text.RegularExpressions.GeneratedRegex(@":\d+(:\d+)?$")]
     private static partial System.Text.RegularExpressions.Regex LineSuffix();
