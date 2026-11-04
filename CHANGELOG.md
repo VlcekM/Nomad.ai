@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.32.0
+
+- A chat that moves into a worktree (EnterWorktree, or a `cd`) shows it: the title bar follows its branch and worktree,
+  and the transcript notes "Moved to worktree …" where it happened, live and when reopened.
+- Session rows follow it too: a worktree icon (the merged one once its branch is merged), the worktree's name on the
+  project line, and the move in the tooltip.
+
 ## v1.31.0
 
 - Middle-click autoscroll goes sideways in a wide table or code block in the chat too, while the chat scrolls up and down.
