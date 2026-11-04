@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.31.0
+
+- Middle-click autoscroll goes sideways in a wide table or code block in the chat too, while the chat scrolls up and down.
+
 ## v1.30.0
 
 - The context counter follows the turn live, after each model call, on Claude Code, OpenCode and Codex.
