@@ -62,16 +62,21 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     public partial string RenameText { get; set; } = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ToolTipText))]
+    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip))]
     public partial string? WorkingDirectory { get; set; }
 
     /// <summary>The folder its transcript last recorded: where it works now (Claude may have moved, into a worktree say).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ToolTipText))]
+    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip))]
     public partial string? CurrentDirectory { get; set; }
 
     /// <summary>Where it works now, else where it started.</summary>
     public string? WorkFolder => CurrentDirectory ?? WorkingDirectory;
+
+    /// <summary>It works in a worktree: a worktree icon on the row's left (the merged one instead, once its branch is merged).</summary>
+    public bool ShowWorktreeMark => !IsWorktreeMerged && WorkFolder is { } folder && Nomad.Core.Git.GitInfo.WorktreeOwner(folder) is not null;
+
+    public string WorktreeToolTip => WorkFolder is { } folder && Nomad.Core.Git.GitInfo.WorktreeName(folder) is { } name ? $"Worktree {name}" : "Worktree";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
@@ -212,6 +217,7 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     /// <summary>It ran in a worktree whose branch has been merged into its repository: a merged icon on the row's left.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowWorktreeMark))]
     public partial bool IsWorktreeMerged { get; set; }
 
     public bool HasPullRequest => PullRequest is not null;

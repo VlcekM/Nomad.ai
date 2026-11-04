@@ -234,7 +234,7 @@
               <Setter Property="Margin" Value="4,0,0,0" />
               <Setter Property="IsHitTestVisible" Value="True" />
             </Style>
-            <Style Selector="Border.merged, Border.pinmark, Border.workflowmark">
+            <Style Selector="Border.merged, Border.worktreemark, Border.pinmark, Border.workflowmark">
               <Setter Property="MaxWidth" Value="0" />
               <Setter Property="Opacity" Value="0" />
               <Setter Property="Margin" Value="0" />
@@ -269,7 +269,7 @@
             <Style Selector="Border.agentlogo.bottom.shown">
               <Setter Property="Margin" Value="5,-5,0,0" />
             </Style>
-            <Style Selector="Border.merged.shown, Border.pinmark.shown, Border.workflowmark.shown">
+            <Style Selector="Border.merged.shown, Border.worktreemark.shown, Border.pinmark.shown, Border.workflowmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
               <Setter Property="Margin" Value="0,0,6,0" />
@@ -435,6 +435,11 @@
                     <Border Classes="pinmark" Classes.shown="{Binding IsPinned}" Background="Transparent"
                             ToolTip.Tip="Pinned">
                       <c:Icon Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                    </Border>
+                    <!-- It works in a worktree: folds in when it moves there, and gives way to the merged mark below. -->
+                    <Border Classes="worktreemark" Classes.shown="{Binding ShowWorktreeMark}" Background="Transparent"
+                            ToolTip.Tip="{Binding WorktreeToolTip}">
+                      <c:Icon Size="12" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" />
                     </Border>
                     <!-- Its worktree's branch has been merged into the repository: folds in once git says so. -->
                     <Border Classes="merged" Classes.shown="{Binding IsWorktreeMerged}" Background="Transparent"
