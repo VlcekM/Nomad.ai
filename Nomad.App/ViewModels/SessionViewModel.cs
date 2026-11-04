@@ -1452,7 +1452,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// A background task ended: the transcript notes it, and a background subagent (by its Agent call's id) or a
     /// background command (by its call's id, or the task id its call returned) shows it ended.
     /// </summary>
-    private void FinishTask(string? toolUseId, string? taskId, string? status, string summary)
+    private void FinishTask(string? toolUseId, string? taskId, string? status, string summary, string? report = null)
     {
         // A workflow's card says how it ended: no notice under it.
         if (WorkflowOf(taskId, toolUseId) is { } run)
@@ -1472,13 +1472,35 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
         {
-            agent.Finish(failed: status == "failed", result: null);
+            agent.Finish(failed: status == "failed", result: report);
             return;
         }
 
         var task = toolUseId is not null && _backgroundTaskById.TryGetValue(toolUseId, out var byCall) ? byCall
             : taskId is not null ? BackgroundTasks.FirstOrDefault(t => t.TaskId == taskId) : null;
         task?.Finish(failed: status is "failed" or "killed", summary);
+    }
+
+    /// <summary>
+    /// The CLI's live <c>task_notification</c> line. For a background subagent its summary is the agent's whole report:
+    /// that goes on the agent's card, and the transcript names the agent instead, as the saved transcript's notice does.
+    /// </summary>
+    private void FinishNotifiedTask(TaskNotificationEvent ended)
+    {
+        if (ended.ToolUseId is { } toolUseId && _subagentById.TryGetValue(toolUseId, out var agent))
+        {
+            var ending = ended.Status switch
+            {
+                "failed" => "failed",
+                "stopped" or "killed" => "was stopped",
+                _ => "finished",
+            };
+
+            FinishTask(toolUseId, ended.TaskId, ended.Status, $"Agent \"{agent.Description}\" {ending}", ended.Summary);
+            return;
+        }
+
+        FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary ?? "Background task finished");
     }
 
     /// <summary>The process went, and its background commands with it.</summary>
@@ -3283,7 +3305,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case TaskNotificationEvent ended:
                 CloseGroup();
-                FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary ?? "Background task finished");
+                FinishNotifiedTask(ended);
                 ContentChanged?.Invoke();
                 break;
 
