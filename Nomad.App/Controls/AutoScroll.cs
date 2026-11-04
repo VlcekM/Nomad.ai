@@ -5,13 +5,14 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 
 namespace Nomad.App.Controls;
 
 /// <summary>
 /// Middle-button autoscroll, as in a browser (on for every <see cref="ScrollViewer"/> through a style in
 /// Styles.axaml). Pressing the middle button drops a marker; the further the pointer is from it, the faster the view
-/// scrolls that way, up and down and (where the content is wider than the view) sideways. Held and dragged, it stops on release; clicked, it keeps going until the next
+/// scrolls that way, up and down and (where the content, or a table or code block under the pointer, is wider than the view) sideways. Held and dragged, it stops on release; clicked, it keeps going until the next
 /// click, a wheel turn or Esc. Runs on render frames only while active.
 /// </summary>
 public static class AutoScroll
@@ -52,14 +53,32 @@ public static class AutoScroll
 
         // Tunnelling, the outermost scroller that can move takes it (the transcript, not a code block inside it).
         var vertical = viewer.Extent.Height > viewer.Viewport.Height + 1;
-        var horizontal = viewer.Extent.Width > viewer.Viewport.Width + 1;
+        var horizontal = CanScrollSideways(viewer);
         if (_active is not null || !vertical && !horizontal)
         {
             return;
         }
 
+        // One that only scrolls up and down hands sideways to a wide table or code block under the pointer.
+        var sideways = horizontal ? viewer : SidewaysInside(viewer, e.Source as Visual);
         e.Handled = true;
-        _active = new Session(viewer, e.GetPosition(viewer), e.Pointer, vertical, horizontal);
+        _active = new Session(viewer, sideways, e.GetPosition(viewer), e.Pointer, vertical);
+    }
+
+    private static bool CanScrollSideways(ScrollViewer viewer) => viewer.Extent.Width > viewer.Viewport.Width + 1;
+
+    // The innermost scroller between the pressed visual and the outer one that is wider than its view.
+    private static ScrollViewer? SidewaysInside(ScrollViewer outer, Visual? pressed)
+    {
+        for (var visual = pressed; visual is not null && visual != outer; visual = visual.GetVisualParent())
+        {
+            if (visual is ScrollViewer inner && CanScrollSideways(inner))
+            {
+                return inner;
+            }
+        }
+
+        return null;
     }
 
     // Speed grows faster than the distance, as in a browser but 6× quicker: 50 px out about 380 px/s, 200 px about 3600.
@@ -72,6 +91,7 @@ public static class AutoScroll
     private sealed class Session
     {
         private readonly ScrollViewer _viewer;
+        private readonly ScrollViewer? _sideways;
         private readonly Point _anchor;
         private readonly bool _vertical;
         private readonly bool _horizontal;
@@ -85,22 +105,23 @@ public static class AutoScroll
         private TimeSpan? _lastFrame;
         private bool _ended;
 
-        public Session(ScrollViewer viewer, Point anchor, IPointer pointer, bool vertical, bool horizontal)
+        public Session(ScrollViewer viewer, ScrollViewer? sideways, Point anchor, IPointer pointer, bool vertical)
         {
             _viewer = viewer;
+            _sideways = sideways;
             _anchor = _pointer = anchor;
             _vertical = vertical;
-            _horizontal = horizontal;
+            _horizontal = sideways is not null;
             _top = TopLevel.GetTopLevel(viewer);
             _cursor = viewer.Cursor;
-            viewer.Cursor = new Cursor(vertical && horizontal ? StandardCursorType.SizeAll
+            viewer.Cursor = new Cursor(vertical && _horizontal ? StandardCursorType.SizeAll
                 : vertical ? StandardCursorType.SizeNorthSouth : StandardCursorType.SizeWestEast);
             pointer.Capture(viewer);
 
             // Placed in the layer's own coordinates: an adorned element's offset is not applied to it in time.
             var layer = AdornerLayer.GetAdornerLayer(viewer);
             var at = layer is null ? anchor : viewer.TranslatePoint(anchor, layer) ?? anchor;
-            _marker = new Marker(_clock, vertical, horizontal) { Width = Marker.Size, Height = Marker.Size };
+            _marker = new Marker(_clock, vertical, _horizontal) { Width = Marker.Size, Height = Marker.Size };
             Canvas.SetLeft(_marker, at.X - Marker.Size / 2);
             Canvas.SetTop(_marker, at.Y - Marker.Size / 2);
             layer?.Children.Add(_marker);
@@ -168,15 +189,25 @@ public static class AutoScroll
 
             var dx = _horizontal ? Speed(_pointer.X - _anchor.X) * dt : 0;
             var dy = _vertical ? Speed(_pointer.Y - _anchor.Y) * dt : 0;
-            if (dx != 0 || dy != 0)
+            if (dy != 0)
             {
-                var maxX = Math.Max(0, _viewer.Extent.Width - _viewer.Viewport.Width);
-                var maxY = Math.Max(0, _viewer.Extent.Height - _viewer.Viewport.Height);
-                _viewer.Offset = new Vector(Math.Clamp(_viewer.Offset.X + dx, 0, maxX), Math.Clamp(_viewer.Offset.Y + dy, 0, maxY));
+                Move(_viewer, 0, dy);
+            }
+
+            if (dx != 0 && _sideways is not null)
+            {
+                Move(_sideways, dx, 0);
             }
 
             _marker.InvalidateVisual();
             _top?.RequestAnimationFrame(Frame);
+        }
+
+        private static void Move(ScrollViewer viewer, double dx, double dy)
+        {
+            var maxX = Math.Max(0, viewer.Extent.Width - viewer.Viewport.Width);
+            var maxY = Math.Max(0, viewer.Extent.Height - viewer.Viewport.Height);
+            viewer.Offset = new Vector(Math.Clamp(viewer.Offset.X + dx, 0, maxX), Math.Clamp(viewer.Offset.Y + dy, 0, maxY));
         }
 
         private void End()
