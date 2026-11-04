@@ -522,6 +522,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (IsProcessRunning && GitInfo.WorktreeMoveNotice(WorkFolder ?? folder, work ?? folder) is { } notice)
         {
+            CloseGroup(); // The tools after it start a group of their own, below it.
             Items.Add(new NoticeItem(notice));
         }
 
@@ -3614,6 +3615,27 @@ public sealed partial class SessionViewModel : ObservableObject
         else if (call.Name == "Workflow" && !isError && WorkflowLaunch.Parse(text) is { } launch)
         {
             WorkflowFor(toolUseId).SetLaunch(launch);
+        }
+        else if (call.Name is "EnterWorktree" or "ExitWorktree" && !isError)
+        {
+            _ = FollowMoveAsync();
+        }
+    }
+
+    /// <summary>
+    /// EnterWorktree or ExitWorktree just moved the chat: the move shows now, before Claude's reply, not at the next git
+    /// check. Its transcript may lag the tool's result a little, so it looks a few times.
+    /// </summary>
+    private async Task FollowMoveAsync()
+    {
+        var before = WorkFolder;
+        for (var i = 0; i < 10 && WorkFolder == before; i++)
+        {
+            await RefreshGitAsync();
+            if (WorkFolder == before)
+            {
+                await Task.Delay(200);
+            }
         }
     }
 
