@@ -308,9 +308,20 @@ public sealed partial class SessionViewModel : ObservableObject
     public bool ShowTitleGit => !IsNew && IsGitFolder;
 
     /// <summary>The session runs in a worktree of its repository (<c>.claude\worktrees</c>).</summary>
-    public bool IsWorktreeSession => !IsNew && Folder is not null && GitInfo.WorktreeOwner(Folder) is not null;
+    public bool IsWorktreeSession => !IsNew && GitFolder is { } folder && GitInfo.WorktreeOwner(folder) is not null;
 
-    public string WorktreeTitleToolTip => $"Worktree {Folder}";
+    public string WorktreeTitleToolTip => $"Worktree {GitFolder}";
+
+    /// <summary>
+    /// Where a started chat works now, when Claude moved there itself (a <c>cd</c> into a worktree, say): the title bar's
+    /// branch and worktree follow it. The session stays in <see cref="Folder"/> (it resumes there, its files, its group).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorktreeSession), nameof(WorktreeTitleToolTip), nameof(GitChipText), nameof(GitChipToolTip))]
+    public partial string? WorkFolder { get; set; }
+
+    /// <summary>The checkout the git chip is about: where the chat works now.</summary>
+    private string? GitFolder => IsNew ? Folder : WorkFolder ?? Folder;
 
     /// <summary>The folder's checked-out branch.</summary>
     [ObservableProperty]
@@ -328,7 +339,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     public string GitChipText =>
         IsNew ? (UseWorktree ? WorktreeFrom ?? GitBranch : GitBranch)
-        : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"worktree · {GitBranch}"
+        : IsWorktreeSession ? $"worktree · {GitBranch}"
         : GitBranch;
 
     /// <summary>The branch the git chip is about: the worktree's start for a new session with Worktree on, else the checked-out one.</summary>
@@ -336,7 +347,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public string GitChipToolTip =>
         IsNew ? (UseWorktree ? "The branch the new worktree starts from" : "Switch branch")
-        : Folder is not null && GitInfo.WorktreeOwner(Folder) is not null ? $"Worktree {Folder}, branch {GitBranch}"
+        : IsWorktreeSession ? $"Worktree {GitFolder}, branch {GitBranch}"
         : $"Branch {GitBranch}";
 
     /// <summary>The branch menu: the local branches, newest first, filtered by <see cref="BranchFilter"/>.</summary>
@@ -410,16 +421,20 @@ public sealed partial class SessionViewModel : ObservableObject
         return true;
     }
 
-    /// <summary>Reads the folder's branch again (on a folder change, and after each turn: Claude may switch it).</summary>
+    /// <summary>Reads the folder's branch again (on a folder change, and after each turn: Claude may switch it, or move).</summary>
     public async Task RefreshGitAsync()
     {
-        var folder = Folder;
+        var home = Folder;
+        var work = await ReadWorkFolderAsync();
+        var folder = IsNew ? home : work ?? home;
         var status = folder is null ? null : await GitInfo.GetAsync(folder, 1, refresh: true);
-        if (folder != Folder)
+        if (home != Folder)
         {
             return;
         }
 
+        // The move and the branch it found show together.
+        MoveWorkFolder(work);
         IsGitFolder = status is not null;
         GitChanges = status?.Changes ?? 0;
         GitBranch = status?.Branch ?? "";
@@ -452,16 +467,68 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task RefreshAheadAsync()
     {
-        var folder = Folder;
+        var folder = GitFolder;
         var branch = ChipBranch;
         var ahead = folder is null || branch.Length == 0 || branch == "detached" ? 0 : await GitInfo.AheadAsync(folder, branch);
-        if (folder == Folder && branch == ChipBranch)
+        if (folder == GitFolder && branch == ChipBranch)
         {
             GitAhead = ahead;
         }
     }
 
     partial void OnWorktreeFromChanged(string? value) => _ = RefreshAheadAsync();
+
+    /// <summary>
+    /// Where a started chat works now, from its transcript (each record has the folder it was made in); null: its
+    /// <see cref="Folder"/>.
+    /// </summary>
+    private async Task<string?> ReadWorkFolderAsync()
+    {
+        if (IsNew || Backend != AgentBackends.ClaudeCode || SessionId is not { } id || Folder is not { } folder
+            || TranscriptFile(id) is not { } file)
+        {
+            return WorkFolder;
+        }
+
+        var current = await Task.Run(() => SessionStore.CurrentDirectory(file));
+        return current is null ? WorkFolder
+            : SameFolder(current, folder) ? null
+            : current;
+    }
+
+    /// <summary>
+    /// Follows Claude's own move. Into or out of a worktree while this window runs the chat it adds a notice, as its
+    /// history shows on a reload.
+    /// </summary>
+    private void MoveWorkFolder(string? work)
+    {
+        if (Folder is not { } folder || SameFolder(work ?? folder, WorkFolder ?? folder))
+        {
+            return;
+        }
+
+        if (IsProcessRunning && GitInfo.WorktreeMoveNotice(WorkFolder ?? folder, work ?? folder) is { } notice)
+        {
+            Items.Add(new NoticeItem(notice));
+        }
+
+        WorkFolder = work;
+    }
+
+    private static bool SameFolder(string a, string b) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(a), Path.TrimEndingDirectorySeparator(b), StringComparison.OrdinalIgnoreCase);
+
+    private (string Id, string File)? _transcript;
+
+    private string? TranscriptFile(string id)
+    {
+        if (_transcript is not { } known || known.Id != id)
+        {
+            _transcript = _main.Store.FindTranscript(id) is { } found ? (id, found) : null;
+        }
+
+        return _transcript?.File;
+    }
 
     /// <summary>Start the new session in a new worktree of the folder's repository (kept for the next ones too).</summary>
     public bool UseWorktree
@@ -916,6 +983,7 @@ public sealed partial class SessionViewModel : ObservableObject
             WorktreeFrom = null;
         }
 
+        WorkFolder = null;
         _ = RefreshGitAsync();
 
         if (_main.IsSidePanelOpen)

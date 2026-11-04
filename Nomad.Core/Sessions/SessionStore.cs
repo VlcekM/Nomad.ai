@@ -278,6 +278,33 @@ public sealed class SessionStore
     }
 
     /// <summary>
+    /// The folder a session works in now: the <c>cwd</c> of the newest record in its transcript's tail. It moves with the
+    /// CLI's own <c>cd</c> (into a worktree, say). Null when the tail has none.
+    /// </summary>
+    public static string? CurrentDirectory(string file)
+    {
+        using var stream = OpenShared(file);
+        var size = stream.Length;
+        var start = Math.Max(0, size - CurrentDirectoryBytes);
+        var candidates = ReadLines(stream, start, size - start, skipFirstPartial: start > 0)
+            .Where(line => line.Contains("\"cwd\"", StringComparison.Ordinal))
+            .ToList();
+
+        // Newest first; only the records that might have it are parsed.
+        for (var i = candidates.Count - 1; i >= 0; i--)
+        {
+            if (TranscriptRecord.Parse(candidates[i]) is { Cwd: { Length: > 0 } cwd })
+            {
+                return cwd;
+            }
+        }
+
+        return null;
+    }
+
+    private const long CurrentDirectoryBytes = 256 * 1024;
+
+    /// <summary>
     /// Renames a session the way Claude Code's <c>/rename</c> does: a <c>custom-title</c> record appended to its
     /// transcript (the last one wins). The only write Nomad makes to a transcript.
     /// </summary>

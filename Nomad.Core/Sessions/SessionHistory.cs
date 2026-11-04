@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Nomad.Core.Git;
 using Nomad.Core.Protocol;
 
 namespace Nomad.Core.Sessions;
@@ -202,6 +203,9 @@ public sealed class SessionHistory
                 && TaskNotification.TryParse(prompt.GetString(), out var summary):
                 items.Add(new HistoryNotice(summary));
                 return;
+            case "attachment" when WorktreeMove(record.Attachment) is { } move:
+                items.Add(new HistoryNotice(move));
+                return;
             case "system" when record.Subtype == "compact_boundary":
                 items.Add(new HistoryNotice("Conversation compacted"));
                 return;
@@ -213,6 +217,30 @@ public sealed class SessionHistory
                 return;
         }
     }
+
+    /// <summary>The CLI's <c>environment</c> attachment when its working folder moved into or out of a worktree.</summary>
+    private static string? WorktreeMove(JsonElement attachment)
+    {
+        if (attachment.ValueKind != JsonValueKind.Object || Str(attachment, "type") != "environment"
+            || !attachment.TryGetProperty("snapshot", out var snapshot) || snapshot.ValueKind != JsonValueKind.Object
+            || !attachment.TryGetProperty("changes", out var changes) || changes.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var change in changes.EnumerateArray())
+        {
+            if (change.ValueKind == JsonValueKind.Object && Str(change, "field") == "workingDirectory")
+            {
+                return GitInfo.WorktreeMoveNotice(Str(change, "from"), Str(snapshot, "workingDirectory"));
+            }
+        }
+
+        return null;
+    }
+
+    private static string? Str(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static void AddUserItems(TranscriptRecord record, List<HistoryItem> items)
     {

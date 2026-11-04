@@ -1650,7 +1650,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 // The branch its transcript recorded, else the one a worktree of that name was made on.
                 var branch = !string.IsNullOrEmpty(row.GitBranch) && row.GitBranch != "HEAD" ? row.GitBranch
-                    : "worktree-" + WorktreeName(row.WorkingDirectory!);
+                    : "worktree-" + Nomad.Core.Git.GitInfo.WorktreeName(row.WorkingDirectory!);
                 row.IsWorktreeMerged = merged?.Invoke(branch) == true;
                 SleepMergedSession(row);
             }
@@ -1681,14 +1681,6 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _mergeSeen.Add(row.SessionId);
-    }
-
-    /// <summary>The worktree's own folder name (<c>…\.claude\worktrees\&lt;name&gt;</c>), from any folder below it.</summary>
-    private static string WorktreeName(string folder)
-    {
-        var owner = Nomad.Core.Git.GitInfo.WorktreeOwner(folder)!;
-        var rest = folder[owner.Length..].Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
-        return rest.Length > 2 ? rest[2] : "";
     }
 
     private const int GitHubLinkSessions = 60;

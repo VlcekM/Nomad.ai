@@ -185,6 +185,39 @@ public static class GitInfo
         return at > 0 ? folder[..at] : null;
     }
 
+    /// <summary>The worktree's own folder name (<c>…\.claude\worktrees\&lt;name&gt;</c>), from any folder below it; null for any other folder.</summary>
+    public static string? WorktreeName(string folder)
+    {
+        if (WorktreeOwner(folder) is not { } owner)
+        {
+            return null;
+        }
+
+        var rest = folder[owner.Length..].Split(['\\', '/'], StringSplitOptions.RemoveEmptyEntries);
+        return rest.Length > 2 ? rest[2] : null;
+    }
+
+    /// <summary>
+    /// What a chat moving its working folder from <paramref name="from"/> to <paramref name="to"/> shows in its transcript:
+    /// entering or leaving a worktree. Null for a move within the same checkout (a <c>cd</c> into a subfolder).
+    /// </summary>
+    public static string? WorktreeMoveNotice(string? from, string? to)
+    {
+        var before = from is null ? null : WorktreeKey(from);
+        var after = to is null ? null : WorktreeKey(to);
+        if (string.Equals(before, after, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return to is not null && WorktreeName(to) is { } name ? $"Moved to worktree {name}"
+            : from is not null && WorktreeName(from) is { } left ? $"Left worktree {left}"
+            : null;
+    }
+
+    private static string? WorktreeKey(string folder) =>
+        WorktreeOwner(folder) is { } owner && WorktreeName(folder) is { } name ? Path.Combine(owner, name) : null;
+
     private static readonly Dictionary<string, (DateTime At, Task<Func<string, bool>?> Task)> MergeCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>

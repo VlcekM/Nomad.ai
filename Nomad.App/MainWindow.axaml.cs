@@ -829,7 +829,24 @@ public partial class MainWindow : Window
         {
             GlideGitSoon();
         }
+        else if (e.PropertyName == nameof(SessionViewModel.WorkFolder))
+        {
+            FadeGitSoon();
+        }
     }
+
+    /// <summary>The chat moved (into a worktree, say): its branch, and the worktree mark if it shows, fade in anew.</summary>
+    private void FadeGitSoon() =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            foreach (var chip in new Control[] { TitleBranch, TitleWorktree })
+            {
+                if (chip.IsEffectivelyVisible)
+                {
+                    Controls.Entrance.Fade(chip, this);
+                }
+            }
+        }, DispatcherPriority.Normal);
 
     private (Control? Branch, Control? Worktree) StatusGit() =>
         this.GetVisualDescendants().OfType<SessionView>().FirstOrDefault() is { } view ? view.GitChips : default;
