@@ -62,12 +62,12 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     public partial string RenameText { get; set; } = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip))]
+    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip), nameof(ProjectLine))]
     public partial string? WorkingDirectory { get; set; }
 
     /// <summary>The folder its transcript last recorded: where it works now (Claude may have moved, into a worktree say).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip))]
+    [NotifyPropertyChangedFor(nameof(ToolTipText), nameof(ShowWorktreeMark), nameof(WorktreeToolTip), nameof(ProjectLine))]
     public partial string? CurrentDirectory { get; set; }
 
     /// <summary>Where it works now, else where it started.</summary>
@@ -76,7 +76,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     /// <summary>It works in a worktree: a worktree icon on the row's left (the merged one instead, once its branch is merged).</summary>
     public bool ShowWorktreeMark => !IsWorktreeMerged && WorkFolder is { } folder && Nomad.Core.Git.GitInfo.WorktreeOwner(folder) is not null;
 
-    public string WorktreeToolTip => WorkFolder is { } folder && Nomad.Core.Git.GitInfo.WorktreeName(folder) is { } name ? $"Worktree {name}" : "Worktree";
+    public string WorktreeToolTip => WorktreeName is { } name ? $"Worktree {name}" : "Worktree";
+
+    /// <summary>The worktree it works in (<c>.claude\worktrees\&lt;name&gt;</c>); null outside one.</summary>
+    private string? WorktreeName => WorkFolder is { } folder ? Nomad.Core.Git.GitInfo.WorktreeName(folder) : null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
@@ -89,7 +92,11 @@ public sealed partial class SessionListItemViewModel : ObservableObject
 
     /// <summary>Its folder's project ("No folder" for a scratch one): set while <see cref="ShowProject"/> is on.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ProjectLine))]
     public partial string ProjectName { get; set; } = "";
+
+    /// <summary>The second line: its project, and the worktree it works in ("Nomad.ai · feature-x").</summary>
+    public string ProjectLine => WorktreeName is { } name ? $"{ProjectName} · {name}" : ProjectName;
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
