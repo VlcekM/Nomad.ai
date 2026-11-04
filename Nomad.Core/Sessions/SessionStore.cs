@@ -16,7 +16,13 @@ public sealed record SessionSummary(
     string? GitBranch = null,
     string? PullRequestUrl = null,
     string? IssueUrl = null,
-    string Backend = Agents.AgentBackends.ClaudeCode);
+    string Backend = Agents.AgentBackends.ClaudeCode,
+    string? CurrentDirectory = null)
+{
+    /// <summary>Where it works now: the newest record's folder (Claude may have moved, into a worktree say), else where it started.</summary>
+    [JsonIgnore]
+    public string? WorkFolder => CurrentDirectory ?? WorkingDirectory;
+}
 
 /// <summary>
 /// Lists and loads Claude Code sessions from <c>~/.claude/projects</c>. Summaries are read from the
@@ -30,7 +36,7 @@ public sealed class SessionStore
     public const long DefaultHistoryBytes = 4 * 1024 * 1024;
 
     // Bump when ReadSummary learns something new: summaries saved by an older version are then read again.
-    private const int CacheVersion = 1;
+    private const int CacheVersion = 2;
 
     private readonly ConcurrentDictionary<string, (long Size, DateTime Mtime, SessionSummary? Summary)> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _saveLock = new();
@@ -251,7 +257,8 @@ public sealed class SessionStore
             return null;
         }
 
-        return new SessionSummary(sessionId, file, builder.Cwd, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl);
+        return new SessionSummary(sessionId, file, builder.Cwd, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl,
+            CurrentDirectory: builder.CurrentCwd);
     }
 
     /// <summary>
@@ -419,6 +426,9 @@ public sealed class SessionStore
         /// <summary>The branch of the newest record that names one (records carry the checkout they were made on).</summary>
         public string? GitBranch { get; private set; }
 
+        /// <summary>The folder of the newest record that names one: where the session works now.</summary>
+        public string? CurrentCwd { get; private set; }
+
         /// <summary>The last GitHub pull request the session mentions (one it opened, or was asked about).</summary>
         public string? PullRequestUrl { get; private set; }
 
@@ -450,9 +460,42 @@ public sealed class SessionStore
             }
         }
 
+        // The record's own "cwd" comes after its message, so the last one in the line is it.
+        private void NoteCwd(string line)
+        {
+            const string key = "\"cwd\":\"";
+            var at = line.LastIndexOf(key, StringComparison.Ordinal);
+            if (at < 0)
+            {
+                return;
+            }
+
+            var start = at + key.Length - 1;
+            var end = start + 1;
+            while (end < line.Length && line[end] != '"')
+            {
+                end += line[end] == '\\' ? 2 : 1;
+            }
+
+            if (end >= line.Length)
+            {
+                return;
+            }
+
+            try
+            {
+                using var value = JsonDocument.Parse(line.AsMemory(start, end - start + 1));
+                CurrentCwd = value.RootElement.GetString() is { Length: > 0 } cwd ? cwd : CurrentCwd;
+            }
+            catch (JsonException)
+            {
+            }
+        }
+
         private void NoteBranch(string line)
         {
             NoteLinks(line);
+            NoteCwd(line);
             const string key = "\"gitBranch\":\"";
             var at = line.LastIndexOf(key, StringComparison.Ordinal);
             if (at < 0)

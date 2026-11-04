@@ -1588,6 +1588,7 @@ public sealed partial class MainViewModel : ObservableObject
             vm.FilePath = s.Backend == AgentBackends.ClaudeCode ? s.FilePath : null;
             vm.Backend = s.Backend;
             vm.WorkingDirectory = Settings.MovedSessionFolders.GetValueOrDefault(s.SessionId) ?? s.WorkingDirectory;
+            vm.CurrentDirectory = s.CurrentDirectory;
             _open.TryGetValue(s.SessionId, out var live);
             var originalFolder = string.Equals(vm.WorkingDirectory, s.WorkingDirectory, StringComparison.OrdinalIgnoreCase);
             vm.GitBranch = originalFolder ? s.GitBranch : live?.GitBranch;
@@ -1637,10 +1638,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Sessions in a worktree learn whether its branch has been merged into the repository (local git only).</summary>
     private async Task LoadWorktreeMergesAsync()
     {
-        var rows = _all.Where(s => s.WorkingDirectory is { } w && Nomad.Core.Git.GitInfo.WorktreeOwner(w) is not null)
+        var rows = _all.Where(s => s.WorkFolder is { } w && Nomad.Core.Git.GitInfo.WorktreeOwner(w) is not null)
             .Take(GitHubLinkSessions)
             .ToList();
-        var lookups = rows.GroupBy(s => Nomad.Core.Git.GitInfo.WorktreeOwner(s.WorkingDirectory!)!, StringComparer.OrdinalIgnoreCase)
+        var lookups = rows.GroupBy(s => Nomad.Core.Git.GitInfo.WorktreeOwner(s.WorkFolder!)!, StringComparer.OrdinalIgnoreCase)
             .Select(repo => (repo, Nomad.Core.Git.GitInfo.MergedBranchesAsync(repo.Key)))
             .ToList();
         foreach (var (repo, lookup) in lookups)
@@ -1650,7 +1651,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 // The branch its transcript recorded, else the one a worktree of that name was made on.
                 var branch = !string.IsNullOrEmpty(row.GitBranch) && row.GitBranch != "HEAD" ? row.GitBranch
-                    : "worktree-" + Nomad.Core.Git.GitInfo.WorktreeName(row.WorkingDirectory!);
+                    : "worktree-" + Nomad.Core.Git.GitInfo.WorktreeName(row.WorkFolder!);
                 row.IsWorktreeMerged = merged?.Invoke(branch) == true;
                 SleepMergedSession(row);
             }
@@ -2645,6 +2646,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (_all.FirstOrDefault(s => s.SessionId == id) is { } row)
         {
             row.WorkingDirectory = folder;
+            row.CurrentDirectory = null;
             row.GitBranch = null;
             row.PullRequestUrl = null;
             row.IssueUrl = null;
@@ -2654,6 +2656,17 @@ public sealed partial class MainViewModel : ObservableObject
 
         RememberFolder(folder);
         ApplyFilter();
+    }
+
+    /// <summary>Claude moved the session itself (into a worktree, say): its row follows, and learns whether that worktree is merged.</summary>
+    public void OnSessionWorkFolderChanged(SessionViewModel session)
+    {
+        if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } row)
+        {
+            row.CurrentDirectory = session.WorkFolder ?? session.Folder;
+            row.GitBranch = session.GitBranch is { Length: > 0 } branch ? branch : row.GitBranch;
+            _ = LoadWorktreeMergesAsync();
+        }
     }
 
     public void OnTurnCompleted(SessionViewModel session)

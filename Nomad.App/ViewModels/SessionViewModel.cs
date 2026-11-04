@@ -434,10 +434,14 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         // The move and the branch it found show together.
-        MoveWorkFolder(work);
+        var moved = MoveWorkFolder(work);
         IsGitFolder = status is not null;
         GitChanges = status?.Changes ?? 0;
         GitBranch = status?.Branch ?? "";
+        if (moved)
+        {
+            _main.OnSessionWorkFolderChanged(this);
+        }
         OnPropertyChanged(nameof(GitChipToolTip));
         await RefreshAheadAsync();
     }
@@ -490,7 +494,16 @@ public sealed partial class SessionViewModel : ObservableObject
             return WorkFolder;
         }
 
-        var current = await Task.Run(() => SessionStore.CurrentDirectory(file));
+        string? current;
+        try
+        {
+            current = await Task.Run(() => SessionStore.CurrentDirectory(file));
+        }
+        catch (IOException)
+        {
+            return WorkFolder; // Moved just now: found again next time.
+        }
+
         return current is null ? WorkFolder
             : SameFolder(current, folder) ? null
             : current;
@@ -498,13 +511,13 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>
     /// Follows Claude's own move. Into or out of a worktree while this window runs the chat it adds a notice, as its
-    /// history shows on a reload.
+    /// history shows on a reload. True when it moved.
     /// </summary>
-    private void MoveWorkFolder(string? work)
+    private bool MoveWorkFolder(string? work)
     {
         if (Folder is not { } folder || SameFolder(work ?? folder, WorkFolder ?? folder))
         {
-            return;
+            return false;
         }
 
         if (IsProcessRunning && GitInfo.WorktreeMoveNotice(WorkFolder ?? folder, work ?? folder) is { } notice)
@@ -513,6 +526,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         WorkFolder = work;
+        return true;
     }
 
     private static bool SameFolder(string a, string b) =>
@@ -520,9 +534,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private (string Id, string File)? _transcript;
 
+    // EnterWorktree moves the transcript to the worktree's project folder: a path that is gone is looked up again.
     private string? TranscriptFile(string id)
     {
-        if (_transcript is not { } known || known.Id != id)
+        if (_transcript is not { } known || known.Id != id || !File.Exists(known.File))
         {
             _transcript = _main.Store.FindTranscript(id) is { } found ? (id, found) : null;
         }

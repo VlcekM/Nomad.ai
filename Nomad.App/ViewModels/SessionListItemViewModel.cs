@@ -65,6 +65,14 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial string? WorkingDirectory { get; set; }
 
+    /// <summary>The folder its transcript last recorded: where it works now (Claude may have moved, into a worktree say).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToolTipText))]
+    public partial string? CurrentDirectory { get; set; }
+
+    /// <summary>Where it works now, else where it started.</summary>
+    public string? WorkFolder => CurrentDirectory ?? WorkingDirectory;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial DateTime LastActivityUtc { get; set; }
@@ -233,7 +241,10 @@ public sealed partial class SessionListItemViewModel : ObservableObject
         ? $"Issue #{issue.Number} · {issue.State switch { Nomad.Core.Git.IssueState.Completed => "Closed", Nomad.Core.Git.IssueState.NotPlanned => "Closed as not planned", _ => "Open" }}\n{issue.Title}"
         : "";
 
-    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{Format.Relative(LastActivityUtc)}" + (IsClaudeCode ? "" : "\n" + BackendName) + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
+    /// <summary>"Moved to worktree x", on a line of its own, when it works in another checkout than the one it started in.</summary>
+    private string MoveText => Nomad.Core.Git.GitInfo.WorktreeMoveNotice(WorkingDirectory, WorkFolder) is { } move ? move + "\n" : "";
+
+    public string ToolTipText =>$"{WorkingDirectory ?? "No folder"}\n{MoveText}{Format.Relative(LastActivityUtc)}" + (IsClaudeCode ? "" : "\n" + BackendName) + (IsElsewhere ? "\nRunning in another Nomad window or a terminal" : "");
 }
 
 /// <summary>A group heading in the sidebar's Alive or Idle list ("Today", a folder, "Archived"): a click folds its rows away.</summary>

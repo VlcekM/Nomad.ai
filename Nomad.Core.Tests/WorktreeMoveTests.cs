@@ -43,6 +43,11 @@ public class WorktreeMoveTests
             File.WriteAllLines(file, [.. Lines(), """{"type":"last-prompt","lastPrompt":"go","sessionId":"s"}"""]);
 
             Assert.Equal(Worktree, SessionStore.CurrentDirectory(file));
+
+            // The sidebar's summary keeps where it started, and learns where it works now.
+            var summary = new SessionStore().GetSummary(file)!;
+            Assert.Equal(Repo, summary.WorkingDirectory);
+            Assert.Equal(Worktree, summary.WorkFolder);
         }
         finally
         {
