@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.33.0
+
+- Settings → General → Files view turns off a chat's Files view: no Chat / Files switch, folder tree or code editor,
+  and the Files key and links from chat into code do nothing.
+
 ## v1.32.1
 
 - A background agent that finishes is noted as `Agent "…" finished` instead of its whole report in grey, unformatted
