@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.34.0
+
+- The side panel's running subagents and background commands have a Stop button; a stopped one shows a grey mark and
+  "Stopped" rather than a failure, and the transcript notes it was stopped.
+- Subagent, workflow and background task rows use smaller text.
+
 ## v1.33.1
 
 - Nomad Hub: a chat continued on this PC after it last ran on another one says so, naming that PC, since anything left
