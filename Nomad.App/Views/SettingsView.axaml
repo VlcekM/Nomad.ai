@@ -438,6 +438,20 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Files view" Classes="rowlabel" />
+                  <TextBlock Text="Chats can switch to their folder's files and a code editor. Off: the Chat / Files switch is hidden and chats are chat only."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFilesViewEnabledCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding FilesViewEnabled}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Folder tree on the right" Classes="rowlabel" />
                   <TextBlock Text="In a chat's Files view, the folder tree is on the right and the open file on the left. Off: the other way round."
                              Classes="rowhint" />

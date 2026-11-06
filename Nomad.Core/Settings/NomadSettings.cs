@@ -213,6 +213,9 @@ public sealed class NomadSettings
     /// <summary>The side panel's width, dragged at its left edge (240–560).</summary>
     public double SidePanelWidth { get; set; } = 296;
 
+    /// <summary>Chats have a Files view (the folder tree and code editor); off, the Chat / Files switch is gone and chats are chat only.</summary>
+    public bool FilesViewEnabled { get; set; } = true;
+
     /// <summary>In a chat's Files view, the folder tree is on the right and the open file on the left; off, swapped.</summary>
     public bool FileTreeOnRight { get; set; } = true;
 

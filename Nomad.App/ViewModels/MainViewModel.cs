@@ -722,6 +722,25 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew && !Current.IsFilesView;
 
+    /// <summary>Chats have a Files view (tree and code editor); off, only the chat.</summary>
+    public bool FilesViewEnabled
+    {
+        get => Settings.FilesViewEnabled;
+        set
+        {
+            if (Settings.FilesViewEnabled != value)
+            {
+                Settings.FilesViewEnabled = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnFilesViewEnabledChanged();
+                }
+            }
+        }
+    }
+
     /// <summary>In the Files view, the tree is on the right and the file on the left; off, the other way round.</summary>
     public bool FileTreeOnRight
     {

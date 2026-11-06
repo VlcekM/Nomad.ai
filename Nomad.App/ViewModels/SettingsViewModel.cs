@@ -65,6 +65,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         FlashTaskbar = s.FlashTaskbar;
         ShowUsageRing = s.ShowUsageRing;
         ShowNewSessionUsage = s.ShowNewSessionUsage;
+        FilesViewEnabled = s.FilesViewEnabled;
         FileTreeOnRight = s.FileTreeOnRight;
         FilesViewKey = s.FilesViewKey;
         CompactModelPicker = s.CompactModelPicker;
@@ -438,6 +439,21 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool FileTreeOnRight { get; set; }
+
+    /// <summary>Chats have a Files view (folder tree and code editor).</summary>
+    [ObservableProperty]
+    public partial bool FilesViewEnabled { get; set; } = true;
+
+    [RelayCommand]
+    private void ToggleFilesViewEnabled() => FilesViewEnabled = !FilesViewEnabled;
+
+    partial void OnFilesViewEnabledChanged(bool value)
+    {
+        if (_loaded)
+        {
+            _main.FilesViewEnabled = value;
+        }
+    }
 
     [RelayCommand]
     private void ToggleFileTreeOnRight() => FileTreeOnRight = !FileTreeOnRight;

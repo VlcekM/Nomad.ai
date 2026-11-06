@@ -1687,8 +1687,17 @@ public sealed partial class SessionViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsFilesView { get; set; }
 
-    /// <summary>The Chat / Files switch shows for a started session with a folder (not on the new-session screen).</summary>
-    public bool CanShowFiles => !IsNew && HasFolder;
+    /// <summary>The Chat / Files switch shows for a started session with a folder (not on the new-session screen), unless turned off.</summary>
+    public bool CanShowFiles => _main.FilesViewEnabled && !IsNew && HasFolder;
+
+    public void OnFilesViewEnabledChanged()
+    {
+        OnPropertyChanged(nameof(CanShowFiles));
+        if (!CanShowFiles)
+        {
+            IsFilesView = false;
+        }
+    }
 
     [RelayCommand]
     private void ShowChat() => IsFilesView = false;
