@@ -15,6 +15,7 @@ public sealed class RelayCodecTests
         new SessionStartedEvent("s1", "opus", @"C:\x", "default", ["Bash", "Read"], "2.1", [new McpServerInfo("docs", "connected")]),
         new TurnStartedEvent("hi"),
         new RemotePromptEvent("from B", "u1"),
+        new TaskStartedEvent("t", "tu"),
         new TaskNotificationEvent("t", null, "completed", "done"),
         new WorkflowStartedEvent("t", "tu", "review", null, "export const meta = {}"),
         new WorkflowProgressEvent("t", null, null, 1200, 3, 5000),

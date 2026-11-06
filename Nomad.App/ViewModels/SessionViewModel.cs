@@ -1470,15 +1470,75 @@ public sealed partial class SessionViewModel : ObservableObject
             Items.Add(new NoticeItem(summary));
         }
 
+        var stopped = status is "killed" or "stopped";
         if (toolUseId is not null && _subagentById.TryGetValue(toolUseId, out var agent))
         {
-            agent.Finish(failed: status == "failed", result: report);
+            agent.Finish(failed: status == "failed", result: report, stopped);
             return;
         }
 
-        var task = toolUseId is not null && _backgroundTaskById.TryGetValue(toolUseId, out var byCall) ? byCall
+        BackgroundTaskOf(toolUseId, taskId)?.Finish(failed: status == "failed", summary, stopped);
+    }
+
+    /// <summary>A background command, by its call's id or the task id its call returned.</summary>
+    private BackgroundTaskViewModel? BackgroundTaskOf(string? toolUseId, string? taskId) =>
+        toolUseId is not null && _backgroundTaskById.TryGetValue(toolUseId, out var byCall) ? byCall
             : taskId is not null ? BackgroundTasks.FirstOrDefault(t => t.TaskId == taskId) : null;
-        task?.Finish(failed: status is "failed" or "killed", summary);
+
+    /// <summary>A task started for a subagent's or a background command's call: its id is what Stop takes.</summary>
+    private void NoteTaskStarted(TaskStartedEvent started)
+    {
+        if (started.ToolUseId is not { } call)
+        {
+            return;
+        }
+
+        if (_subagentById.TryGetValue(call, out var agent))
+        {
+            agent.TaskId = started.TaskId;
+        }
+        else if (_backgroundTaskById.TryGetValue(call, out var task))
+        {
+            task.TaskId = started.TaskId;
+        }
+    }
+
+    /// <summary>Stops a running subagent; its row shows it stopped once the CLI says it ended.</summary>
+    [RelayCommand]
+    private async Task StopSubagentAsync(SubagentViewModel agent)
+    {
+        if (!agent.CanStop)
+        {
+            return;
+        }
+
+        agent.StopRequested = true;
+        await StopTaskOrSayAsync(agent.TaskId!, $"Couldn't stop the agent \"{agent.Description}\".", () => agent.StopRequested = false);
+    }
+
+    /// <summary>Stops a running background command; its row shows it stopped once the CLI says it ended.</summary>
+    [RelayCommand]
+    private async Task StopBackgroundTaskAsync(BackgroundTaskViewModel task)
+    {
+        if (!task.CanStop)
+        {
+            return;
+        }
+
+        task.StopRequested = true;
+        await StopTaskOrSayAsync(task.TaskId!, $"Couldn't stop \"{task.Description}\".", () => task.StopRequested = false);
+    }
+
+    private async Task StopTaskOrSayAsync(string taskId, string failure, Action undo)
+    {
+        if (_backend is { IsProcessRunning: true } backend && await backend.StopTaskAsync(taskId))
+        {
+            return;
+        }
+
+        undo();
+        Items.Add(new ErrorItem(failure));
+        ContentChanged?.Invoke();
     }
 
     /// <summary>
@@ -1500,7 +1560,11 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
-        FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, ended.Summary ?? "Background task finished");
+        // A killed command's summary is only its description.
+        var summary = ended.Status is "killed" or "stopped" && BackgroundTaskOf(ended.ToolUseId, ended.TaskId) is { } command
+            ? $"Background command \"{command.Description}\" was stopped"
+            : ended.Summary ?? "Background task finished";
+        FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, summary);
     }
 
     /// <summary>The process went, and its background commands with it.</summary>
@@ -3294,6 +3358,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 RemoteControlState = bridge.State;
                 break;
 
+            case TaskStartedEvent taskStarted:
+                NoteTaskStarted(taskStarted);
+                break;
+
             case WorkflowStartedEvent started:
                 var startedRun = started.ToolUseId is { } startedCall ? WorkflowFor(startedCall) : null;
                 if (startedRun is not null)
@@ -3393,7 +3461,7 @@ public sealed partial class SessionViewModel : ObservableObject
                     }
                     else
                     {
-                        task.TaskId = TaskNotification.LaunchedTaskId(r.Text);
+                        task.TaskId = TaskNotification.LaunchedTaskId(r.Text) ?? task.TaskId;
                     }
                 }
 

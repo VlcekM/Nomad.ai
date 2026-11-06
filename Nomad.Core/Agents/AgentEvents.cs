@@ -38,6 +38,9 @@ public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 /// <summary>A background task (a subagent, a background command) ended: completed | failed | killed.</summary>
 public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, string? Status, string? Summary) : AgentEvent;
 
+/// <summary>A task (a subagent, a command) started for a tool call: its id is what <c>stop_task</c> takes.</summary>
+public sealed record TaskStartedEvent(string TaskId, string? ToolUseId) : AgentEvent;
+
 /// <summary>A Workflow call's run started in the background: its task, its call, its name and script.</summary>
 public sealed record WorkflowStartedEvent(string TaskId, string? ToolUseId, string? Name, string? Description, string? Script) : AgentEvent;
 

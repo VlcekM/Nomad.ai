@@ -54,7 +54,7 @@ public static class RelayCodec
         var c = RelayJson.Default;
         foreach (var info in new JsonTypeInfo[]
                  {
-                     c.SessionStartedEvent, c.TurnStartedEvent, c.RemotePromptEvent, c.TaskNotificationEvent, c.WorkflowStartedEvent,
+                     c.SessionStartedEvent, c.TurnStartedEvent, c.RemotePromptEvent, c.TaskStartedEvent, c.TaskNotificationEvent, c.WorkflowStartedEvent,
                      c.WorkflowProgressEvent, c.TaskUpdatedEvent, c.CommandOutputEvent, c.PromptSuggestionEvent,
                      c.AssistantMessageStartedEvent, c.BlockStartedEvent, c.TextDeltaEvent, c.ThinkingDeltaEvent, c.BlockCompletedEvent,
                      c.ToolCallEvent, c.ToolResultEvent, c.PermissionRequestedEvent, c.PermissionCancelledEvent, c.FolderMoveApprovedEvent,
@@ -582,6 +582,7 @@ internal sealed class OptionalJsonElementConverter : JsonConverter<JsonElement>
 [JsonSerializable(typeof(SessionStartedEvent))]
 [JsonSerializable(typeof(TurnStartedEvent))]
 [JsonSerializable(typeof(RemotePromptEvent))]
+[JsonSerializable(typeof(TaskStartedEvent))]
 [JsonSerializable(typeof(TaskNotificationEvent))]
 [JsonSerializable(typeof(WorkflowStartedEvent))]
 [JsonSerializable(typeof(WorkflowProgressEvent))]

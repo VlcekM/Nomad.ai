@@ -24,8 +24,10 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     /// <summary>"Bash", "PowerShell": the row's chip.</summary>
     public string ToolName { get; }
 
-    /// <summary>The id the CLI gave it ("Command running in background with ID: …"), which its notification names.</summary>
-    public string? TaskId { get; set; }
+    /// <summary>The id the CLI gave it ("Command running in background with ID: …"), which its notification names and Stop takes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStop))]
+    public partial string? TaskId { get; set; }
 
     public DateTime StartedUtc { get; }
 
@@ -36,14 +38,25 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     public string Command { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDone))]
+    [NotifyPropertyChangedFor(nameof(IsDone), nameof(CanStop))]
     public partial bool IsRunning { get; set; } = true;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDone))]
     public partial bool IsFailed { get; set; }
 
-    public bool IsDone => !IsRunning && !IsFailed;
+    /// <summary>Killed, by the user's Stop or otherwise: a muted mark, not a failure.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDone))]
+    public partial bool IsStopped { get; set; }
+
+    public bool IsDone => !IsRunning && !IsFailed && !IsStopped;
+
+    /// <summary>The row's Stop: it runs, and the CLI said which task it is.</summary>
+    public bool CanStop => IsRunning && TaskId is not null;
+
+    /// <summary>The user pressed Stop: however its end is reported, it was stopped.</summary>
+    public bool StopRequested { get; set; }
 
     /// <summary>"Running", then the notification's summary ("… completed (exit code 0)").</summary>
     [ObservableProperty]
@@ -52,16 +65,25 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     [ObservableProperty]
     public partial string DurationText { get; set; } = "0s";
 
-    public void Finish(bool failed, string? summary)
+    public void Finish(bool failed, string? summary, bool stopped = false)
     {
         if (!IsRunning)
         {
             return;
         }
 
+        stopped |= StopRequested;
         EndedUtc = DateTime.UtcNow;
-        IsFailed = failed;
+        IsFailed = failed && !stopped;
+        IsStopped = stopped;
         IsRunning = false;
+        if (stopped)
+        {
+            LastStatus = "Stopped";
+            Tick();
+            return;
+        }
+
         // "Background command "Build" completed (exit code 0)": the row already names it.
         var said = summary?.Trim() ?? "";
         var prefix = $"Background command \"{Description}\" ";

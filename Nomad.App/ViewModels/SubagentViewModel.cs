@@ -86,13 +86,29 @@ public sealed partial class SubagentViewModel : ObservableObject
     public bool IsBackground { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDone))]
+    [NotifyPropertyChangedFor(nameof(IsDone), nameof(CanStop))]
     public partial bool IsRunning { get; set; } = true;
 
     [ObservableProperty]
     public partial bool IsFailed { get; set; }
 
-    public bool IsDone => !IsRunning && !IsFailed;
+    /// <summary>Killed, by the user's Stop or otherwise: a muted mark, not a failure.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsDone))]
+    public partial bool IsStopped { get; set; }
+
+    public bool IsDone => !IsRunning && !IsFailed && !IsStopped;
+
+    /// <summary>The CLI's task for it (from its <c>task_started</c>), which Stop takes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStop))]
+    public partial string? TaskId { get; set; }
+
+    /// <summary>The row's Stop: it runs, and the CLI said which task it is.</summary>
+    public bool CanStop => IsRunning && TaskId is not null;
+
+    /// <summary>The user pressed Stop: however its end is reported (its call's error, a notification), it was stopped.</summary>
+    public bool StopRequested { get; set; }
 
     /// <summary>What it is doing or did last: "Reading MainViewModel.cs", its latest words, "Done".</summary>
     [ObservableProperty]
@@ -222,20 +238,22 @@ public sealed partial class SubagentViewModel : ObservableObject
     }
 
     /// <summary>Its Agent call returned, its task notification came, or the turn or process ended without either.</summary>
-    public void Finish(bool failed, string? result)
+    public void Finish(bool failed, string? result, bool stopped = false)
     {
         if (!IsRunning)
         {
             return;
         }
 
+        stopped |= StopRequested;
         EndedUtc = DateTime.UtcNow;
-        IsFailed = failed;
+        IsFailed = failed && !stopped;
+        IsStopped = stopped;
         IsRunning = false;
 
         // Without a result of its own (a background one): its last words.
         ResultText = result?.Trim() is { Length: > 0 } given ? given : Entries.OfType<AssistantTextItem>().LastOrDefault()?.Text.Trim() ?? "";
-        LastStatus = failed ? "Failed" : "Done";
+        LastStatus = stopped ? "Stopped" : IsFailed ? "Failed" : "Done";
         foreach (var call in _calls.Values.Where(c => c.IsRunning))
         {
             call.Status = ToolStatus.Done;

@@ -203,36 +203,45 @@
             <ItemsControl ItemsSource="{Binding Subagents}" Margin="-6,2,-6,0">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:SubagentViewModel">
-                  <!-- A click opens its conversation over the transcript. -->
-                  <Button Theme="{StaticResource FlatButton}"
-                          HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Stretch"
-                          Padding="6,5"
-                          Click="OnSubagentClick"
-                          ToolTip.Tip="Open its conversation">
-                    <!-- Its task; then the model it runs on, opposite how long it has run; then what it is doing. -->
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
-                      <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
-                        <c:Ring Width="12" Height="12" StrokeWidth="1.5"
-                                IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
-                                TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
-                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
-                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
-                      </Panel>
-                      <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextPrimaryBrush}" />
-                      </c:EdgeFade>
-                      <Border Grid.Row="1" Grid.Column="1" IsVisible="{Binding HasChip}" HorizontalAlignment="Left"
-                              Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center"
-                              ToolTip.Tip="{Binding AgentType}">
-                        <TextBlock Text="{Binding ChipText}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
-                      </Border>
-                      <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                                 VerticalAlignment="Center" Margin="8,3,0,0" />
-                      <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                                 TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
-                    </Grid>
-                  </Button>
+                  <!-- A click opens its conversation over the transcript; a running one has Stop. -->
+                  <Grid ColumnDefinitions="*,Auto">
+                    <Button Theme="{StaticResource FlatButton}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            Padding="6,5"
+                            Click="OnSubagentClick"
+                            ToolTip.Tip="Open its conversation">
+                      <!-- Its task; then the model it runs on, opposite how long it has run; then what it is doing. -->
+                      <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                        <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                          <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                                  IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                  TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                          <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                          <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                          <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsStopped}" />
+                        </Panel>
+                        <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Description}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </c:EdgeFade>
+                        <Border Grid.Row="1" Grid.Column="1" IsVisible="{Binding HasChip}" HorizontalAlignment="Left"
+                                Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center"
+                                ToolTip.Tip="{Binding AgentType}">
+                          <TextBlock Text="{Binding ChipText}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
+                        </Border>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                   VerticalAlignment="Center" Margin="8,3,0,0" />
+                        <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                   TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                      </Grid>
+                    </Button>
+                    <Button Grid.Column="1" Theme="{StaticResource IconButton}" Width="24" Height="24" VerticalAlignment="Top" Margin="2,4,0,0"
+                            IsVisible="{Binding CanStop}"
+                            Command="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).StopSubagentCommand}" CommandParameter="{Binding}"
+                            ToolTip.Tip="Stop">
+                      <c:Icon Size="11" Data="{StaticResource IconStopFilled}" />
+                    </Button>
+                  </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -272,11 +281,11 @@
                           <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsStopped}" />
                         </Panel>
                         <c:EdgeFade Grid.Column="1" VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                          <TextBlock Text="{Binding Name}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
                         </c:EdgeFade>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProgressText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProgressText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
                                    TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TotalsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding TotalsText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
                                    TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
                       </Grid>
                     </Button>
@@ -307,26 +316,35 @@
             <ItemsControl ItemsSource="{Binding BackgroundTasks}" Margin="0,2,0,0">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:BackgroundTaskViewModel">
-                  <!-- What it runs; then its tool, opposite how long it has run; then how it ended. -->
-                  <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" Margin="0,5" Background="Transparent" ToolTip.Tip="{Binding Command}">
-                    <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
-                      <c:Ring Width="12" Height="12" StrokeWidth="1.5"
-                              IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
-                              TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
-                      <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
-                      <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
-                    </Panel>
-                    <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding Description}" Foreground="{DynamicResource TextPrimaryBrush}" />
-                    </c:EdgeFade>
-                    <Border Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left"
-                            Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding ToolName}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
-                    </Border>
-                    <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                               VerticalAlignment="Center" Margin="8,3,0,0" />
-                    <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
-                               TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                  <!-- What it runs; then its tool, opposite how long it has run; then how it ended. A running one has Stop. -->
+                  <Grid ColumnDefinitions="*,Auto">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" Margin="0,5" Background="Transparent" ToolTip.Tip="{Binding Command}">
+                      <Panel Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                                IsSpinning="{Binding IsRunning}" IsVisible="{Binding IsRunning}"
+                                TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" />
+                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}" />
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding IsFailed}" />
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" Stroke="{DynamicResource TextMutedBrush}" IsVisible="{Binding IsStopped}" />
+                      </Panel>
+                      <c:EdgeFade Grid.Column="1" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Description}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                      </c:EdgeFade>
+                      <Border Grid.Row="1" Grid.Column="1" HorizontalAlignment="Left"
+                              Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0" Margin="0,3,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ToolName}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
+                      </Border>
+                      <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding DurationText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                 VerticalAlignment="Center" Margin="8,3,0,0" />
+                      <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding LastStatus}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                 TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+                    </Grid>
+                    <Button Grid.Column="1" Theme="{StaticResource IconButton}" Width="24" Height="24" VerticalAlignment="Top" Margin="2,-1,-6,0"
+                            IsVisible="{Binding CanStop}"
+                            Command="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).StopBackgroundTaskCommand}" CommandParameter="{Binding}"
+                            ToolTip.Tip="Stop">
+                      <c:Icon Size="11" Data="{StaticResource IconStopFilled}" />
+                    </Button>
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

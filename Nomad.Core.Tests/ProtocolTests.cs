@@ -90,6 +90,18 @@ public class ProtocolTests
     }
 
     [Fact]
+    public void ATasksStartNamesItsCall()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        backend.HandleLine("""{"type":"system","subtype":"task_started","task_id":"ab639624d2912cf12","tool_use_id":"toolu_01Pr","description":"Count","is_backgrounded":true,"task_type":"local_agent","session_id":"s"}""");
+
+        Assert.Equal(new TaskStartedEvent("ab639624d2912cf12", "toolu_01Pr"), Assert.Single(events.OfType<TaskStartedEvent>()));
+    }
+
+    [Fact]
     public void InterruptedTurnIsNotAnError()
     {
         var backend = new ClaudeCodeBackend();
