@@ -321,9 +321,10 @@ public sealed partial class HubViewModel : ObservableObject
     /// <summary>
     /// Before this PC runs a session: takes its lease. When another PC runs it, returns that PC's stream to watch, or
     /// throws (shown in the transcript) after asking that PC to hand it over; then fetches the newest version so the CLI
-    /// resumes from it.
+    /// resumes from it. <paramref name="lastRanElsewhere"/> gets a notice when that version came from another PC, as the
+    /// session then runs here, in this PC's folder, rather than going back to it.
     /// </summary>
-    public async Task<RelayBackend?> EnsureHostAsync(string backend, string sessionId)
+    public async Task<RelayBackend?> EnsureHostAsync(string backend, string sessionId, Action<string>? lastRanElsewhere = null)
     {
         if (_sync is not { } sync || sync.Holds(backend, sessionId))
         {
@@ -358,7 +359,12 @@ public sealed partial class HubViewModel : ObservableObject
             try
             {
                 using var fetch = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-                await sync.PullOneAsync(backend, sessionId, fetch.Token);
+                var remote = await sync.PullOneAsync(backend, sessionId, fetch.Token);
+                if (lastRanElsewhere is not null && remote is not null && LastRanElsewhere(sync, remote))
+                {
+                    var name = await DeviceNameAsync(sync, remote.UpdatedBy, fetch.Token);
+                    lastRanElsewhere($"Continued on this PC. It last ran on {name}, so anything left uncommitted there isn't in this folder.");
+                }
             }
             catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
             {
@@ -366,6 +372,29 @@ public sealed partial class HubViewModel : ObservableObject
         }
 
         return null;
+    }
+
+    // The hub's newest version was written by another enrolled PC (not this one, and not before devices were known).
+    private static bool LastRanElsewhere(HubSync sync, SessionDto remote) =>
+        sync.DeviceId != Guid.Empty && remote.UpdatedBy != Guid.Empty && remote.UpdatedBy != sync.DeviceId;
+
+    // A PC's name: from the settings' device list when loaded, else from the hub; "another PC" when neither knows it.
+    private async Task<string> DeviceNameAsync(HubSync sync, Guid id, CancellationToken ct)
+    {
+        if (Devices.FirstOrDefault(d => d.Device.Id == id) is { } known)
+        {
+            return known.Device.Name;
+        }
+
+        try
+        {
+            var devices = await sync.Client.DevicesAsync(ct);
+            return devices.FirstOrDefault(d => d.Id == id)?.Name ?? "another PC";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or OperationCanceledException)
+        {
+            return "another PC";
+        }
     }
 
     /// <summary>A session's process started or ended here: holds its lease while it runs, hands it back after.</summary>

@@ -23,7 +23,7 @@ public sealed partial class SessionViewModel
     /// and streams it; throws (shown in the transcript) when it runs it without.
     /// </summary>
     private Task<RelayBackend?> EnsureHubHostAsync() =>
-        SessionId is { } id ? _main.Hub.EnsureHostAsync(Backend, id) : Task.FromResult<RelayBackend?>(null);
+        SessionId is { } id ? _main.Hub.EnsureHostAsync(Backend, id, ShowHubNotice) : Task.FromResult<RelayBackend?>(null);
 
     /// <summary>Starts streaming a process this PC just started.</summary>
     private void AttachRelay(IAgentBackend backend)

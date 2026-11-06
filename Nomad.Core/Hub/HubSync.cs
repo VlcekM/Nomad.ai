@@ -272,13 +272,14 @@ public sealed class HubSync : IAsyncDisposable
 
     /// <summary>
     /// Brings one session up to the hub's version: before this PC runs it (<paramref name="held"/>: the lease is already
-    /// this PC's, so nobody else writes it meanwhile), or before it watches another PC run it.
+    /// this PC's, so nobody else writes it meanwhile), or before it watches another PC run it. Returns the hub's version
+    /// (null when the hub doesn't have the session).
     /// </summary>
-    public async Task PullOneAsync(string backend, string sessionId, CancellationToken ct = default, bool held = true)
+    public async Task<SessionDto?> PullOneAsync(string backend, string sessionId, CancellationToken ct = default, bool held = true)
     {
         if (await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) is not { } remote)
         {
-            return;
+            return null;
         }
 
         await _work.WaitAsync(ct).ConfigureAwait(false);
@@ -307,6 +308,8 @@ public sealed class HubSync : IAsyncDisposable
 
             _work.Release();
         }
+
+        return remote;
     }
 
     /// <summary>Fetches and uploads now (and once more if that turned up more to do), without waiting for the loop.</summary>
