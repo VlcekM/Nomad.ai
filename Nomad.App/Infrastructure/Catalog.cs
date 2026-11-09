@@ -18,6 +18,41 @@ public static class Catalog
         new("claude-haiku-5-5", "Haiku 5.5", 4),
     ];
 
+    /// <summary>
+    /// The CLI's models besides <see cref="Models"/>: its full ids only, since its aliases ("default", "opus", "fable"…)
+    /// name models the four already are. By family as the four are ordered, the newest of each first.
+    /// </summary>
+    public static List<Nomad.Core.Settings.KnownModel> OtherModels(IEnumerable<Nomad.Core.Protocol.ModelInfo> models) =>
+    [
+        .. models
+            .Where(m => m.Value is { } id && id.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
+            .Where(m => !Models.Any(c => string.Equals(c.Id, m.Value, StringComparison.OrdinalIgnoreCase)))
+            .Select(m => new Nomad.Core.Settings.KnownModel { Id = m.Value!, Name = m.DisplayName ?? ModelName(m.Value) })
+            .OrderBy(FamilyRank)
+            .ThenByDescending(m => Version.TryParse(VersionPart(m.Name), out var v) ? v : new Version()),
+    ];
+
+    /// <summary>
+    /// Where a model's family ("Opus" of "Opus 4.8") sits among the four, or after them all.
+    /// </summary>
+    private static int FamilyRank(Nomad.Core.Settings.KnownModel model)
+    {
+        var family = model.Name.Split(' ')[0];
+        var index = Models.ToList().FindIndex(m => m.DisplayName.StartsWith(family + " ", StringComparison.OrdinalIgnoreCase));
+        return index >= 0 ? index : Models.Count;
+    }
+
+    /// <summary>
+    /// "4.8" of "Opus 4.8", "5.0" of "Fable 5" (Version needs a minor).
+    /// </summary>
+    private static string VersionPart(string name)
+    {
+        var parts = name.Split(' ');
+        if (parts.Length < 2) return "";
+
+        return parts[1].Contains('.') ? parts[1] : parts[1] + ".0";
+    }
+
     public static readonly IReadOnlyList<ModeOption> Modes =
     [
         new("auto", "Auto", "Claude handles permission decisions", 1),
@@ -78,12 +113,14 @@ public static class Catalog
             }
         }
 
-        // Other ids ("claude-haiku-4-5-20251001") and the aliases an Agent call names ("sonnet"): "Haiku 4.5", "Sonnet".
-        var named = System.Text.RegularExpressions.Regex.Match(id, @"^(?:claude-)?([a-z]+)(?:-(\d+)-(\d+))?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        // Other ids ("claude-haiku-4-5-20251001", "claude-fable-5") and the aliases an Agent call names ("sonnet"):
+        // "Haiku 4.5", "Fable 5", "Sonnet". A minor version has one or two digits; more are a date.
+        var named = System.Text.RegularExpressions.Regex.Match(id, @"^(?:claude-)?([a-z]+)(?:-(\d+)(?:-(\d{1,2})(?!\d))?)?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
         if (named.Success)
         {
             var family = Format.Capitalize(named.Groups[1].Value.ToLowerInvariant());
-            return named.Groups[2].Success ? $"{family} {named.Groups[2].Value}.{named.Groups[3].Value}" : family;
+            var version = named.Groups[3].Success ? $"{named.Groups[2].Value}.{named.Groups[3].Value}" : named.Groups[2].Value;
+            return version.Length > 0 ? $"{family} {version}" : family;
         }
 
         return id;

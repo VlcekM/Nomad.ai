@@ -149,6 +149,12 @@ public sealed class NomadSettings
     public string? DisplayName { get; set; }
     public string? LastPlan { get; set; }
 
+    /// <summary>
+    /// The Claude models the CLI offers besides the menu's four (newer and older versions), as its initialize answer
+    /// listed them last, so the model menu has them before a session's process runs.
+    /// </summary>
+    public List<KnownModel> ClaudeModels { get; set; } = [];
+
     // Sidebar session list (its sliders menu)
     /// <summary>Date | Recent (last 2 / 8 / 24 hours, then each day) | Folder | None: how the Idle list is grouped.</summary>
     public string SessionGrouping { get; set; } = "Date";
@@ -312,6 +318,22 @@ public static class SettingsStore
         File.WriteAllText(temp, JsonSerializer.Serialize(settings, SettingsJsonContext.Default.NomadSettings));
         File.Move(temp, path, overwrite: true);
     }
+}
+
+/// <summary>
+/// A model by its id and display name ("claude-fable-5-2", "Fable 5.2").
+/// </summary>
+public sealed class KnownModel
+{
+    /// <summary>
+    /// The id passed to <c>--model</c>.
+    /// </summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>
+    /// The name the CLI gives it.
+    /// </summary>
+    public string Name { get; set; } = "";
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

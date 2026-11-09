@@ -2780,6 +2780,28 @@ public sealed partial class MainViewModel : ObservableObject
             Settings.LastPlan = plan;
             SaveSettings();
         }
+
+        RememberClaudeModels(Catalog.OtherModels(info.Models));
+    }
+
+    /// <summary>
+    /// The CLI listed its models: the ones besides the four are kept for the next start, and every open session's model
+    /// menu follows when they changed.
+    /// </summary>
+    private void RememberClaudeModels(List<KnownModel> models)
+    {
+        if (models.Count == 0) return;
+
+        var known = Settings.ClaudeModels;
+        var same = models.Select(m => (m.Id, m.Name)).SequenceEqual(known.Select(m => (m.Id, m.Name)));
+        if (same) return;
+
+        Settings.ClaudeModels = models;
+        SaveSettings();
+        foreach (var session in _open.Values.Append(Current).Append(_draft).OfType<SessionViewModel>().Distinct())
+        {
+            session.RebuildOptions();
+        }
     }
 
     /// <summary>Raised when any session finished a turn (dev screenshot hook).</summary>

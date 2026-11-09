@@ -126,6 +126,7 @@ public sealed partial class SessionViewModel : ObservableObject
             }
         }
 
+        FillOtherModels();
         ModeOptions.Clear();
         foreach (var m in Catalog.Modes)
         {
@@ -145,11 +146,29 @@ public sealed partial class SessionViewModel : ObservableObject
             }
         }
 
-        FillChips();
         SyncOptions();
+        FillChips();
         RefreshEffortStops();
         OnPropertyChanged(nameof(HasNoModels));
         OnPropertyChanged(nameof(NoModelsText));
+    }
+
+    /// <summary>
+    /// The model menu's second list: the Claude models the CLI offers besides the four (as it last listed them), none
+    /// for the other agents.
+    /// </summary>
+    private void FillOtherModels()
+    {
+        OtherModelOptions.Clear();
+        if (IsClaudeCode)
+        {
+            foreach (var m in _main.Settings.ClaudeModels)
+            {
+                OtherModelOptions.Add(new MenuOption(m.Id, m.Name));
+            }
+        }
+
+        OnPropertyChanged(nameof(HasOtherModels));
     }
 
     /// <summary>
@@ -160,12 +179,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         if (IsClaudeCode)
         {
-            ChipModelOptions.Clear();
-            foreach (var o in ModelOptions)
-            {
-                ChipModelOptions.Add(o);
-            }
-
+            FillClaudeChips();
             return;
         }
 
@@ -193,6 +207,22 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 IsSelected = string.Equals(ids[i], Model, StringComparison.OrdinalIgnoreCase),
             });
+        }
+    }
+
+    /// <summary>
+    /// Claude's chips: the menu's four (the same options, so a switch among them only moves the selection), and the
+    /// current model after them when it is one of the others.
+    /// </summary>
+    private void FillClaudeChips()
+    {
+        var chips = ModelOptions.Concat(OtherModelOptions.Where(o => o.IsSelected)).ToList();
+        if (chips.SequenceEqual(ChipModelOptions)) return;
+
+        ChipModelOptions.Clear();
+        foreach (var o in chips)
+        {
+            ChipModelOptions.Add(o);
         }
     }
 
@@ -862,6 +892,16 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public ObservableCollection<MenuOption> ModelOptions { get; } = [];
 
+    /// <summary>
+    /// The model menu's "Other models": Claude's newer and older versions besides the four (<see cref="FillOtherModels"/>).
+    /// </summary>
+    public ObservableCollection<MenuOption> OtherModelOptions { get; } = [];
+
+    /// <summary>
+    /// The model menu shows its "Other models" list.
+    /// </summary>
+    public bool HasOtherModels => OtherModelOptions.Count > 0;
+
     public ObservableCollection<MenuOption> ModeOptions { get; } = [];
 
     /// <summary>
@@ -959,12 +999,8 @@ public sealed partial class SessionViewModel : ObservableObject
 
     partial void OnModelChanged(string value)
     {
-        if (!IsClaudeCode)
-        {
-            FillChips();
-        }
-
         SyncOptions();
+        FillChips();
         RefreshEffortStops();
         RefreshContextWindow();
     }
@@ -1017,6 +1053,13 @@ public sealed partial class SessionViewModel : ObservableObject
             // Claude's ids may carry a suffix ("[1m]", a date); OpenCode's must match whole ("opus-5" is not "opus-5-5").
             o.IsSelected = string.Equals(o.Id, Model, StringComparison.OrdinalIgnoreCase)
                 || (IsClaudeCode && (Model?.StartsWith(o.Id, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        // Whole ids, or with "[1m]": "claude-opus-5" must not light up for "claude-opus-5-5".
+        foreach (var o in OtherModelOptions)
+        {
+            o.IsSelected = string.Equals(o.Id, Model, StringComparison.OrdinalIgnoreCase)
+                || (Model?.StartsWith(o.Id + "[", StringComparison.OrdinalIgnoreCase) ?? false);
         }
 
         foreach (var o in ModeOptions)
@@ -2581,18 +2624,23 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CancelModelSwitch() => PendingModel = null;
 
     /// <summary>The model "/model &lt;id or name&gt;" names ("sonnet", "Opus 5.5", "claude-haiku-5-5"), or null.</summary>
-    private static string? ModelFromCommand(string text)
+    private string? ModelFromCommand(string text)
     {
         if (!text.StartsWith("/model ", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
 
+        // The four first, so a family name ("fable") is the menu's own model of it; then the CLI's others by id or name.
         var arg = text[7..].Trim();
-        return Catalog.Models.FirstOrDefault(m =>
+        var model = Catalog.Models.FirstOrDefault(m =>
             string.Equals(m.Id, arg, StringComparison.OrdinalIgnoreCase)
             || string.Equals(m.DisplayName, arg, StringComparison.OrdinalIgnoreCase)
             || string.Equals(m.DisplayName.Split(' ')[0], arg, StringComparison.OrdinalIgnoreCase))?.Id;
+
+        return model ?? _main.Settings.ClaudeModels.FirstOrDefault(m =>
+            string.Equals(m.Id, arg, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(m.Name, arg, StringComparison.OrdinalIgnoreCase))?.Id;
     }
 
     private async Task SwitchModelAsync(string id)
