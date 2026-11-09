@@ -12,25 +12,46 @@ public static class Catalog
     /// <summary>The latest model of each family, most capable first (the status-row chips and Ctrl+Shift+1…4).</summary>
     public static readonly IReadOnlyList<ModelOption> Models =
     [
-        new("claude-fable-5-1", "Fable 5.1", 1),
+        new("claude-fable-5-2", "Fable 5.2", 1),
         new("claude-opus-5-5", "Opus 5.5", 2),
         new("claude-sonnet-5-5", "Sonnet 5.5", 3),
         new("claude-haiku-5-5", "Haiku 5.5", 4),
     ];
 
     /// <summary>
-    /// The CLI's models besides <see cref="Models"/>: its full ids only, since its aliases ("default", "opus", "fable"…)
-    /// name models the four already are. By family as the four are ordered, the newest of each first.
+    /// The CLI's models besides <see cref="Models"/>, by family as the four are ordered, the newest of each first. Its
+    /// aliases ("opus", "fable"…) by the full id of the model they name, since some name one it lists no other way.
     /// </summary>
     public static List<Nomad.Core.Settings.KnownModel> OtherModels(IEnumerable<Nomad.Core.Protocol.ModelInfo> models) =>
     [
         .. models
-            .Where(m => m.Value is { } id && id.StartsWith("claude-", StringComparison.OrdinalIgnoreCase))
-            .Where(m => !Models.Any(c => string.Equals(c.Id, m.Value, StringComparison.OrdinalIgnoreCase)))
-            .Select(m => new Nomad.Core.Settings.KnownModel { Id = m.Value!, Name = m.DisplayName ?? ModelName(m.Value) })
+            .Select(Known)
+            .OfType<Nomad.Core.Settings.KnownModel>()
+            .Where(m => !Models.Any(c => string.Equals(c.Id, m.Id, StringComparison.OrdinalIgnoreCase)))
+            .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
             .OrderBy(FamilyRank)
             .ThenByDescending(m => Version.TryParse(VersionPart(m.Name), out var v) ? v : new Version()),
     ];
+
+    /// <summary>
+    /// A CLI model by its full id: "claude-opus-4-8" as it is, the alias "fable" named "Fable 5.1" as "claude-fable-5-1"
+    /// (the CLI's own naming); null for "default" and for an alias whose name has no version.
+    /// </summary>
+    private static Nomad.Core.Settings.KnownModel? Known(Nomad.Core.Protocol.ModelInfo model)
+    {
+        if (model.Value is not { } id) return null;
+
+        var name = model.DisplayName ?? ModelName(id);
+        if (id.StartsWith("claude-", StringComparison.OrdinalIgnoreCase)) return new() { Id = id, Name = name };
+
+        var parts = name.Split(' ');
+        var versioned = parts.Length == 2 && Models.Any(m => m.DisplayName.StartsWith(parts[0] + " ", StringComparison.OrdinalIgnoreCase))
+            && parts[1].Split('.').All(p => p.Length > 0 && p.All(char.IsDigit));
+        if (!versioned) return null;
+
+        var fullId = $"claude-{parts[0].ToLowerInvariant()}-{parts[1].Replace('.', '-')}";
+        return new() { Id = fullId, Name = name };
+    }
 
     /// <summary>
     /// Where a model's family ("Opus" of "Opus 4.8") sits among the four, or after them all.

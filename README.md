@@ -141,10 +141,11 @@ the previous tag.
   serve a folder, so a `claude remote-control` in a terminal there makes Nomad's retry until it ends.
 - **Status row.** Folder chip (recent folders, "Open folder…", or "No folder", which uses a fresh
   scratch folder), permission mode (Auto, Manual, Accept edits, Plan, Bypass permissions), a chip
-  per model (Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5), a filled effort slider (Low to Max), and
+  per model (Fable 5.2, Opus 5.5, Sonnet 5.5, Haiku 5.5), a filled effort slider (Low to Max), and
   a ring showing how much of the context window the session uses. Clicking the current model, or
-  the chevron, opens the full picker with fast mode. Clicking the ring shows the plan usage limits
-  (session, weekly, weekly per model, with reset times), refreshed after each turn. Weekly bars carry
+  the chevron, opens the full picker with the CLI's other models and fast mode. Clicking the ring
+  shows the plan usage limits (session, weekly, weekly per model, with reset times), refreshed after
+  each turn. Weekly bars carry
   the even pace behind them (where using the week up evenly, 24/7, would be by now) and a forecast:
   when the limit runs out at this week's rate, or how much is used by the reset. The last answer is
   shared between windows (`usage-cache.json`) and shown, marked stale, when the endpoint refuses.
