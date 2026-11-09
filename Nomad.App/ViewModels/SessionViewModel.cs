@@ -1154,8 +1154,6 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The session's subagents (Agent / Task calls), newest first: the side panel lists them.</summary>
     public ObservableCollection<SubagentViewModel> Subagents { get; } = [];
 
-    public bool HasSubagents => Subagents.Count > 0;
-
     private readonly Dictionary<string, SubagentViewModel> _subagentById = new(StringComparer.Ordinal);
     private DispatcherTimer? _subagentTimer;
 
@@ -1169,9 +1167,15 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>A subagent is at work (a background one maybe after the turn): the sidebar row's subagent mark.</summary>
     public bool HasRunningSubagents => Subagents.Any(a => a.IsRunning);
 
+    /// <summary>
+    /// A subagent has ended: the side panel's finished card shows.
+    /// </summary>
+    public bool HasFinishedSubagents => Subagents.Any(a => !a.IsRunning);
+
     private void OnSubagentsRunningChanged()
     {
         OnPropertyChanged(nameof(HasRunningSubagents));
+        OnPropertyChanged(nameof(HasFinishedSubagents));
         UpdateAwaiting();
     }
 
@@ -1182,7 +1186,6 @@ public sealed partial class SessionViewModel : ObservableObject
             agent = new SubagentViewModel(toolUseId, Folder);
             _subagentById[toolUseId] = agent;
             Subagents.Insert(0, agent);
-            OnPropertyChanged(nameof(HasSubagents));
             agent.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(SubagentViewModel.IsRunning))
@@ -1400,7 +1403,15 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Commands started with <c>run_in_background</c>, newest first: the side panel lists them.</summary>
     public ObservableCollection<BackgroundTaskViewModel> BackgroundTasks { get; } = [];
 
-    public bool HasBackgroundTasks => BackgroundTasks.Count > 0;
+    /// <summary>
+    /// A background command runs: the side panel's card of running ones shows.
+    /// </summary>
+    public bool HasRunningBackgroundTasks => BackgroundTasks.Any(t => t.IsRunning);
+
+    /// <summary>
+    /// A background command has ended: the side panel's finished card shows.
+    /// </summary>
+    public bool HasFinishedBackgroundTasks => BackgroundTasks.Any(t => !t.IsRunning);
 
     private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
     private DispatcherTimer? _backgroundTaskTimer;
@@ -1415,19 +1426,25 @@ public sealed partial class SessionViewModel : ObservableObject
         var task = new BackgroundTaskViewModel(toolUseId, toolName, input);
         _backgroundTaskById[toolUseId] = task;
         BackgroundTasks.Insert(0, task);
-        OnPropertyChanged(nameof(HasBackgroundTasks));
         task.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(BackgroundTaskViewModel.IsRunning))
             {
-                UpdateAwaiting();
+                OnBackgroundTasksRunningChanged();
             }
         };
-        UpdateAwaiting();
+        OnBackgroundTasksRunningChanged();
 
         // Durations tick once a second, only while one runs.
         _backgroundTaskTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickBackgroundTasks());
         _backgroundTaskTimer.Start();
+    }
+
+    private void OnBackgroundTasksRunningChanged()
+    {
+        OnPropertyChanged(nameof(HasRunningBackgroundTasks));
+        OnPropertyChanged(nameof(HasFinishedBackgroundTasks));
+        UpdateAwaiting();
     }
 
     private void TickBackgroundTasks()
