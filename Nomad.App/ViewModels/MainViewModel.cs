@@ -2457,6 +2457,7 @@ public sealed partial class MainViewModel : ObservableObject
             _all.Insert(0, vm);
         }
 
+        vm.Backend = session.Backend;
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
         vm.IsWaiting = session.PendingPermission is not null;

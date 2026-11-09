@@ -3166,32 +3166,13 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         Folder ??= _main.CreateScratchFolder();
-        var backend = AgentBackends.Create(Backend);
-        if (_main.Dev.LogPath is { } log && backend is ClaudeCodeBackend claude)
-        {
-            claude.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
-        }
-        backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
-        AttachRelay(backend);
-        await backend.StartAsync(new AgentStartOptions
-        {
-            WorkingDirectory = Folder,
-            AdditionalDirectories = AdditionalFolders.Select(f => f.Id).ToArray(),
-            Model = Model,
-            PermissionMode = PermissionMode,
-            Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
-            ThinkingDisplay = "summarized",
-            PromptSuggestions = _main.Settings.PromptSuggestions,
-            FastMode = FastMode,
-            Ultracode = Ultracode,
-            WorkflowSize = _main.Settings.WorkflowSize,
-            ResumeSessionId = SessionId ?? _forkFrom,
-            ResumeSessionAt = _resumeAt,
-            ForkSession = SessionId is null && _forkFrom is not null,
-            CliPath = _main.Settings.CliPath,
-            ExtraArguments = _main.Dev.ExtraCliArguments,
-        });
+        var backend = CreateBackend();
+
+        // StartAsync can announce the session before its await completes (Codex and OpenCode do).
+        // Apply accepts only this backend's events, so register it before it can send any.
         _backend = backend;
+        await StartBackendAsync(backend);
+
         ForgetBridgeProcess();
         LastActivityUtc = DateTime.UtcNow;
         _main.OnAliveChanged(this);
@@ -3202,6 +3183,67 @@ public sealed partial class SessionViewModel : ObservableObject
             _ = SyncRemoteControlAsync();
         }
     }
+
+    /// <summary>
+    /// Creates the session's backend, wired to Apply its events and to the relay.
+    /// </summary>
+    private IAgentBackend CreateBackend()
+    {
+        var backend = AgentBackends.Create(Backend);
+        if (_main.Dev.LogPath is { } log && backend is ClaudeCodeBackend claude)
+        {
+            claude.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
+        }
+
+        backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
+        AttachRelay(backend);
+        return backend;
+    }
+
+    /// <summary>
+    /// Starts the registered backend; if it fails, unregisters and disposes it, and rethrows.
+    /// </summary>
+    private async Task StartBackendAsync(IAgentBackend backend)
+    {
+        try
+        {
+            await backend.StartAsync(StartOptions());
+        }
+        catch
+        {
+            if (ReferenceEquals(_backend, backend))
+            {
+                _backend = null;
+                DetachRelay();
+                _main.OnAliveChanged(this);
+            }
+
+            await backend.DisposeAsync();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// What the backend starts with: the session's folders, model, mode and the session to resume or fork.
+    /// </summary>
+    private AgentStartOptions StartOptions() => new()
+    {
+        WorkingDirectory = Folder,
+        AdditionalDirectories = AdditionalFolders.Select(f => f.Id).ToArray(),
+        Model = Model,
+        PermissionMode = PermissionMode,
+        Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
+        ThinkingDisplay = "summarized",
+        PromptSuggestions = _main.Settings.PromptSuggestions,
+        FastMode = FastMode,
+        Ultracode = Ultracode,
+        WorkflowSize = _main.Settings.WorkflowSize,
+        ResumeSessionId = SessionId ?? _forkFrom,
+        ResumeSessionAt = _resumeAt,
+        ForkSession = SessionId is null && _forkFrom is not null,
+        CliPath = _main.Settings.CliPath,
+        ExtraArguments = _main.Dev.ExtraCliArguments,
+    };
 
     public async Task ShutdownAsync(bool cancelFolderMove = true)
     {
