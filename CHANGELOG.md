@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.35.0
+
+- The side panel lists running subagents and background commands apart from finished ones: Finished subagents and
+  Finished background tasks are cards of their own, the latest to end first, and each can be turned off in Cards.
+
 ## v1.34.0
 
 - The side panel's running subagents and background commands have a Stop button; a stopped one shows a grey mark and
