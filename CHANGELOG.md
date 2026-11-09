@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.36.0
+
+- Fable 5.2 is the first model chip (Ctrl+Shift+1). The model menu's Other models lists the rest of what Claude Code
+  offers (Fable 5.1, Fable 5, Opus 5 and 4.x, Sonnet 5 and 4.6, Haiku 4.5), by family, the newest first; a model picked
+  there gets a chip of its own after the four.
+
 ## v1.35.0
 
 - The side panel lists running subagents and background commands apart from finished ones: Finished subagents and
