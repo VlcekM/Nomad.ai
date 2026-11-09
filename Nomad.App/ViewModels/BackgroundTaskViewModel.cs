@@ -52,6 +52,12 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
 
     public bool IsDone => !IsRunning && !IsFailed && !IsStopped;
 
+    /// <summary>
+    /// In the side panel's finished card: set a moment after it ends, once its row there exists, so the row unfolds rather than pops in.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsListedFinished { get; set; }
+
     /// <summary>The row's Stop: it runs, and the CLI said which task it is.</summary>
     public bool CanStop => IsRunning && TaskId is not null;
 

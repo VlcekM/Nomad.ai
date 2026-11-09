@@ -99,6 +99,12 @@ public sealed partial class SubagentViewModel : ObservableObject
 
     public bool IsDone => !IsRunning && !IsFailed && !IsStopped;
 
+    /// <summary>
+    /// In the side panel's finished card: set a moment after it ends, once its row there exists, so the row unfolds rather than pops in.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsListedFinished { get; set; }
+
     /// <summary>The CLI's task for it (from its <c>task_started</c>), which Stop takes.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanStop))]

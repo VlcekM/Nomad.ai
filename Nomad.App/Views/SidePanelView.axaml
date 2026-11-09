@@ -380,12 +380,12 @@
                 <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
               </StackPanel>
             </Button>
-            <ItemsControl ItemsSource="{Binding Subagents}" Margin="-6,2,-6,0">
+            <ItemsControl ItemsSource="{Binding FinishedSubagents}" Margin="-6,2,-6,0">
               <ItemsControl.ItemTemplate>
-                <!-- Every one is listed; a row folds in here as it ends. -->
+                <!-- The latest to end first; a row unfolds at the top as one ends. -->
                 <DataTemplate x:DataType="vm:SubagentViewModel">
                   <ContentControl Content="{Binding}" ContentTemplate="{StaticResource SubagentRow}"
-                                  IsVisible="{Binding !IsRunning, Mode=OneTime}" c:Fold.IsOpen="{Binding !IsRunning}" />
+                                  IsVisible="{Binding IsListedFinished, Mode=OneTime}" c:Fold.IsOpen="{Binding IsListedFinished}" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -403,12 +403,12 @@
                 <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
               </StackPanel>
             </Button>
-            <ItemsControl ItemsSource="{Binding BackgroundTasks}" Margin="0,2,0,0">
+            <ItemsControl ItemsSource="{Binding FinishedBackgroundTasks}" Margin="0,2,0,0">
               <ItemsControl.ItemTemplate>
-                <!-- Every one is listed; a row folds in here as it ends. -->
+                <!-- The latest to end first; a row unfolds at the top as one ends. -->
                 <DataTemplate x:DataType="vm:BackgroundTaskViewModel">
                   <ContentControl Content="{Binding}" ContentTemplate="{StaticResource BackgroundTaskRow}"
-                                  IsVisible="{Binding !IsRunning, Mode=OneTime}" c:Fold.IsOpen="{Binding !IsRunning}" />
+                                  IsVisible="{Binding IsListedFinished, Mode=OneTime}" c:Fold.IsOpen="{Binding IsListedFinished}" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>

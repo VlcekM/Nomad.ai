@@ -1154,6 +1154,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The session's subagents (Agent / Task calls), newest first: the side panel lists them.</summary>
     public ObservableCollection<SubagentViewModel> Subagents { get; } = [];
 
+    /// <summary>
+    /// The ended ones, the latest to end first: the side panel's finished card.
+    /// </summary>
+    public ObservableCollection<SubagentViewModel> FinishedSubagents { get; } = [];
+
     private readonly Dictionary<string, SubagentViewModel> _subagentById = new(StringComparer.Ordinal);
     private DispatcherTimer? _subagentTimer;
 
@@ -1170,7 +1175,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>
     /// A subagent has ended: the side panel's finished card shows.
     /// </summary>
-    public bool HasFinishedSubagents => Subagents.Any(a => !a.IsRunning);
+    public bool HasFinishedSubagents => FinishedSubagents.Count > 0;
 
     private void OnSubagentsRunningChanged()
     {
@@ -1190,6 +1195,7 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 if (e.PropertyName == nameof(SubagentViewModel.IsRunning))
                 {
+                    if (!agent.IsRunning) ListFinished(FinishedSubagents, agent, () => agent.IsListedFinished = true);
                     OnSubagentsRunningChanged();
                 }
             };
@@ -1404,6 +1410,11 @@ public sealed partial class SessionViewModel : ObservableObject
     public ObservableCollection<BackgroundTaskViewModel> BackgroundTasks { get; } = [];
 
     /// <summary>
+    /// The ended ones, the latest to end first: the side panel's finished card.
+    /// </summary>
+    public ObservableCollection<BackgroundTaskViewModel> FinishedBackgroundTasks { get; } = [];
+
+    /// <summary>
     /// A background command runs: the side panel's card of running ones shows.
     /// </summary>
     public bool HasRunningBackgroundTasks => BackgroundTasks.Any(t => t.IsRunning);
@@ -1411,7 +1422,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>
     /// A background command has ended: the side panel's finished card shows.
     /// </summary>
-    public bool HasFinishedBackgroundTasks => BackgroundTasks.Any(t => !t.IsRunning);
+    public bool HasFinishedBackgroundTasks => FinishedBackgroundTasks.Count > 0;
 
     private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
     private DispatcherTimer? _backgroundTaskTimer;
@@ -1430,6 +1441,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             if (e.PropertyName == nameof(BackgroundTaskViewModel.IsRunning))
             {
+                if (!task.IsRunning) ListFinished(FinishedBackgroundTasks, task, () => task.IsListedFinished = true);
                 OnBackgroundTasksRunningChanged();
             }
         };
@@ -1438,6 +1450,18 @@ public sealed partial class SessionViewModel : ObservableObject
         // Durations tick once a second, only while one runs.
         _backgroundTaskTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickBackgroundTasks());
         _backgroundTaskTimer.Start();
+    }
+
+    /// <summary>
+    /// Puts an ended subagent or command at the top of its finished list. Its row there unfolds once laid out: shown after
+    /// the layout that makes it, as at once it would pop in.
+    /// </summary>
+    private static void ListFinished<T>(ObservableCollection<T> list, T item, Action show)
+    {
+        if (list.Contains(item)) return;
+
+        list.Insert(0, item);
+        Dispatcher.UIThread.Post(show, DispatcherPriority.Background);
     }
 
     private void OnBackgroundTasksRunningChanged()
