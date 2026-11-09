@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.36.1
+
+- A Codex or OpenCode session no longer goes missing from the Alive list when it starts: it keeps running and
+  now shows there, with its agent's logo.
+
 ## v1.36.0
 
 - Fable 5.2 is the first model chip (Ctrl+Shift+1). The model menu's Other models lists the rest of what Claude Code
