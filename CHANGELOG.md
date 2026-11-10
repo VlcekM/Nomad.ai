@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.1
+
+- The sidebar no longer shows a chat twice (seen once after a pin came from another PC). Should it happen again, the
+  details go to `%APPDATA%\Nomad\anomalies.log` to track it down.
+
 ## v1.37.0
 
 - Nomad Hub: a chat another PC runs now has a monitor mark in the sidebar; hovering it names that PC.
