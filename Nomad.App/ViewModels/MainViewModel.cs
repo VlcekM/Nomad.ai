@@ -1587,6 +1587,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Brings the list's rows in line with these summaries (keeping the rows of sessions still there).</summary>
     private void MergeSummaries(IReadOnlyList<SessionSummary> summaries)
     {
+        DropDuplicateRows(); // A duplicate would make ToDictionary throw, and the list would never refresh again.
         var byId = _all.ToDictionary(s => s.SessionId, StringComparer.Ordinal);
         var archived = new HashSet<string>(Settings.ArchivedSessions, StringComparer.Ordinal);
         var pinned = new HashSet<string>(Settings.PinnedSessions, StringComparer.Ordinal);
@@ -1778,6 +1779,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        DropDuplicateRows();
         var query = SearchText.Trim();
         IEnumerable<SessionListItemViewModel> items = _all;
         if (query.Length > 0)
@@ -1806,6 +1808,33 @@ public sealed partial class MainViewModel : ObservableObject
         ShowSessionsSkeleton = _all.Count == 0 && IsLoadingSessions;
         NumberRows();
     }
+
+    /// <summary>
+    /// A session listed twice (seen once, after a pin came from the hub; cause unknown): the later rows go, and the
+    /// anomaly log records them all with the stack that found them.
+    /// </summary>
+    private void DropDuplicateRows()
+    {
+        var twice = _all.GroupBy(s => s.SessionId, StringComparer.Ordinal).Where(g => g.Count() > 1).ToList();
+        if (twice.Count == 0) return;
+
+        foreach (var rows in twice)
+        {
+            var current = Current.SessionId == rows.Key ? " (the current session)" : "";
+            var open = _open.TryGetValue(rows.Key, out var live) ? $"open as \"{live.Title}\" (id {live.SessionId})" : "not open";
+            AnomalyLog.Write($"Session {rows.Key} listed {rows.Count()} times{current}, {open}:{Environment.NewLine}"
+                + string.Join(Environment.NewLine, rows.Select(DescribeRow)));
+            foreach (var extra in rows.Skip(1))
+            {
+                _all.Remove(extra);
+            }
+        }
+    }
+
+    private static string DescribeRow(SessionListItemViewModel row) =>
+        $"  row #{row.GetHashCode():x8} \"{row.Title}\" backend={row.Backend} file={row.FilePath ?? "-"} folder={row.WorkingDirectory ?? "-"}"
+        + $" alive={row.IsAlive} pinned={row.IsPinned} archived={row.IsArchived} selected={row.IsSelected}"
+        + $" elsewhere={row.IsElsewhere} phone={row.IsPhone} remote={row.RemoteHost ?? "-"} issue={row.IssueUrl ?? "-"}";
 
     // Reused across filters, so a heading that stays keeps its row in the list.
     private readonly Dictionary<string, SessionGroupHeader> _headers = new(StringComparer.Ordinal);

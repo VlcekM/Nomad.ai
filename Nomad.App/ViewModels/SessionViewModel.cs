@@ -3383,6 +3383,12 @@ public sealed partial class SessionViewModel : ObservableObject
             case SessionStartedEvent s:
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)
                 {
+                    // A known session taking another id leaves its old row behind: noted, to trace duplicated rows.
+                    if (SessionId is { } previous)
+                    {
+                        AnomalyLog.Write($"Session \"{Title}\" changed id {previous} -> {s.SessionId} (from {source.GetType().Name}, fork from {_forkFrom ?? "-"})");
+                    }
+
                     SessionId = s.SessionId;
                     RememberAdditionalFolders();
                     _main.OnSessionIdentified(this);
