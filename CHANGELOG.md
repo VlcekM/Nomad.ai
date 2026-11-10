@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.0
+
+- Nomad Hub: a chat another PC runs now has a monitor mark in the sidebar; hovering it names that PC.
+- A chat's spinner no longer drops out while Claude works on a turn it began by itself (after a background agent or
+  command finished).
+
 ## v1.36.1
 
 - A Codex or OpenCode session no longer goes missing from the Alive list when it starts: it keeps running and
