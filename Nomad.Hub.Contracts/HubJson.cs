@@ -21,6 +21,7 @@ namespace Nomad.Hub.Contracts;
 [JsonSerializable(typeof(SessionStateDto))]
 [JsonSerializable(typeof(LeaseRequest))]
 [JsonSerializable(typeof(LeaseDto))]
+[JsonSerializable(typeof(List<LeaseDto>))]
 [JsonSerializable(typeof(LeaseKey))]
 [JsonSerializable(typeof(LeaseKey[]))]
 [JsonSerializable(typeof(List<LeaseKey>))]

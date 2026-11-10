@@ -221,6 +221,17 @@ public static class Sessions
             return Results.Accepted();
         });
 
+        // The sessions another PC runs now (its lease is live), with that PC's name: the sidebar marks them.
+        api.MapGet("/leases", async (HttpContext http, HubDb db, CancellationToken ct) =>
+        {
+            var me = http.User.DeviceId();
+            var held = await db.Sessions.AsNoTracking().Where(s => s.LeaseDevice != null && s.LeaseDevice != me).ToListAsync(ct);
+            var live = held.Where(s => s.LeaseExpiresUtc > DateTime.UtcNow).ToList(); // Lapsed ones are left behind, not cleared.
+            var holders = live.Select(s => s.LeaseDevice!.Value).Distinct().ToList();
+            var names = await db.Devices.AsNoTracking().Where(d => holders.Contains(d.Id)).ToDictionaryAsync(d => d.Id, d => d.Name, ct);
+            return live.Select(s => new LeaseDto(s.Backend, s.SessionId, false, s.LeaseDevice, names.GetValueOrDefault(s.LeaseDevice!.Value), s.LeaseExpiresUtc)).ToList();
+        });
+
         api.MapGet("/changes", async (long? since, HubDb db, CancellationToken ct) =>
         {
             var from = since ?? 0;
