@@ -54,7 +54,7 @@ public static class RelayCodec
         var c = RelayJson.Default;
         foreach (var info in new JsonTypeInfo[]
                  {
-                     c.SessionStartedEvent, c.TurnStartedEvent, c.RemotePromptEvent, c.TaskStartedEvent, c.TaskNotificationEvent, c.WorkflowStartedEvent,
+                     c.SessionStartedEvent, c.TurnStartedEvent, c.TurnResumedEvent, c.RemotePromptEvent, c.TaskStartedEvent, c.TaskNotificationEvent, c.WorkflowStartedEvent,
                      c.WorkflowProgressEvent, c.TaskUpdatedEvent, c.CommandOutputEvent, c.PromptSuggestionEvent,
                      c.AssistantMessageStartedEvent, c.BlockStartedEvent, c.TextDeltaEvent, c.ThinkingDeltaEvent, c.BlockCompletedEvent,
                      c.ToolCallEvent, c.ToolResultEvent, c.PermissionRequestedEvent, c.PermissionCancelledEvent, c.FolderMoveApprovedEvent,
@@ -279,7 +279,7 @@ public sealed class RelayBackend : IAgentBackend
                 continue; // Unknown, or this PC's own prompt (already in its transcript).
             }
 
-            if (e is RelayPromptEvent or RemotePromptEvent or TurnStartedEvent)
+            if (e is RelayPromptEvent or RemotePromptEvent or TurnStartedEvent or TurnResumedEvent)
             {
                 _turn = true;
             }
@@ -581,6 +581,7 @@ internal sealed class OptionalJsonElementConverter : JsonConverter<JsonElement>
 [JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull, Converters = [typeof(OptionalJsonElementConverter)])]
 [JsonSerializable(typeof(SessionStartedEvent))]
 [JsonSerializable(typeof(TurnStartedEvent))]
+[JsonSerializable(typeof(TurnResumedEvent))]
 [JsonSerializable(typeof(RemotePromptEvent))]
 [JsonSerializable(typeof(TaskStartedEvent))]
 [JsonSerializable(typeof(TaskNotificationEvent))]

@@ -596,6 +596,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         switch (e.Type)
         {
             case "message_start":
+                ResumeTurnIfIdle(parent);
                 _messageId = e.Message?.Id ?? $"local-{++_syntheticMessageCounter}";
                 _openBlockIndex = -1;
 
@@ -647,6 +648,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             return;
         }
 
+        ResumeTurnIfIdle(line.ParentToolUseId);
         var messageId = message.Id ?? _messageId ?? $"local-{++_syntheticMessageCounter}";
         var streamed = messageId == _messageId && _openBlockIndex >= 0 && content.Count == 1;
         for (var i = 0; i < content.Count; i++)
@@ -673,6 +675,21 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     break;
             }
         }
+    }
+
+    // Claude answers with no turn running: the CLI began one itself (a background task's end handed to Claude, with no
+    // replayed prompt), so the turn shows as running until its result.
+    private void ResumeTurnIfIdle(string? parentToolUseId)
+    {
+        if (_turnRunning || parentToolUseId is not null)
+        {
+            return;
+        }
+
+        _turnRunning = true;
+        _interruptRequested = false;
+        _assistantError = null;
+        Raise(new TurnResumedEvent());
     }
 
     private void HandleUser(UserLine line)

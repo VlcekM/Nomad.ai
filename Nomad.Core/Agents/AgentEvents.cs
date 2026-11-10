@@ -32,6 +32,9 @@ public sealed record AccountInfoEvent(string? SubscriptionType, string? Email, I
 /// <summary>We sent a prompt; a turn is now running.</summary>
 public sealed record TurnStartedEvent(string Prompt) : AgentEvent;
 
+/// <summary>The CLI began a turn by itself, with no prompt to show (a background task's end handed to Claude).</summary>
+public sealed record TurnResumedEvent : AgentEvent;
+
 /// <summary>A prompt typed elsewhere (Remote Control on claude.ai or the phone); a turn is now running.</summary>
 public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 

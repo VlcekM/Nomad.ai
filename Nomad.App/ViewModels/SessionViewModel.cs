@@ -3423,6 +3423,14 @@ public sealed partial class SessionViewModel : ObservableObject
                 _turnToolCount = 0;
                 break;
 
+            case TurnResumedEvent:
+                _stopRequested = false;
+                IsTurnRunning = true;
+                State = AgentState.Running;
+                _turnToolCount = 0;
+                _main.OnSessionActivity(this);
+                break;
+
             case RelayPromptEvent relayed:
                 ShowRelayedPrompt(relayed);
                 break;
