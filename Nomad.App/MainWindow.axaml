@@ -234,7 +234,7 @@
               <Setter Property="Margin" Value="4,0,0,0" />
               <Setter Property="IsHitTestVisible" Value="True" />
             </Style>
-            <Style Selector="Border.merged, Border.worktreemark, Border.pinmark, Border.workflowmark">
+            <Style Selector="Border.merged, Border.worktreemark, Border.pinmark, Border.workflowmark, Border.otherpcmark">
               <Setter Property="MaxWidth" Value="0" />
               <Setter Property="Opacity" Value="0" />
               <Setter Property="Margin" Value="0" />
@@ -269,7 +269,7 @@
             <Style Selector="Border.agentlogo.bottom.shown">
               <Setter Property="Margin" Value="5,-5,0,0" />
             </Style>
-            <Style Selector="Border.merged.shown, Border.worktreemark.shown, Border.pinmark.shown, Border.workflowmark.shown">
+            <Style Selector="Border.merged.shown, Border.worktreemark.shown, Border.pinmark.shown, Border.workflowmark.shown, Border.otherpcmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
               <Setter Property="Margin" Value="0,0,6,0" />
@@ -453,6 +453,11 @@
                             VerticalAlignment="Center"
                             IsVisible="{Binding IsPhone}"
                             ToolTip.Tip="Running from the Claude app" />
+                    <!-- Another PC runs it now (it holds the session's hub lease): folds in while it does. -->
+                    <Border Classes="otherpcmark" Classes.shown="{Binding IsOnOtherPc}" Background="Transparent"
+                            ToolTip.Tip="{Binding RemoteHostToolTip}">
+                      <c:Icon Size="12" Data="{StaticResource IconMonitor}" Stroke="{DynamicResource AccentBrush}" />
+                    </Border>
                     <!-- Run by another Nomad window or a terminal: alive, but not this window's to run. -->
                     <c:Icon Size="12"
                             Data="{StaticResource IconLaptop}"

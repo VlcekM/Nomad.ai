@@ -136,6 +136,7 @@ public sealed partial class HubViewModel : ObservableObject
         _sync.SessionDeleted += (backend, id) => Dispatcher.UIThread.Post(() => _ = _main.OnHubSessionDeletedAsync(id));
         _sync.StateChanged += s => Dispatcher.UIThread.Post(() => ApplyState(s));
         _sync.LeaseLost += key => Dispatcher.UIThread.Post(() => _ = _main.OnHubLeaseLostAsync(key.SessionId));
+        _sync.RemoteHostsChanged += hosts => Dispatcher.UIThread.Post(() => _main.OnHubRemoteHostsChanged(hosts));
         _sync.HandoffRequested += r => Dispatcher.UIThread.Post(() => _ = _main.OnHubHandoffRequestedAsync(r));
         _main.LocalTokens.HubTotals = UsageSinceAsync;
         _sync.Start();
@@ -155,6 +156,7 @@ public sealed partial class HubViewModel : ObservableObject
         {
             _sync = null;
             IsConnected = false;
+            _main.OnHubRemoteHostsChanged(new Dictionary<string, string>());
             _main.LocalTokens.HubTotals = null;
             await sync.DisposeAsync();
         }

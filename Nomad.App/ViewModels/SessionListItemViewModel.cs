@@ -129,6 +129,15 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial bool IsElsewhere { get; set; }
 
+    /// <summary>The other PC that runs it now (holds its hub lease), by name; null when none does.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOnOtherPc), nameof(RemoteHostToolTip))]
+    public partial string? RemoteHost { get; set; }
+
+    public bool IsOnOtherPc => RemoteHost is not null;
+
+    public string RemoteHostToolTip => $"Running on {RemoteHost}";
+
     /// <summary>Its process is this Nomad's to start, end, archive or delete.</summary>
     public bool CanManage => !IsPhone && !IsElsewhere;
 

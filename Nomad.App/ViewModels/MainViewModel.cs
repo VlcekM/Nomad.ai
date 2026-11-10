@@ -1618,6 +1618,7 @@ public sealed partial class MainViewModel : ObservableObject
             vm.Title = !string.IsNullOrEmpty(live?.Title) ? live.Title : s.Title;
             vm.IsPhone = IsPhone(s.SessionId);
             vm.IsElsewhere = IsRunningElsewhere(s.SessionId);
+            vm.RemoteHost = RemoteHostOf(s.SessionId);
             vm.IsAlive = live?.IsProcessRunning == true || vm.IsPhone || vm.IsElsewhere;
             if (live is not null)
             {

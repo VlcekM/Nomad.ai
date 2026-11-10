@@ -35,6 +35,7 @@ public sealed class HubSync : IAsyncDisposable
     private Task? _loop;
     private Task? _renewals;
     private Guid _me;
+    private Dictionary<string, string> _remoteHosts = [];
 
     /// <param name="isBusy">Whether a session is mid-turn on this PC (its files are still being written): not touched until it isn't.</param>
     public HubSync(HubClient client, IEnumerable<ISessionFiles> backends, string statePath, Func<string, string, bool> isBusy)
@@ -51,6 +52,11 @@ public sealed class HubSync : IAsyncDisposable
             if (up)
             {
                 Wake(push: true, pull: true);
+            }
+            else if (_remoteHosts.Count > 0)
+            {
+                _remoteHosts = []; // Not known while offline.
+                RemoteHostsChanged?.Invoke(_remoteHosts);
             }
 
             ConnectionChanged?.Invoke(up);
@@ -78,6 +84,9 @@ public sealed class HubSync : IAsyncDisposable
     public event Action<LeaseKey>? LeaseLost;
 
     public event Action<HandoffRequest>? HandoffRequested;
+
+    /// <summary>The sessions other PCs run now changed: session id to that PC's name.</summary>
+    public event Action<IReadOnlyDictionary<string, string>>? RemoteHostsChanged;
 
     public event Action<bool>? ConnectionChanged;
 
@@ -174,7 +183,13 @@ public sealed class HubSync : IAsyncDisposable
                 held = [.. _leases];
             }
 
-            if (held.Count == 0 || !_client.IsConnected)
+            if (!_client.IsConnected)
+            {
+                continue;
+            }
+
+            await RefreshRemoteHostsAsync(_stop.Token).ConfigureAwait(false); // Leases lapse with no change to pull.
+            if (held.Count == 0)
             {
                 continue;
             }
@@ -195,6 +210,27 @@ public sealed class HubSync : IAsyncDisposable
             {
                 // Offline: try again next time.
             }
+        }
+    }
+
+    /// <summary>Asks the hub which sessions other PCs run now, and tells when that changed.</summary>
+    private async Task RefreshRemoteHostsAsync(CancellationToken ct)
+    {
+        try
+        {
+            var hosts = (await _client.LeasesAsync(ct).ConfigureAwait(false))
+                .GroupBy(l => l.SessionId)
+                .ToDictionary(g => g.Key, g => g.First().HolderName ?? "another PC");
+            if (hosts.Count != _remoteHosts.Count || hosts.Any(h => _remoteHosts.GetValueOrDefault(h.Key) != h.Value))
+            {
+                _remoteHosts = hosts;
+                RemoteHostsChanged?.Invoke(hosts);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or JsonException
+                                       || (ex is TaskCanceledException && !ct.IsCancellationRequested))
+        {
+            // Offline: try again next time.
         }
     }
 
@@ -640,6 +676,7 @@ public sealed class HubSync : IAsyncDisposable
 
         _projects = null;
         Save();
+        await RefreshRemoteHostsAsync(ct).ConfigureAwait(false); // A lease taken or given back is a change too.
     }
 
     private List<ProjectDto>? _projects;

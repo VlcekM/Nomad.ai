@@ -106,6 +106,21 @@ public sealed partial class MainViewModel
         ApplyFilter();
     }
 
+    private IReadOnlyDictionary<string, string> _remoteHosts = new Dictionary<string, string>();
+
+    /// <summary>The PC that runs a session now, when that's another one (its name); null otherwise.</summary>
+    private string? RemoteHostOf(string sessionId) => _remoteHosts.GetValueOrDefault(sessionId);
+
+    /// <summary>The sessions other PCs run changed: their rows show (or drop) the other-PC mark.</summary>
+    public void OnHubRemoteHostsChanged(IReadOnlyDictionary<string, string> hosts)
+    {
+        _remoteHosts = hosts;
+        foreach (var vm in _all)
+        {
+            vm.RemoteHost = RemoteHostOf(vm.SessionId);
+        }
+    }
+
     /// <summary>Another PC took over a session this one was running (after its hold lapsed): this process stops.</summary>
     public async Task OnHubLeaseLostAsync(string sessionId)
     {

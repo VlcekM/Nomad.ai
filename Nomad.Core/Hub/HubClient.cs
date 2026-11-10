@@ -246,6 +246,19 @@ public sealed class HubClient : IAsyncDisposable
         return await response.Content.ReadFromJsonAsync(HubJson.Default.SessionDto, ct).ConfigureAwait(false);
     }
 
+    /// <summary>The sessions other PCs run now; empty from a hub too old to say.</summary>
+    public async Task<List<LeaseDto>> LeasesAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("api/leases", ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync(HubJson.Default.ListLeaseDto, ct).ConfigureAwait(false))!;
+    }
+
     public async Task<ChangesDto> ChangesAsync(long since, CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync($"api/changes?since={since}", HubJson.Default.ChangesDto, ct).ConfigureAwait(false))!;
 
