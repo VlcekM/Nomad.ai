@@ -596,7 +596,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <SelectableTextBlock Text="{Binding Text}"
+            <SelectableTextBlock md:LinkSupport.LinkedText="{Binding Text}"
                                  IsVisible="{Binding HasText}"
                                  TextWrapping="Wrap"
                                  FontSize="{DynamicResource BodyFontSize}"

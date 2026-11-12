@@ -237,6 +237,18 @@ public static class MarkdownRenderer
         AddInlines(inlines, links, container, style);
     }
 
+    /// <summary>
+    /// Sets plain text (not Markdown) on a text block, with its bare web addresses as blue, clickable links.
+    /// </summary>
+    public static void SetLinkedText(SelectableTextBlock target, string? text)
+    {
+        var links = LinkSupport.GetLinks(target);
+        links.Clear();
+        var inlines = new InlineCollection();
+        AppendText(inlines, links, text ?? "", default);
+        target.Inlines = inlines;
+    }
+
     private static void AddInlines(InlineCollection target, List<LinkRange> links, ContainerInline container, InlineStyle style,
         MdInline? first = null, MdInline? end = null)
     {
@@ -777,6 +789,32 @@ public static partial class LinkSupport
     private sealed class StrongBox
     {
         public int Value;
+    }
+
+    /// <summary>
+    /// Plain text shown with its web addresses as links (<see cref="MarkdownRenderer.SetLinkedText"/>): the user's messages.
+    /// </summary>
+    public static readonly AttachedProperty<string?> LinkedTextProperty =
+        AvaloniaProperty.RegisterAttached<SelectableTextBlock, SelectableTextBlock, string?>("LinkedText");
+
+    static LinkSupport()
+    {
+        LinkedTextProperty.Changed.AddClassHandler<SelectableTextBlock>(OnLinkedTextChanged);
+    }
+
+    public static string? GetLinkedText(SelectableTextBlock block) => block.GetValue(LinkedTextProperty);
+
+    public static void SetLinkedText(SelectableTextBlock block, string? value) => block.SetValue(LinkedTextProperty, value);
+
+    private static void OnLinkedTextChanged(SelectableTextBlock block, AvaloniaPropertyChangedEventArgs e)
+    {
+        // Click handling is attached once, the first time the block gets text.
+        if (block.GetValue(LinksProperty) is null)
+        {
+            Attach(block);
+        }
+
+        MarkdownRenderer.SetLinkedText(block, e.NewValue as string);
     }
 
     public static List<LinkRange> GetLinks(SelectableTextBlock block)
