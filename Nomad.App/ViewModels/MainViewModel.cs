@@ -99,6 +99,7 @@ public sealed partial class MainViewModel : ObservableObject
             SleepIdleSessions();
             _ = LoadWorktreeMergesAsync(); // A merge made outside Nomad.ai (or in a turn that just ended) still idles its session.
             _ = AutoArchiveSessionsAsync(fold: true);
+            _ = LoadGitHubLinksAsync(); // Pull requests and issues merged or closed since, here or on GitHub.
             Current.TickClock();
         };
         _idleTimer.Start();
@@ -1708,8 +1709,8 @@ public sealed partial class MainViewModel : ObservableObject
     private const int GitHubLinkSessions = 60;
 
     /// <summary>
-    /// The newest sessions on a branch get their GitHub pull request and issue (gh, cached per repository for a few
-    /// minutes): an icon each on their rows.
+    /// The newest sessions on a branch get their GitHub pull request and issue (gh, cached per repository for a
+    /// minute): an icon each on their rows.
     /// </summary>
     private async Task LoadGitHubLinksAsync(SessionListItemViewModel? only = null)
     {

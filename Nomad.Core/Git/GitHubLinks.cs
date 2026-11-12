@@ -85,12 +85,12 @@ public sealed class RepoLinks(string nameWithOwner, IReadOnlyList<PullRequestLin
 
 /// <summary>
 /// Pull requests and issues per repository, read with <c>gh pr list</c> and <c>gh issue list</c> (the user's own
-/// GitHub sign-in) and cached for a few minutes. Best effort: no gh, not signed in or not a GitHub repository gives null,
+/// GitHub sign-in) and cached for a minute, so a pull request merged or closed elsewhere shows soon. Best effort: no gh, not signed in or not a GitHub repository gives null,
 /// which is remembered for longer so it isn't asked again and again.
 /// </summary>
 public static class GitHubLinks
 {
-    private static readonly TimeSpan Fresh = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan Fresh = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FreshFailure = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
     private static readonly Dictionary<string, (DateTime At, Task<RepoLinks?> Task)> Cache = new(StringComparer.OrdinalIgnoreCase);
