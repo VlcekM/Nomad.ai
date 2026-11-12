@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.2
+
+- Web addresses in your own messages are blue, clickable links, as in Claude's replies.
+- Pull request and issue icons in the sidebar recheck every minute, so one merged or closed elsewhere updates soon.
+
 ## v1.37.1
 
 - The sidebar no longer shows a chat twice (seen once after a pin came from another PC). Should it happen again, the
