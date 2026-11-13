@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.3
+
+- Rewinding a chat to its first prompt and sending again no longer leaves its old session as a twin row in the
+  sidebar; the abandoned one is archived.
+
 ## v1.37.2
 
 - Web addresses in your own messages are blue, clickable links, as in Claude's replies.
