@@ -39,6 +39,11 @@ public sealed partial class SessionViewModel : ObservableObject
     // session a fork starts. Kept until a prompt went out in a process started with them.
     private string? _resumeAt;
     private string? _forkFrom;
+
+    /// <summary>
+    /// The session a rewind to the first prompt dropped: the next prompt starts a new one, which takes its row.
+    /// </summary>
+    private string? _replaces;
     private UserMessageItem? _unseen;
     private bool _suppressModeSync;
     private int _turnToolCount;
@@ -3286,6 +3291,7 @@ public sealed partial class SessionViewModel : ObservableObject
         if (parent is null)
         {
             // The first message: nothing before it to keep, so the next prompt starts a new session.
+            _replaces = SessionId ?? _replaces;
             SessionId = null;
             _resumeAt = null;
         }
@@ -3391,7 +3397,8 @@ public sealed partial class SessionViewModel : ObservableObject
 
                     SessionId = s.SessionId;
                     RememberAdditionalFolders();
-                    _main.OnSessionIdentified(this);
+                    _main.OnSessionIdentified(this, _replaces);
+                    _replaces = null;
                     RememberBridge();
                 }
 

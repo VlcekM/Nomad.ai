@@ -2473,12 +2473,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ------------------------------------------------------------------ callbacks from sessions
 
-    public void OnSessionIdentified(SessionViewModel session)
+    /// <summary>
+    /// A session got its id: its row comes to the top, taking over the row of <paramref name="replaced"/>, the session a rewind
+    /// to the first prompt dropped.
+    /// </summary>
+    public void OnSessionIdentified(SessionViewModel session, string? replaced = null)
     {
         if (session.SessionId is not { } id)
         {
             return;
         }
+
+        if (replaced is not null && replaced != id) ArchiveReplaced(session, replaced);
 
         _open[id] = session;
         var vm = _all.FirstOrDefault(s => s.SessionId == id);
@@ -2498,6 +2504,23 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
+    }
+
+    /// <summary>
+    /// Archives the transcript a rewind to the first prompt left behind, so it no longer shows (or mirrors the chat that
+    /// replaced it) beside the new one. Kept on disk: Show archived brings it back.
+    /// </summary>
+    private void ArchiveReplaced(SessionViewModel session, string replaced)
+    {
+        if (_open.TryGetValue(replaced, out var open) && ReferenceEquals(open, session)) _open.Remove(replaced);
+
+        Settings.ArchivedSessions.Remove(replaced);
+        Settings.ArchivedSessions.Add(replaced);
+        Settings.UnarchivedUtc.Remove(replaced);
+        SaveSettings();
+
+        _all.RemoveAll(s => s.SessionId == replaced);
+        ApplyFilter();
     }
 
     public void OnAliveChanged(SessionViewModel session)
