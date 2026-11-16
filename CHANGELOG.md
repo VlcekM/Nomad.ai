@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.4
+
+- A subagent Claude wakes again with a message shows as running again, in the side panel and under the chat, instead
+  of staying hidden while it works.
+
 ## v1.37.3
 
 - Rewinding a chat to its first prompt and sending again no longer leaves its old session as a twin row in the
