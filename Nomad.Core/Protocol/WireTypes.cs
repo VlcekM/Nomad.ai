@@ -116,6 +116,9 @@ public sealed class SystemLine : CliLine
     [JsonPropertyName("description")] public string? Description { get; set; }
     [JsonPropertyName("prompt")] public string? Prompt { get; set; }
 
+    /// <summary>For a subagent's <c>task_started</c>: its type ("general-purpose", "Explore").</summary>
+    [JsonPropertyName("subagent_type")] public string? SubagentType { get; set; }
+
     /// <summary>For a workflow's <c>task_progress</c>: the whole run so far (phases and agents); absent on some lines.</summary>
     [JsonPropertyName("workflow_progress")] public JsonElement? WorkflowProgress { get; set; }
 

@@ -25,7 +25,15 @@ public sealed partial class SubagentViewModel : ObservableObject
 
     public string ToolUseId { get; }
 
-    public DateTime StartedUtc { get; }
+    /// <summary>
+    /// When its latest run started: a resumed one counts from its resume.
+    /// </summary>
+    public DateTime StartedUtc { get; private set; }
+
+    /// <summary>
+    /// Resumed without the app having seen its Agent call: the first subagent events of an unknown parent are its own.
+    /// </summary>
+    public bool AwaitsParent { get; set; }
 
     public DateTime? EndedUtc { get; private set; }
 
@@ -231,6 +239,37 @@ public sealed partial class SubagentViewModel : ObservableObject
             call.Status = isError ? ToolStatus.Failed : ToolStatus.Done;
             call.ResultText = text.Length > 20_000 ? text[..20_000] + "\n…" : text;
         }
+    }
+
+    /// <summary>
+    /// A row for a resumed subagent whose Agent call the app never saw: what its task says it is.
+    /// </summary>
+    public void SetTask(string taskId, string? description, string? agentType)
+    {
+        TaskId = taskId;
+        Description = description is { Length: > 0 } ? description : "Subagent";
+        AgentType = agentType ?? "";
+        AwaitsParent = true;
+    }
+
+    /// <summary>
+    /// A message woke it: it runs again in the background, on <paramref name="prompt"/>, until its next task notification.
+    /// </summary>
+    public void Resume(string? prompt)
+    {
+        if (prompt is { Length: > 0 }) Prompt = prompt;
+        IsBackground = true;
+        if (IsRunning) return;
+
+        StartedUtc = DateTime.UtcNow;
+        EndedUtc = null;
+        IsFailed = false;
+        IsStopped = false;
+        StopRequested = false;
+        ResultText = "";
+        LastStatus = "Resumed";
+        IsRunning = true;
+        Tick();
     }
 
     /// <summary>Its Agent call returned at once: it runs on in the background and ends with a task notification.</summary>

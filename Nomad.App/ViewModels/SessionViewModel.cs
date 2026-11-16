@@ -1234,28 +1234,94 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input)
     {
-        if (!_subagentById.TryGetValue(toolUseId, out var agent))
-        {
-            agent = new SubagentViewModel(toolUseId, Folder);
-            _subagentById[toolUseId] = agent;
-            Subagents.Insert(0, agent);
-            agent.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName == nameof(SubagentViewModel.IsRunning))
-                {
-                    if (!agent.IsRunning) ListFinished(FinishedSubagents, agent, () => agent.IsListedFinished = true);
-                    OnSubagentsRunningChanged();
-                }
-            };
-            OnSubagentsRunningChanged();
-            ContentChanged?.Invoke(); // Its row appears below the transcript.
-        }
-
+        var agent = _subagentById.TryGetValue(toolUseId, out var known) ? known : AddSubagent(toolUseId);
         agent.SetInput(input);
+        StartSubagentTimer();
+    }
 
-        // Durations tick once a second, only while one runs.
+    /// <summary>A new row for a subagent, by the call that started it: the transcript and the side panel list it.</summary>
+    private SubagentViewModel AddSubagent(string toolUseId)
+    {
+        var agent = new SubagentViewModel(toolUseId, Folder);
+        _subagentById[toolUseId] = agent;
+        Subagents.Insert(0, agent);
+        agent.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(SubagentViewModel.IsRunning)) return;
+
+            if (!agent.IsRunning) ListFinished(FinishedSubagents, agent, () => agent.IsListedFinished = true);
+            OnSubagentsRunningChanged();
+        };
+
+        OnSubagentsRunningChanged();
+        ContentChanged?.Invoke(); // Its row appears below the transcript.
+        return agent;
+    }
+
+    /// <summary>
+    /// Durations tick once a second, only while one runs.
+    /// </summary>
+    private void StartSubagentTimer()
+    {
         _subagentTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => TickSubagents());
         _subagentTimer.Start();
+    }
+
+    /// <summary>
+    /// A SendMessage call woke a stopped or finished subagent: the CLI starts its task again under that call's id, while its
+    /// events still name its Agent call as their parent. Its row runs again; without one (its Agent call came before this
+    /// process, so the app never saw it) a new row takes the first subagent events whose parent the app doesn't know.
+    /// </summary>
+    private void ResumeSubagent(string toolUseId, TaskStartedEvent started)
+    {
+        var agent = Subagents.FirstOrDefault(a => a.TaskId == started.TaskId);
+        if (agent is null)
+        {
+            agent = AddSubagent(toolUseId);
+            agent.SetTask(started.TaskId, started.Description, started.AgentType);
+        }
+
+        _subagentById[toolUseId] = agent;
+        agent.Resume(started.Prompt);
+        UnlistFinished(agent);
+        StartSubagentTimer();
+        ContentChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// A resumed subagent leaves the finished card: its row there folds away, then goes unless it ended again meanwhile.
+    /// </summary>
+    private void UnlistFinished(SubagentViewModel agent)
+    {
+        if (!FinishedSubagents.Contains(agent)) return;
+
+        agent.IsListedFinished = false;
+        DispatcherTimer.RunOnce(() => RemoveIfRunning(agent), TimeSpan.FromMilliseconds(300));
+    }
+
+    private void RemoveIfRunning(SubagentViewModel agent)
+    {
+        if (!agent.IsRunning) return;
+
+        FinishedSubagents.Remove(agent);
+        OnSubagentsRunningChanged();
+    }
+
+    /// <summary>
+    /// The subagent whose Agent call is <paramref name="parent"/>. A resumed one whose Agent call the app never saw takes the
+    /// first unknown parent, once only one such row waits for it.
+    /// </summary>
+    private SubagentViewModel? SubagentOf(string parent)
+    {
+        if (_subagentById.TryGetValue(parent, out var agent)) return agent;
+
+        var waiting = Subagents.Where(a => a.IsRunning && a.AwaitsParent).ToList();
+        if (waiting.Count != 1) return null;
+
+        agent = waiting[0];
+        agent.AwaitsParent = false;
+        _subagentById[parent] = agent;
+        return agent;
     }
 
     private void TickSubagents()
@@ -1278,25 +1344,25 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         switch (e)
         {
-            case AssistantMessageStartedEvent { ParentToolUseId: { } parent } m when _subagentById.TryGetValue(parent, out var agent):
+            case AssistantMessageStartedEvent { ParentToolUseId: { } parent } m when SubagentOf(parent) is { } agent:
                 agent.SetModel(m.Model);
                 return true;
-            case TextDeltaEvent { ParentToolUseId: { } parent } t when _subagentById.TryGetValue(parent, out var agent):
+            case TextDeltaEvent { ParentToolUseId: { } parent } t when SubagentOf(parent) is { } agent:
                 agent.AppendText(t.MessageId, t.Index, t.Text);
                 return true;
-            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Text } c when _subagentById.TryGetValue(parent, out var agent):
+            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Text } c when SubagentOf(parent) is { } agent:
                 agent.CompleteText(c.MessageId, c.Index, c.Text);
                 return true;
-            case ThinkingDeltaEvent { ParentToolUseId: { } parent } t when _subagentById.TryGetValue(parent, out var agent):
+            case ThinkingDeltaEvent { ParentToolUseId: { } parent } t when SubagentOf(parent) is { } agent:
                 agent.AppendThinking(t.MessageId, t.Index, t.Text);
                 return true;
-            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Thinking } c when _subagentById.TryGetValue(parent, out var agent):
+            case BlockCompletedEvent { ParentToolUseId: { } parent, Kind: AgentBlockKind.Thinking } c when SubagentOf(parent) is { } agent:
                 agent.CompleteThinking(c.MessageId, c.Index, c.Text);
                 return true;
-            case ToolCallEvent { ParentToolUseId: { } parent } call when _subagentById.TryGetValue(parent, out var agent):
+            case ToolCallEvent { ParentToolUseId: { } parent } call when SubagentOf(parent) is { } agent:
                 agent.AddCall(call.ToolUseId, call.Name, call.Input);
                 return true;
-            case ToolResultEvent { ParentToolUseId: { } parent } r when _subagentById.TryGetValue(parent, out var agent):
+            case ToolResultEvent { ParentToolUseId: { } parent } r when SubagentOf(parent) is { } agent:
                 agent.CompleteCall(r.ToolUseId, r.IsError, r.Text);
                 return true;
             default:
@@ -1506,9 +1572,17 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private static void ListFinished<T>(ObservableCollection<T> list, T item, Action show)
     {
-        if (list.Contains(item)) return;
+        // One that ended, was resumed and ended again goes back to the top.
+        if (list.IndexOf(item) is var at && at >= 0)
+        {
+            list.Move(at, 0);
+        }
+        else
+        {
+            list.Insert(0, item);
+        }
 
-        list.Insert(0, item);
+
         Dispatcher.UIThread.Post(show, DispatcherPriority.Background);
     }
 
@@ -1589,6 +1663,10 @@ public sealed partial class SessionViewModel : ObservableObject
         else if (_backgroundTaskById.TryGetValue(call, out var task))
         {
             task.TaskId = started.TaskId;
+        }
+        else if (started.TaskType == "local_agent")
+        {
+            ResumeSubagent(call, started);
         }
     }
 

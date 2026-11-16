@@ -98,7 +98,23 @@ public class ProtocolTests
 
         backend.HandleLine("""{"type":"system","subtype":"task_started","task_id":"ab639624d2912cf12","tool_use_id":"toolu_01Pr","description":"Count","is_backgrounded":true,"task_type":"local_agent","session_id":"s"}""");
 
-        Assert.Equal(new TaskStartedEvent("ab639624d2912cf12", "toolu_01Pr"), Assert.Single(events.OfType<TaskStartedEvent>()));
+        Assert.Equal(new TaskStartedEvent("ab639624d2912cf12", "toolu_01Pr", "local_agent", "Count"), Assert.Single(events.OfType<TaskStartedEvent>()));
+    }
+
+    /// <summary>
+    /// A SendMessage call that resumes a subagent starts its task again: the same task id, the SendMessage call's id, the new prompt.
+    /// </summary>
+    [Fact]
+    public void AResumedSubagentsTaskNamesTheMessageAndPrompt()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        backend.HandleLine("""{"type":"system","subtype":"task_started","task_id":"a00ebe98358bde0f9","run_id":"0mwik2jmp-aa548d6f","tool_use_id":"toolu_016J","description":"Reply with hi","subagent_type":"general-purpose","is_backgrounded":true,"spawn_depth":1,"task_type":"local_agent","prompt":"Now reply bye.","session_id":"s"}""");
+
+        var expected = new TaskStartedEvent("a00ebe98358bde0f9", "toolu_016J", "local_agent", "Reply with hi", "general-purpose", "Now reply bye.");
+        Assert.Equal(expected, Assert.Single(events.OfType<TaskStartedEvent>()));
     }
 
     [Fact]
