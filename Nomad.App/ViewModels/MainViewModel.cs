@@ -2160,6 +2160,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Ctrl is held (or let go): rows show their Ctrl+number.</summary>
     public void ShowShortcutHints(bool show)
     {
+        WorkPage.IsCtrlHeld = show;
         foreach (var item in _all)
         {
             item.ShortcutHint = show;

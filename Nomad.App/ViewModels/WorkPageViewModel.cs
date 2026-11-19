@@ -343,23 +343,41 @@ public sealed partial class WorkPageViewModel : ObservableObject
     private readonly Dictionary<string, SessionViewModel> _started = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Fixes an issue in the project's own checkout, as a session there would.
+    /// Ctrl was held when the page was last pressed (the view records it before the click): the session starts in a new
+    /// worktree rather than in the project's own checkout.
     /// </summary>
-    [RelayCommand]
-    private Task FixAsync(WorkRowViewModel row) => StartAsync(row, $"Fix this issue: {row.Url}", worktree: false);
+    public bool CtrlClick { get; set; }
 
     /// <summary>
-    /// Reviews a pull request in a new worktree, so the checkout is left alone.
+    /// Ctrl is held: the row buttons and the header's hint say a click starts in a new worktree.
     /// </summary>
-    [RelayCommand]
-    private Task ReviewAsync(WorkRowViewModel row) => StartAsync(row, $"Review this pull request: {row.Url}", worktree: true);
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(WorktreeHint))]
+    public partial bool IsCtrlHeld { get; set; }
 
     /// <summary>
-    /// Merges a pull request in a new worktree: the agent reconciles it with the repository (conflicts, its style) as it would
-    /// when asked in a session.
+    /// The header's hint: how to start in a new worktree, or that a click now does.
+    /// </summary>
+    public string WorktreeHint => IsCtrlHeld ? "Starts in a new worktree" : "Ctrl+click to start in a new worktree";
+
+    /// <summary>
+    /// Fixes an issue, in the project's checkout (Ctrl+click: a new worktree).
     /// </summary>
     [RelayCommand]
-    private Task MergeAsync(WorkRowViewModel row) => StartAsync(row, $"Merge this pull request: {row.Url}", worktree: true);
+    private Task FixAsync(WorkRowViewModel row) => StartAsync(row, $"Fix this issue: {row.Url}", worktree: CtrlClick);
+
+    /// <summary>
+    /// Reviews a pull request, in the project's checkout (Ctrl+click: a new worktree, the checkout left alone).
+    /// </summary>
+    [RelayCommand]
+    private Task ReviewAsync(WorkRowViewModel row) => StartAsync(row, $"Review this pull request: {row.Url}", worktree: CtrlClick);
+
+    /// <summary>
+    /// Merges a pull request, the agent reconciling it with the repository (conflicts, its style) as it would when asked in a
+    /// session; in the project's checkout (Ctrl+click: a new worktree).
+    /// </summary>
+    [RelayCommand]
+    private Task MergeAsync(WorkRowViewModel row) => StartAsync(row, $"Merge this pull request: {row.Url}", worktree: CtrlClick);
 
     /// <summary>
     /// The chip: shows the row's session in place of the page.

@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Nomad.App.Controls;
 
 namespace Nomad.App.Views;
@@ -14,6 +16,15 @@ public partial class WorkPageView : UserControl
     public WorkPageView()
     {
         InitializeComponent();
+        AddHandler(PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    /// <summary>
+    /// Notes whether Ctrl is held before a button's click runs: Fix, Review and Merge start in a new worktree then.
+    /// </summary>
+    private void OnPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (DataContext is ViewModels.WorkPageViewModel page) page.CtrlClick = e.KeyModifiers.HasFlag(KeyModifiers.Control);
     }
 
     /// <summary>
