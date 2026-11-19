@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.38.0
+
+- A Pull requests & issues page (in the sidebar under New, and on the new-session page) lists the open pull requests
+  and issues of your projects, a card per repository. Fix starts a session on an issue in the project's folder; Review
+  and Merge start one on a pull request in a new worktree. They run in the background, on the model picked at the top,
+  while the page stays open, and a chip on the row opens the session. Pin a repository to keep it at the top.
+- Settings are split into General, Appearance, Files, Agents and Remote Control pages, each in titled sections.
+- The Appearance settings no longer freeze while their colour boxes are shown.
+
 ## v1.37.5
 
 - Projects no longer all show "Not a git repository" when Git was installed (or added to PATH) after you signed in to
