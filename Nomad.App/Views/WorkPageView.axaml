@@ -158,7 +158,7 @@
           <Panel>
             <c:Ring Width="14" Height="14" StrokeWidth="1.5" IsSpinning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                     TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource TextMutedBrush}" />
-            <c:Icon Data="{StaticResource IconSync}" IsVisible="{Binding !IsLoading}" />
+            <c:Icon Data="{StaticResource IconUpdate}" IsVisible="{Binding !IsLoading}" />
           </Panel>
         </Button>
       </Grid>
