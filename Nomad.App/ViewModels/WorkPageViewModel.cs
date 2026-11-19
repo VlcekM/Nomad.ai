@@ -397,7 +397,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// </summary>
     private async Task StartAsync(WorkRowViewModel row, string prompt, bool worktree)
     {
-        if (row.IsLaunching || Groups.FirstOrDefault(g => g.PullRequests.Contains(row) || g.Issues.Contains(row)) is not { } group) return;
+        if (row.HasSession || Groups.FirstOrDefault(g => g.PullRequests.Contains(row) || g.Issues.Contains(row)) is not { } group) return;
 
         row.Error = "";
         row.IsLaunching = true;

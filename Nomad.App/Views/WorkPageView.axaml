@@ -135,30 +135,39 @@
             </StackPanel>
           </StackPanel>
 
-          <!-- Its session: working, asking, unread or done (the sidebar's marks); a click opens it. -->
-          <Button Grid.Column="3" Theme="{StaticResource ChipButton}" Classes="selected" Margin="10,0,0,0" VerticalAlignment="Center"
-                  IsVisible="{Binding HasSession}" Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenSessionCommand}"
-                  CommandParameter="{Binding}" ToolTip.Tip="{Binding SessionToolTip}">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <c:Ring Width="11" Height="11" StrokeWidth="1.5" IsSpinning="{Binding IsStarting}" IsVisible="{Binding IsStarting}"
-                      TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
-              <c:StatusMark Mark="{Binding Session.Mark}" IsVisible="{Binding !IsStarting}" VerticalAlignment="Center"
-                            WorkingBrush="{DynamicResource AccentBrush}" WaitingBrush="{DynamicResource WaitingBrush}" UnreadBrush="{DynamicResource UnreadBrush}" />
-              <TextBlock Text="Session" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
-            </StackPanel>
-          </Button>
+          <!-- Its session, once one works on it, in place of the buttons (so one click starts one): its mark (working, asking,
+               unread, done) and title; a click opens it. -->
+          <Panel Grid.Column="3" Grid.ColumnSpan="2" Margin="10,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                 c:Crossfade.IsShown="{Binding HasSession}">
+            <Button Theme="{StaticResource ChipButton}" Classes="selected" MaxWidth="260"
+                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenSessionCommand}"
+                    CommandParameter="{Binding}" ToolTip.Tip="{Binding SessionToolTip}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:Ring Width="11" Height="11" StrokeWidth="1.5" IsSpinning="{Binding IsStarting}" IsVisible="{Binding IsStarting}"
+                        TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                <c:StatusMark Mark="{Binding Session.Mark}" IsVisible="{Binding !IsStarting}" VerticalAlignment="Center"
+                              WorkingBrush="{DynamicResource AccentBrush}" WaitingBrush="{DynamicResource WaitingBrush}" UnreadBrush="{DynamicResource UnreadBrush}" />
+                <TextBlock Text="Starting…" IsVisible="{Binding IsStarting}" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Session.Title}" IsVisible="{Binding !IsStarting}" FontSize="{DynamicResource UiFontSizeSmall}"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </Panel>
 
-          <StackPanel Grid.Column="4" Classes="actions" Orientation="Horizontal" Spacing="4" Margin="8,0,0,0" VerticalAlignment="Center">
-            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Fix" IsVisible="{Binding IsIssue}" IsEnabled="{Binding !IsLaunching}"
-                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).FixCommand}" CommandParameter="{Binding}"
-                    ToolTip.Tip="Start a session that fixes it, in the project's checkout" />
-            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Review" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
-                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).ReviewCommand}" CommandParameter="{Binding}"
-                    ToolTip.Tip="Start a session that reviews it, in a new worktree" />
-            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Merge" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
-                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).MergeCommand}" CommandParameter="{Binding}"
-                    ToolTip.Tip="Start a session that merges it (reconciling it with the repository), in a new worktree" />
-          </StackPanel>
+          <Panel Grid.Column="3" Grid.ColumnSpan="2" Margin="8,0,0,0" HorizontalAlignment="Right" VerticalAlignment="Center"
+                 c:Crossfade.IsShown="{Binding !HasSession}">
+            <StackPanel Classes="actions" Orientation="Horizontal" Spacing="4">
+              <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Fix" IsVisible="{Binding IsIssue}" IsEnabled="{Binding !IsLaunching}"
+                      Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).FixCommand}" CommandParameter="{Binding}"
+                      ToolTip.Tip="Start a session that fixes it, in the project's checkout" />
+              <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Review" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
+                      Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).ReviewCommand}" CommandParameter="{Binding}"
+                      ToolTip.Tip="Start a session that reviews it, in a new worktree" />
+              <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Merge" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
+                      Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).MergeCommand}" CommandParameter="{Binding}"
+                      ToolTip.Tip="Start a session that merges it (reconciling it with the repository), in a new worktree" />
+            </StackPanel>
+          </Panel>
 
           <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" Text="{Binding Error}" IsVisible="False" c:Fold.IsOpen="{Binding HasError}"
                      Foreground="{DynamicResource DangerBrush}" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" Margin="0,4,0,0" />
