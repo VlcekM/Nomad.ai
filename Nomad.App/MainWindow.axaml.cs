@@ -1100,6 +1100,14 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnUnforkClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: SessionListItemViewModel item })
+        {
+            _ = _vm.UnforkAsync(item);
+        }
+    }
+
     private void OnDeleteSessionClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })
@@ -1146,6 +1154,9 @@ public partial class MainWindow : Window
             {
                 case "rename" or "pin":
                     entry.IsEnabled = !many;
+                    break;
+                case "unfork":
+                    entry.IsVisible = item.IsForked && !many;
                     break;
                 case "alive":
                     entry.Header = many ? $"Make{count} {(item.IsAlive ? "idle" : "alive")}" : item.AliveToggleText;
@@ -1767,10 +1778,11 @@ public partial class MainWindow : Window
                 }
             }
         }
-        else if (dev.Menu == "row")
+        else if (dev.Menu is "row" or "forkrow")
         {
-            // The first Idle row's context menu, asked for as a right-click asks (so the window names its entries).
-            if (this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionListItemViewModel { IsAlive: false }) is { } rowButton)
+            // The first Idle (or forked) row's context menu, asked for as a right-click asks (so the window names its entries).
+            bool Wanted(SessionListItemViewModel row) => dev.Menu == "row" ? !row.IsAlive : row.IsForked;
+            if (this.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.DataContext is SessionListItemViewModel row && Wanted(row)) is { } rowButton)
             {
                 rowButton.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = ContextRequestedEvent, Source = rowButton });
                 if (rowButton.ContextMenu is { IsOpen: false } rowMenu)

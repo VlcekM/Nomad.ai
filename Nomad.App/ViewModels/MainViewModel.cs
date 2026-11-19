@@ -1049,16 +1049,6 @@ public sealed partial class MainViewModel : ObservableObject
         Current.SetFolder(folder);
     }
 
-    /// <summary>
-    /// A side task Claude suggested, started: the new-session page in <paramref name="folder"/>, its prompt in the composer.
-    /// </summary>
-    public void NewSessionWithPrompt(string? folder, string prompt)
-    {
-        NewSession();
-        Current.SetFolder(folder);
-        Current.AddToComposer(prompt);
-    }
-
     /// <summary>The default mode changed in the settings: the new-session page follows, unless a mode was picked there.</summary>
     public void OnDefaultModeChanged()
     {
@@ -1665,6 +1655,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             vm.IsArchived = archived.Contains(s.SessionId);
             vm.IsPinned = pinned.Contains(s.SessionId);
+            vm.ParentSessionId = Settings.ForkedSessions.GetValueOrDefault(s.SessionId);
             merged.Add(vm);
         }
 
@@ -1827,7 +1818,8 @@ public sealed partial class MainViewModel : ObservableObject
         var alive = list.Where(s => s.IsAlive).ToList();
         foreach (var item in _all)
         {
-            item.ShowProject = item.IsAlive && Settings.AliveShowProject;
+            item.IsNested = false;
+            item.ShowProject = item.IsAlive && Settings.AliveShowProject && !item.IsForked;
             if (item.ShowProject)
             {
                 item.ProjectName = FolderGroup(item);
@@ -1907,7 +1899,7 @@ public sealed partial class MainViewModel : ObservableObject
             result.Add(header);
             if (!header.IsCollapsed || searching)
             {
-                result.AddRange(rows);
+                result.AddRange(NestForks(rows));
             }
         }
 
@@ -1916,8 +1908,8 @@ public sealed partial class MainViewModel : ObservableObject
         sessions = sessions.Where(s => !s.IsPinned).ToList();
         if (grouping == "None")
         {
-            result.AddRange(pinned);
-            result.AddRange(sessions);
+            result.AddRange(NestForks(pinned));
+            result.AddRange(NestForks(sessions));
         }
         else
         {
@@ -1976,6 +1968,58 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Rows in their order, each forked session moved right under the one it was forked from (when that one is among them), newest
+    /// fork first. Those moved are marked nested.
+    /// </summary>
+    private static List<SessionListItemViewModel> NestForks(IReadOnlyCollection<SessionListItemViewModel> rows)
+    {
+        var listed = rows.Select(r => r.SessionId).ToHashSet(StringComparer.Ordinal);
+        var forks = rows.Where(r => r.ParentSessionId is { } parent && listed.Contains(parent))
+            .ToLookup(r => r.ParentSessionId!, StringComparer.Ordinal);
+        var result = new List<SessionListItemViewModel>(rows.Count);
+        var placed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in rows.Where(r => r.ParentSessionId is not { } parent || !listed.Contains(parent)))
+        {
+            Place(row, nested: false);
+        }
+
+        // A loop of forks has no row outside it to hang from: its rows keep their place.
+        foreach (var row in rows.Where(r => !placed.Contains(r.SessionId)))
+        {
+            Place(row, nested: false);
+        }
+
+        return result;
+
+        void Place(SessionListItemViewModel row, bool nested)
+        {
+            if (!placed.Add(row.SessionId)) return;
+
+            row.IsNested = nested;
+            result.Add(row);
+            foreach (var fork in forks[row.SessionId])
+            {
+                Place(fork, nested: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Unforks a session: it becomes a standalone one, listed in its own place with its project line. The row folds away and
+    /// unfolds there.
+    /// </summary>
+    public async Task UnforkAsync(SessionListItemViewModel item)
+    {
+        await FoldAwayAsync([item]);
+        Settings.ForkedSessions.Remove(item.SessionId);
+        SaveSettings();
+        item.ParentSessionId = null;
+        ApplyFilter();
+        await Task.Delay(30);
+        item.IsLeaving = false;
     }
 
     /// <summary>Folds a group's rows away under its heading, or unfolds them (their height grows back from 0).</summary>
@@ -2534,6 +2578,7 @@ public sealed partial class MainViewModel : ObservableObject
             _all.Insert(0, vm);
         }
 
+        RecordFork(session, vm);
         vm.Backend = session.Backend;
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
@@ -2545,6 +2590,20 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
         if (IsWorkPageOpen) WorkPage.Relink();
+    }
+
+    /// <summary>
+    /// A session forked from another, identified: the link is kept, so the sidebar lists it under that one.
+    /// </summary>
+    private void RecordFork(SessionViewModel session, SessionListItemViewModel row)
+    {
+        if (session.ForkedFrom is not { } parent || session.SessionId is not { } id || id == parent) return;
+
+        row.ParentSessionId = parent;
+        if (Settings.ForkedSessions.TryGetValue(id, out var known) && known == parent) return;
+
+        Settings.ForkedSessions[id] = parent;
+        SaveSettings();
     }
 
     /// <summary>

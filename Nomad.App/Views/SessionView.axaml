@@ -742,7 +742,7 @@
             <TextBlock Text="{Binding Subtitle}" Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" FontSize="{DynamicResource UiFontSizeTiny}" />
           </StackPanel>
           <Button Grid.Column="2" Theme="{StaticResource SecondaryButton}" Command="{Binding StartCommand}" VerticalAlignment="Center" Margin="12,0,0,0">
-            <TextBlock Text="Start chat" />
+            <TextBlock Text="{Binding ButtonText}" />
           </Button>
         </Grid>
       </Border>

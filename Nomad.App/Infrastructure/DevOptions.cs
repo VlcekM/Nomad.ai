@@ -16,7 +16,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-size &lt;W&gt;x&lt;H&gt;           initial window size
 /// --dev-overlays [fps,render,layout,dirty]  Avalonia's renderer overlays in the window's corner: the FPS counter and the render / layout
 ///                               frame-time graphs (the default three), dirty rects
-/// --dev-menu model|mode|folder|branch|plus|workflows|usage|remote|update|list|alivelist|row|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's or folder heading's context menu) before the screenshot
+/// --dev-menu model|mode|folder|branch|plus|workflows|usage|remote|update|list|alivelist|row|forkrow|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's, forked row's or folder heading's context menu) before the screenshot
 /// --dev-settings-open [appearance|files|agents|remotecontrol|hub|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills

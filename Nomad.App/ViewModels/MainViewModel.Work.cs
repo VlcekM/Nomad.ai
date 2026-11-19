@@ -96,6 +96,24 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// Starts a side task Claude suggested in <paramref name="parent"/> as a chat of its own, on the same agent, model and mode,
+    /// and sends it <paramref name="prompt"/> without showing it: the sidebar lists it under its parent.
+    /// </summary>
+    public SessionViewModel StartForkedSession(SessionViewModel parent, string prompt)
+    {
+        var session = new SessionViewModel(this, parent.Folder, parent.Backend)
+        {
+            ForkedFrom = parent.SessionId,
+            Model = parent.Model,
+            Effort = parent.Effort,
+            PermissionMode = parent.PermissionMode,
+        };
+        _starting.Add(session);
+        _ = session.SendPromptAsync(prompt);
+        return session;
+    }
+
+    /// <summary>
     /// Shows a session the page started that isn't listed yet.
     /// </summary>
     public void ShowSession(SessionViewModel session)

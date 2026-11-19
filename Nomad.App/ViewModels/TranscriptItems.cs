@@ -590,8 +590,8 @@ public sealed partial class ArtifactItem : TranscriptItem
 }
 
 /// <summary>
-/// A side task Claude suggested for a chat of its own (suggest_new_chat): a card whose Start chat opens the new-session page with
-/// the task's prompt in the composer.
+/// A side task Claude suggested for a chat of its own (suggest_new_chat): a card whose Start chat starts it as a forked chat at
+/// once, and then opens it.
 /// </summary>
 public sealed partial class NewChatItem : TranscriptItem
 {
@@ -622,6 +622,18 @@ public sealed partial class NewChatItem : TranscriptItem
     /// Why it deserves its own chat, or the prompt's start when Claude gave no reason.
     /// </summary>
     public string Subtitle { get; }
+
+    /// <summary>
+    /// The chat started from the card; null until then (and again after a restart).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ButtonText))]
+    public partial SessionViewModel? Started { get; set; }
+
+    /// <summary>
+    /// Start chat, then Open chat once it runs.
+    /// </summary>
+    public string ButtonText => Started is null ? "Start chat" : "Open chat";
 
     /// <summary>
     /// The card for a suggest_new_chat call's input, or null when it lacks a title or prompt.

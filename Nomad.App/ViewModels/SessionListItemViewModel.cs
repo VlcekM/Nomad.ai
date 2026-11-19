@@ -85,6 +85,24 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ToolTipText))]
     public partial DateTime LastActivityUtc { get; set; }
 
+    /// <summary>
+    /// The session it was forked from (a side task Claude suggested, started from that chat's card); null once unforked.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsForked))]
+    public partial string? ParentSessionId { get; set; }
+
+    /// <summary>
+    /// Forked from another session: its row never shows the project line, and its menu offers Unfork.
+    /// </summary>
+    public bool IsForked => ParentSessionId is not null;
+
+    /// <summary>
+    /// Listed right under the session it was forked from: indented, an L-shaped arrow leading to it from that row.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsNested { get; set; }
+
     /// <summary>The row shows <see cref="ProjectName"/> on a second line (the Alive list's "Show project").</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowLogoTop), nameof(ShowLogoBottom))]

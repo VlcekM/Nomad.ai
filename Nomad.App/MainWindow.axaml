@@ -273,6 +273,21 @@
             <Style Selector="Border.agentlogo.bottom.shown">
               <Setter Property="Margin" Value="5,-5,0,0" />
             </Style>
+            <!-- A forked session listed under its parent: the row's content steps right behind an L-shaped arrow from it. -->
+            <Style Selector="Border.forkmark">
+              <Setter Property="Width" Value="0" />
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Width" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Border.forkmark.shown">
+              <Setter Property="Width" Value="18" />
+              <Setter Property="Opacity" Value="1" />
+            </Style>
             <Style Selector="Border.merged.shown, Border.worktreemark.shown, Border.pinmark.shown, Border.workflowmark.shown, Border.otherpcmark.shown">
               <Setter Property="MaxWidth" Value="16" />
               <Setter Property="Opacity" Value="1" />
@@ -419,6 +434,8 @@
                   <ContextMenu>
                     <MenuItem Tag="rename" Header="Rename" InputGesture="F2" Click="OnRenameSessionClick" />
                     <MenuItem Tag="pin" Header="{Binding PinToggleText}" Click="OnTogglePinnedClick" />
+                    <MenuItem Tag="unfork" Header="Unfork" Click="OnUnforkClick"
+                              ToolTip.Tip="Makes it a standalone session, listed on its own" />
                     <Separator />
                     <MenuItem Tag="alive" Header="Make alive" Click="OnToggleAliveClick" />
                     <MenuItem Tag="archive" Header="Archive" Click="OnToggleArchivedClick" />
@@ -429,7 +446,13 @@
                 </Button.ContextMenu>
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" RowDefinitions="26,Auto">
-                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch">
+                    <!-- Forked from the row above it: an arrow comes down from that row and turns right, into this one. -->
+                    <Border Classes="forkmark" Classes.shown="{Binding IsNested}" Height="26" VerticalAlignment="Top"
+                            ClipToBounds="True" Background="Transparent" ToolTip.Tip="Forked from the session above">
+                      <Path Data="M 5,0 V 13 H 14 M 11,10 L 14,13 L 11,16" Stroke="{DynamicResource TextMutedBrush}"
+                            StrokeThickness="1.2" StrokeLineCap="Round" StrokeJoin="Round" HorizontalAlignment="Left" />
+                    </Border>
                     <!-- A workflow runs (maybe long after the turn): a spinner folds in, and out once the last one ends. -->
                     <Border Classes="workflowmark" Classes.shown="{Binding HasRunningWorkflows}" Background="Transparent"
                             ToolTip.Tip="Workflow running">

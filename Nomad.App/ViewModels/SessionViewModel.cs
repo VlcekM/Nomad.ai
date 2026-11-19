@@ -607,6 +607,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     public bool StartsInPlace { get; init; }
 
+    /// <summary>
+    /// The session it was forked from: a side task Claude suggested there, started from its card.
+    /// </summary>
+    public string? ForkedFrom { get; init; }
+
     public string WorktreeToolTip => UseWorktree
         ? "Worktree on: starts in a new git worktree (.claude\\worktrees) on its own branch"
         : "Worktree off: starts in the folder itself";
@@ -3981,9 +3986,19 @@ public sealed partial class SessionViewModel : ObservableObject
     }
 
     /// <summary>
-    /// A suggested side task's Start chat: the new-session page in this chat's project, with the task's prompt to edit and send.
+    /// A suggested side task's Start chat: a chat of its own starts on the task's prompt at once, in the background, listed under
+    /// this one; once started, the card's button opens it.
     /// </summary>
-    private void StartSuggestedChat(NewChatItem suggestion) => _main.NewSessionWithPrompt(Folder, suggestion.Prompt);
+    private void StartSuggestedChat(NewChatItem suggestion)
+    {
+        if (suggestion.Started is { } started)
+        {
+            _main.ShowSession(started);
+            return;
+        }
+
+        suggestion.Started = _main.StartForkedSession(this, suggestion.Prompt);
+    }
 
     /// <summary>
     /// Adds <paramref name="text"/> to what is typed (once) and brings the chat's composer up to send it.
