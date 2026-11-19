@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.38.4
+
+- On the Pull requests & issues page, Fix, Review and Merge start in the project's own folder; Ctrl+click starts them
+  in a new worktree instead (the header says so, and the buttons turn blue while Ctrl is held).
+
 ## v1.38.3
 
 - Ctrl+M opens the Pull requests & issues page, as Ctrl+N opens a new session. In the Files view's code, Ctrl+M still
