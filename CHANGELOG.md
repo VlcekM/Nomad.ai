@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.39.0
+
+- Claude can suggest a side task for a chat of its own (a bug it noticed along the way, a follow-up) instead of doing
+  it in the current one: a card in the transcript, whose Start chat starts it at once in the background, on the same
+  model and mode. The card then opens that chat.
+- A chat started that way is a fork: the sidebar lists it right under its parent, indented on a small connector, with
+  no project line. Unfork, in its right-click menu, makes it a standalone session.
+
 ## v1.38.4
 
 - On the Pull requests & issues page, Fix, Review and Merge start in the project's own folder; Ctrl+click starts them
