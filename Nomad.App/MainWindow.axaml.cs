@@ -323,6 +323,12 @@ public partial class MainWindow : Window
                 vm.ToggleSidePanel();
                 e.Handled = true;
             }
+            // Ctrl+M: the pull requests and issues page, as Ctrl+N the new-session one (in the code editor, its folding chord).
+            else if (e.Key == Key.M && e.KeyModifiers == KeyModifiers.Control && e.Source is not Ide.CodeView)
+            {
+                vm.OpenWorkPage();
+                e.Handled = true;
+            }
             else if (vm.FilesViewGesture is { } filesKey && filesKey.Matches(e) && FilesKeyApplies(vm, e))
             {
                 vm.Current.ToggleFilesView();

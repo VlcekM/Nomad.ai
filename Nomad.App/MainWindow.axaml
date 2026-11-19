@@ -738,7 +738,7 @@
                   Margin="8,2,11,0"
                   Padding="10,0"
                   FontWeight="Normal"
-                  ToolTip.Tip="Open pull requests and issues of your projects">
+                  ToolTip.Tip="Open pull requests and issues of your projects (Ctrl+M)">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <c:Icon Size="13" Data="{StaticResource IconPullRequest}" />
               <TextBlock Text="Pull requests &amp; issues" VerticalAlignment="Center" />
