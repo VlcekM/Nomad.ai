@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.38.3
+
+- Ctrl+M opens the Pull requests & issues page, as Ctrl+N opens a new session. In the Files view's code, Ctrl+M still
+  starts its folding shortcut.
+
 ## v1.38.2
 
 - Subagents a skill starts, such as /code-review's, show as done once they finish, instead of "Waiting for an agent"
