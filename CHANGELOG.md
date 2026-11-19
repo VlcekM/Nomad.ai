@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.38.2
+
+- Subagents a skill starts, such as /code-review's, show as done once they finish, instead of "Waiting for an agent"
+  for good.
+
 ## v1.38.1
 
 - On the Pull requests & issues page, Fix, Review and Merge give way to the session they started (its title and
