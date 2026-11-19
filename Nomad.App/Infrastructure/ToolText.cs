@@ -13,6 +13,7 @@ public enum ToolCategory
     Agent,
     Todo,
     Question,
+    Suggestion,
     Other,
 }
 
@@ -30,6 +31,7 @@ public static class ToolText
         "TodoWrite" => ToolCategory.Todo,
         "AskUserQuestion" => ToolCategory.Question,
         "mcp__nomad_session__request_folder_move" => ToolCategory.Question,
+        "mcp__nomad_session__suggest_new_chat" => ToolCategory.Suggestion,
         _ => ToolCategory.Other,
     };
 
@@ -43,6 +45,7 @@ public static class ToolText
         ToolCategory.Agent => "IconAgent",
         ToolCategory.Todo => "IconList",
         ToolCategory.Question => "IconQuestion",
+        ToolCategory.Suggestion => "IconFork",
         _ => "IconTool",
     };
 
@@ -175,6 +178,7 @@ public static class ToolText
         "TodoWrite" => "Updating the todo list…",
         "AskUserQuestion" => "Waiting for your answer…",
         "mcp__nomad_session__request_folder_move" => "Requesting a folder move…",
+        "mcp__nomad_session__suggest_new_chat" => "Suggesting a new chat…",
         _ => $"Using {name}…",
     };
 
@@ -230,6 +234,7 @@ public static class ToolText
         ToolCategory.Agent => "ran " + Format.Count(n, "agent", "agents", "an"),
         ToolCategory.Todo => "updated the todo list",
         ToolCategory.Question => "asked " + Format.Count(n, "question", "questions"),
+        ToolCategory.Suggestion => n == 1 ? "suggested a new chat" : $"suggested {n} new chats",
         _ => "used " + Format.Count(n, "tool", "tools"),
     };
 
@@ -254,6 +259,7 @@ public static class ToolText
             "Workflow" => Str(input, "name") ?? Nomad.Core.Agents.WorkflowScript.ReadMeta(Str(input, "script")).Name ?? (Str(input, "scriptPath") is { } script ? Path.GetFileNameWithoutExtension(script) : null),
             "TodoWrite" => "todo list",
             "AskUserQuestion" => FirstQuestion(input),
+            "mcp__nomad_session__suggest_new_chat" => Str(input, "title"),
             _ => null,
         };
 

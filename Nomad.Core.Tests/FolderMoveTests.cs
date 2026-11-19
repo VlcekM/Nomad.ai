@@ -21,13 +21,14 @@ public sealed class FolderMoveTests : IDisposable
     [Fact]
     public async Task MovesOnlyAfterTheUserApprovesTheExactDestination()
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         PermissionRequest? permission = null;
         string? moved = null;
         tool.PermissionRequested += request => permission = request;
         tool.MoveApproved += move => moved = move.Path;
 
-        var call = tool.HandleAsync(Call("../destination with spaces"));
+        var call = server.HandleAsync(Call("../destination with spaces"));
         Assert.False(call.IsCompleted);
         Assert.Null(moved);
         Assert.NotNull(permission);
@@ -46,11 +47,12 @@ public sealed class FolderMoveTests : IDisposable
     [InlineData(true)]
     public async Task DenyingOrCancellingNeverMoves(bool cancel)
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         PermissionRequest? permission = null;
         tool.PermissionRequested += request => permission = request;
         tool.MoveApproved += _ => Assert.Fail("A refused move must not be applied.");
-        var call = tool.HandleAsync(Call(Destination));
+        var call = server.HandleAsync(Call(Destination));
         if (cancel)
         {
             tool.Cancel();
@@ -67,11 +69,12 @@ public sealed class FolderMoveTests : IDisposable
     [Fact]
     public async Task RejectsMissingFoldersAndTheCurrentFolderWithoutAsking()
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         tool.PermissionRequested += _ => Assert.Fail("Invalid destinations must not ask for approval.");
         foreach (var path in new[] { Source + Path.DirectorySeparatorChar, Path.Combine(_root, "missing") })
         {
-            var response = await tool.HandleAsync(Call(path));
+            var response = await server.HandleAsync(Call(path));
             Assert.True(response!["result"]!["isError"]!.GetValue<bool>());
         }
     }
@@ -79,12 +82,13 @@ public sealed class FolderMoveTests : IDisposable
     [Fact]
     public async Task RechecksTheFolderAfterApprovalAndRejectsConcurrentMoves()
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         PermissionRequest? permission = null;
         tool.PermissionRequested += request => permission = request;
         tool.MoveApproved += _ => Assert.Fail("The destination was removed before approval.");
-        var first = tool.HandleAsync(Call(Destination));
-        var second = await tool.HandleAsync(Call(Destination));
+        var first = server.HandleAsync(Call(Destination));
+        var second = await server.HandleAsync(Call(Destination));
         Assert.True(second!["result"]!["isError"]!.GetValue<bool>());
         Directory.Delete(Destination);
         tool.Respond(permission!, new PermissionDecision(PermissionChoice.Allow));
@@ -105,15 +109,16 @@ public sealed class FolderMoveTests : IDisposable
     [Fact]
     public async Task McpCancellationWithdrawsTheApprovalCard()
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         PermissionRequest? permission = null;
         string? withdrawn = null;
         tool.PermissionRequested += request => permission = request;
         tool.PermissionCancelled += id => withdrawn = id;
         tool.MoveApproved += _ => Assert.Fail("A cancelled MCP call must not move.");
-        var call = tool.HandleAsync(Call(Destination));
+        var call = server.HandleAsync(Call(Destination));
         using var notification = JsonDocument.Parse("""{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}""");
-        Assert.Null(await tool.HandleAsync(notification.RootElement));
+        Assert.Null(await server.HandleAsync(notification.RootElement));
         Assert.Equal(permission!.RequestId, withdrawn);
         Assert.True((await call)!["result"]!["isError"]!.GetValue<bool>());
     }
@@ -121,9 +126,10 @@ public sealed class FolderMoveTests : IDisposable
     [Fact]
     public async Task SubagentsCannotMoveTheParentConversation()
     {
-        var tool = new FolderMoveTool(Source);
+        var server = new NomadSessionServer(Source);
+        var tool = server.FolderMove;
         tool.PermissionRequested += _ => Assert.Fail("A subagent cannot request moving the parent.");
-        var response = await tool.HandleAsync(Call(Destination), mainAgent: false);
+        var response = await server.HandleAsync(Call(Destination), mainAgent: false);
         Assert.True(response!["result"]!["isError"]!.GetValue<bool>());
     }
 

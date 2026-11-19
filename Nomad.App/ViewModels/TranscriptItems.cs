@@ -589,6 +589,57 @@ public sealed partial class ArtifactItem : TranscriptItem
     private static partial System.Text.RegularExpressions.Regex VersionNumber();
 }
 
+/// <summary>
+/// A side task Claude suggested for a chat of its own (suggest_new_chat): a card whose Start chat opens the new-session page with
+/// the task's prompt in the composer.
+/// </summary>
+public sealed partial class NewChatItem : TranscriptItem
+{
+    /// <summary>
+    /// Opens the new-session page for a suggestion.
+    /// </summary>
+    private readonly Action<NewChatItem> _start;
+
+    private NewChatItem(string title, string prompt, string? reason, Action<NewChatItem> start)
+    {
+        Title = title;
+        Prompt = prompt;
+        Subtitle = reason is { Length: > 0 } ? reason : prompt.ReplaceLineEndings(" ");
+        _start = start;
+    }
+
+    /// <summary>
+    /// A few words naming the task.
+    /// </summary>
+    public string Title { get; }
+
+    /// <summary>
+    /// The new chat's first prompt.
+    /// </summary>
+    public string Prompt { get; }
+
+    /// <summary>
+    /// Why it deserves its own chat, or the prompt's start when Claude gave no reason.
+    /// </summary>
+    public string Subtitle { get; }
+
+    /// <summary>
+    /// The card for a suggest_new_chat call's input, or null when it lacks a title or prompt.
+    /// </summary>
+    public static NewChatItem? From(JsonElement input, Action<NewChatItem> start)
+    {
+        string? Str(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var value) &&
+            value.ValueKind == JsonValueKind.String ? value.GetString()?.Trim() : null;
+
+        if (Str("title") is not { Length: > 0 } title || Str("prompt") is not { Length: > 0 } prompt) return null;
+
+        return new NewChatItem(title, prompt, Str("reason"), start);
+    }
+
+    [RelayCommand]
+    private void Start() => _start(this);
+}
+
 public sealed class ErrorItem(string message) : TranscriptItem
 {
     public string Message { get; } = message;

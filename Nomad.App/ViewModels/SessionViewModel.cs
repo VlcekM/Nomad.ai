@@ -27,6 +27,11 @@ public sealed partial class SessionViewModel : ObservableObject
 {
     private const int MaxResultChars = 20_000;
 
+    /// <summary>
+    /// Claude's tool for suggesting a side task as a chat of its own (Nomad.Core's NewChatTool).
+    /// </summary>
+    private const string NewChatToolName = "mcp__nomad_session__suggest_new_chat";
+
     private readonly MainViewModel _main;
     private readonly Dictionary<string, ToolCallItem> _calls = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ToolGroupItem> _groupOfCall = new(StringComparer.Ordinal);
@@ -60,12 +65,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Files.SetFolder(Folder);
 
         // "Ask about this" in the Files view: the quote joins what is typed, and the chat comes up to ask.
-        Files.AskRequested += quote =>
-        {
-            ComposerText = string.IsNullOrWhiteSpace(ComposerText) ? quote : ComposerText.TrimEnd() + "\n\n" + quote;
-            IsFilesView = false;
-            ComposerEndRequested?.Invoke();
-        };
+        Files.AskRequested += AddToComposer;
         RebuildOptions();
         RefreshFolders();
         LoadCatalog();
@@ -3965,6 +3965,11 @@ public sealed partial class SessionViewModel : ObservableObject
             CloseGroup();
             Items.Add(artifact);
         }
+        else if (call.Name == NewChatToolName && !isError && NewChatItem.From(call.Input, StartSuggestedChat) is { } suggestion)
+        {
+            CloseGroup();
+            Items.Add(suggestion);
+        }
         else if (call.Name == "Workflow" && !isError && WorkflowLaunch.Parse(text) is { } launch)
         {
             WorkflowFor(toolUseId).SetLaunch(launch);
@@ -3973,6 +3978,25 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             _ = FollowMoveAsync();
         }
+    }
+
+    /// <summary>
+    /// A suggested side task's Start chat: the new-session page in this chat's project, with the task's prompt to edit and send.
+    /// </summary>
+    private void StartSuggestedChat(NewChatItem suggestion) => _main.NewSessionWithPrompt(Folder, suggestion.Prompt);
+
+    /// <summary>
+    /// Adds <paramref name="text"/> to what is typed (once) and brings the chat's composer up to send it.
+    /// </summary>
+    public void AddToComposer(string text)
+    {
+        if (!ComposerText.Contains(text, StringComparison.Ordinal))
+        {
+            ComposerText = string.IsNullOrWhiteSpace(ComposerText) ? text : ComposerText.TrimEnd() + "\n\n" + text;
+        }
+
+        IsFilesView = false;
+        ComposerEndRequested?.Invoke();
     }
 
     /// <summary>

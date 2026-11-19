@@ -1,12 +1,22 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using static Nomad.Core.Agents.NomadSessionServer;
 
 namespace Nomad.Core.Agents;
 
-/// <summary>A small SDK-hosted MCP server. Approval belongs to Nomad, even in bypass mode.</summary>
+/// <summary>
+/// The nomad_session tool that moves the conversation to another folder. Approval belongs to Nomad, even in bypass mode.
+/// </summary>
 internal sealed class FolderMoveTool(string workingDirectory)
 {
-    public const string ServerName = "nomad_session";
+    /// <summary>
+    /// The tool's name on the server.
+    /// </summary>
+    public const string Name = "request_folder_move";
+
+    /// <summary>
+    /// The tool's name as Claude calls it.
+    /// </summary>
     public const string ToolName = "mcp__nomad_session__request_folder_move";
     public const string PermissionToolName = "MoveFolder";
     public const string Instructions = "When the user's task belongs in another repository or working folder, " +
@@ -55,73 +65,33 @@ internal sealed class FolderMoveTool(string workingDirectory)
         }
     }
 
-    public async Task<JsonObject?> HandleAsync(JsonElement message, bool mainAgent = true)
+    /// <summary>
+    /// Withdraws the move waiting for the user, if it is the JSON-RPC call <paramref name="rpcId"/> the CLI just cancelled.
+    /// </summary>
+    public void CancelIfPending(string rpcId)
     {
-        if (message.ValueKind != JsonValueKind.Object)
+        bool matches;
+        lock (_gate)
         {
-            return null;
+            matches = _pending is { } pending && pending.RpcId == rpcId;
         }
 
-        var method = Str(message, "method");
-        if (method == "notifications/cancelled" && message.TryGetProperty("params", out var cancellation) &&
-            cancellation.TryGetProperty("requestId", out var cancelledId))
-        {
-            bool matches;
-            lock (_gate)
-            {
-                matches = _pending is { } pending && pending.RpcId == cancelledId.GetRawText();
-            }
-
-            if (matches)
-            {
-                Cancel();
-            }
-        }
-
-        if (!message.TryGetProperty("id", out var id))
-        {
-            return null; // MCP notifications need no JSON-RPC response.
-        }
-
-        JsonNode result;
-        switch (method)
-        {
-            case "initialize":
-                var version = message.TryGetProperty("params", out var init) ? Str(init, "protocolVersion") : null;
-                result = new JsonObject
-                {
-                    ["protocolVersion"] = version ?? "2024-11-05",
-                    ["capabilities"] = new JsonObject { ["tools"] = new JsonObject() },
-                    ["serverInfo"] = new JsonObject { ["name"] = ServerName, ["version"] = "1.0.0" },
-                };
-                break;
-            case "ping":
-                result = new JsonObject();
-                break;
-            case "tools/list":
-                result = JsonNode.Parse("""
-                    {"tools":[{"name":"request_folder_move","description":"Ask the user to move this conversation to another repository or working folder. After approval, end the turn immediately: Nomad will resume the same conversation there, loading its project instructions. Do not use a shell cd to move the session. Never use this for a subagent or while background tasks are running.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"Destination folder, preferably an absolute path. It must already exist."},"reason":{"type":"string","description":"Why the task belongs in this folder."}},"required":["path","reason"],"additionalProperties":false}}]}
-                    """)!;
-                break;
-            case "tools/call":
-                result = mainAgent ? await CallAsync(message).ConfigureAwait(false)
-                    : ToolResult("Only the main conversation can request a folder move. Return this request to your parent agent.", error: true);
-                break;
-            default:
-                return new JsonObject
-                {
-                    ["jsonrpc"] = "2.0", ["id"] = JsonNode.Parse(id.GetRawText()),
-                    ["error"] = new JsonObject { ["code"] = -32601, ["message"] = "Unknown MCP method." },
-                };
-        }
-
-        return new JsonObject { ["jsonrpc"] = "2.0", ["id"] = JsonNode.Parse(id.GetRawText()), ["result"] = result };
+        if (matches) Cancel();
     }
 
-    private async Task<JsonObject> CallAsync(JsonElement message)
+    /// <summary>
+    /// The tool as tools/list describes it.
+    /// </summary>
+    public static JsonNode Descriptor() => JsonNode.Parse("""
+        {"name":"request_folder_move","description":"Ask the user to move this conversation to another repository or working folder. After approval, end the turn immediately: Nomad will resume the same conversation there, loading its project instructions. Do not use a shell cd to move the session. Never use this for a subagent or while background tasks are running.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"Destination folder, preferably an absolute path. It must already exist."},"reason":{"type":"string","description":"Why the task belongs in this folder."}},"required":["path","reason"],"additionalProperties":false}}
+        """)!;
+
+    /// <summary>
+    /// Asks the user about the move and answers once they have; the server has checked the call names this tool.
+    /// </summary>
+    public async Task<JsonObject> CallAsync(JsonElement message)
     {
-        if (!message.TryGetProperty("params", out var parameters) || Str(parameters, "name") != "request_folder_move" ||
-            !parameters.TryGetProperty("arguments", out var input) || Str(input, "path") is not { Length: > 0 } path ||
+        if (!message.TryGetProperty("params", out var parameters) || !parameters.TryGetProperty("arguments", out var input) || Str(input, "path") is not { Length: > 0 } path ||
             Str(input, "reason") is not { Length: > 0 } reason)
         {
             return ToolResult("Provide a destination path and a reason for moving.", error: true);
@@ -202,18 +172,4 @@ internal sealed class FolderMoveTool(string workingDirectory)
             }
         }
     }
-
-    private static JsonObject ToolResult(string text, bool error = false) => new()
-    {
-        ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text }),
-        ["isError"] = error,
-    };
-
-    private static string? Str(JsonElement value, string name) =>
-        value.ValueKind == JsonValueKind.Object && value.TryGetProperty(name, out var property) && property.ValueKind == JsonValueKind.String
-            ? property.GetString()?.Trim() : null;
-
-    internal static string? ToolUseId(JsonElement message) =>
-        message.ValueKind == JsonValueKind.Object && message.TryGetProperty("params", out var parameters) &&
-        parameters.TryGetProperty("_meta", out var meta) ? Str(meta, "claudecode/toolUseId") : null;
 }

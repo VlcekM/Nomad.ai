@@ -1049,6 +1049,16 @@ public sealed partial class MainViewModel : ObservableObject
         Current.SetFolder(folder);
     }
 
+    /// <summary>
+    /// A side task Claude suggested, started: the new-session page in <paramref name="folder"/>, its prompt in the composer.
+    /// </summary>
+    public void NewSessionWithPrompt(string? folder, string prompt)
+    {
+        NewSession();
+        Current.SetFolder(folder);
+        Current.AddToComposer(prompt);
+    }
+
     /// <summary>The default mode changed in the settings: the new-session page follows, unless a mode was picked there.</summary>
     public void OnDefaultModeChanged()
     {
