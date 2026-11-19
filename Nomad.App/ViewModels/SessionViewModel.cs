@@ -601,6 +601,12 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Starts in its folder whatever the Worktree switch says: the pull requests and issues page's sessions, which it puts in
+    /// a worktree itself or not.
+    /// </summary>
+    public bool StartsInPlace { get; init; }
+
     public string WorktreeToolTip => UseWorktree
         ? "Worktree on: starts in a new git worktree (.claude\\worktrees) on its own branch"
         : "Worktree off: starts in the folder itself";
@@ -2542,7 +2548,7 @@ public sealed partial class SessionViewModel : ObservableObject
         if (first)
         {
             Title = text.Length > 0 ? UntitledTitle : firstTitle;
-            _worktreePending = UseWorktree && IsGitFolder && Folder is not null;
+            _worktreePending = UseWorktree && !StartsInPlace && IsGitFolder && Folder is not null;
             IsNew = false;
         }
 

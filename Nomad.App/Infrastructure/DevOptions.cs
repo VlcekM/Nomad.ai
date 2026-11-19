@@ -70,6 +70,11 @@ public sealed class DevOptions
     /// <summary><c>--dev-side-panel</c>: the right-hand panel is open (without saving that).</summary>
     public bool SidePanel { get; private set; }
 
+    /// <summary>
+    /// <c>--dev-work-page</c>: the pull requests and issues page is shown.
+    /// </summary>
+    public bool WorkPage { get; private set; }
+
     /// <summary><c>--dev-files [path]</c>: the session's Files view is shown, with this file (relative to its folder) open.</summary>
     public bool Files { get; private set; }
     public string? FilesOpen { get; private set; }
@@ -178,6 +183,7 @@ public sealed class DevOptions
 
                     break;
                 case "--dev-side-panel": o.SidePanel = true; break;
+                case "--dev-work-page": o.WorkPage = true; break;
                 case "--dev-files-split": o.FilesSplit = true; break;
                 case "--dev-files":
                     o.Files = true;

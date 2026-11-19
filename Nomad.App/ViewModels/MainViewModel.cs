@@ -78,6 +78,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         IsSidePanelOpen = settings.SidePanelOpen || dev.SidePanel;
+        IsWorkPageOpen = dev.WorkPage;
         if (dev.Model is not null)
         {
             Current.Model = dev.Model;
@@ -687,7 +688,7 @@ public sealed partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowSidePanel))]
     public partial SessionViewModel Current { get; set; }
 
-    public bool IsNewSelected => Current.IsNew;
+    public bool IsNewSelected => Current.IsNew && !IsWorkPageOpen;
 
     /// <summary>
     /// The new-session page while another session is shown, so what was typed (and attached, and the folder and
@@ -721,7 +722,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// The side panel is shown: open, and not on the new-session page (it slides in once the session starts) nor
     /// in the Files view (whose tree may be on the same side).
     /// </summary>
-    public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew && !Current.IsFilesView;
+    public bool ShowSidePanel => IsSidePanelOpen && !Current.IsNew && !Current.IsFilesView && !IsWorkPageOpen;
 
     /// <summary>Chats have a Files view (tree and code editor); off, only the chat.</summary>
     public bool FilesViewEnabled
@@ -934,6 +935,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {
+        IsWorkPageOpen = false;
         newValue?.ApplyDefaultMode();
         _ = RefreshVisibleUsageAsync();
 
@@ -1004,6 +1006,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public void NewSession()
     {
+        IsWorkPageOpen = false;
         if (Current.IsNew)
         {
             return;
@@ -1074,6 +1077,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand]
     public async Task OpenSessionAsync(SessionListItemViewModel item)
     {
+        IsWorkPageOpen = false;
         if (_open.TryGetValue(item.SessionId, out var live))
         {
             Current = live;
@@ -1751,6 +1755,8 @@ public sealed partial class MainViewModel : ObservableObject
                 row.Issue = issue ?? links.IssueFor(row.GitBranch, row.Title, null);
             }
         }
+
+        if (IsWorkPageOpen) WorkPage.Relink();
     }
 
     private static readonly System.Text.RegularExpressions.Regex PullRequestUrl = new(
@@ -2486,6 +2492,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (replaced is not null && replaced != id) ArchiveReplaced(session, replaced);
 
+        _starting.Remove(session);
         _open[id] = session;
         var vm = _all.FirstOrDefault(s => s.SessionId == id);
         if (vm is null)
@@ -2504,6 +2511,7 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
+        if (IsWorkPageOpen) WorkPage.Relink();
     }
 
     /// <summary>
@@ -2939,7 +2947,7 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>The sessions that may have a CLI running: every opened one and the current one.</summary>
-    private IEnumerable<SessionViewModel> LiveSessions => _open.Values.Append(Current).Distinct();
+    private IEnumerable<SessionViewModel> LiveSessions => _open.Values.Concat(_starting).Append(Current).Distinct();
 
     /// <summary>
     /// A turn is running here, or a phone session is (Nomad can't see its turns): Nomad must not restart now, because

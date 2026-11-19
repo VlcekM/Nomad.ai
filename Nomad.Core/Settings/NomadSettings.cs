@@ -246,6 +246,13 @@ public sealed class NomadSettings
 
     /// <summary>New sessions in a git repository start in a new worktree of it.</summary>
     public bool NewSessionWorktree { get; set; }
+
+    /// <summary>
+    /// The model the pull requests and issues page starts its sessions with (one of the default agent's chips); null for the
+    /// agent's default model.
+    /// </summary>
+    public string? WorkPageModel { get; set; }
+
     public string? LastFolder { get; set; }
 
     /// <summary>What was typed on the new-session page and not sent, put back at the next start.</summary>

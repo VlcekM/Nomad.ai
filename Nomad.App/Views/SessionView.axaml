@@ -1397,15 +1397,21 @@
               </Border>
             </Grid>
           </Border>
-          <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="2,0">
             <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
-            <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
+            <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnWorkPageClick" Margin="0,0,16,0" ToolTip.Tip="Open pull requests and issues of these projects">
+              <StackPanel Orientation="Horizontal" Spacing="5">
+                <c:Icon Size="12" Data="{StaticResource IconPullRequest}" />
+                <TextBlock Text="Pull requests &amp; issues" FontSize="{DynamicResource UiFontSizeSmall}" />
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
               <StackPanel Orientation="Horizontal" Spacing="5">
                 <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
                 <TextBlock Text="No folder" FontSize="{DynamicResource UiFontSizeSmall}" />
               </StackPanel>
             </Button>
-            <Button Grid.Column="2" Theme="{StaticResource LineButton}" Click="OnOpenFolderClick">
+            <Button Grid.Column="3" Theme="{StaticResource LineButton}" Click="OnOpenFolderClick">
               <StackPanel Orientation="Horizontal" Spacing="5">
                 <c:Icon Size="12" Data="{StaticResource IconFolderOpen}" />
                 <TextBlock Text="Open folder…" FontSize="{DynamicResource UiFontSizeSmall}" />

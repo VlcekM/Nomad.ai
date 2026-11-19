@@ -1,0 +1,216 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.App.ViewModels"
+             xmlns:c="using:Nomad.App.Controls"
+             x:Class="Nomad.App.Views.WorkPageView"
+             x:DataType="vm:WorkPageViewModel">
+
+  <!-- Pull requests and issues: every recent project's open ones, a card per repository. A row's buttons start a session
+       on it in the background (on the model chip picked in the header); its chip then opens that session. -->
+  <UserControl.Styles>
+    <Style Selector="Border.workcard">
+      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="8,10,8,8" />
+    </Style>
+    <Style Selector="Border.workrow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.workrow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource BgHoverBrush}" />
+    </Style>
+    <!-- The row's buttons: faint until the row is hovered, so the list reads as a list. -->
+    <Style Selector="StackPanel.actions">
+      <Setter Property="Opacity" Value="0.35" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.workrow:pointerover StackPanel.actions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.action">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="9,0" />
+      <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Button:pointerover TextBlock.title">
+      <Setter Property="TextDecorations" Value="Underline" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.Resources>
+    <!-- One pull request or issue: its icon and number, title (a click opens it on GitHub), who and when, labels; then its
+         session's chip and the buttons. -->
+    <DataTemplate x:Key="WorkRow" x:DataType="vm:WorkRowViewModel">
+      <Border Classes="workrow" c:Fold.IsOpen="{Binding IsShown}" IsEnabled="{Binding IsShown}">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" RowDefinitions="Auto,Auto">
+          <Panel Width="16" Margin="0,2,8,0" VerticalAlignment="Top">
+            <c:Icon Size="14" Data="{StaticResource IconPullRequest}" Stroke="{DynamicResource GhOpenBrush}" IsVisible="{Binding IsReadyPullRequest}" />
+            <c:Icon Size="14" Data="{StaticResource IconPullRequest}" Stroke="{DynamicResource GhNeutralBrush}" IsVisible="{Binding IsDraft}" />
+            <c:Icon Size="14" Data="{StaticResource IconIssue}" Stroke="{DynamicResource GhOpenBrush}" IsVisible="{Binding IsIssue}" />
+          </Panel>
+          <TextBlock Grid.Column="1" Text="{Binding NumberText}" Classes="muted" FontFamily="{DynamicResource MonoFont}"
+                     FontSize="{DynamicResource UiFontSizeSmall}" MinWidth="36" Margin="0,1,8,0" VerticalAlignment="Top" />
+          <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+            <Button Theme="{StaticResource LineButton}" Padding="0" Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenInBrowserCommand}"
+                    CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Url}" ToolTip.ShowDelay="700" HorizontalAlignment="Stretch">
+              <TextBlock Classes="title" Text="{Binding Title}" />
+            </Button>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding MetaText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ReviewText}" IsVisible="{Binding HasReview}" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center"
+                         Foreground="{DynamicResource WaitingBrush}" Classes.approved="{Binding IsApproved}">
+                <TextBlock.Styles>
+                  <Style Selector="TextBlock.approved">
+                    <Setter Property="Foreground" Value="{DynamicResource GhOpenBrush}" />
+                  </Style>
+                </TextBlock.Styles>
+              </TextBlock>
+              <ItemsControl ItemsSource="{Binding Labels}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <Border Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="5,0">
+                      <TextBlock Text="{Binding}" FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+
+          <!-- Its session: working, asking, unread or done (the sidebar's marks); a click opens it. -->
+          <Button Grid.Column="3" Theme="{StaticResource ChipButton}" Classes="selected" Margin="10,0,0,0" VerticalAlignment="Center"
+                  IsVisible="{Binding HasSession}" Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenSessionCommand}"
+                  CommandParameter="{Binding}" ToolTip.Tip="{Binding SessionToolTip}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <c:Ring Width="11" Height="11" StrokeWidth="1.5" IsSpinning="{Binding IsStarting}" IsVisible="{Binding IsStarting}"
+                      TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+              <c:StatusMark Mark="{Binding Session.Mark}" IsVisible="{Binding !IsStarting}" VerticalAlignment="Center"
+                            WorkingBrush="{DynamicResource AccentBrush}" WaitingBrush="{DynamicResource WaitingBrush}" UnreadBrush="{DynamicResource UnreadBrush}" />
+              <TextBlock Text="Session" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <StackPanel Grid.Column="4" Classes="actions" Orientation="Horizontal" Spacing="4" Margin="8,0,0,0" VerticalAlignment="Center">
+            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Fix" IsVisible="{Binding IsIssue}" IsEnabled="{Binding !IsLaunching}"
+                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).FixCommand}" CommandParameter="{Binding}"
+                    ToolTip.Tip="Start a session that fixes it, in the project's checkout" />
+            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Review" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
+                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).ReviewCommand}" CommandParameter="{Binding}"
+                    ToolTip.Tip="Start a session that reviews it, in a new worktree" />
+            <Button Theme="{StaticResource SecondaryButton}" Classes="action" Content="Merge" IsVisible="{Binding IsPullRequest}" IsEnabled="{Binding !IsLaunching}"
+                    Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).MergeCommand}" CommandParameter="{Binding}"
+                    ToolTip.Tip="Start a session that merges it (reconciling it with the repository), in a new worktree" />
+          </StackPanel>
+
+          <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" Text="{Binding Error}" IsVisible="False" c:Fold.IsOpen="{Binding HasError}"
+                     Foreground="{DynamicResource DangerBrush}" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" Margin="0,4,0,0" />
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24,20,24,28" Spacing="14" MaxWidth="{DynamicResource ColumnMaxWidth}">
+
+      <!-- The header: which agent and model the buttons start sessions on, and refresh. -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding AgentText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding Models}" VerticalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MenuOption">
+                <Button Theme="{StaticResource ChipButton}" Classes.selected="{Binding IsSelected}"
+                        Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).SelectModelCommand}" CommandParameter="{Binding}">
+                  <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Medium" VerticalAlignment="Center" />
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+        <Button Grid.Column="1" Theme="{StaticResource IconButton}" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh from GitHub">
+          <Panel>
+            <c:Ring Width="14" Height="14" StrokeWidth="1.5" IsSpinning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
+                    TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource TextMutedBrush}" />
+            <c:Icon Data="{StaticResource IconSync}" IsVisible="{Binding !IsLoading}" />
+          </Panel>
+        </Button>
+      </Grid>
+
+      <!-- Placeholder rows until the first repository answers, then a card per repository. -->
+      <Panel>
+      <c:Skeleton IsActive="{Binding ShowPlaceholder}" Rows="6" RowHeight="10" RowSpacing="16" Widths="0.5,0.8,0.7,0.5,0.75,0.6"
+                  Fill="{DynamicResource SkeletonBrush}" Margin="8,10,120,0" />
+      <TextBlock Text="No project here is a GitHub repository gh can read. Sign in with gh auth login, or open a project first."
+                 IsVisible="{Binding ShowNothing}" Classes="muted" TextWrapping="Wrap" />
+
+      <ItemsControl ItemsSource="{Binding Groups}" ContainerPrepared="OnContainerPrepared">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="12" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:WorkGroupViewModel">
+            <Border Classes="workcard">
+              <StackPanel>
+                <!-- The repository (a click opens it on GitHub) and its counts. -->
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,0,8,6">
+                  <Button Theme="{StaticResource LineButton}" Padding="0" Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenInBrowserCommand}"
+                          CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Folder}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                      <TextBlock Classes="title" Text="{Binding Name}" FontWeight="Medium" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Owner}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding PullRequests}" ItemTemplate="{StaticResource WorkRow}" ContainerPrepared="OnContainerPrepared" />
+                <Border Height="1" Background="{DynamicResource BorderCardBrush}" Margin="8,4">
+                  <Border.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="HasPullRequests" />
+                      <Binding Path="HasIssues" />
+                    </MultiBinding>
+                  </Border.IsVisible>
+                </Border>
+                <ItemsControl ItemsSource="{Binding Issues}" ItemTemplate="{StaticResource WorkRow}" ContainerPrepared="OnContainerPrepared" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      </Panel>
+
+      <TextBlock Text="{Binding QuietText}" IsVisible="{Binding HasQuiet}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}"
+                 TextWrapping="Wrap" Margin="8,0" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

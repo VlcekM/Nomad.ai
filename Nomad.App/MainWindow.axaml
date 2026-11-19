@@ -715,6 +715,20 @@
               <TextBlock Text="New" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <!-- Every recent project's open pull requests and issues, in place of the session. -->
+          <Button Theme="{StaticResource RowButton}"
+                  Classes.selected="{Binding IsWorkPageOpen}"
+                  Command="{Binding OpenWorkPageCommand}"
+                  Height="26"
+                  Margin="8,2,11,0"
+                  Padding="10,0"
+                  FontWeight="Normal"
+                  ToolTip.Tip="Open pull requests and issues of your projects">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <c:Icon Size="13" Data="{StaticResource IconPullRequest}" />
+              <TextBlock Text="Pull requests &amp; issues" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <Border Name="PinDropHost" IsVisible="False" Padding="8,6,11,0">
             <Panel Name="PinDropZone" Height="32">
               <Rectangle RadiusX="6" RadiusY="6" StrokeThickness="1" StrokeDashArray="4,3" />
@@ -1044,8 +1058,16 @@
 
             <!-- The title (a click renames the session in place) and, for a session in a git repository, its branch
                  and worktree. -->
+            <TextBlock Grid.Column="1"
+                       Text="Pull requests &amp; issues"
+                       FontWeight="Medium"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       Margin="23,0,12,0"
+                       IsVisible="{Binding IsWorkPageOpen}"
+                       VerticalAlignment="Center" />
             <Grid Grid.Column="1"
                   Name="TitleContent"
+                  IsVisible="{Binding ShowSessionChrome}"
                   ColumnDefinitions="*,Auto,Auto,Auto,Auto"
                   ColumnSpacing="2"
                   Margin="17,0,12,0"
@@ -1150,12 +1172,17 @@
           <StackPanel Grid.Column="1" Name="TitleButtons" Orientation="Horizontal">
             <Button Theme="{StaticResource IconButton}"
                     Classes.on="{Binding IsSidePanelOpen}"
-                    IsVisible="{Binding !Current.IsNew}"
                     IsEnabled="{Binding !Current.IsFilesView}"
                     Command="{Binding ToggleSidePanelCommand}"
                     VerticalAlignment="Center"
                     Margin="0,0,10,0"
                     ToolTip.Tip="Side panel: project, context, usage, MCP servers (Ctrl+Shift+B)">
+              <Button.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="!Current.IsNew" />
+                  <Binding Path="ShowSessionChrome" />
+                </MultiBinding>
+              </Button.IsVisible>
               <Panel>
                 <c:Icon Classes="panefill" Classes.on="{Binding ShowSidePanel}" Data="{StaticResource IconPanelRightFill}" />
                 <c:Icon Data="{StaticResource IconPanelRight}" />
@@ -1174,17 +1201,22 @@
         </Grid>
 
         <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
-          <ContentControl Content="{Binding Current}">
-            <ContentControl.ContentTemplate>
-              <DataTemplate x:DataType="vm:SessionViewModel">
-                <!-- The chat and its Files view take turns, each sliding in from its side of the title bar's switch. -->
-                <Panel>
-                  <views:SessionView c:Crossfade.IsShown="{Binding !IsFilesView}" c:Crossfade.Slide="-8" />
-                  <views:FilesView c:Crossfade.IsShown="{Binding IsFilesView}" c:Crossfade.Slide="8" />
-                </Panel>
-              </DataTemplate>
-            </ContentControl.ContentTemplate>
-          </ContentControl>
+          <!-- The session, or the pull requests and issues page in its place: they crossfade. -->
+          <Panel>
+            <ContentControl Content="{Binding Current}" c:Crossfade.IsShown="{Binding ShowSessionChrome}">
+              <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:SessionViewModel">
+                  <!-- The chat and its Files view take turns, each sliding in from its side of the title bar's switch. -->
+                  <Panel>
+                    <views:SessionView c:Crossfade.IsShown="{Binding !IsFilesView}" c:Crossfade.Slide="-8" />
+                    <views:FilesView c:Crossfade.IsShown="{Binding IsFilesView}" c:Crossfade.Slide="8" />
+                  </Panel>
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+            <views:WorkPageView DataContext="{Binding WorkPage}" c:Crossfade.IsShown="{Binding $parent[Window].((vm:MainViewModel)DataContext).IsWorkPageOpen}"
+                                c:Crossfade.Slide="8" />
+          </Panel>
 
           <!-- The side panel slides open from the right edge; its content keeps its width while it does. -->
           <Border Grid.Column="1" Name="SidePanel" Classes="sidepanel" Classes.open="{Binding ShowSidePanel}" ClipToBounds="True">
@@ -1230,10 +1262,15 @@
     <Border Name="ViewSwitch"
             Classes="viewswitch"
             Classes.files="{Binding Current.IsFilesView}"
-            IsVisible="{Binding Current.CanShowFiles}"
             HorizontalAlignment="Left"
             VerticalAlignment="Top"
             Margin="0,4,0,0">
+      <Border.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="Current.CanShowFiles" />
+          <Binding Path="ShowSessionChrome" />
+        </MultiBinding>
+      </Border.IsVisible>
       <Border.Transitions>
         <Transitions>
           <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />

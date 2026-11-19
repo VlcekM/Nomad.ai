@@ -1089,6 +1089,15 @@ public partial class SessionView : UserControl
         }
     }
 
+    /// <summary>
+    /// The new-session page's "Pull requests &amp; issues": the page comes up in place of this one.
+    /// </summary>
+    private void OnWorkPageClick(object? sender, RoutedEventArgs e)
+    {
+        HideMenus();
+        if (TopLevel.GetTopLevel(this)?.DataContext is MainViewModel main) main.OpenWorkPage();
+    }
+
     private void OnNoFolderClick(object? sender, RoutedEventArgs e)
     {
         Vm?.SetFolder(null);
