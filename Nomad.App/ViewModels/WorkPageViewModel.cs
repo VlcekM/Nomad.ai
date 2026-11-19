@@ -42,6 +42,11 @@ public sealed partial class WorkPageViewModel : ObservableObject
     private int _generation;
 
     /// <summary>
+    /// The repositories answered so far, kept so a pin can reorder them without asking GitHub again.
+    /// </summary>
+    private List<RepoWork?> _answers = [];
+
+    /// <summary>
     /// The repositories with something open, in the order of their folders (pinned first, then the latest).
     /// </summary>
     public ObservableCollection<WorkGroupViewModel> Groups { get; } = [];
@@ -125,25 +130,50 @@ public sealed partial class WorkPageViewModel : ObservableObject
             pending.Remove(await Task.WhenAny(pending));
             if (generation != _generation) return;
 
-            Apply(lookups.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result));
+            _answers = [.. lookups.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result)];
+            Apply();
         }
+
+        // No folder to ask (or a dev sample only): still show what there is.
+        if (lookups.Count == 0) Apply();
 
         IsLoading = false;
         IsLoaded = true;
     }
 
     /// <summary>
-    /// Shows the repositories answered so far: those with open items as groups (kept, so their rows don't flicker), the
-    /// rest as one quiet line.
+    /// Pins a repository to the top of the page, or unpins it.
     /// </summary>
-    private void Apply(IEnumerable<RepoWork?> answers)
+    [RelayCommand]
+    private void TogglePin(WorkGroupViewModel group)
     {
-        var repos = GitHubWork.Group(answers);
-        var wanted = repos.Where(r => !r.IsEmpty).Select(GroupFor).ToList();
+        var pins = _main.Settings.PinnedRepos;
+        if (PinKey(group.NameWithOwner) is { } key)
+        {
+            pins.Remove(key);
+        }
+        else
+        {
+            pins[group.NameWithOwner] = group.Folder;
+        }
+
+        _main.SaveSettings();
+        Apply();
+    }
+
+    /// <summary>
+    /// Shows the repositories answered so far: the pinned ones first by name (even with nothing open), then those with open
+    /// items; the rest as one quiet line. Groups are kept, so their rows don't flicker.
+    /// </summary>
+    private void Apply()
+    {
+        var repos = GitHubWork.Group(_answers.Concat(Sample()));
+        var pinned = repos.Where(IsPinned).OrderBy(r => Name(r), StringComparer.OrdinalIgnoreCase);
+        var wanted = pinned.Concat(repos.Where(r => !IsPinned(r) && !r.IsEmpty)).Select(GroupFor).ToList();
         MainViewModel.SyncList(Groups, wanted);
         Relink();
 
-        var quiet = repos.Where(r => r.IsEmpty).Select(r => r.NameWithOwner.Split('/')[^1]).ToList();
+        var quiet = repos.Where(r => r.IsEmpty && !IsPinned(r)).Select(Name).ToList();
         QuietText = quiet.Count == 0 ? "" : "Nothing open in " + string.Join(", ", quiet);
         OnPropertyChanged(nameof(HasGroups));
         OnPropertyChanged(nameof(ShowPlaceholder));
@@ -157,8 +187,51 @@ public sealed partial class WorkPageViewModel : ObservableObject
     {
         var group = Groups.FirstOrDefault(g => string.Equals(g.NameWithOwner, repo.NameWithOwner, StringComparison.OrdinalIgnoreCase))
             ?? new WorkGroupViewModel(repo.NameWithOwner, repo.Folder);
+        group.IsPinned = IsPinned(repo);
         group.Update(repo);
         return group;
+    }
+
+    /// <summary>
+    /// "Nomad.ai" from "VlcekM/Nomad.ai".
+    /// </summary>
+    private static string Name(RepoWork repo) => repo.NameWithOwner.Split('/')[^1];
+
+    /// <summary>
+    /// The repository is pinned to the top.
+    /// </summary>
+    private bool IsPinned(RepoWork repo) => PinKey(repo.NameWithOwner) is not null;
+
+    /// <summary>
+    /// The pin of a repository as saved (the settings' keys keep the case GitHub gave), or null when it isn't pinned.
+    /// </summary>
+    private string? PinKey(string nameWithOwner) =>
+        _main.Settings.PinnedRepos.Keys.FirstOrDefault(k => string.Equals(k, nameWithOwner, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// <c>--dev-work-sample</c>'s made-up repository: a pull request in every state and a couple of issues.
+    /// </summary>
+    private IEnumerable<RepoWork> Sample()
+    {
+        if (!_main.Dev.WorkSample) yield break;
+
+        var now = DateTimeOffset.UtcNow;
+        WorkItem Pr(int n, string title, string author, double hours, string[] labels, bool draft = false, string review = "") =>
+            new(WorkKind.PullRequest, n, title, $"https://github.com/sample/Demo.App/pull/{n}", author, now.AddHours(-hours), labels, draft,
+                $"pr-{n}", review);
+        WorkItem Issue(int n, string title, string author, double hours, string[] labels) =>
+            new(WorkKind.Issue, n, title, $"https://github.com/sample/Demo.App/issues/{n}", author, now.AddHours(-hours), labels);
+
+        yield return new RepoWork("sample/Demo.App", Path.GetTempPath(),
+        [
+            Pr(42, "Add a dark theme to the settings page", "ann", 2, ["enhancement", "ui"], review: "APPROVED"),
+            Pr(41, "Rewrite the sync engine", "bob", 26, [], draft: true),
+            Pr(39, "Fix a crash when the project folder is removed", "cyril", 75, ["bug"], review: "CHANGES_REQUESTED"),
+        ],
+        [
+            Issue(40, "Sign-in loops forever on Safari", "dana", 5, ["bug"]),
+            Issue(37, "Export the report as CSV", "ann", 200, ["enhancement"]),
+        ]);
     }
 
     #endregion

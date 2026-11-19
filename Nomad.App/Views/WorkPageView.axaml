@@ -15,6 +15,10 @@
       <Setter Property="CornerRadius" Value="10" />
       <Setter Property="Padding" Value="8,10,8,8" />
     </Style>
+    <!-- A pinned repository with nothing open: just its header, evenly padded. -->
+    <Style Selector="Border.workcard.empty">
+      <Setter Property="Padding" Value="8,10,8,4" />
+    </Style>
     <Style Selector="Border.workrow">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="CornerRadius" Value="6" />
@@ -38,6 +42,38 @@
       </Setter>
     </Style>
     <Style Selector="Border.workrow:pointerover StackPanel.actions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!-- A repository's pin: shown on the card's hover, and always when pinned (the outline crossfading to a filled pin). -->
+    <Style Selector="Button.pin">
+      <Setter Property="Width" Value="22" />
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="8,-4,0,-4" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.workcard:pointerover Button.pin, Button.pin.pinned">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.pin :is(Control).pin-off, Button.pin :is(Control).pin-on">
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.pin :is(Control).pin-on, Button.pin.pinned :is(Control).pin-off">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button.pin.pinned :is(Control).pin-on">
       <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="Button.action">
@@ -178,10 +214,10 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:WorkGroupViewModel">
-            <Border Classes="workcard">
+            <Border Classes="workcard" Classes.empty="{Binding IsEmpty}">
               <StackPanel>
                 <!-- The repository (a click opens it on GitHub) and its counts. -->
-                <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,0,8,6">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="8,0,8,6">
                   <Button Theme="{StaticResource LineButton}" Padding="0" Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).OpenInBrowserCommand}"
                           CommandParameter="{Binding Url}" ToolTip.Tip="{Binding Folder}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -191,6 +227,17 @@
                     </StackPanel>
                   </Button>
                   <TextBlock Grid.Column="2" Text="{Binding CountText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                  <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
+                          Command="{Binding $parent[UserControl].((vm:WorkPageViewModel)DataContext).TogglePinCommand}" CommandParameter="{Binding}"
+                          ToolTip.Tip="{Binding PinToolTip}">
+                    <Panel>
+                      <c:Icon Classes="pin-off" Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                      <Panel Classes="pin-on">
+                        <c:Icon Size="13" Data="{StaticResource IconPinHead}" Stroke="{DynamicResource TextPrimaryBrush}" IsFilled="True" />
+                        <c:Icon Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextPrimaryBrush}" />
+                      </Panel>
+                    </Panel>
+                  </Button>
                 </Grid>
                 <ItemsControl ItemsSource="{Binding PullRequests}" ItemTemplate="{StaticResource WorkRow}" ContainerPrepared="OnContainerPrepared" />
                 <Border Height="1" Background="{DynamicResource BorderCardBrush}" Margin="8,4">

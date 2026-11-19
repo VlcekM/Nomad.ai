@@ -253,6 +253,12 @@ public sealed class NomadSettings
     /// </summary>
     public string? WorkPageModel { get; set; }
 
+    /// <summary>
+    /// Repositories pinned on the pull requests and issues page ("VlcekM/Nomad.ai" → the checkout it was pinned from): always
+    /// listed first, by name, even with nothing open.
+    /// </summary>
+    public Dictionary<string, string> PinnedRepos { get; set; } = [];
+
     public string? LastFolder { get; set; }
 
     /// <summary>What was typed on the new-session page and not sent, put back at the next start.</summary>

@@ -56,12 +56,13 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
-    /// The folders the page lists: the pinned projects, then the latest ones, as on the new-session page.
+    /// The folders the page lists: the pinned repositories' checkouts, then the projects pinned and latest on the new-session page.
     /// </summary>
     public IReadOnlyList<string> WorkFolders()
     {
+        var pinnedRepos = Settings.PinnedRepos.Values.Where(Directory.Exists);
         var pinned = Settings.PinnedFolders.Where(Directory.Exists);
-        return [.. pinned.Concat(RecentFolders).DistinctBy(f => f.TrimEnd('\\', '/'), StringComparer.OrdinalIgnoreCase)];
+        return [.. pinnedRepos.Concat(pinned).Concat(RecentFolders).DistinctBy(f => f.TrimEnd('\\', '/'), StringComparer.OrdinalIgnoreCase)];
     }
 
     #endregion

@@ -191,6 +191,18 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
     public partial string Folder { get; set; } = folder;
 
     /// <summary>
+    /// Pinned: listed first, by name, even with nothing open.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinToolTip))]
+    public partial bool IsPinned { get; set; }
+
+    /// <summary>
+    /// The pin's tooltip.
+    /// </summary>
+    public string PinToolTip => IsPinned ? "Unpin" : "Pin to the top";
+
+    /// <summary>
     /// "Nomad.ai", the repository part.
     /// </summary>
     public string Name => NameWithOwner.Split('/') is [_, var name] ? name : NameWithOwner;
@@ -248,7 +260,7 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
             if (HasPullRequests) parts.Add(Count(PullRequests.Count, "pull request"));
             if (HasIssues) parts.Add(Count(Issues.Count, "issue"));
 
-            return string.Join(" · ", parts);
+            return parts.Count == 0 ? "Nothing open" : string.Join(" · ", parts);
         }
     }
 
