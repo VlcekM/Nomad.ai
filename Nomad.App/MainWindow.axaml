@@ -455,8 +455,8 @@
                     <!-- Forked from the row above it: a short line comes down and rounds the corner into this one. -->
                     <Border Classes="forkmark" Classes.shown="{Binding IsNested}" Height="26" VerticalAlignment="Top"
                             ClipToBounds="True" Background="Transparent" ToolTip.Tip="Forked from the session above">
-                      <Path Data="M 5.5,0 V 8.5 Q 5.5,12.5 9.5,12.5 H 14" Stroke="{DynamicResource TextMutedBrush}"
-                            StrokeThickness="1.5" Opacity="0.7" StrokeLineCap="Round" StrokeJoin="Round" HorizontalAlignment="Left" />
+                      <Path Data="M 6,0 V 9 Q 6,13 10,13 H 13" VerticalAlignment="Top" Stroke="{DynamicResource TextMutedBrush}"
+                            StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" HorizontalAlignment="Left" />
                     </Border>
                     <!-- A workflow runs (maybe long after the turn): a spinner folds in, and out once the last one ends. -->
                     <Border Classes="workflowmark" Classes.shown="{Binding HasRunningWorkflows}" Background="Transparent"
