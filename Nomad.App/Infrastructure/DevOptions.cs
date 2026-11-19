@@ -17,7 +17,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-overlays [fps,render,layout,dirty]  Avalonia's renderer overlays in the window's corner: the FPS counter and the render / layout
 ///                               frame-time graphs (the default three), dirty rects
 /// --dev-menu model|mode|folder|branch|plus|workflows|usage|remote|update|list|alivelist|row|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's or folder heading's context menu) before the screenshot
-/// --dev-settings-open [claude|updates]  open the settings dialog (or that page) before the screenshot
+/// --dev-settings-open [appearance|files|agents|remotecontrol|hub|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
 /// --dev-phone                   start the phone folders' Remote Control servers (scripted runs skip them)
@@ -74,9 +74,11 @@ public sealed class DevOptions
     public bool Files { get; private set; }
     public string? FilesOpen { get; private set; }
     public bool FilesSplit { get; private set; }
-    public bool SettingsClaudePage { get; private set; }
-    public bool SettingsHubPage { get; private set; }
-    public bool SettingsUpdatesPage { get; private set; }
+
+    /// <summary>
+    /// <c>--dev-settings-open page</c>: the settings page to show (a <c>SettingsPageKind</c> name, any case); null for General.
+    /// </summary>
+    public string? SettingsPage { get; private set; }
     public string? SettingsPath { get; private set; }
     public bool Lean { get; private set; }
 
@@ -188,13 +190,7 @@ public sealed class DevOptions
                 case "--dev-queue": o.Queue.Add(Next().Replace("\\n", "\n")); break;
                 case "--dev-settings-open":
                     o.SettingsOpen = true;
-                    if (i + 1 < args.Length && args[i + 1] is "claude" or "hub" or "updates")
-                    {
-                        o.SettingsClaudePage = args[i + 1] == "claude";
-                        o.SettingsHubPage = args[i + 1] == "hub";
-                        o.SettingsUpdatesPage = args[i + 1] == "updates";
-                        i++;
-                    }
+                    if (i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal)) o.SettingsPage = args[++i];
 
                     break;
                 case "--dev-update-source": o.UpdateSource = Path.GetFullPath(Next()); break;

@@ -185,25 +185,50 @@
       <Border Background="{DynamicResource BgMainBrush}" BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="0,0,1,0">
         <StackPanel Margin="12,0" Spacing="1">
           <TextBlock Text="Settings" Classes="section" FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,30,0,10" />
-          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsGeneralPage}" Command="{Binding ShowGeneralCommand}">
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsGeneralPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.General}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <c:Icon Data="{StaticResource IconGear}" />
               <TextBlock Text="General" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsClaudeCodePage}" Command="{Binding ShowClaudeCodeCommand}">
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsAppearancePage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.Appearance}">
             <StackPanel Orientation="Horizontal" Spacing="10">
-              <c:Icon Data="{StaticResource IconTerminal}" />
-              <TextBlock Text="Claude Code" VerticalAlignment="Center" />
+              <c:Icon Data="{StaticResource IconSliders}" />
+              <TextBlock Text="Appearance" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsHubPage}" Command="{Binding ShowHubCommand}">
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsFilesPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.Files}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Data="{StaticResource IconFiles}" />
+              <TextBlock Text="Files" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsAgentsPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.Agents}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Data="{StaticResource IconAgent}" />
+              <TextBlock Text="Agents" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsRemoteControlPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.RemoteControl}">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <c:Icon Data="{StaticResource IconPhone}" />
+              <TextBlock Text="Remote Control" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsHubPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.Hub}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <c:Icon Data="{StaticResource IconGlobe}" />
               <TextBlock Text="Hub" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsUpdatesPage}" Command="{Binding ShowUpdatesCommand}">
+          <Button Theme="{StaticResource NavButton}" Classes.selected="{Binding IsUpdatesPage}"
+                  Command="{Binding ShowPageCommand}" CommandParameter="{x:Static vm:SettingsPageKind.Updates}">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <c:Icon Data="{StaticResource IconUpdate}" />
               <TextBlock Text="Updates" VerticalAlignment="Center" />
@@ -217,10 +242,110 @@
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <Panel Margin="24,58,34,32">
 
-            <!-- General -->
+            <!-- General: who you are, the window, old sessions -->
             <StackPanel Classes="page" IsVisible="{Binding IsGeneralPage}">
               <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
-              <TextBlock Text="Appearance" Classes="pagetitle" />
+              <TextBlock Text="Account" Classes="pagetitle" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Display name" Classes="rowlabel" />
+                  <TextBlock Text="Shown at the bottom of the sidebar. Empty uses your Windows user name." Classes="rowhint" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="field" Width="260">
+                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding DisplayName}" Watermark="Your name" FontSize="{DynamicResource UiFontSize}" />
+                </Border>
+              </Grid>
+
+              <TextBlock Text="Window" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Close to the tray" Classes="rowlabel" />
+                  <TextBlock Text="Closing the window keeps Nomad.ai running in the notification area, sessions and all. Click its icon to bring it back; Exit (in the menu or the icon's) quits."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleCloseToTrayCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding CloseToTray}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Notifications" Classes="rowlabel" />
+                  <TextBlock Text="A Windows notification when a session finishes or needs an answer while Nomad.ai is in the background. Click it to come back."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleNotifyWhenDoneCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding NotifyWhenDone}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Flash the taskbar" Classes="rowlabel" />
+                  <TextBlock Text="The taskbar button flashes then too, until you bring the window up." Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFlashTaskbarCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding FlashTaskbar}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+
+              <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Archive old sessions" Classes="rowlabel" />
+                  <TextBlock Text="Archive sessions left untouched for a while. Alive and open ones are kept; &quot;Show archived&quot; in the sidebar lists them again."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleAutoArchiveCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding AutoArchive}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding AutoArchive}">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Archive after" Classes="rowlabel" />
+                  <TextBlock Text="Hours without activity before a session is archived (at least 1)." Classes="rowhint" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Border Classes="field" Width="72">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="24" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                  <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="{DynamicResource UiFontSizeSmall}">
+                <Run Text="Settings are saved to" />
+                <Run Text="{Binding SettingsPath}" FontFamily="{DynamicResource MonoFont}" />
+              </TextBlock>
+            </StackPanel>
+
+            <!-- Appearance: colors, text, layout -->
+            <StackPanel Classes="page" IsVisible="{Binding IsAppearancePage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+              <TextBlock Text="Theme" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -340,7 +465,8 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
-              <Border Classes="rowline" />
+
+              <TextBlock Text="Text" Classes="pagetitle" Margin="0,40,0,10" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -357,15 +483,6 @@
                   <TextBlock Text="Used for code blocks, inline code and tool details." Classes="rowhint" />
                 </StackPanel>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding CodeFonts}" SelectedItem="{Binding CodeFont}" />
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Editor text size" Classes="rowlabel" />
-                  <TextBlock Text="Size of the code in the Files view's editor, in points." Classes="rowhint" />
-                </StackPanel>
-                <ComboBox Grid.Column="1" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding EditorFontSize}" />
               </Grid>
               <Border Classes="rowline" />
 
@@ -391,7 +508,8 @@
                   </StackPanel>
                 </Border>
               </Grid>
-              <Border Classes="rowline" />
+
+              <TextBlock Text="Layout" Classes="pagetitle" Margin="0,40,0,10" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -405,6 +523,20 @@
                     <RadioButton Theme="{StaticResource SegmentButton}" GroupName="Width" IsChecked="{Binding IsWidthWide}" Content="Wide" />
                   </StackPanel>
                 </Border>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Compact model picker" Classes="rowlabel" />
+                  <TextBlock Text="The status row shows only the current model. The other models and the effort slider are in its menu."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleCompactModelPickerCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding CompactModelPicker}">
+                    <Ellipse />
+                  </Border>
+                </Button>
               </Grid>
               <Border Classes="rowline" />
 
@@ -434,7 +566,12 @@
                   </Border>
                 </Button>
               </Grid>
-              <Border Classes="rowline" />
+            </StackPanel>
+
+            <!-- Files: the Files view and its editor -->
+            <StackPanel Classes="page" IsVisible="{Binding IsFilesPage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+              <TextBlock Text="Files view" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -450,7 +587,7 @@
               </Grid>
               <Border Classes="rowline" />
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding FilesViewEnabled}">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Folder tree on the right" Classes="rowlabel" />
                   <TextBlock Text="In a chat's Files view, the folder tree is on the right and the open file on the left. Off: the other way round."
@@ -464,7 +601,7 @@
               </Grid>
               <Border Classes="rowline" />
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding FilesViewEnabled}">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Chat / Files key" Classes="rowlabel" />
                   <TextBlock Text="Switches a chat between its conversation and its Files view. Click, then press the key to use (Esc keeps the current one). In the composer, Tab still completes a / command or takes a suggestion first."
@@ -493,115 +630,23 @@
               </Grid>
               <Border Classes="rowline" />
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding FilesViewEnabled}">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Compact model picker" Classes="rowlabel" />
-                  <TextBlock Text="The status row shows only the current model. The other models and the effort slider are in its menu."
-                             Classes="rowhint" />
+                  <TextBlock Text="Editor text size" Classes="rowlabel" />
+                  <TextBlock Text="Size of the code in the Files view's editor, in points." Classes="rowhint" />
                 </StackPanel>
-                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleCompactModelPickerCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding CompactModelPicker}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-
-              <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Archive old sessions" Classes="rowlabel" />
-                  <TextBlock Text="Archive sessions left untouched for a while. Alive and open ones are kept; &quot;Show archived&quot; in the sidebar lists them again."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Theme="{StaticResource FlatButton}"
-                        Padding="6"
-                        VerticalAlignment="Center"
-                        Command="{Binding ToggleAutoArchiveCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding AutoArchive}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding AutoArchive}">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Archive after" Classes="rowlabel" />
-                  <TextBlock Text="Hours without activity before a session is archived (at least 1)." Classes="rowhint" />
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                  <Border Classes="field" Width="72">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="24" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
-                  </Border>
-                  <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
-                </StackPanel>
-              </Grid>
-
-              <TextBlock Text="Window" Classes="pagetitle" Margin="0,40,0,10" />
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Close to the tray" Classes="rowlabel" />
-                  <TextBlock Text="Closing the window keeps Nomad.ai running in the notification area, sessions and all. Click its icon to bring it back; Exit (in the menu or the icon's) quits."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Theme="{StaticResource FlatButton}"
-                        Padding="6"
-                        VerticalAlignment="Center"
-                        Command="{Binding ToggleCloseToTrayCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding CloseToTray}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Notifications" Classes="rowlabel" />
-                  <TextBlock Text="A Windows notification when a session finishes or needs an answer while Nomad.ai is in the background. Click it to come back."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleNotifyWhenDoneCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding NotifyWhenDone}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Flash the taskbar" Classes="rowlabel" />
-                  <TextBlock Text="The taskbar button flashes then too, until you bring the window up." Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleFlashTaskbarCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding FlashTaskbar}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-
-              <TextBlock Text="Account" Classes="pagetitle" Margin="0,40,0,10" />
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Display name" Classes="rowlabel" />
-                  <TextBlock Text="Shown at the bottom of the sidebar. Empty uses your Windows user name." Classes="rowhint" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="field" Width="260">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding DisplayName}" Watermark="Your name" FontSize="{DynamicResource UiFontSize}" />
-                </Border>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding EditorFontSize}" />
               </Grid>
             </StackPanel>
 
-            <!-- Claude Code -->
-            <StackPanel Classes="page" IsVisible="{Binding IsClaudeCodePage}">
+            <!-- Agents: the CLIs, new sessions' defaults, models -->
+            <StackPanel Classes="page" IsVisible="{Binding IsAgentsPage}">
               <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
-              <TextBlock Text="Claude Code" Classes="pagetitle" />
+              <TextBlock Text="Agents" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="CLI path" Classes="rowlabel" />
+                  <TextBlock Text="Claude Code path" Classes="rowlabel" />
                   <TextBlock Text="The claude executable Nomad.ai starts. &quot;claude&quot; looks it up on PATH." Classes="rowhint" />
                   <TextBlock Text="{Binding CliStatus}" Classes="rowhint" Classes.ok="{Binding CliFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
                 </StackPanel>
@@ -648,78 +693,8 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
               </Grid>
-              <Border Classes="rowline" />
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Ask before switching models" Classes="rowlabel" />
-                  <TextBlock Text="A conversation is cached for its model: after a switch the next reply reads all of it again, slower and using more of your plan."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Theme="{StaticResource FlatButton}"
-                        Padding="6"
-                        VerticalAlignment="Center"
-                        Command="{Binding ToggleConfirmModelSwitchCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding ConfirmModelSwitch}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
-                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on Codex, its first four models; on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Theme="{StaticResource FlatButton}"
-                        Padding="6"
-                        VerticalAlignment="Center"
-                        Command="{Binding ToggleModelFunctionKeysCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding ModelFunctionKeys}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Suggest the next prompt" Classes="rowlabel" />
-                  <TextBlock Text="After a turn, Claude Code guesses what you'll ask next; it shows as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Button Grid.Column="1"
-                        Theme="{StaticResource FlatButton}"
-                        Padding="6"
-                        VerticalAlignment="Center"
-                        Command="{Binding TogglePromptSuggestionsCommand}">
-                  <Border Classes="switch large" Classes.on="{Binding PromptSuggestions}">
-                    <Ellipse />
-                  </Border>
-                </Button>
-              </Grid>
-              <Border Classes="rowline" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Workflow size" Classes="rowlabel" />
-                  <TextBlock Text="How many agents Claude's workflows aim to stay under: Small fewer than 5, Medium fewer than 10, Large fewer than 50. Running sessions take it at once."
-                             Classes="rowhint" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="segments">
-                  <StackPanel Orientation="Horizontal">
-                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowSmall}" Content="Small" />
-                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowMedium}" Content="Medium" />
-                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowLarge}" Content="Large" />
-                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowUnrestricted}" Content="No limit" />
-                  </StackPanel>
-                </Border>
-              </Grid>
-              <Border Classes="rowline" />
+              <TextBlock Text="New sessions" Classes="pagetitle" Margin="0,40,0,10" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -764,14 +739,90 @@
                   </ComboBox.ItemTemplate>
                 </ComboBox>
               </Grid>
+              <Border Classes="rowline" />
 
-              <TextBlock Text="Remote Control" Classes="pagetitle" Margin="0,40,0,10" />
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Suggest the next prompt" Classes="rowlabel" />
+                  <TextBlock Text="After a turn, Claude Code guesses what you'll ask next; it shows as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding TogglePromptSuggestionsCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding PromptSuggestions}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+
+              <TextBlock Text="Models and workflows" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Ask before switching models" Classes="rowlabel" />
+                  <TextBlock Text="A conversation is cached for its model: after a switch the next reply reads all of it again, slower and using more of your plan."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleConfirmModelSwitchCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding ConfirmModelSwitch}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
+                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on Codex, its first four models; on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleModelFunctionKeysCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding ModelFunctionKeys}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Workflow size" Classes="rowlabel" />
+                  <TextBlock Text="How many agents Claude's workflows aim to stay under: Small fewer than 5, Medium fewer than 10, Large fewer than 50. Running sessions take it at once."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="segments">
+                  <StackPanel Orientation="Horizontal">
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowSmall}" Content="Small" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowMedium}" Content="Medium" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowLarge}" Content="Large" />
+                    <RadioButton Theme="{StaticResource SegmentButton}" GroupName="WorkflowSize" IsChecked="{Binding IsWorkflowUnrestricted}" Content="No limit" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </StackPanel>
+
+            <!-- Remote Control -->
+            <StackPanel Classes="page" IsVisible="{Binding IsRemoteControlPage}">
+              <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
+              <TextBlock Text="Remote Control" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Remote Control for new sessions" Classes="rowlabel" />
                   <TextBlock Text="Continue sessions from the Claude app or claude.ai while they run here. Each session can turn it off with the phone icon in the status row."
-                             Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
+                             Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Command="{Binding ToggleRemoteControlByDefaultCommand}" VerticalAlignment="Center" Padding="4">
                   <Border Classes="switch large" Classes.on="{Binding RemoteControlByDefault}">
@@ -785,7 +836,7 @@
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Start sessions from the phone" Classes="rowlabel" />
                   <TextBlock Text="In these folders Nomad keeps Claude Code's Remote Control server running, so the Claude app and claude.ai/code can start new sessions here. They appear under Alive with a phone icon."
-                             Classes="rowhint" TextWrapping="Wrap" MaxWidth="460" HorizontalAlignment="Left" />
+                             Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddPhoneFolderClick" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
                   <StackPanel Orientation="Horizontal" Spacing="6">
@@ -834,11 +885,6 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-
-              <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="{DynamicResource UiFontSizeSmall}">
-                <Run Text="Settings are saved to" />
-                <Run Text="{Binding SettingsPath}" FontFamily="{DynamicResource MonoFont}" />
-              </TextBlock>
             </StackPanel>
 
             <!-- Hub -->

@@ -1723,18 +1723,10 @@ public partial class MainWindow : Window
         if (dev.SettingsOpen)
         {
             _vm.OpenSettingsCommand.Execute(null);
-            if (dev.SettingsHubPage)
+            var page = Enum.TryParse<SettingsPageKind>(dev.SettingsPage, ignoreCase: true, out var asked) ? asked : SettingsPageKind.General;
+            if (_vm.SettingsPage is { } settings) settings.Page = page;
+            if (page == SettingsPageKind.Updates)
             {
-                _vm.SettingsPage?.ShowHubCommand.Execute(null);
-            }
-            else if (dev.SettingsClaudePage)
-            {
-                _vm.SettingsPage?.ShowClaudeCodeCommand.Execute(null);
-            }
-            else if (dev.SettingsUpdatesPage)
-            {
-                _vm.SettingsPage?.ShowUpdatesCommand.Execute(null);
-
                 // The release list comes from GitHub: wait for it (at most 20 s).
                 await Task.WhenAny(_vm.Updates.GetReleasesAsync(), Task.Delay(TimeSpan.FromSeconds(20)));
             }

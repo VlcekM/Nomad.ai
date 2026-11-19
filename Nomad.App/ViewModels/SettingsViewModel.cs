@@ -13,10 +13,16 @@ using Nomad.Core.Updates;
 
 namespace Nomad.App.ViewModels;
 
+/// <summary>
+/// The settings dialog's pages, in the order of its navigation.
+/// </summary>
 public enum SettingsPageKind
 {
     General,
-    ClaudeCode,
+    Appearance,
+    Files,
+    Agents,
+    RemoteControl,
     Hub,
     Updates,
 }
@@ -103,12 +109,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     // ------------------------------------------------------------------ navigation
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsGeneralPage), nameof(IsClaudeCodePage), nameof(IsHubPage), nameof(IsUpdatesPage))]
+    [NotifyPropertyChangedFor(nameof(IsGeneralPage), nameof(IsAppearancePage), nameof(IsFilesPage), nameof(IsAgentsPage))]
+    [NotifyPropertyChangedFor(nameof(IsRemoteControlPage), nameof(IsHubPage), nameof(IsUpdatesPage))]
     public partial SettingsPageKind Page { get; set; }
 
     public bool IsGeneralPage => Page == SettingsPageKind.General;
 
-    public bool IsClaudeCodePage => Page == SettingsPageKind.ClaudeCode;
+    public bool IsAppearancePage => Page == SettingsPageKind.Appearance;
+
+    public bool IsFilesPage => Page == SettingsPageKind.Files;
+
+    public bool IsAgentsPage => Page == SettingsPageKind.Agents;
+
+    public bool IsRemoteControlPage => Page == SettingsPageKind.RemoteControl;
 
     public bool IsHubPage => Page == SettingsPageKind.Hub;
 
@@ -117,24 +130,19 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Nomad Hub (Settings › Hub).</summary>
     public HubViewModel Hub => _main.Hub;
 
+    /// <summary>
+    /// Shows a page; the navigation's buttons pass theirs.
+    /// </summary>
     [RelayCommand]
-    private void ShowHub()
+    private void ShowPage(SettingsPageKind page) => Page = page;
+
+    /// <summary>
+    /// The Hub page refreshes its device list and the Updates page loads the releases each time they are shown.
+    /// </summary>
+    partial void OnPageChanged(SettingsPageKind value)
     {
-        Page = SettingsPageKind.Hub;
-        _ = Hub.RefreshDevicesAsync();
-    }
-
-    [RelayCommand]
-    private void ShowGeneral() => Page = SettingsPageKind.General;
-
-    [RelayCommand]
-    private void ShowClaudeCode() => Page = SettingsPageKind.ClaudeCode;
-
-    [RelayCommand]
-    private void ShowUpdates()
-    {
-        Page = SettingsPageKind.Updates;
-        _ = LoadReleasesAsync();
+        if (value == SettingsPageKind.Hub) _ = Hub.RefreshDevicesAsync();
+        if (value == SettingsPageKind.Updates) _ = LoadReleasesAsync();
     }
 
     // ------------------------------------------------------------------ General › Appearance
