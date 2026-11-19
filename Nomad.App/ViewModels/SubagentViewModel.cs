@@ -143,8 +143,14 @@ public sealed partial class SubagentViewModel : ObservableObject
 
     public int ToolCount => _calls.Count;
 
+    /// <summary>
+    /// Started by an Agent call the app saw: that call's result ends it. Without one (a skill's subagent), the task's end does.
+    /// </summary>
+    public bool HasAgentCall { get; private set; }
+
     public void SetInput(JsonElement input)
     {
+        HasAgentCall = true;
         Description = ToolText.Str(input, "description") is { Length: > 0 } d ? d : "Subagent";
         AgentType = ToolText.Str(input, "subagent_type") ?? "";
         if (ToolText.Str(input, "model") is { Length: > 0 } model && ModelName.Length == 0)

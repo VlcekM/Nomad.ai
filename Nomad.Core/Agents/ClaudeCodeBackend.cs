@@ -562,7 +562,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                 Raise(new TaskUpdatedEvent(system.TaskId, status.ToLowerInvariant()));
                 break;
             case "task_notification" when system.TaskId is not null && _foregroundTasks.TryRemove(system.TaskId, out _):
-                break; // A command the turn waited on: its call already shows how it went.
+                // A task the turn waited on: its call usually shows how it went, so no notice; only a row nothing else ends.
+                Raise(new ForegroundTaskEndedEvent(system.TaskId, system.ToolUseId, system.Status?.ToLowerInvariant()));
+                break;
             case "task_notification":
                 Raise(new TaskNotificationEvent(system.TaskId, system.ToolUseId, system.Status?.ToLowerInvariant(), system.Summary));
                 break;

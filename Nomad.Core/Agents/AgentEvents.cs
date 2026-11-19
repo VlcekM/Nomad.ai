@@ -42,6 +42,12 @@ public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, string? Status, string? Summary) : AgentEvent;
 
 /// <summary>
+/// A task the turn waited on ended (completed | failed | killed). Its call's result usually says so already; a subagent
+/// started without an Agent call the app saw (one a skill such as /code-review runs) ends only with this.
+/// </summary>
+public sealed record ForegroundTaskEndedEvent(string TaskId, string? ToolUseId, string? Status) : AgentEvent;
+
+/// <summary>
 /// A task (a subagent, a command) started for a tool call: its id is what <c>stop_task</c> takes. A subagent's ("local_agent")
 /// also says what it is and its prompt; a SendMessage call that resumes one starts its task again under the same id.
 /// </summary>

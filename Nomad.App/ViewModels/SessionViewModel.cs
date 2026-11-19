@@ -1740,6 +1740,20 @@ public sealed partial class SessionViewModel : ObservableObject
         FinishTask(ended.ToolUseId, ended.TaskId, ended.Status, summary);
     }
 
+    /// <summary>
+    /// A subagent the turn waited on ended. Run by its own Agent call, it ends with that call's result (which carries its
+    /// report); started otherwise (by a skill such as /code-review, or resumed by a message) nothing else ends it, so it
+    /// ends here, or it would show as running for good.
+    /// </summary>
+    private void FinishUncalledSubagent(ForegroundTaskEndedEvent ended)
+    {
+        if (ended.ToolUseId is not { } call || !_subagentById.TryGetValue(call, out var agent)) return;
+        if (!agent.IsRunning || (agent.HasAgentCall && agent.ToolUseId == call)) return;
+
+        agent.Finish(failed: ended.Status == "failed", result: null, stopped: ended.Status is "killed" or "stopped");
+        ContentChanged?.Invoke();
+    }
+
     /// <summary>The process went, and its background commands with it.</summary>
     private void FinishBackgroundTasks()
     {
@@ -3620,6 +3634,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 CloseGroup();
                 FinishNotifiedTask(ended);
                 ContentChanged?.Invoke();
+                break;
+
+            case ForegroundTaskEndedEvent ended:
+                FinishUncalledSubagent(ended);
                 break;
 
             case BlockStartedEvent b when b.ParentToolUseId is null:

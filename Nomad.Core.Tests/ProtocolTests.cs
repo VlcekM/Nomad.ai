@@ -77,7 +77,7 @@ public class ProtocolTests
     }
 
     [Fact]
-    public void AForegroundTasksEndRaisesNothing()
+    public void AForegroundTasksEndRaisesNoNoticeOnlyItsEnd()
     {
         var backend = new ClaudeCodeBackend();
         var events = new List<AgentEvent>();
@@ -87,6 +87,7 @@ public class ProtocolTests
         backend.HandleLine("""{"type":"system","subtype":"task_notification","task_id":"bbciz9xxs","tool_use_id":"toolu_01XH","status":"completed","summary":"Sleep","session_id":"s"}""");
 
         Assert.Empty(events.OfType<TaskNotificationEvent>());
+        Assert.Equal(new ForegroundTaskEndedEvent("bbciz9xxs", "toolu_01XH", "completed"), Assert.Single(events.OfType<ForegroundTaskEndedEvent>()));
     }
 
     [Fact]
