@@ -284,6 +284,10 @@
                 </Transitions>
               </Setter>
             </Style>
+            <!-- A nested fork sits closer to its parent than rows sit to each other. -->
+            <Style Selector="Button.sessionrow.nested">
+              <Setter Property="Margin" Value="8,-2,11,2" />
+            </Style>
             <Style Selector="Border.forkmark.shown">
               <Setter Property="Width" Value="18" />
               <Setter Property="Opacity" Value="1" />
@@ -417,6 +421,7 @@
                       Classes.switching="{Binding IsSwitching}"
                       Classes.idle="{Binding !IsAlive}"
                       Classes.twoline="{Binding ShowProject}"
+                      Classes.nested="{Binding IsNested}"
                       Padding="10,0,8,0"
                       VerticalContentAlignment="Top"
                       ClipToBounds="True"
@@ -447,11 +452,11 @@
                 <!-- The first line keeps the row's 26 px, so its marks stay at the top when the project line shows. -->
                 <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" RowDefinitions="26,Auto">
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch">
-                    <!-- Forked from the row above it: a short arrow comes down and turns right, into this one. -->
+                    <!-- Forked from the row above it: a short arrow comes down, rounds the corner and points into this one. -->
                     <Border Classes="forkmark" Classes.shown="{Binding IsNested}" Height="26" VerticalAlignment="Top"
                             ClipToBounds="True" Background="Transparent" ToolTip.Tip="Forked from the session above">
-                      <Path Data="M 5,5 V 13 H 14 M 11,10 L 14,13 L 11,16" Stroke="{DynamicResource TextMutedBrush}"
-                            StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round" HorizontalAlignment="Left" />
+                      <Path Data="M 5.5,0 V 7.5 Q 5.5,11.5 9.5,11.5 H 14 M 11.5,9 L 14,11.5 L 11.5,14" Stroke="{DynamicResource TextMutedBrush}"
+                            StrokeThickness="1.5" Opacity="0.7" StrokeLineCap="Round" StrokeJoin="Round" HorizontalAlignment="Left" />
                     </Border>
                     <!-- A workflow runs (maybe long after the turn): a spinner folds in, and out once the last one ends. -->
                     <Border Classes="workflowmark" Classes.shown="{Binding HasRunningWorkflows}" Background="Transparent"
