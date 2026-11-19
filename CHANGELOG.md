@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.37.5
+
+- Projects no longer all show "Not a git repository" when Git was installed (or added to PATH) after you signed in to
+  Windows: Nomad finds git and gh on the saved PATH and in their default install folders, and the chats it starts get
+  the up-to-date PATH too.
+
 ## v1.37.4
 
 - A subagent Claude wakes again with a message shows as running again, in the side panel and under the chat, instead

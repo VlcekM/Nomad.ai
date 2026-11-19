@@ -31,6 +31,9 @@ internal static class Program
         // earlier but not applied yet is applied now and Nomad restarts into it (UpdateService).
         Velopack.VelopackApp.Build().Run();
 
+        // Folders saved to PATH after Explorer started (a fresh Git install) reach git, gh and the agent CLIs' shells too.
+        SavedPath.Refresh();
+
         // A notification clicked names its session. Already running: that window comes to the front instead (on it).
         LaunchSessionId = WindowsToast.SessionFromLaunch(args);
         IsDebugRun = args.Any(a => a.StartsWith("--dev-", StringComparison.Ordinal));
