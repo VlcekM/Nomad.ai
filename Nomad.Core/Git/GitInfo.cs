@@ -295,7 +295,7 @@ public static class GitInfo
     internal static async Task<(bool Ok, string Output, string Error)> RunToolAsync(
         string tool, IEnumerable<string> args, string? workingDirectory, TimeSpan timeout)
     {
-        var start = new ProcessStartInfo(tool)
+        var start = new ProcessStartInfo(Nomad.Core.Process.CliLocator.ResolveTool(tool))
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
