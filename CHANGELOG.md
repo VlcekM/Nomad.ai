@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.38.1
+
+- On the Pull requests & issues page, Fix, Review and Merge give way to the session they started (its title and
+  status, a click opens it), so one click starts one session.
+- Making several sessions idle (or alive) at once does them all together, each row dimmed with a spinner until it
+  moves, instead of one by one with nothing showing.
+
 ## v1.38.0
 
 - A Pull requests & issues page (in the sidebar under New, and on the new-session page) lists the open pull requests
