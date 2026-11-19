@@ -148,4 +148,15 @@ public class ProtocolTests
         var deny = CliProtocol.PermissionResponse("r1", new PermissionResultPayload { Behavior = "deny", Message = "no" });
         Assert.Equal("""{"type":"control_response","response":{"subtype":"success","request_id":"r1","response":{"behavior":"deny","message":"no"}}}""", deny);
     }
+
+    [Fact]
+    public void AReminderFollowsThePromptAsABlockOfItsOwn()
+    {
+        using var user = System.Text.Json.JsonDocument.Parse(CliProtocol.UserMessage("do it", reminder: "<system-reminder>r</system-reminder>"));
+
+        var content = user.RootElement.GetProperty("message").GetProperty("content");
+        Assert.Equal(2, content.GetArrayLength());
+        Assert.Equal("do it", content[0].GetProperty("text").GetString());
+        Assert.Equal("<system-reminder>r</system-reminder>", content[1].GetProperty("text").GetString());
+    }
 }

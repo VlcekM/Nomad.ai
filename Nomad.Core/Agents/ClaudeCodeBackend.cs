@@ -31,6 +31,12 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     private volatile string? _folderMoveToolUseId;
     private readonly ConcurrentDictionary<string, byte> _subagentServerCalls = new();
 
+    /// <summary>
+    /// Whether the conversation already has a prompt (sent here, or in the transcript it resumes): later ones get the new-task
+    /// reminder.
+    /// </summary>
+    private bool _prompted;
+
     // Streaming state of the current assistant message (touched only on the stdout thread).
     private string? _messageId;
     private int _openBlockIndex = -1;
@@ -82,6 +88,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         };
 
         SessionId = options.ForkSession ? null : options.ResumeSessionId;
+        _prompted = !string.IsNullOrWhiteSpace(options.ResumeSessionId);
         _sessionServer = new NomadSessionServer(options.WorkingDirectory);
         _folderMoveTool = _sessionServer.FolderMove;
         _folderMoveTool.PermissionRequested += request => Raise(new PermissionRequestedEvent(request));
@@ -113,10 +120,15 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         _turnRunning = true;
         _interruptRequested = false;
         _assistantError = null;
+
+        // After the conversation's first prompt, the new-task reminder; never on a slash command, which must stay alone.
+        var reminder = _prompted && !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+        _prompted = true;
+
         Raise(new TurnStartedEvent(text));
         try
         {
-            await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images), cancellationToken).ConfigureAwait(false);
+            await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images, reminder), cancellationToken).ConfigureAwait(false);
         }
         catch
         {

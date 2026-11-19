@@ -70,7 +70,10 @@ public static class CliProtocol
         return null;
     }
 
-    public static string UserMessage(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null)
+    /// <summary>
+    /// A prompt line: its images, its text, then <paramref name="reminder"/> (if any) as a block of its own.
+    /// </summary>
+    public static string UserMessage(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, string? reminder = null)
     {
         var message = new OutgoingUserMessage { Uuid = uuid };
 
@@ -88,6 +91,8 @@ public static class CliProtocol
         {
             message.Message.Content.Add(new OutgoingTextBlock { Text = text });
         }
+
+        if (reminder is not null) message.Message.Content.Add(new OutgoingTextBlock { Text = reminder });
 
         return JsonSerializer.Serialize(message, ProtocolJsonContext.Default.OutgoingUserMessage);
     }
