@@ -1726,10 +1726,10 @@ public partial class SessionView : UserControl
 
     private void OnForkClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is Control { DataContext: UserMessageItem message } && Vm is { } vm
+        if (sender is Control { DataContext: TranscriptItem and (UserMessageItem or AssistantTextItem) and var item } && Vm is { } vm
             && TopLevel.GetTopLevel(this)?.DataContext is MainViewModel main)
         {
-            main.Fork(vm, message);
+            main.Fork(vm, item);
         }
     }
 

@@ -1145,13 +1145,13 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Fork after <paramref name="message"/>'s turn: a new session with the conversation up to there,
-    /// opened at once. It is written (with a new id, <c>--fork-session</c>) when its first prompt goes
-    /// out; the original stays as it is.
+    /// Fork after the turn of <paramref name="item"/> (a prompt or its response): a new session with the conversation up to
+    /// there, opened at once. It is written (with a new id, <c>--fork-session</c>) when its first prompt goes out; the original
+    /// stays as it is.
     /// </summary>
-    public void Fork(SessionViewModel source, UserMessageItem message)
+    public void Fork(SessionViewModel source, TranscriptItem item)
     {
-        var index = source.Items.IndexOf(message);
+        var index = source.Items.IndexOf(item);
         if (source.SessionId is not { } sessionId || index < 0 || source.IsTurnRunning)
         {
             return;

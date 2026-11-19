@@ -749,12 +749,15 @@
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:AssistantTextItem}" x:DataType="vm:AssistantTextItem">
-      <!-- The turn's last text gets a Copy button below it, fading in on hover. -->
+      <!-- The turn's last text gets Copy and Fork buttons below it, fading in on hover. -->
       <Grid Classes="response" RowDefinitions="Auto,Auto" Background="Transparent">
         <md:MarkdownView Markdown="{Binding Text}" IsStreaming="{Binding IsStreaming}" />
         <StackPanel Grid.Row="1" Classes="msgactions" Orientation="Horizontal" Margin="-5,2,0,0" IsVisible="{Binding EndsResponse}">
           <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnCopyResponseClick" ToolTip.Tip="Copy">
             <c:Icon Size="13" Data="{StaticResource IconCopy}" />
+          </Button>
+          <Button Theme="{StaticResource IconButton}" Width="24" Height="24" Click="OnForkClick" ToolTip.Tip="Fork a new session after this turn">
+            <c:Icon Size="13" Data="{StaticResource IconFork}" />
           </Button>
         </StackPanel>
       </Grid>
