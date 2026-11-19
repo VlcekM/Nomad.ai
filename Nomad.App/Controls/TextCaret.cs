@@ -24,6 +24,12 @@ public sealed class TextCaret : Control
     private TextBox? _box;
     private bool _on;
 
+    /// <summary>
+    /// The presenter whose layout passes redraw the caret, while it is shown. <c>LayoutUpdated</c> fires on every layout pass
+    /// of the whole window, so the caret of a text box without focus doesn't listen: a page of them made layout crawl.
+    /// </summary>
+    private TextPresenter? _listening;
+
     public TextCaret()
     {
         IsHitTestVisible = false;
@@ -52,7 +58,6 @@ public sealed class TextCaret : Control
             _box.PropertyChanged += OnBoxPropertyChanged;
         }
 
-        Attach(Presenter);
         Restart();
     }
 
@@ -67,7 +72,7 @@ public sealed class TextCaret : Control
             _box = null;
         }
 
-        Detach(Presenter);
+        Listen(null);
         _timer?.Stop();
     }
 
@@ -76,8 +81,6 @@ public sealed class TextCaret : Control
         base.OnPropertyChanged(change);
         if (change.Property == PresenterProperty && VisualRoot is not null)
         {
-            Detach(change.GetOldValue<TextPresenter?>());
-            Attach(change.GetNewValue<TextPresenter?>());
             Restart();
         }
         else if (change.Property == CaretBrushProperty)
@@ -86,20 +89,13 @@ public sealed class TextCaret : Control
         }
     }
 
-    private void Attach(TextPresenter? presenter)
+    private void Listen(TextPresenter? presenter)
     {
-        if (presenter is not null)
-        {
-            presenter.LayoutUpdated += OnPresenterLayoutUpdated;
-        }
-    }
+        if (presenter == _listening) return;
 
-    private void Detach(TextPresenter? presenter)
-    {
-        if (presenter is not null)
-        {
-            presenter.LayoutUpdated -= OnPresenterLayoutUpdated;
-        }
+        if (_listening is not null) _listening.LayoutUpdated -= OnPresenterLayoutUpdated;
+        _listening = presenter;
+        if (presenter is not null) presenter.LayoutUpdated += OnPresenterLayoutUpdated;
     }
 
     private void OnFocusChanged(object? sender, EventArgs e) => Restart();
@@ -130,11 +126,13 @@ public sealed class TextCaret : Control
             _timer.Stop();
             _timer.Start();
             _on = true;
+            Listen(Presenter);
         }
         else
         {
             _timer?.Stop();
             _on = false;
+            Listen(null);
         }
 
         InvalidateVisual();
