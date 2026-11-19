@@ -1107,6 +1107,23 @@ public sealed partial class MainViewModel : ObservableObject
             return; // Its process belongs to the phone.
         }
 
+        // Ending or starting a process takes a moment: the row shows it is on its way meanwhile.
+        item.IsSwitching = true;
+        try
+        {
+            await SwitchAliveAsync(item);
+        }
+        finally
+        {
+            item.IsSwitching = false;
+        }
+    }
+
+    /// <summary>
+    /// Ends the row's CLI process, or starts one that resumes it (loading its session first when it isn't open).
+    /// </summary>
+    private async Task SwitchAliveAsync(SessionListItemViewModel item)
+    {
         if (_open.TryGetValue(item.SessionId, out var session) && session.IsProcessRunning)
         {
             await session.SleepAsync();
@@ -2129,10 +2146,15 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task SetAliveAsync(IReadOnlyList<SessionListItemViewModel> items, bool alive)
     {
         ClearPicks();
-        foreach (var item in items.Where(s => s.IsAlive != alive).ToList())
+
+        // All at once, each row spinning until it moves, rather than one after another.
+        var due = items.Where(s => s.IsAlive != alive && s.CanManage).ToList();
+        foreach (var item in due)
         {
-            await ToggleAliveAsync(item);
+            item.IsSwitching = true;
         }
+
+        await Task.WhenAll(due.Select(ToggleAliveAsync));
     }
 
     /// <summary>Ctrl is held (or let go): rows show their Ctrl+number.</summary>

@@ -157,6 +157,12 @@ public sealed partial class SessionListItemViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsDragged { get; set; }
 
+    /// <summary>
+    /// Its process is being ended or started (Make idle / Make alive): the row dims and spins until it moves list.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool IsSwitching { get; set; }
+
     /// <summary>Being archived or deleted: the row folds away before it leaves the list.</summary>
     [ObservableProperty]
     public partial bool IsLeaving { get; set; }

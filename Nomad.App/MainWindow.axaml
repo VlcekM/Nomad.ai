@@ -157,6 +157,10 @@
             <Style Selector="Button.sessionrow.picked">
               <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
             </Style>
+            <!-- Being made idle or alive: dimmed, a spinner in place of its mark, until it moves to the other list. -->
+            <Style Selector="Button.sessionrow.switching">
+              <Setter Property="Opacity" Value="0.55" />
+            </Style>
             <!-- Being dragged (to the pin zone): the row stays in place, faded. -->
             <Style Selector="Button.sessionrow.dragged">
               <Setter Property="Opacity" Value="0.4" />
@@ -395,6 +399,7 @@
                       Classes.picked="{Binding IsPicked}"
                       Classes.dragged="{Binding IsDragged}"
                       Classes.leaving="{Binding IsLeaving}"
+                      Classes.switching="{Binding IsSwitching}"
                       Classes.idle="{Binding !IsAlive}"
                       Classes.twoline="{Binding ShowProject}"
                       Padding="10,0,8,0"
@@ -524,9 +529,19 @@
                     </Border>
                   </StackPanel>
                   <!-- Working (spinner), asking something (yellow), done and not seen yet (blue). -->
+                  <c:Ring Grid.Column="4"
+                          Width="11" Height="11"
+                          StrokeWidth="1.5"
+                          Margin="9,0,0,0"
+                          VerticalAlignment="Center"
+                          IsSpinning="{Binding IsSwitching}"
+                          IsVisible="{Binding IsSwitching}"
+                          TrackBrush="{DynamicResource RingTrackBrush}"
+                          SpinBrush="{DynamicResource TextMutedBrush}" />
                   <c:StatusMark Grid.Column="4"
                                 Margin="9,0,0,0"
                                 VerticalAlignment="Center"
+                                IsVisible="{Binding !IsSwitching}"
                                 Mark="{Binding Mark}"
                                 WorkingBrush="{DynamicResource AccentBrush}"
                                 WaitingBrush="{DynamicResource WaitingBrush}"
