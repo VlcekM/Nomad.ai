@@ -99,11 +99,14 @@ public sealed partial class MainViewModel
     /// Starts a side task Claude suggested in <paramref name="parent"/> as a chat of its own, on the same agent, model and mode,
     /// and sends it <paramref name="prompt"/> without showing it: the sidebar lists it under its parent.
     /// </summary>
-    public SessionViewModel StartForkedSession(SessionViewModel parent, string prompt)
+    public SessionViewModel StartForkedSession(SessionViewModel parent, string prompt, string toolUseId)
     {
-        var session = new SessionViewModel(this, parent.Folder, parent.Backend)
+        // In its project itself, not in the parent's worktree: a new one, if the Worktree switch says so, comes from there.
+        var folder = parent.Folder is { } own ? GitInfo.WorktreeOwner(own) ?? own : null;
+        var session = new SessionViewModel(this, folder, parent.Backend)
         {
             ForkedFrom = parent.SessionId,
+            ForkedFromCall = toolUseId,
             Model = parent.Model,
             Effort = parent.Effort,
             PermissionMode = parent.PermissionMode,
@@ -111,6 +114,18 @@ public sealed partial class MainViewModel
         _starting.Add(session);
         _ = session.SendPromptAsync(prompt);
         return session;
+    }
+
+    /// <summary>
+    /// Opens the listed session <paramref name="sessionId"/>; false when it isn't listed (deleted, say).
+    /// </summary>
+    public bool OpenListedSession(string sessionId)
+    {
+        if (_all.FirstOrDefault(s => s.SessionId == sessionId) is not { } row) return false;
+
+        IsWorkPageOpen = false;
+        _ = OpenSessionAsync(row);
+        return true;
     }
 
     /// <summary>

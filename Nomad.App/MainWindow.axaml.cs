@@ -1100,6 +1100,9 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// A forked row's Unfork: it becomes a standalone session.
+    /// </summary>
     private void OnUnforkClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Control { DataContext: SessionListItemViewModel item })

@@ -29,7 +29,7 @@ dotnet build Nomad.App -o <scratch>\build
 
 Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/DevOptions.cs`):
 
-- `--dev-menu model|mode|folder|branch|plus|workflows|usage|remote` opens a status-row menu first (`workflows` the + menu's saved workflows, `list` / `alivelist` the Idle / Alive list options, `row` an Idle row's context menu, `group` a folder heading's, `composer` the composer's edit menu); `--dev-settings-open` the settings;
+- `--dev-menu model|mode|folder|branch|plus|workflows|usage|remote` opens a status-row menu first (`workflows` the + menu's saved workflows, `list` / `alivelist` the Idle / Alive list options, `row` an Idle row's context menu, `forkrow` a forked row's, `group` a folder heading's, `composer` the composer's edit menu); `--dev-settings-open` the settings;
   `--dev-side-panel` the right-hand panel; `--dev-work-page` the pull requests and issues page (its lists take a few seconds; `--dev-work-sample` adds a made-up repository with every kind of row); `--dev-files [a|b|…]` a chat's Files view, with those files open in tabs (`--dev-files-split` opens the last to the side too).
 - `--dev-compose "/co"` types into the composer, `--dev-paste-image <file>` attaches an image or file, and
   `--dev-drag x1,y1,x2,y2 <seconds>` (repeatable) drags the mouse inside the window (clicks, text selection, a hover at the end; add

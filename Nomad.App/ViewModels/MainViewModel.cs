@@ -2491,10 +2491,10 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _all.Remove(item);
-        if (Settings.ArchivedSessions.Remove(item.SessionId) | Settings.MovedSessionFolders.Remove(item.SessionId))
-        {
-            SaveSettings();
-        }
+        ForgetForks(item.SessionId);
+        Settings.ArchivedSessions.Remove(item.SessionId);
+        Settings.MovedSessionFolders.Remove(item.SessionId);
+        SaveSettings();
     }
 
     /// <summary>Lets the rows fold their height and fade (the row style's transitions) before they leave the list.</summary>
@@ -2599,11 +2599,59 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (session.ForkedFrom is not { } parent || session.SessionId is not { } id || id == parent) return;
 
-        row.ParentSessionId = parent;
-        if (Settings.ForkedSessions.TryGetValue(id, out var known) && known == parent) return;
-
+        // Recorded once: from then on the settings hold the link, so an unfork sticks when the session takes a new id.
         Settings.ForkedSessions[id] = parent;
+        if (session.ForkedFromCall is { } call) Settings.SuggestedChats[call] = id;
+
+        session.ForkedFrom = null;
+        session.ForkedFromCall = null;
         SaveSettings();
+        row.ParentSessionId = parent;
+    }
+
+    /// <summary>
+    /// A session took a new id (a rewind to its first prompt): its fork links, either way, follow it.
+    /// </summary>
+    private void RelinkForks(string from, string to)
+    {
+        if (Settings.ForkedSessions.Remove(from, out var parent)) Settings.ForkedSessions[to] = parent;
+
+        foreach (var child in Settings.ForkedSessions.Where(f => f.Value == from).Select(f => f.Key).ToList())
+        {
+            Settings.ForkedSessions[child] = to;
+        }
+
+        foreach (var card in Settings.SuggestedChats.Where(c => c.Value == from).Select(c => c.Key).ToList())
+        {
+            Settings.SuggestedChats[card] = to;
+        }
+
+        foreach (var row in _all.Where(r => r.ParentSessionId == from))
+        {
+            row.ParentSessionId = to;
+        }
+    }
+
+    /// <summary>
+    /// A deleted session's fork links go: forked from it, the others become standalone.
+    /// </summary>
+    private void ForgetForks(string sessionId)
+    {
+        Settings.ForkedSessions.Remove(sessionId);
+        foreach (var child in Settings.ForkedSessions.Where(f => f.Value == sessionId).Select(f => f.Key).ToList())
+        {
+            Settings.ForkedSessions.Remove(child);
+        }
+
+        foreach (var card in Settings.SuggestedChats.Where(c => c.Value == sessionId).Select(c => c.Key).ToList())
+        {
+            Settings.SuggestedChats.Remove(card);
+        }
+
+        foreach (var row in _all.Where(r => r.ParentSessionId == sessionId))
+        {
+            row.ParentSessionId = null;
+        }
     }
 
     /// <summary>
@@ -2613,6 +2661,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void ArchiveReplaced(SessionViewModel session, string replaced)
     {
         if (_open.TryGetValue(replaced, out var open) && ReferenceEquals(open, session)) _open.Remove(replaced);
+
+        if (session.SessionId is { } id) RelinkForks(replaced, id);
 
         Settings.ArchivedSessions.Remove(replaced);
         Settings.ArchivedSessions.Add(replaced);

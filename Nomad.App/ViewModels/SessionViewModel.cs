@@ -608,9 +608,15 @@ public sealed partial class SessionViewModel : ObservableObject
     public bool StartsInPlace { get; init; }
 
     /// <summary>
-    /// The session it was forked from: a side task Claude suggested there, started from its card.
+    /// The session it was forked from (a side task Claude suggested there, started from its card), until it is first identified
+    /// and the sidebar keeps the link.
     /// </summary>
-    public string? ForkedFrom { get; init; }
+    public string? ForkedFrom { get; set; }
+
+    /// <summary>
+    /// The tool-use id of the card it was started from, kept with the link once it is identified.
+    /// </summary>
+    public string? ForkedFromCall { get; set; }
 
     public string WorktreeToolTip => UseWorktree
         ? "Worktree on: starts in a new git worktree (.claude\\worktrees) on its own branch"
@@ -3970,9 +3976,10 @@ public sealed partial class SessionViewModel : ObservableObject
             CloseGroup();
             Items.Add(artifact);
         }
-        else if (call.Name == NewChatToolName && !isError && NewChatItem.From(call.Input, StartSuggestedChat) is { } suggestion)
+        else if (call.Name == NewChatToolName && !isError && NewChatItem.From(call.Input, toolUseId, StartSuggestedChat) is { } suggestion)
         {
             CloseGroup();
+            suggestion.StartedSessionId = _main.Settings.SuggestedChats.GetValueOrDefault(toolUseId);
             Items.Add(suggestion);
         }
         else if (call.Name == "Workflow" && !isError && WorkflowLaunch.Parse(text) is { } launch)
@@ -3987,7 +3994,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>
     /// A suggested side task's Start chat: a chat of its own starts on the task's prompt at once, in the background, listed under
-    /// this one; once started, the card's button opens it.
+    /// this one; once started, the card's button opens it (while it is still listed).
     /// </summary>
     private void StartSuggestedChat(NewChatItem suggestion)
     {
@@ -3997,19 +4004,18 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
-        suggestion.Started = _main.StartForkedSession(this, suggestion.Prompt);
+        if (suggestion.StartedSessionId is { } id && _main.OpenListedSession(id)) return;
+
+        suggestion.StartedSessionId = null;
+        suggestion.Started = _main.StartForkedSession(this, suggestion.Prompt, suggestion.ToolUseId);
     }
 
     /// <summary>
-    /// Adds <paramref name="text"/> to what is typed (once) and brings the chat's composer up to send it.
+    /// Adds <paramref name="text"/> to what is typed and brings the chat's composer up to send it.
     /// </summary>
     public void AddToComposer(string text)
     {
-        if (!ComposerText.Contains(text, StringComparison.Ordinal))
-        {
-            ComposerText = string.IsNullOrWhiteSpace(ComposerText) ? text : ComposerText.TrimEnd() + "\n\n" + text;
-        }
-
+        ComposerText = string.IsNullOrWhiteSpace(ComposerText) ? text : ComposerText.TrimEnd() + "\n\n" + text;
         IsFilesView = false;
         ComposerEndRequested?.Invoke();
     }

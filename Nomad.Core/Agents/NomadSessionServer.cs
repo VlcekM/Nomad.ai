@@ -71,6 +71,9 @@ internal sealed class NomadSessionServer(string workingDirectory)
         }
     }
 
+    /// <summary>
+    /// The initialize answer: this server, offering tools, on the protocol version the CLI asked for.
+    /// </summary>
     private static JsonObject Initialize(JsonElement message)
     {
         var version = message.TryGetProperty("params", out var init) ? Str(init, "protocolVersion") : null;
@@ -82,6 +85,9 @@ internal sealed class NomadSessionServer(string workingDirectory)
         };
     }
 
+    /// <summary>
+    /// A tools/call, handed to the tool it names; subagents may use neither.
+    /// </summary>
     private async Task<JsonObject> CallAsync(JsonElement message, bool mainAgent)
     {
         var name = message.TryGetProperty("params", out var parameters) ? Str(parameters, "name") : null;

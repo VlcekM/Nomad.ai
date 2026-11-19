@@ -600,13 +600,22 @@ public sealed partial class NewChatItem : TranscriptItem
     /// </summary>
     private readonly Action<NewChatItem> _start;
 
-    private NewChatItem(string title, string prompt, string? reason, Action<NewChatItem> start)
+    /// <summary>
+    /// The card for a suggestion with this title, prompt and reason, made by its call <paramref name="toolUseId"/>.
+    /// </summary>
+    private NewChatItem(string toolUseId, string title, string prompt, string? reason, Action<NewChatItem> start)
     {
+        ToolUseId = toolUseId;
         Title = title;
         Prompt = prompt;
         Subtitle = reason is { Length: > 0 } ? reason : prompt.ReplaceLineEndings(" ");
         _start = start;
     }
+
+    /// <summary>
+    /// The suggest_new_chat call that made it.
+    /// </summary>
+    public string ToolUseId { get; }
 
     /// <summary>
     /// A few words naming the task.
@@ -624,30 +633,40 @@ public sealed partial class NewChatItem : TranscriptItem
     public string Subtitle { get; }
 
     /// <summary>
-    /// The chat started from the card; null until then (and again after a restart).
+    /// The chat started from the card in this run of Nomad; null until then.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ButtonText))]
     public partial SessionViewModel? Started { get; set; }
 
     /// <summary>
+    /// The session started from the card earlier, as the settings remember it.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ButtonText))]
+    public partial string? StartedSessionId { get; set; }
+
+    /// <summary>
     /// Start chat, then Open chat once it runs.
     /// </summary>
-    public string ButtonText => Started is null ? "Start chat" : "Open chat";
+    public string ButtonText => Started is null && StartedSessionId is null ? "Start chat" : "Open chat";
 
     /// <summary>
     /// The card for a suggest_new_chat call's input, or null when it lacks a title or prompt.
     /// </summary>
-    public static NewChatItem? From(JsonElement input, Action<NewChatItem> start)
+    public static NewChatItem? From(JsonElement input, string toolUseId, Action<NewChatItem> start)
     {
         string? Str(string name) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty(name, out var value) &&
             value.ValueKind == JsonValueKind.String ? value.GetString()?.Trim() : null;
 
         if (Str("title") is not { Length: > 0 } title || Str("prompt") is not { Length: > 0 } prompt) return null;
 
-        return new NewChatItem(title, prompt, Str("reason"), start);
+        return new NewChatItem(toolUseId, title, prompt, Str("reason"), start);
     }
 
+    /// <summary>
+    /// The card's button: starts the chat, or opens it once started.
+    /// </summary>
     [RelayCommand]
     private void Start() => _start(this);
 }

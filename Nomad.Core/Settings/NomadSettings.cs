@@ -183,6 +183,12 @@ public sealed class NomadSettings
     /// </summary>
     public Dictionary<string, string> ForkedSessions { get; set; } = [];
 
+    /// <summary>
+    /// A suggested chat's card (its suggest_new_chat call's tool-use id) to the session started from it, so after a restart the
+    /// card opens that session rather than starting another.
+    /// </summary>
+    public Dictionary<string, string> SuggestedChats { get; set; } = [];
+
     /// <summary>Sessions untouched for <see cref="AutoArchiveHours"/> are archived (not while alive or open).</summary>
     public bool AutoArchive { get; set; } = true;
 
