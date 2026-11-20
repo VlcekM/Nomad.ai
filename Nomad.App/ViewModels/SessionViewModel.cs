@@ -3373,7 +3373,37 @@ public sealed partial class SessionViewModel : ObservableObject
 
     // ------------------------------------------------------------------ backend
 
+    /// <summary>
+    /// The backend start in progress, which a second caller waits for rather than tearing it down mid-start.
+    /// </summary>
+    private Task? _backendStart;
+
+    /// <summary>
+    /// Starts the backend unless it runs; a wake and a prompt arriving together share one start.
+    /// </summary>
     private async Task EnsureBackendAsync()
+    {
+        while (_backendStart is { IsCompleted: false } running)
+        {
+            try
+            {
+                await running;
+            }
+            catch
+            {
+                // Its own caller reports the failure; this one tries again below.
+            }
+        }
+
+        var start = StartBackendIfNeededAsync();
+        _backendStart = start;
+        await start;
+    }
+
+    /// <summary>
+    /// Replaces a stopped (or restart-pending) backend with a started one.
+    /// </summary>
+    private async Task StartBackendIfNeededAsync()
     {
         await AwaitWatchStartingAsync();
         if (_backend is { IsProcessRunning: true } && !_restartRequired)
