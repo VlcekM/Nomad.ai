@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.42.0
+
+- Antigravity turns no longer block the composer while running: Enter queues a follow-up and Ctrl+Enter interrupts and sends it
+  right away.
+- Antigravity now suggests short follow-up prompts in the composer after a turn finishes, matching Claude Code's ghost-text
+  suggestions.
+- The **Finished commands** card in the side panel now has a trashcan button in its header to clear command history.
+
 ## v1.41.1
 
 - Antigravity subagents keep running in the side panel, with their timers, until the main agent reports them finished. Its
