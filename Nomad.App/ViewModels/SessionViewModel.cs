@@ -59,7 +59,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
         Backend = backend ?? AgentBackends.Normalize(main.Settings.DefaultBackend);
         Model = DefaultModelFor(Backend);
-        PermissionMode = IsAntigravity ? "default" : main.Settings.DefaultPermissionMode;
+        PermissionMode = DefaultMode();
         Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
         Files.SetFolder(Folder);
@@ -144,7 +144,7 @@ public sealed partial class SessionViewModel : ObservableObject
         foreach (var m in Catalog.Modes)
         {
             // OpenCode has no classifier to decide for the user ("auto"); Codex has its reviewer.
-            if (!(IsOpenCode && m.Id == "auto") && (!IsAntigravity || Catalog.AntigravityModeDescription(m.Id) is not null))
+            if (SupportsMode(m.Id))
             {
                 var description = Backend switch
                 {
@@ -767,7 +767,12 @@ public sealed partial class SessionViewModel : ObservableObject
         ModelFilter = "";
         Model = DefaultModelFor(newValue);
         Effort = _main.EffortFor(Model);
-        if (IsAntigravity || IsOpenCode && PermissionMode == "auto")
+        // Unpicked, the page follows the default (bypass when the user set it, also back from an agent without it).
+        if (!_modePicked)
+        {
+            PermissionMode = DefaultMode();
+        }
+        else if (!SupportsMode(PermissionMode))
         {
             PermissionMode = "default";
         }
@@ -2855,6 +2860,18 @@ public sealed partial class SessionViewModel : ObservableObject
         await ApplyEffortAsync(_main.EffortFor(id));
     }
 
+    /// <summary>
+    /// The mode a new session on this backend starts in: the settings' default, where the backend offers it.
+    /// </summary>
+    private string DefaultMode() => SupportsMode(_main.Settings.DefaultPermissionMode) ? _main.Settings.DefaultPermissionMode : "default";
+
+    /// <summary>
+    /// Whether this session's backend offers <paramref name="mode"/>.
+    /// </summary>
+    private bool SupportsMode(string mode) => IsAntigravity
+        ? Catalog.AntigravityModeDescription(mode) is not null
+        : !(IsOpenCode && mode == "auto");
+
     /// <summary>A mode was picked on this session (so the default no longer applies to it).</summary>
     private bool _modePicked;
 
@@ -2866,7 +2883,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         if (IsNew && !_modePicked)
         {
-            PermissionMode = IsAntigravity ? "default" : _main.Settings.DefaultPermissionMode;
+            PermissionMode = DefaultMode();
         }
     }
 
