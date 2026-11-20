@@ -557,7 +557,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Usage on new sessions" Classes="rowlabel" />
-                  <TextBlock Text="Show Claude and Codex quotas and OpenCode costs above recent projects."
+                  <TextBlock Text="Show your chosen usage cards above recent projects."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleShowNewSessionUsageCommand}">

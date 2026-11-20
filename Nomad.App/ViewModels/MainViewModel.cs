@@ -36,6 +36,16 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The ChatGPT plan's Codex limits (Codex sessions' usage).</summary>
     public CodexUsageViewModel CodexUsage { get; } = new();
 
+    /// <summary>
+    /// Quota windows from the signed-in Antigravity CLI.
+    /// </summary>
+    public AntigravityUsageViewModel AntigravityUsage { get; } = new();
+
+    /// <summary>
+    /// The cards shared by the window's new-session views.
+    /// </summary>
+    public UsageDashboardViewModel UsageDashboard { get; }
+
     public LocalTokenUsageViewModel LocalTokens { get; } = new();
 
     /// <summary>The session search (Ctrl+T).</summary>
@@ -53,6 +63,7 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(NomadSettings settings, string settingsPath, DevOptions dev)
     {
         Settings = settings;
+        UsageDashboard = new UsageDashboardViewModel(this);
         _settingsPath = settingsPath;
         Dev = dev;
         // The session list is kept beside the settings between runs, so a start re-reads only the transcripts that changed.
@@ -928,10 +939,34 @@ public sealed partial class MainViewModel : ObservableObject
     // Leaving a session while its title is being edited keeps the new name.
     partial void OnCurrentChanging(SessionViewModel value) => EndTitleRename(save: true);
 
-    // The new-session dashboard shows all three providers, independent of the selected backend.
+    /// <summary>
+    /// Refreshes the visible cards or the current session's provider.
+    /// </summary>
     private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew && ShowNewSessionUsage
-        ? Task.WhenAll(Usage.RefreshAsync(force), CodexUsage.RefreshAsync(force), OpenCodeCost.RefreshAsync(force), LocalTokens.RefreshAsync(force))
+        ? RefreshDashboardAsync(force)
         : Current.Usage.RefreshAsync(force);
+
+    /// <summary>
+    /// Fetches only the dashboard providers currently selected.
+    /// </summary>
+    private Task RefreshDashboardAsync(bool force)
+    {
+        var cards = UsageDashboard.Cards;
+        var refreshes = cards.Select(card => card.Source.RefreshAsync(force)).ToList();
+        if (cards.Any(card => card.ShowsLocalTokens)) refreshes.Add(LocalTokens.RefreshAsync(force));
+
+        return Task.WhenAll(refreshes);
+    }
+
+    /// <summary>
+    /// Saves the chosen dashboard order and loads newly visible quotas.
+    /// </summary>
+    public void ApplyUsageDashboard()
+    {
+        Settings.NewSessionUsageCards = UsageDashboard.Apply();
+        SaveSettings();
+        _ = RefreshDashboardAsync(force: false);
+    }
 
     partial void OnCurrentChanged(SessionViewModel oldValue, SessionViewModel newValue)
     {

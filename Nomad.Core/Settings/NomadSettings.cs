@@ -37,6 +37,11 @@ public sealed class NomadSettings
     /// <summary>Show the three providers' usage cards above the new-session project picker.</summary>
     public bool ShowNewSessionUsage { get; set; } = true;
 
+    /// <summary>
+    /// The provider IDs for the new-session usage cards, from left to right.
+    /// </summary>
+    public List<string>? NewSessionUsageCards { get; set; }
+
     /// <summary>The status row shows only the current model's chip; the other models and the effort slider move into its menu.</summary>
     public bool CompactModelPicker { get; set; }
 

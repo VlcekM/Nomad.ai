@@ -874,6 +874,27 @@ public partial class SessionView : UserControl
 
     // ------------------------------------------------------------------ menus
 
+    /// <summary>
+    /// Starts editing from the currently displayed card order each time the flyout opens.
+    /// </summary>
+    private void OnUsageDashboardOpening(object? sender, EventArgs e) => Vm?.UsageDashboard.BeginEdit();
+
+    /// <summary>
+    /// Closes the flyout and discards its draft.
+    /// </summary>
+    private void OnCancelUsageDashboardClick(object? sender, RoutedEventArgs e) => UsageDashboardButton.Flyout?.Hide();
+
+    /// <summary>
+    /// Saves the new card order and closes the flyout.
+    /// </summary>
+    private void OnApplyUsageDashboardClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { UsageDashboard.CanApply: true } session) return;
+
+        session.ApplyUsageDashboard();
+        UsageDashboardButton.Flyout?.Hide();
+    }
+
     /// <summary>Opens a status-row menu by name (dev hook <c>--dev-menu</c>).</summary>
     public void OpenMenu(string name)
     {
@@ -910,6 +931,9 @@ public partial class SessionView : UserControl
                 break;
             case "usage":
                 UsageChip.Flyout?.ShowAt(UsageChip);
+                break;
+            case "usage-dashboard":
+                UsageDashboardButton.Flyout?.ShowAt(UsageDashboardButton);
                 break;
             case "remote":
                 RemoteChip.Flyout?.ShowAt(RemoteChip);

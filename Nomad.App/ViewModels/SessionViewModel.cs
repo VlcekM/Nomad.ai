@@ -2434,17 +2434,22 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
-    // All three sources stay visible on the new-session dashboard.
-    public UsageViewModel ClaudeUsage => _main.Usage;
-    public CodexUsageViewModel CodexUsage => _main.CodexUsage;
-    public OpenCodeCostViewModel OpenCodeCost => _main.OpenCodeCost;
-    public LocalTokenUsageViewModel LocalTokens => _main.LocalTokens;
+    /// <summary>
+    /// The shared new-session usage layout.
+    /// </summary>
+    public UsageDashboardViewModel UsageDashboard => _main.UsageDashboard;
+
+    /// <summary>
+    /// Applies the usage card selection from the dashboard dialog.
+    /// </summary>
+    public void ApplyUsageDashboard() => _main.ApplyUsageDashboard();
 
     /// <summary>The ring's popup and the usage card: limits or costs for this session's backend.</summary>
     public UsageSource Usage => Backend switch
     {
         AgentBackends.OpenCode => _main.OpenCodeCost,
         AgentBackends.Codex => _main.CodexUsage,
+        AgentBackends.Antigravity => _main.AntigravityUsage,
         _ => _main.Usage,
     };
 

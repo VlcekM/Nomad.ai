@@ -24,6 +24,41 @@
                         c:Fold.IsOpen="{Binding IsStale}" IsVisible="False" />
       </StackPanel>
     </DataTemplate>
+    <DataTemplate x:Key="DashboardCardTemplate" x:DataType="vm:UsageDashboardCard">
+      <Border Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
+              BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" IsVisible="{Binding ShowsLocalTokens}"
+                      ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
+            <StackPanel.Styles>
+              <Style Selector="TransitioningContentControl.tokenFooter">
+                <Setter Property="PageTransition">
+                  <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
+                </Setter>
+                <Setter Property="ContentTemplate">
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </Setter>
+              </Style>
+            </StackPanel.Styles>
+            <TransitioningContentControl Classes="tokenFooter" Content="{Binding LocalTokens.ClaudeText}" IsVisible="{Binding ShowsClaudeTokens}" />
+            <TransitioningContentControl Classes="tokenFooter" Content="{Binding LocalTokens.CodexText}" IsVisible="{Binding ShowsCodexTokens}" />
+          </StackPanel>
+          <StackPanel Spacing="12">
+            <TextBlock Text="{Binding Name}" FontWeight="Medium" />
+            <ContentControl Content="{Binding Source}" ContentTemplate="{StaticResource DashboardUsageTemplate}"
+                            IsVisible="{Binding ShowsLimits}" />
+            <c:UsageHoverSpace IsVisible="{Binding ShowsCost}">
+              <ContentControl Content="{Binding Source}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
+            </c:UsageHoverSpace>
+          </StackPanel>
+        </DockPanel>
+      </Border>
+    </DataTemplate>
+    <DataTemplate x:Key="DashboardChoiceTemplate" x:DataType="vm:UsageDashboardCard">
+      <TextBlock Text="{Binding Name}" />
+    </DataTemplate>
   </UserControl.Resources>
 
   <UserControl.Styles>
@@ -1371,53 +1406,51 @@
       <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
           <Border Name="NewSessionUsage" c:Fold.IsOpen="{Binding ShowNewSessionUsage}" IsVisible="False">
-            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10" Margin="0,0,0,26">
-              <Border Grid.Column="0" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
-                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
-                <DockPanel>
-                  <TransitioningContentControl DockPanel.Dock="Bottom" Content="{Binding LocalTokens.ClaudeText}" Margin="0,12,0,0"
-                                               ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
-                    <TransitioningContentControl.PageTransition>
-                      <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
-                    </TransitioningContentControl.PageTransition>
-                    <TransitioningContentControl.ContentTemplate>
-                      <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" /></DataTemplate>
-                    </TransitioningContentControl.ContentTemplate>
-                  </TransitioningContentControl>
-                  <StackPanel Spacing="12">
-                    <TextBlock Text="Claude" FontWeight="Medium" />
-                    <ContentControl Content="{Binding ClaudeUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
-                  </StackPanel>
-                </DockPanel>
-              </Border>
-              <Border Grid.Column="1" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
-                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
-                <DockPanel>
-                  <TransitioningContentControl DockPanel.Dock="Bottom" Content="{Binding LocalTokens.CodexText}" Margin="0,12,0,0"
-                                               ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
-                    <TransitioningContentControl.PageTransition>
-                      <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
-                    </TransitioningContentControl.PageTransition>
-                    <TransitioningContentControl.ContentTemplate>
-                      <DataTemplate x:DataType="x:String"><TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" /></DataTemplate>
-                    </TransitioningContentControl.ContentTemplate>
-                  </TransitioningContentControl>
-                  <StackPanel Spacing="12">
-                    <TextBlock Text="Codex" FontWeight="Medium" />
-                    <ContentControl Content="{Binding CodexUsage}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
-                  </StackPanel>
-                </DockPanel>
-              </Border>
-              <Border Grid.Column="2" Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
-                      BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
-                <StackPanel Spacing="12">
-                  <TextBlock Text="OpenCode cost" FontWeight="Medium" />
-                  <c:UsageHoverSpace>
-                    <ContentControl Content="{Binding OpenCodeCost}" ContentTemplate="{StaticResource DashboardUsageTemplate}" />
-                  </c:UsageHoverSpace>
+            <StackPanel Spacing="6" Margin="0,0,0,20">
+              <Button Name="UsageDashboardButton" HorizontalAlignment="Right" Theme="{StaticResource LineButton}"
+                      ToolTip.Tip="Choose and order the usage cards">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:Icon Size="12" Data="{StaticResource IconGear}" />
+                  <TextBlock Text="Usage cards" FontSize="{DynamicResource UiFontSizeSmall}" />
                 </StackPanel>
-              </Border>
-            </Grid>
+                <Button.Flyout>
+                  <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="menu" Opening="OnUsageDashboardOpening">
+                    <StackPanel MinWidth="245" Spacing="10" Margin="10">
+                      <TextBlock Text="Usage cards" FontWeight="Medium" />
+                      <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                        <TextBlock Text="Left" VerticalAlignment="Center" />
+                        <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding UsageDashboard.Options}"
+                                  SelectedItem="{Binding UsageDashboard.Left}" ItemTemplate="{StaticResource DashboardChoiceTemplate}" />
+                        <TextBlock Grid.Row="1" Text="Middle" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding UsageDashboard.Options}"
+                                  SelectedItem="{Binding UsageDashboard.Middle}" ItemTemplate="{StaticResource DashboardChoiceTemplate}" />
+                        <TextBlock Grid.Row="2" Text="Right" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding UsageDashboard.Options}"
+                                  SelectedItem="{Binding UsageDashboard.Right}" ItemTemplate="{StaticResource DashboardChoiceTemplate}" />
+                      </Grid>
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                        <Button Content="Cancel" Click="OnCancelUsageDashboardClick" />
+                        <Button Content="Apply" Theme="{StaticResource PrimaryButton}" Click="OnApplyUsageDashboardClick"
+                                IsEnabled="{Binding UsageDashboard.CanApply}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <Grid.Styles>
+                  <Style Selector="TransitioningContentControl.dashboardCard">
+                    <Setter Property="ContentTemplate" Value="{StaticResource DashboardCardTemplate}" />
+                    <Setter Property="PageTransition">
+                      <CrossFade Duration="0:0:0.18" FadeInEasing="CubicEaseOut" FadeOutEasing="CubicEaseOut" />
+                    </Setter>
+                  </Style>
+                </Grid.Styles>
+                <TransitioningContentControl Classes="dashboardCard" Content="{Binding UsageDashboard.Cards[0]}" />
+                <TransitioningContentControl Grid.Column="1" Classes="dashboardCard" Content="{Binding UsageDashboard.Cards[1]}" />
+                <TransitioningContentControl Grid.Column="2" Classes="dashboardCard" Content="{Binding UsageDashboard.Cards[2]}" />
+              </Grid>
+            </StackPanel>
           </Border>
           <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="2,0">
             <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />

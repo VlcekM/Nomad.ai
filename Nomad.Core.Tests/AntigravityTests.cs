@@ -10,6 +10,35 @@ namespace Nomad.Core.Tests;
 public sealed class AntigravityTests
 {
     /// <summary>
+    /// The quota command returns remaining fractions, while Nomad's bars show usage.
+    /// </summary>
+    [Fact]
+    public void ParsesSharedGeminiQuotasAsUsedPercentages()
+    {
+        var limits = AntigravityUsage.Parse("""
+            {"command":{"name":"usage","data":{"groups":[{"buckets":[
+              {"id":"gemini-weekly","remaining_fraction":0.28,"reset_time":"2026-11-27T18:57:53Z"},
+              {"id":"gemini-5h","remaining_fraction":0.06},
+              {"id":"3p-weekly","remaining_fraction":0.5}
+            ]}]}}}
+            """);
+
+        Assert.Collection(limits,
+            weekly =>
+            {
+                Assert.Equal("weekly_all", weekly.Kind);
+                Assert.Equal(72, weekly.Percent);
+                Assert.Equal(DateTimeOffset.Parse("2026-11-27T18:57:53Z"), weekly.ResetsAt);
+            },
+            session =>
+            {
+                Assert.Equal("session", session.Kind);
+                Assert.Equal(94, session.Percent);
+                Assert.Equal("warning", session.Severity);
+            });
+    }
+
+    /// <summary>
     /// A tool call closes the preceding streamed text before the next block starts.
     /// </summary>
     [Fact]
