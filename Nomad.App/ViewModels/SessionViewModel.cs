@@ -144,13 +144,13 @@ public sealed partial class SessionViewModel : ObservableObject
         foreach (var m in Catalog.Modes)
         {
             // OpenCode has no classifier to decide for the user ("auto"); Codex has its reviewer.
-            if (!(IsOpenCode && m.Id == "auto") && (!IsAntigravity || m.Id == "default"))
+            if (!(IsOpenCode && m.Id == "auto") && (!IsAntigravity || Catalog.AntigravityModeDescription(m.Id) is not null))
             {
                 var description = Backend switch
                 {
                     AgentBackends.OpenCode => Catalog.OpenCodeModeDescription(m.Id),
                     AgentBackends.Codex => Catalog.CodexModeDescription(m.Id),
-                    AgentBackends.Antigravity => "Ask according to Antigravity CLI permission settings",
+                    AgentBackends.Antigravity => Catalog.AntigravityModeDescription(m.Id),
                     _ => null,
                 };
                 ModeOptions.Add(new MenuOption(m.Id, m.DisplayName, description ?? m.Description, m.Shortcut)
@@ -2842,11 +2842,14 @@ public sealed partial class SessionViewModel : ObservableObject
     [RelayCommand]
     public async Task SelectModeAsync(string id)
     {
+        if (IsAntigravity && Catalog.AntigravityModeDescription(id) is null) return;
+
         if (PermissionMode == id)
         {
             return;
         }
 
+        var previous = PermissionMode;
         PermissionMode = id;
         _modePicked = true;
         if (_backend is { IsProcessRunning: true } backend)
@@ -2859,6 +2862,12 @@ public sealed partial class SessionViewModel : ObservableObject
                     // e.g. bypassPermissions needs a process launched with it: restart before the next prompt.
                     _restartRequired = true;
                 }
+            }
+            catch (InvalidOperationException ex) when (IsAntigravity)
+            {
+                PermissionMode = previous;
+                Items.Add(new ErrorItem(ex.Message));
+                ContentChanged?.Invoke();
             }
             finally
             {

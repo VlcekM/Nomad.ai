@@ -42,6 +42,11 @@ public sealed class AntigravityBackend : IAgentBackend
     private JsonElement _thinkingLevel;
 
     /// <summary>
+    /// The CLI's execution-mode selector and its current value.
+    /// </summary>
+    private JsonElement _executionMode;
+
+    /// <summary>
     /// The model associated with streamed messages.
     /// </summary>
     private string? _model;
@@ -157,6 +162,7 @@ public sealed class AntigravityBackend : IAgentBackend
 
         var session = await Connection.CallAsync(method, args, cancellationToken).ConfigureAwait(false);
         ReadThinkingLevel(session);
+        _executionMode = ConfigOption(session, "mode");
         SessionId = options.ResumeSessionId ?? CodexJson.Str(session, "sessionId")
             ?? throw new InvalidOperationException("Antigravity did not return a session ID.");
 
@@ -171,7 +177,11 @@ public sealed class AntigravityBackend : IAgentBackend
         if (options.Effort is { Length: > 0 } effort && !await SetEffortAsync(effort, cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("Antigravity did not expose thinking-level selection. Update the CLI.");
 
-        Raise(new SessionStartedEvent(SessionId, _model, options.WorkingDirectory, "default", [], DisplayName));
+        var mode = options.PermissionMode ?? "default";
+        if (!await SetPermissionModeAsync(mode, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("Antigravity could not apply the selected execution mode.");
+
+        Raise(new SessionStartedEvent(SessionId, _model, options.WorkingDirectory, mode, [], DisplayName));
     }
 
     /// <summary>
@@ -204,8 +214,13 @@ public sealed class AntigravityBackend : IAgentBackend
     /// <summary>
     /// Finds the model selector in the session's advertised configuration.
     /// </summary>
-    internal static JsonElement ModelOption(JsonElement session) =>
-        CodexJson.Arr(session, "configOptions").FirstOrDefault(option => CodexJson.Str(option, "category") == "model");
+    internal static JsonElement ModelOption(JsonElement session) => ConfigOption(session, "model");
+
+    /// <summary>
+    /// Finds a configuration selector by its ACP category.
+    /// </summary>
+    private static JsonElement ConfigOption(JsonElement session, string category) =>
+        CodexJson.Arr(session, "configOptions").FirstOrDefault(option => CodexJson.Str(option, "category") == category);
 
     /// <summary>
     /// Propagates unexpected exits to the session view.
@@ -382,9 +397,35 @@ public sealed class AntigravityBackend : IAgentBackend
     #region Optional capabilities
 
     /// <summary>
-    /// Antigravity applies the CLI's own permission policy.
+    /// Applies the corresponding Antigravity CLI execution mode.
     /// </summary>
-    public Task<bool> SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default) => Task.FromResult(mode == "default");
+    public async Task<bool> SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default)
+    {
+        var value = mode switch
+        {
+            "acceptEdits" => "accept-edits",
+            "default" or "auto" or "plan" => mode,
+            _ => throw new InvalidOperationException($"Antigravity does not support mode {mode}."),
+        };
+
+        if (CodexJson.Str(_executionMode, "id") is not { } id)
+        {
+            if (mode == "default") return true;
+
+            throw new InvalidOperationException("Antigravity did not expose execution modes. Update the CLI.");
+        }
+
+        if (CodexJson.Str(_executionMode, "currentValue") == value) return true;
+        if (!CodexJson.Arr(_executionMode, "options").Any(option => CodexJson.Str(option, "value") == value))
+            throw new InvalidOperationException($"Antigravity does not offer {value} mode with the current CLI configuration.");
+
+        var args = SessionParameters();
+        args["configId"] = id;
+        args["value"] = value;
+        var result = await Connection.CallAsync("session/set_config_option", args, cancellationToken).ConfigureAwait(false);
+        _executionMode = ConfigOption(result, "mode");
+        return CodexJson.Str(_executionMode, "currentValue") == value;
+    }
 
     /// <summary>
     /// Sets the reasoning effort through the CLI's advertised thinking-level option.
@@ -410,8 +451,7 @@ public sealed class AntigravityBackend : IAgentBackend
     /// </summary>
     private void ReadThinkingLevel(JsonElement session)
     {
-        var option = CodexJson.Arr(session, "configOptions")
-            .FirstOrDefault(option => CodexJson.Str(option, "category") == "thought_level");
+        var option = ConfigOption(session, "thought_level");
         if (option.ValueKind != JsonValueKind.Undefined) _thinkingLevel = option;
     }
 

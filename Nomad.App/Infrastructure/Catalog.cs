@@ -83,6 +83,18 @@ public static class Catalog
         new("bypassPermissions", "Bypass permissions", "Skip all permission prompts", 5),
     ];
 
+    /// <summary>
+    /// Descriptions for the permission modes supported by Antigravity.
+    /// </summary>
+    public static string? AntigravityModeDescription(string mode) => mode switch
+    {
+        "default" => "Ask before edits and commands",
+        "acceptEdits" => "Approve file edits in the workspace",
+        "auto" => "Approve edits and safe commands",
+        "plan" => "Plan before writing code",
+        _ => null,
+    };
+
     public static readonly IReadOnlyList<EffortOption> Efforts =
     [
         new("", "Default"),
