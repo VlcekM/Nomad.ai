@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.42.1
+
+- Suggested-chat cards now truncate long prompt tooltips to the first ~280 characters instead of filling the screen.
+- Replaced the fork icon with the standard Lucide `git-fork` design to match the rest of the git icons.
+
 ## v1.42.0
 
 - Antigravity turns no longer block the composer while running: Enter queues a follow-up and Ctrl+Enter interrupts and sends it
