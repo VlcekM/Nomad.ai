@@ -982,6 +982,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => "Effort (this model's variants in OpenCode)",
         AgentBackends.Codex => "Reasoning effort (this model's levels in Codex)",
+        AgentBackends.Antigravity => "Antigravity thinking level",
         _ => "Effort (Low to Max)",
     };
 
@@ -992,7 +993,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             AgentBackends.OpenCode => [Catalog.Efforts[0], .. (OpenCodeCatalog.Find(Model)?.Variants ?? []).Select(v => new EffortOption(v, Catalog.EffortName(v)))],
             AgentBackends.Codex => [Catalog.Efforts[0], .. (CodexCatalog.Find(Model)?.Efforts ?? []).Select(v => new EffortOption(v, Catalog.EffortName(v)))],
-            AgentBackends.Antigravity => [Catalog.Efforts[0]],
+            AgentBackends.Antigravity => Catalog.AntigravityEfforts(Model),
             _ => Catalog.EffortLevels,
         };
         if (stops.Select(s => s.Id).SequenceEqual(_effortStops.Select(s => s.Id)))
@@ -2786,6 +2787,10 @@ public sealed partial class SessionViewModel : ObservableObject
             {
                 _restartRequired = !await antigravity.SetModelAsync(id);
                 Model = id;
+                var effort = _main.EffortFor(id);
+                if (!_restartRequired) _restartRequired = !await antigravity.SetEffortAsync(effort);
+
+                Effort = effort;
             }
             catch (InvalidOperationException ex)
             {
@@ -2878,8 +2883,26 @@ public sealed partial class SessionViewModel : ObservableObject
 
         // Claude Code has no flag that clears the effort: back to Default needs a restart. OpenCode takes a variant
         // (or none) with each prompt.
+        if (IsAntigravity && _backend is { IsProcessRunning: true } antigravity && !_restartRequired)
+        {
+            try
+            {
+                _restartRequired = !await antigravity.SetEffortAsync(id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Items.Add(new ErrorItem(ex.Message));
+                ContentChanged?.Invoke();
+                return;
+            }
+
+            Effort = id;
+            return;
+        }
+
         Effort = id;
-        if (_backend is { IsProcessRunning: true } backend && ((string.IsNullOrEmpty(id) && IsClaudeCode) || !await backend.SetEffortAsync(id)))
+        if (!(IsAntigravity && _restartRequired) && _backend is { IsProcessRunning: true } backend
+            && ((string.IsNullOrEmpty(id) && IsClaudeCode) || !await backend.SetEffortAsync(id)))
         {
             _restartRequired = true;
         }

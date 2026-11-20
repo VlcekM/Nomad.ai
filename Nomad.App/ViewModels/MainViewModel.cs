@@ -680,6 +680,9 @@ public sealed partial class MainViewModel : ObservableObject
         : CodexCatalog.IsCodexModel(model)
             ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var level)
                 && (CodexCatalog.Find(model) is not { } c || c.Efforts.Contains(level)) ? level : ""
+        : Catalog.AntigravityModels.Any(option => option.Id == model)
+            ? Settings.EffortByModel.TryGetValue(model, out var thinking) && Catalog.AntigravityEfforts(model).Any(option => option.Id == thinking)
+                ? thinking : "high"
         : Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
         : model.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase) ? Settings.DefaultEffort
         : "high";

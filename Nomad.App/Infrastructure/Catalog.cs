@@ -106,6 +106,12 @@ public static class Catalog
         new("gemini-4-hydrogen", "Gemini 4 Hydrogen", 3),
     ];
 
+    /// <summary>
+    /// The thinking levels for the Gemini models shown in Nomad.
+    /// </summary>
+    public static IReadOnlyList<EffortOption> AntigravityEfforts(string model) =>
+        [.. EffortLevels.Take(model is "gemini-4-neon" or "gemini-4-hydrogen" ? 4 : 3)];
+
     public static string ModelName(string? id)
     {
         if (string.IsNullOrEmpty(id))

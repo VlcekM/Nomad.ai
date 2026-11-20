@@ -37,6 +37,11 @@ public sealed class AntigravityBackend : IAgentBackend
     private HashSet<string> _availableModels = [];
 
     /// <summary>
+    /// The CLI's thinking-level selector for the selected model.
+    /// </summary>
+    private JsonElement _thinkingLevel;
+
+    /// <summary>
     /// The model associated with streamed messages.
     /// </summary>
     private string? _model;
@@ -119,7 +124,8 @@ public sealed class AntigravityBackend : IAgentBackend
         var args = SessionParameters();
         args["configId"] = _modelOption;
         args["value"] = model;
-        await Connection.CallAsync("session/set_config_option", args, cancellationToken).ConfigureAwait(false);
+        var result = await Connection.CallAsync("session/set_config_option", args, cancellationToken).ConfigureAwait(false);
+        ReadThinkingLevel(result);
 
         _model = model;
         Raise(new ModelChangedEvent(model));
@@ -150,6 +156,7 @@ public sealed class AntigravityBackend : IAgentBackend
         }
 
         var session = await Connection.CallAsync(method, args, cancellationToken).ConfigureAwait(false);
+        ReadThinkingLevel(session);
         SessionId = options.ResumeSessionId ?? CodexJson.Str(session, "sessionId")
             ?? throw new InvalidOperationException("Antigravity did not return a session ID.");
 
@@ -160,6 +167,9 @@ public sealed class AntigravityBackend : IAgentBackend
         var requested = string.IsNullOrWhiteSpace(options.Model) ? DefaultModel : options.Model;
         if (!await SetModelAsync(requested, cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("Antigravity did not expose model selection. Update the CLI and check your Google sign-in.");
+
+        if (options.Effort is { Length: > 0 } effort && !await SetEffortAsync(effort, cancellationToken).ConfigureAwait(false))
+            throw new InvalidOperationException("Antigravity did not expose thinking-level selection. Update the CLI.");
 
         Raise(new SessionStartedEvent(SessionId, _model, options.WorkingDirectory, "default", [], DisplayName));
     }
@@ -377,9 +387,33 @@ public sealed class AntigravityBackend : IAgentBackend
     public Task<bool> SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default) => Task.FromResult(mode == "default");
 
     /// <summary>
-    /// Uses the CLI's default reasoning effort.
+    /// Sets the reasoning effort through the CLI's advertised thinking-level option.
     /// </summary>
-    public Task<bool> SetEffortAsync(string? effort, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    public async Task<bool> SetEffortAsync(string? effort, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(effort)) return true;
+        if (IsTurnRunning || CodexJson.Str(_thinkingLevel, "id") is not { } id) return false;
+        if (CodexJson.Str(_thinkingLevel, "currentValue") == effort) return true;
+        if (!CodexJson.Arr(_thinkingLevel, "options").Any(option => CodexJson.Str(option, "value") == effort))
+            throw new InvalidOperationException($"Antigravity does not offer thinking level {effort} for {_model}.");
+
+        var args = SessionParameters();
+        args["configId"] = id;
+        args["value"] = effort;
+        var result = await Connection.CallAsync("session/set_config_option", args, cancellationToken).ConfigureAwait(false);
+        ReadThinkingLevel(result);
+        return CodexJson.Str(_thinkingLevel, "currentValue") == effort;
+    }
+
+    /// <summary>
+    /// Reads the updated thinking levels returned after session creation or model selection.
+    /// </summary>
+    private void ReadThinkingLevel(JsonElement session)
+    {
+        var option = CodexJson.Arr(session, "configOptions")
+            .FirstOrDefault(option => CodexJson.Str(option, "category") == "thought_level");
+        if (option.ValueKind != JsonValueKind.Undefined) _thinkingLevel = option;
+    }
 
     /// <summary>
     /// This backend does not implement fast mode.
