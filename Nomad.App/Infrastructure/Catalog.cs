@@ -92,6 +92,7 @@ public static class Catalog
         "acceptEdits" => "Approve file edits in the workspace",
         "auto" => "Approve edits and safe commands",
         "plan" => "Plan before writing code",
+        "bypassPermissions" => "Skip all Antigravity permission prompts",
         _ => null,
     };
 

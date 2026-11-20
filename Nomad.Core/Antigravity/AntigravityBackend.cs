@@ -47,6 +47,11 @@ public sealed class AntigravityBackend : IAgentBackend
     private JsonElement _executionMode;
 
     /// <summary>
+    /// Whether this process was launched with approval prompts bypassed.
+    /// </summary>
+    private bool _bypassPermissions;
+
+    /// <summary>
     /// The model associated with streamed messages.
     /// </summary>
     private string? _model;
@@ -81,7 +86,9 @@ public sealed class AntigravityBackend : IAgentBackend
 
         try
         {
-            _connection = new AcpConnection(ExecutablePath, options.WorkingDirectory, ReceiveAsync, ProcessExited, options.AdditionalDirectories);
+            _bypassPermissions = options.PermissionMode == "bypassPermissions";
+            _connection = new AcpConnection(ExecutablePath, options.WorkingDirectory, ReceiveAsync, ProcessExited,
+                options.AdditionalDirectories, _bypassPermissions);
         }
         catch (Win32Exception ex)
         {
@@ -401,6 +408,13 @@ public sealed class AntigravityBackend : IAgentBackend
     /// </summary>
     public async Task<bool> SetPermissionModeAsync(string mode, CancellationToken cancellationToken = default)
     {
+        if (mode == "bypassPermissions") return _bypassPermissions;
+        if (_bypassPermissions)
+        {
+            await InterruptAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
         var value = mode switch
         {
             "acceptEdits" => "accept-edits",

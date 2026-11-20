@@ -52,7 +52,7 @@ internal sealed class AcpConnection : IAsyncDisposable
     /// Starts the agent with UTF-8 stdio in the workspace.
     /// </summary>
     public AcpConnection(string executable, string cwd, Func<JsonElement, Task> receive, Action<int, bool> exited,
-        IReadOnlyList<string>? additionalDirectories = null)
+        IReadOnlyList<string>? additionalDirectories = null, bool bypassPermissions = false)
     {
         var start = new ProcessStartInfo(executable)
         {
@@ -66,6 +66,8 @@ internal sealed class AcpConnection : IAsyncDisposable
             StandardOutputEncoding = Encoding.UTF8,
         };
         start.ArgumentList.Add("acp");
+        if (bypassPermissions) start.ArgumentList.Add("--dangerously-skip-permissions");
+
         foreach (var directory in additionalDirectories ?? [])
         {
             start.ArgumentList.Add("--add-dir");

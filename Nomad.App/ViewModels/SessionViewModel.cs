@@ -2785,7 +2785,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             try
             {
-                _restartRequired = !await antigravity.SetModelAsync(id);
+                _restartRequired |= !await antigravity.SetModelAsync(id);
                 Model = id;
                 var effort = _main.EffortFor(id);
                 if (!_restartRequired) _restartRequired = !await antigravity.SetEffortAsync(effort);
