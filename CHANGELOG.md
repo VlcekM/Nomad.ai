@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.0
+
+- Added native Linux (`linux-x64`) AppImage builds with self-updates alongside the Windows releases, with cross-platform file manager, terminal, trash, Roslyn LSP, and SkiaSharp Linux native asset support.
+- Upgraded all projects, tests, Nomad Hub, and release workflows to .NET 11.
+
 ## v2.0.0
 
 - Minimalist visual overhaul with a darker pure-neutral dark palette (`#0B0B0C` sidebar, `#0F0F10` canvas, `#151516` borderless cards) and `#009868` emerald as the default Nomad theme accent.

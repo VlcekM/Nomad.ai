@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace Nomad.App.Infrastructure;
@@ -37,6 +38,11 @@ public static class RecycleBin
             return true;
         }
 
+        if (!OperatingSystem.IsWindows())
+        {
+            return DeleteUnix(existing);
+        }
+
         // A double-null-terminated list of paths.
         var from = Marshal.StringToHGlobalUni(string.Join('\0', existing) + "\0\0");
         try
@@ -53,5 +59,55 @@ public static class RecycleBin
         {
             Marshal.FreeHGlobal(from);
         }
+    }
+
+    private static bool DeleteUnix(List<string> paths)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("gio") { UseShellExecute = false, RedirectStandardError = true };
+            psi.ArgumentList.Add("trash");
+            psi.ArgumentList.Add("--");
+            foreach (var p in paths)
+            {
+                psi.ArgumentList.Add(p);
+            }
+
+            using var process = Process.Start(psi);
+            if (process is not null)
+            {
+                process.WaitForExit(10_000);
+                if (process.ExitCode == 0)
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            // gio not installed; fall back to permanent deletion.
+        }
+
+        var ok = true;
+        foreach (var p in paths)
+        {
+            try
+            {
+                if (Directory.Exists(p))
+                {
+                    Directory.Delete(p, recursive: true);
+                }
+                else if (File.Exists(p))
+                {
+                    File.Delete(p);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                ok = false;
+            }
+        }
+
+        return ok;
     }
 }

@@ -67,7 +67,10 @@ internal sealed partial class SingleInstance : IDisposable
         try
         {
             // The running instance may bring its window to the front: this launch is the user's own action.
-            AllowSetForegroundWindow(-1);
+            if (OperatingSystem.IsWindows())
+            {
+                AllowSetForegroundWindow(-1);
+            }
             using var pipe = new NamedPipeClientStream(".", Name, PipeDirection.InOut);
             pipe.Connect(1500);
 

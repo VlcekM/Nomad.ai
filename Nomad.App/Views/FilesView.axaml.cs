@@ -137,7 +137,7 @@ public partial class FilesView : UserControl
         menu.Open(Tree);
     }
 
-    /// <summary>Windows Terminal in the folder, or a console where it is not installed.</summary>
+    /// <summary>Opens a terminal in the folder.</summary>
     private static void OpenTerminal(string folder)
     {
         if (Program.Dev.ScreenshotPath is not null)
@@ -146,23 +146,7 @@ public partial class FilesView : UserControl
             return;
         }
 
-        static bool Start(ProcessStartInfo start)
-        {
-            try
-            {
-                Process.Start(start)?.Dispose();
-                return true;
-            }
-            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-            {
-                return false;
-            }
-        }
-
-        if (!Start(new ProcessStartInfo("wt.exe") { ArgumentList = { "-d", folder }, UseShellExecute = true }))
-        {
-            Start(new ProcessStartInfo("cmd.exe") { WorkingDirectory = folder, UseShellExecute = true });
-        }
+        Infrastructure.PlatformShell.OpenTerminal(folder);
     }
 
     // ------------------------------------------------------------------ the question card

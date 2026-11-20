@@ -6,7 +6,7 @@
     <!-- Not Nomad.exe: Discord's game list has a game "Nomad" with that exe name, so Discord took this app for it and put its overlay on it. -->
     <AssemblyName>Nomad.ai</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets\nomad.ico</ApplicationIcon>
+    <ApplicationIcon>Assets/nomad.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <PublishAot>true</PublishAot>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -31,6 +31,7 @@
     <!-- SkiaSharp 3 draws Segoe UI Emoji's COLRv1 glyphs; the 2.88 Avalonia pulls in by default draws them broken. -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Markdig" Version="1.4.2" />
     <!-- Self-update (UpdateService); the release workflow's vpk must be the same version. -->

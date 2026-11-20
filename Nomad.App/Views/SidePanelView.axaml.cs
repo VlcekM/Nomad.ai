@@ -177,11 +177,11 @@ public partial class SidePanelView : UserControl
     {
         if (Vm?.Folder is { } folder && Directory.Exists(folder))
         {
-            Start(new ProcessStartInfo("explorer.exe") { ArgumentList = { folder } });
+            Infrastructure.PlatformShell.OpenFolder(folder);
         }
     }
 
-    /// <summary>Windows Terminal in the folder, or a console where it is not installed.</summary>
+    /// <summary>Opens a terminal in the folder.</summary>
     private void OnTerminalClick(object? sender, RoutedEventArgs e)
     {
         if (Vm?.Folder is not { } folder || !Directory.Exists(folder))
@@ -189,10 +189,7 @@ public partial class SidePanelView : UserControl
             return;
         }
 
-        if (!Start(new ProcessStartInfo("wt.exe") { ArgumentList = { "-d", folder }, UseShellExecute = true }))
-        {
-            Start(new ProcessStartInfo("cmd.exe") { WorkingDirectory = folder, UseShellExecute = true });
-        }
+        Infrastructure.PlatformShell.OpenTerminal(folder);
     }
 
     private async void OnCopyPathClick(object? sender, RoutedEventArgs e)

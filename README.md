@@ -1,6 +1,6 @@
 # Nomad.ai
 
-A lightweight native Windows client for Claude Code sessions, written in C# on .NET 10 and
+A lightweight native Windows and Linux client for Claude Code sessions, written in C# on .NET 11 and
 Avalonia 11 and published with NativeAOT.
 
 Nomad.ai does not run models itself. Each session starts the installed `claude` CLI as a child
@@ -11,11 +11,11 @@ the Claude desktop app from before its late-2026 restyle (see `DESIGN.md`).
 
 ## Requirements
 
-- Windows 10 or 11, x64.
+- Windows 10 or 11 (x64) or Linux (x64).
 - The Claude Code CLI, installed and signed in (`claude` on `PATH`, or its full path set under
   Settings → Claude Code). Nomad.ai never signs in for you; run `claude` once in a terminal first.
-- To build: the .NET 10 SDK. A NativeAOT publish also needs Visual Studio's C++ build tools
-  ("Desktop development with C++").
+- To build: the .NET 11 SDK. A NativeAOT publish also needs Visual Studio's C++ build tools
+  ("Desktop development with C++") on Windows, or `clang` and `zlib1g-dev` on Linux.
 
 ## Run and build
 
@@ -35,7 +35,14 @@ Publish a single native executable:
 
 ```powershell
 dotnet publish Nomad.App -c Release -r win-x64
-# -> Nomad.App\bin\Release\net10.0\win-x64\publish\Nomad.ai.exe
+# -> Nomad.App\bin\Release\net11.0\win-x64\publish\Nomad.ai.exe
+```
+
+On Linux:
+
+```bash
+dotnet publish Nomad.App -c Release -r linux-x64
+# -> Nomad.App/bin/Release/net11.0/linux-x64/publish/Nomad.ai
 ```
 
 The AOT linker finds the C++ tools through `vswhere.exe`. If the publish fails with "vswhere is not
@@ -47,13 +54,14 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
 
 ## Install and update
 
-Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/releases)) has two downloads:
+Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/releases)) has three downloads:
 
 - **`Nomad-win-x64-Setup.exe`** installs Nomad.ai for your Windows user, without admin rights, into
   `%LOCALAPPDATA%\Nomad`, with Start menu and desktop shortcuts and an entry in Settings → Apps for
   uninstalling. This copy updates itself.
 - **`Nomad-win-x64-Portable.zip`** runs from any folder and never updates itself; Settings → Updates
   links to the releases page instead.
+- **`Nomad-linux-x64.AppImage`** runs on Linux x64 (`chmod +x` and run) and updates itself.
 
 An installed Nomad.ai checks GitHub at startup and every 6 hours ([Velopack](https://velopack.io)).
 With **Install updates automatically** on (the default), a new version is downloaded in the background
@@ -81,11 +89,12 @@ scratch folders (`%LOCALAPPDATA%\NomadData`) stay.
    pre-release, which is not marked Latest).
 
 The workflow checks the version, that the tag `v<version>` is new and that the changelog section is
-not empty, publishes `Nomad.App` with NativeAOT on `windows-latest` (`-p:Version=<version>`), packs
-it with `vpk` (pack id `Nomad`, channel `win-x64`, the tent icon) and creates the `v<version>`
-release with Setup, the portable zip, the update feed (`releases.win-x64.json` and the `.nupkg`) and
-`SHA256SUMS`. The changelog section is the release notes, followed by GitHub's generated notes since
-the previous tag.
+not empty, publishes `Nomad.App` with NativeAOT on `windows-latest` (`win-x64`) and `ubuntu-latest`
+(`linux-x64`) with `-p:Version=<version>`, packs both with `vpk` (pack id `Nomad`, channels `win-x64`
+and `linux-x64`, the tent icon) and creates the `v<version>` release with Setup, the portable zip,
+the Linux AppImage, the update feeds (`releases.win-x64.json`, `releases.linux-x64.json` and the
+`.nupkg` files) and `SHA256SUMS`. The changelog section is the release notes, followed by GitHub's
+generated notes since the previous tag.
 
 ## What it does
 

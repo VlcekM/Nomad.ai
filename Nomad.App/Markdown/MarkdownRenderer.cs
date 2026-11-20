@@ -1120,24 +1120,8 @@ public static partial class LinkSupport
             return;
         }
 
-        try
-        {
-            // The explorer.exe started here hands the window to the running shell process, which may not take the
-            // foreground on its own (the window would only flash in the taskbar): this app has it, so pass it on.
-            AllowSetForegroundWindow(AsfwAny);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false })?.Dispose();
-        }
-        catch (Exception)
-        {
-            // No Explorer (unusual Windows setups): nothing to do.
-        }
+        Infrastructure.PlatformShell.RevealInFileManager(path);
     }
-
-    private const int AsfwAny = -1;
-
-    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static partial bool AllowSetForegroundWindow(int processId);
 
     private static void OpenWithShell(string path)
     {
@@ -1147,16 +1131,7 @@ public static partial class LinkSupport
             return;
         }
 
-        try
-        {
-            // A folder (or a file whose app is already running) opens in another process; let it come to the front.
-            AllowSetForegroundWindow(AsfwAny);
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
-        }
-        catch (Exception)
-        {
-            // No app for this file type.
-        }
+        Infrastructure.PlatformShell.OpenWithShell(path);
     }
 
     private static LinkRange? Hit(SelectableTextBlock block, Point point)

@@ -973,14 +973,7 @@ public partial class SessionView : UserControl
         else if (vm.Folder is { } folder && Directory.Exists(folder))
         {
             // A running conversation keeps its folder; the chip reveals it instead.
-            try
-            {
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = false });
-            }
-            catch (Exception)
-            {
-                // Explorer not available: nothing to do.
-            }
+            Infrastructure.PlatformShell.OpenFolder(folder);
         }
     }
 
@@ -1365,11 +1358,15 @@ public partial class SessionView : UserControl
             return;
         }
 
+        if (reveal)
+        {
+            Infrastructure.PlatformShell.RevealInFileManager(path);
+            return;
+        }
+
         try
         {
-            Process.Start(reveal
-                ? new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false }
-                : new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {

@@ -56,13 +56,17 @@ public sealed class RoslynServer : IAsyncDisposable
 
     // ------------------------------------------------------------------ install
 
-    private static string Rid => RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
+    private static string Rid =>
+        (OperatingSystem.IsLinux() ? "linux" : OperatingSystem.IsMacOS() ? "osx" : "win")
+        + "-" + (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64");
 
     /// <summary>Where this version of the server is kept.</summary>
     public static string InstallFolder => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nomad", "roslyn", Version);
 
-    private static string Exe => Path.Combine(InstallFolder, "Microsoft.CodeAnalysis.LanguageServer.exe");
+    private static string Exe => Path.Combine(
+        InstallFolder,
+        OperatingSystem.IsWindows() ? "Microsoft.CodeAnalysis.LanguageServer.exe" : "Microsoft.CodeAnalysis.LanguageServer");
 
     public static bool IsInstalled => File.Exists(Exe);
 
@@ -71,11 +75,19 @@ public sealed class RoslynServer : IAsyncDisposable
 
     private static string? DotnetRoot()
     {
-        foreach (var candidate in new[]
-        {
-            Environment.GetEnvironmentVariable("DOTNET_ROOT"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
-        })
+        IEnumerable<string?> candidates = OperatingSystem.IsWindows()
+            ? [
+                Environment.GetEnvironmentVariable("DOTNET_ROOT"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet"),
+            ]
+            : [
+                Environment.GetEnvironmentVariable("DOTNET_ROOT"),
+                "/usr/share/dotnet",
+                "/usr/lib/dotnet",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet"),
+            ];
+
+        foreach (var candidate in candidates)
         {
             if (!string.IsNullOrEmpty(candidate) && Directory.Exists(Path.Combine(candidate, "sdk")))
             {
@@ -149,6 +161,15 @@ public sealed class RoslynServer : IAsyncDisposable
             }
 
             Directory.Move(staging, InstallFolder);
+            if (!OperatingSystem.IsWindows() && File.Exists(Exe))
+            {
+                File.SetUnixFileMode(
+                    Exe,
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                    UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                    UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            }
+
             progress?.Report(1);
         }
         finally

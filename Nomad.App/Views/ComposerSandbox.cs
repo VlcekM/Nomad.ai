@@ -94,7 +94,7 @@ public sealed class ComposerSandbox : Window
         {
             ShowActivated = false;
             ShowInTaskbar = false;
-            if (TryGetPlatformHandle() is { } handle)
+            if (OperatingSystem.IsWindows() && TryGetPlatformHandle() is { } handle)
             {
                 var cloak = 1;
                 _ = DwmSetWindowAttribute(handle.Handle, 13, ref cloak, sizeof(int));

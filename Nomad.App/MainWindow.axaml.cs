@@ -399,7 +399,7 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
             ShowActivated = false;
             ShowInTaskbar = false;
-            if (TryGetPlatformHandle() is { } handle)
+            if (OperatingSystem.IsWindows() && TryGetPlatformHandle() is { } handle)
             {
                 var cloak = 1;
                 _ = DwmSetWindowAttribute(handle.Handle, DwmwaCloak, ref cloak, sizeof(int));
@@ -1322,7 +1322,7 @@ public partial class MainWindow : Window
             Infrastructure.WindowsToast.Show(string.IsNullOrWhiteSpace(session.Title) ? "Nomad.ai" : session.Title, text, session.SessionId);
         }
 
-        if (_vm.Settings.FlashTaskbar && IsVisible && TryGetPlatformHandle()?.Handle is { } hwnd)
+        if (OperatingSystem.IsWindows() && _vm.Settings.FlashTaskbar && IsVisible && TryGetPlatformHandle()?.Handle is { } hwnd)
         {
             // Flashes until the window comes to the front.
             var info = new FlashInfo { Size = (uint)Marshal.SizeOf<FlashInfo>(), Window = hwnd, Flags = 0x2 | 0xC, Count = uint.MaxValue };
@@ -1594,7 +1594,7 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task DragAsync(Point from, Point to)
     {
-        if (TryGetPlatformHandle()?.Handle is not { } hwnd)
+        if (!OperatingSystem.IsWindows() || TryGetPlatformHandle()?.Handle is not { } hwnd)
         {
             return;
         }

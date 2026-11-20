@@ -1,6 +1,7 @@
-# Manual release: a Velopack package of Nomad.App (one NativeAOT executable) for win-x64, attached to a v<version> release
-# with Setup, the portable zip, the update feed and SHA256SUMS. A full release is marked Latest. An installed Nomad.ai
-# updates itself from these releases (README, "Install and update"). Run it with: gh workflow run release.yml -f version=0.1.0
+# Manual release: Velopack packages of Nomad.App (NativeAOT) for win-x64 and linux-x64, attached to a v<version>
+# release with Windows Setup and portable zip, Linux AppImage, update feeds and SHA256SUMS. A full release is marked
+# Latest. An installed Nomad.ai updates itself from these releases (README, "Install and update").
+# Run it with: gh workflow run release.yml -f version=0.1.0
 name: Release
 
 on:
@@ -19,6 +20,7 @@ permissions:
 
 env:
   VPK_VERSION: 1.2.161 # must match the Velopack package in Nomad.App/Nomad.App.csproj
+  DOTNET_ROLL_FORWARD: Major # vpk targets .NET 10; roll forward onto the .NET 11 runtime
 
 jobs:
   version:
@@ -48,7 +50,7 @@ jobs:
           name: changes
           path: ${{ runner.temp }}/changes.md
 
-  package:
+  package-windows:
     needs: version
     runs-on: windows-latest
     steps:
@@ -59,7 +61,7 @@ jobs:
         id: dotnet
         continue-on-error: true
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.x
 
       - name: .NET SDK
         shell: bash
@@ -89,12 +91,57 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: package
+          name: package-windows
+          path: out
+          if-no-files-found: error
+
+  package-linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: NativeAOT and AppImage prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev squashfs-tools
+
+      # When Microsoft's download server is down (actions/setup-dotnet#794), the runner's preinstalled SDK is used.
+      - uses: actions/setup-dotnet@v5
+        id: dotnet
+        continue-on-error: true
+        with:
+          dotnet-version: 11.0.x
+
+      - name: .NET SDK
+        run: |
+          [ "${{ steps.dotnet.outcome }}" = success ] || echo "setup-dotnet failed; trying the preinstalled SDKs: $(dotnet --list-sdks | tr '\n' ' ')"
+          dotnet --version
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: changes
+          path: ${{ runner.temp }}
+
+      - name: Package
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          dotnet tool install -g vpk --version "$VPK_VERSION"
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet publish Nomad.App -c Release -r linux-x64 -p:Version="$VERSION" -o pub
+          vpk pack --packId Nomad --packVersion "$VERSION" --packTitle "Nomad.ai" --packDir pub --mainExe Nomad.ai \
+            --runtime linux-x64 --channel linux-x64 --icon Nomad.App/Assets/nomad.png --releaseNotes "$RUNNER_TEMP/changes.md" \
+            --outputDir out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-linux
           path: out
           if-no-files-found: error
 
   release:
-    needs: [version, package]
+    needs: [version, package-windows, package-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -103,7 +150,12 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: package
+          name: package-windows
+          path: out
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: package-linux
           path: out
 
       - uses: actions/download-artifact@v4
@@ -129,6 +181,7 @@ jobs:
             echo "## Download"; echo
             echo "- \`Nomad-win-x64-Setup.exe\` installs Nomad.ai for your Windows user (no admin rights) and keeps it up to date."
             echo "- \`Nomad-win-x64-Portable.zip\` runs from any folder, without updates."
+            echo "- \`Nomad-linux-x64.AppImage\` runs on Linux x64 and keeps itself up to date."
             echo; echo "Verify downloads against \`SHA256SUMS\`. Install and sign in to the CLI for the agent you want to use."
           } > "$RUNNER_TEMP/notes.md"
           flags=(--latest)

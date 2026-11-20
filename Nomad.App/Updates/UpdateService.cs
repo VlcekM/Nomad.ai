@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -35,7 +36,9 @@ public enum UpdatePhase
 /// </summary>
 public sealed partial class UpdateService : ObservableObject
 {
-    public const string Channel = "win-x64";
+    public static string Channel { get; } =
+        (OperatingSystem.IsLinux() ? "linux" : OperatingSystem.IsMacOS() ? "osx" : "win")
+        + "-" + (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64");
 
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
 
@@ -82,7 +85,9 @@ public sealed partial class UpdateService : ObservableObject
 
     public string? InstallHint => IsInstalled
         ? null
-        : (IsPortable ? "Portable build" : "Development build") + ": it updates itself only when installed with Setup.";
+        : (IsPortable ? "Portable build" : "Development build") + (OperatingSystem.IsLinux()
+            ? ": it updates itself only when run from the AppImage."
+            : ": it updates itself only when installed with Setup.");
 
     /// <summary>Closes the window, as the user would: how Nomad exits to restart into an update.</summary>
     public Action? RequestExit { get; set; }

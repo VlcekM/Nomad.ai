@@ -177,6 +177,11 @@ public static class PromptImages
     /// </summary>
     public static unsafe bool CopyImage(Bitmap bitmap, IntPtr owner)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
         using var png = new MemoryStream();
         bitmap.Save(png);
 
@@ -247,7 +252,7 @@ public static class PromptImages
     /// </summary>
     public static List<Attachment>? FromClipboard()
     {
-        if (!OpenClipboard(IntPtr.Zero))
+        if (!OperatingSystem.IsWindows() || !OpenClipboard(IntPtr.Zero))
         {
             return null;
         }

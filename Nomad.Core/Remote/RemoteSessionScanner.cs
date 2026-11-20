@@ -95,9 +95,11 @@ public static partial class RemoteSessionScanner
     /// </summary>
     private static string? Option(string commandLine, params string[] names)
     {
-        var rest = commandLine.AsSpan();
+        var source = commandLine.AsSpan();
+        var index = 0;
         ReadOnlySpan<char> previous = default;
-        while (NextToken(ref rest, out var token))
+        ReadOnlySpan<char> token;
+        while (NextToken(source, ref index, out token))
         {
             foreach (var name in names)
             {
@@ -119,23 +121,23 @@ public static partial class RemoteSessionScanner
     }
 
     /// <summary>The next whitespace-separated token, without quotes around it; false at the end.</summary>
-    private static bool NextToken(ref ReadOnlySpan<char> rest, out ReadOnlySpan<char> token)
+    private static bool NextToken(ReadOnlySpan<char> source, scoped ref int index, out ReadOnlySpan<char> token)
     {
-        rest = rest.TrimStart(" \t");
-        if (rest.IsEmpty)
+        while (index < source.Length && source[index] is ' ' or '\t')
+        {
+            index++;
+        }
+
+        if (index >= source.Length)
         {
             token = default;
             return false;
         }
 
-        var end = rest.IndexOfAny(' ', '\t');
-        if (end < 0)
-        {
-            end = rest.Length;
-        }
-
-        token = rest[..end].Trim('"');
-        rest = rest[end..];
+        var start = index;
+        var rel = source[start..].IndexOfAny(' ', '\t');
+        index = rel < 0 ? source.Length : start + rel;
+        token = source[start..index].Trim('"');
         return true;
     }
 

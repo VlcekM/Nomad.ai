@@ -545,21 +545,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void SetUpPhoneFolder(PhoneFolderRow row)
     {
         var cli = CliLocator.Resolve(_main.Settings.CliPath) ?? "claude";
-        try
+        if (Infrastructure.PlatformShell.OpenTerminalCommand(row.Folder, cli, "remote-control"))
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
-                Arguments = $"/k \"\"{cli}\" remote-control\"",
-                WorkingDirectory = row.Folder,
-                UseShellExecute = true,
-            });
             row.Status = "Answer Claude Code in the terminal, press Ctrl+C there, then Retry.";
             row.CanRetry = true;
         }
-        catch (Exception ex)
+        else
         {
-            row.Status = "Could not open a terminal: " + ex.Message;
+            row.Status = "Could not open a terminal.";
         }
     }
 

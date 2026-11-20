@@ -13,7 +13,7 @@ public sealed class MarkdownStyle
 
     public FontFamily BodyFont { get; init; } = new("fonts:Inter#Inter, Segoe UI");
 
-    public FontFamily CodeFont { get; init; } = new("Cascadia Mono, Consolas, Courier New");
+    public FontFamily CodeFont { get; init; } = new("Cascadia Mono, Consolas, DejaVu Sans Mono, Liberation Mono, Courier New, monospace");
 
     /// <summary>Line height for body text (≈ 1.4).</summary>
     public double LineHeight => Math.Round(BodySize * 1.4);
@@ -55,8 +55,8 @@ public static class Fonts
 
     public static FontFamily Code(string? name) =>
         string.IsNullOrWhiteSpace(name)
-            ? new FontFamily("Cascadia Mono, Consolas, Courier New")
-            : new FontFamily($"{Qualify(name)}, Cascadia Mono, Consolas, Courier New");
+            ? new FontFamily("Cascadia Mono, Consolas, DejaVu Sans Mono, Liberation Mono, Courier New, monospace")
+            : new FontFamily($"{Qualify(name)}, Cascadia Mono, Consolas, DejaVu Sans Mono, Liberation Mono, Courier New, monospace");
 
     /// <summary>The Claude app's fonts live in their own collection (see <see cref="Infrastructure.ClaudeFonts"/>).</summary>
     private static string Qualify(string name) =>

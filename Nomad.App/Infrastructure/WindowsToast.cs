@@ -30,6 +30,11 @@ public static unsafe class WindowsToast
     /// </summary>
     public static void Register(bool protocol)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
         try
         {
             var exe = Environment.ProcessPath;

@@ -74,6 +74,10 @@ internal static class Program
                 // OpenGL and Vulkan commit 2-3x more memory. Software only when no GPU is usable.
                 RenderingMode = [Win32RenderingMode.AngleEgl, Win32RenderingMode.Software],
             })
+            .With(new X11PlatformOptions
+            {
+                OverlayPopups = true,
+            })
             .WithInterFont()
             .LogToTrace();
 }

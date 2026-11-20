@@ -28,6 +28,11 @@ public static partial class ClaudeFonts
     /// <summary>Finds and unpacks the fonts, and registers them with Avalonia. Never throws.</summary>
     public static void Register()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
         try
         {
             if (FindAssets() is not { } assets)
@@ -66,6 +71,11 @@ public static partial class ClaudeFonts
     /// </summary>
     public static List<IonDist> IonDists()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            return [];
+        }
+
         var resources = new List<string>();
         if (StorePackagePath() is { } package)
         {

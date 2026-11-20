@@ -120,7 +120,9 @@ public static class OpenCodeCost
         foreach (var m in messages.EnumerateArray())
         {
             var info = OpenCodeJson.Obj(m, "info");
-            var cost = OpenCodeJson.Double(info, "cost") ?? 0;
+            var cost = info.ValueKind == JsonValueKind.Object && info.TryGetProperty("cost", out var costEl) && costEl.ValueKind == JsonValueKind.Number
+                ? (costEl.TryGetDecimal(out var dec) ? dec : (decimal)costEl.GetDouble())
+                : 0m;
             if (OpenCodeJson.Str(info, "role") != "assistant" || cost <= 0
                 || (OpenCodeJson.Long(OpenCodeJson.Obj(info, "time"), "created") ?? 0) < since)
             {
@@ -130,7 +132,7 @@ public static class OpenCodeCost
             var tokens = OpenCodeJson.Obj(info, "tokens");
             var cache = OpenCodeJson.Obj(tokens, "cache");
             var usage = new ModelUsage(
-                (decimal)cost,
+                cost,
                 OpenCodeJson.Long(tokens, "input") ?? 0,
                 OpenCodeJson.Long(tokens, "output") ?? 0,
                 OpenCodeJson.Long(tokens, "reasoning") ?? 0,
