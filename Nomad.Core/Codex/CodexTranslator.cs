@@ -355,7 +355,37 @@ public sealed class CodexTranslator
                     }
                 }
 
+                if (t == "collabAgentToolCall")
+                {
+                    foreach (var agent in CollabStates(item)) yield return agent;
+                }
+
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Reads child thread status from collaboration results, independently of the call's own completion.
+    /// </summary>
+    private static IEnumerable<SubagentStateEvent> CollabStates(JsonElement item)
+    {
+        var states = CodexJson.Obj(item, "agentsStates");
+        var tool = CodexJson.Str(item, "tool");
+        var prompt = tool == "spawnAgent" ? CodexJson.Str(item, "prompt") : null;
+        var model = CodexJson.Str(item, "model");
+        foreach (var id in CodexJson.Strings(item, "receiverThreadIds"))
+        {
+            var state = CodexJson.Obj(states, id);
+            var status = CodexJson.Str(state, "status") switch
+            {
+                "pendingInit" or "running" => "running",
+                "interrupted" or "shutdown" => "stopped",
+                "errored" or "notFound" => "failed",
+                "completed" => "completed",
+                _ when tool is "spawnAgent" or "resumeAgent" && CodexJson.Str(item, "status") == "completed" => "running",
+                _ => null,
+            };
+            if (status is not null) yield return new SubagentStateEvent(id, status, prompt, model, CodexJson.Str(state, "message"));
         }
     }
 

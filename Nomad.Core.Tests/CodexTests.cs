@@ -8,6 +8,28 @@ namespace Nomad.Core.Tests;
 /// <summary>Codex's app-server messages against turns captured from codex-cli 0.163.0 (see Fixtures/codex).</summary>
 public class CodexTests
 {
+    /// <summary>
+    /// A spawn call can finish while its child thread is still running.
+    /// </summary>
+    [Fact]
+    public void TracksSubagentsByChildThreadAcrossCollaborationCalls()
+    {
+        var translator = new CodexTranslator("parent", Cwd);
+        using var spawn = JsonDocument.Parse("""
+            {"threadId":"parent","item":{"id":"spawn","type":"collabAgentToolCall","tool":"spawnAgent","status":"completed",
+             "receiverThreadIds":["child"],"prompt":"Review the diff","agentsStates":{"child":{"status":"running"}}}}
+            """);
+        using var wait = JsonDocument.Parse("""
+            {"threadId":"parent","item":{"id":"wait","type":"collabAgentToolCall","tool":"wait","status":"completed",
+             "receiverThreadIds":["child"],"agentsStates":{"child":{"status":"completed","message":"Looks good"}}}}
+            """);
+
+        var started = Assert.Single(translator.Handle("item/completed", spawn.RootElement).OfType<SubagentStateEvent>());
+        var finished = Assert.Single(translator.Handle("item/completed", wait.RootElement).OfType<SubagentStateEvent>());
+        Assert.Equal(("child", "running", "Review the diff"), (started.AgentId, started.Status, started.Prompt));
+        Assert.Equal(("child", "completed", "Looks good"), (finished.AgentId, finished.Status, finished.Message));
+    }
+
     [Fact]
     public void ViewedImagesReachLiveAndReloadedTranscriptsOnce()
     {

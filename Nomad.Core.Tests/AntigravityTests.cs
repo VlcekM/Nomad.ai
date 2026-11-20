@@ -10,6 +10,28 @@ namespace Nomad.Core.Tests;
 public sealed class AntigravityTests
 {
     /// <summary>
+    /// Antigravity gives the delegated role and prompt in the invocation arguments.
+    /// </summary>
+    [Fact]
+    public void MapsSubagentInvocationsToTheSharedTaskTool()
+    {
+        var events = new List<AgentEvent>();
+        var turn = new AntigravityTurn(AntigravityBackend.DefaultModel, events.Add);
+        Send(turn, """
+            {"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","title":"Run invoke_subagent",
+             "kind":"other","status":"in_progress","rawInput":{"Role":"Reviewer","Prompt":"Check the diff","TypeName":"research","Model":"inherit"}}
+            """);
+        Send(turn, """{"sessionUpdate":"tool_call_update","toolCallId":"sub-1","status":"completed"}""");
+
+        var call = Assert.Single(events.OfType<ToolCallEvent>());
+        Assert.Equal("Task", call.Name);
+        Assert.True(call.IsSubagentLaunch);
+        Assert.Equal("Reviewer", call.Input.GetProperty("description").GetString());
+        Assert.Equal("Check the diff", call.Input.GetProperty("prompt").GetString());
+        Assert.Equal(call.ToolUseId, Assert.Single(events.OfType<ToolResultEvent>()).ToolUseId);
+    }
+
+    /// <summary>
     /// The quota command returns remaining fractions, while Nomad's bars show usage.
     /// </summary>
     [Fact]

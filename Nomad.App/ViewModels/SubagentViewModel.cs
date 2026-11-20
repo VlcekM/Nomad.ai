@@ -105,7 +105,12 @@ public sealed partial class SubagentViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsDone))]
     public partial bool IsStopped { get; set; }
 
-    public bool IsDone => !IsRunning && !IsFailed && !IsStopped;
+    /// <summary>
+    /// Whether the harness acknowledges launches without tracking child completion.
+    /// </summary>
+    public bool ReportsLaunchOnly { get; set; }
+
+    public bool IsDone => !IsRunning && !IsFailed && !IsStopped && !ReportsLaunchOnly;
 
     /// <summary>
     /// In the side panel's finished card: set a moment after it ends, once its row there exists, so the row unfolds rather than pops in.
@@ -304,7 +309,7 @@ public sealed partial class SubagentViewModel : ObservableObject
 
         // Without a result of its own (a background one): its last words.
         ResultText = result?.Trim() is { Length: > 0 } given ? given : Entries.OfType<AssistantTextItem>().LastOrDefault()?.Text.Trim() ?? "";
-        LastStatus = stopped ? "Stopped" : IsFailed ? "Failed" : "Done";
+        LastStatus = stopped ? "Stopped" : IsFailed ? "Failed" : ReportsLaunchOnly ? "Launched · completion status unavailable" : "Done";
         foreach (var call in _calls.Values.Where(c => c.IsRunning))
         {
             call.Status = ToolStatus.Done;

@@ -48,6 +48,11 @@ public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, st
 public sealed record ForegroundTaskEndedEvent(string TaskId, string? ToolUseId, string? Status) : AgentEvent;
 
 /// <summary>
+/// A subagent's lifecycle reported separately from the tool call that launched it.
+/// </summary>
+public sealed record SubagentStateEvent(string AgentId, string Status, string? Prompt, string? Model, string? Message) : AgentEvent;
+
+/// <summary>
 /// A task (a subagent, a command) started for a tool call: its id is what <c>stop_task</c> takes. A subagent's ("local_agent")
 /// also says what it is and its prompt; a SendMessage call that resumes one starts its task again under the same id.
 /// </summary>
@@ -121,6 +126,11 @@ public sealed record ToolCallEvent(string ToolUseId, string Name, JsonElement In
     /// The agent reports this tool as a shell command even when its display name is dynamic.
     /// </summary>
     public bool IsShellCommand { get; init; }
+
+    /// <summary>
+    /// The tool result acknowledges a delegated launch without reporting when the agent finishes.
+    /// </summary>
+    public bool IsSubagentLaunch { get; init; }
 }
 
 /// <summary>A tool finished. <paramref name="Structured"/> is the tool's structured output, if any.</summary>

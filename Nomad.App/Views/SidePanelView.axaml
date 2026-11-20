@@ -376,7 +376,7 @@
           <StackPanel>
             <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="FinishedSubagents" Click="OnHeaderClick">
               <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Finished subagents" />
+                <TextBlock Text="Subagent history" />
                 <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
               </StackPanel>
             </Button>

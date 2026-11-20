@@ -1266,11 +1266,42 @@ public sealed partial class SessionViewModel : ObservableObject
         UpdateAwaiting();
     }
 
-    private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input)
+    private void StartSubagent(string toolUseId, System.Text.Json.JsonElement input, bool reportsLaunchOnly)
     {
         var agent = _subagentById.TryGetValue(toolUseId, out var known) ? known : AddSubagent(toolUseId);
         agent.SetInput(input);
+        agent.ReportsLaunchOnly = reportsLaunchOnly;
         StartSubagentTimer();
+    }
+
+    /// <summary>
+    /// Updates a child agent whose lifecycle is reported separately from its launch call.
+    /// </summary>
+    private void ApplySubagentState(SubagentStateEvent state)
+    {
+        var key = $"subagent:{state.AgentId}";
+        var agent = _subagentById.TryGetValue(key, out var known) ? known : AddSubagent(key);
+        if (!string.IsNullOrWhiteSpace(state.Prompt))
+        {
+            agent.Prompt = state.Prompt;
+            agent.Description = ToolText.FirstLine(state.Prompt);
+        }
+
+        agent.SetModel(state.Model);
+        if (state.Status == "running")
+        {
+            if (!agent.IsRunning) agent.Resume(state.Prompt);
+
+            agent.MarkBackground();
+            UnlistFinished(agent);
+            StartSubagentTimer();
+        }
+        else
+        {
+            agent.Finish(state.Status == "failed", state.Message, stopped: state.Status == "stopped");
+        }
+
+        ContentChanged?.Invoke();
     }
 
     /// <summary>A new row for a subagent, by the call that started it: the transcript and the side panel list it.</summary>
@@ -3692,6 +3723,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 NoteTaskStarted(taskStarted);
                 break;
 
+            case SubagentStateEvent subagent:
+                ApplySubagentState(subagent);
+                break;
+
             case WorkflowStartedEvent started:
                 var startedRun = started.ToolUseId is { } startedCall ? WorkflowFor(startedCall) : null;
                 if (startedRun is not null)
@@ -3760,7 +3795,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 _groupOfCall[call.ToolUseId].Refresh();
                 if (ToolText.CategoryOf(call.Name) == ToolCategory.Agent)
                 {
-                    StartSubagent(call.ToolUseId, call.Input);
+                    StartSubagent(call.ToolUseId, call.Input, call.IsSubagentLaunch);
                 }
                 else if (call.Input.ValueKind == System.Text.Json.JsonValueKind.Object
                     && call.Input.TryGetProperty("run_in_background", out var bg) && bg.ValueKind == System.Text.Json.JsonValueKind.True)

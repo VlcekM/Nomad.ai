@@ -106,12 +106,32 @@ internal sealed class AntigravityTurn(string? model, Action<AgentEvent> raise)
         var input = CodexJson.Any(update, "rawInput");
         if (input.ValueKind != JsonValueKind.Object) input = CodexJson.ToElement(new JsonObject { ["description"] = title });
 
-        raise(new BlockStartedEvent(_message, _index++, AgentBlockKind.ToolUse, id, title, null));
-        raise(new ToolCallEvent(id, title, input.Clone(), null)
+        var name = title;
+        var isSubagentLaunch = CodexJson.Str(update, "name") == "invoke_subagent";
+        if (isSubagentLaunch)
+        {
+            name = "Task";
+            input = SubagentInput(input);
+        }
+
+        raise(new BlockStartedEvent(_message, _index++, AgentBlockKind.ToolUse, id, name, null));
+        raise(new ToolCallEvent(id, name, input.Clone(), null)
         {
             IsShellCommand = CodexJson.Str(update, "kind") == "execute",
+            IsSubagentLaunch = isSubagentLaunch,
         });
     }
+
+    /// <summary>
+    /// Maps Antigravity's invocation fields to the shared subagent card.
+    /// </summary>
+    private static JsonElement SubagentInput(JsonElement input) => CodexJson.ToElement(new JsonObject
+    {
+        ["description"] = CodexJson.Str(input, "Role"),
+        ["prompt"] = CodexJson.Str(input, "Prompt"),
+        ["subagent_type"] = CodexJson.Str(input, "TypeName"),
+        ["model"] = CodexJson.Str(input, "Model") is { } model && model != "inherit" ? model : null,
+    });
 
     /// <summary>
     /// Adds terminal tool output and diff content to its transcript entry.
