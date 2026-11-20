@@ -1029,7 +1029,15 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The new-session page's project cards: the latest folders with their git state.</summary>
     public ObservableCollection<ProjectViewModel> Projects { get; } = [];
 
+    /// <summary>The first three projects, shown as larger cards with recent commits.</summary>
+    public ObservableCollection<ProjectViewModel> TopProjects { get; } = [];
+
+    /// <summary>The remaining projects after the first three, shown as compact tiles.</summary>
+    public ObservableCollection<ProjectViewModel> MoreProjects { get; } = [];
+
     public bool HasProjects => Projects.Count > 0;
+
+    public bool HasMoreProjects => MoreProjects.Count > 0;
 
     /// <summary>Recent folders for the folder menu, filtered by <see cref="FolderFilter"/>.</summary>
     public ObservableCollection<MenuOption> MenuFolders { get; } = [];
@@ -1221,12 +1229,24 @@ public sealed partial class SessionViewModel : ObservableObject
         if (!wanted.SequenceEqual(Projects))
         {
             Projects.Clear();
-            foreach (var p in wanted)
+            TopProjects.Clear();
+            MoreProjects.Clear();
+            for (var i = 0; i < wanted.Count; i++)
             {
+                var p = wanted[i];
                 Projects.Add(p);
+                if (i < 3)
+                {
+                    TopProjects.Add(p);
+                }
+                else
+                {
+                    MoreProjects.Add(p);
+                }
             }
 
             OnPropertyChanged(nameof(HasProjects));
+            OnPropertyChanged(nameof(HasMoreProjects));
         }
 
         foreach (var p in Projects)

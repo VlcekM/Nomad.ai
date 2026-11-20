@@ -25,10 +25,10 @@
       </StackPanel>
     </DataTemplate>
     <DataTemplate x:Key="DashboardCardTemplate" x:DataType="vm:UsageDashboardCard">
-      <Border Classes="usage" Padding="14" Background="{DynamicResource BgSidebarBrush}"
-              BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1" CornerRadius="10">
+      <Border Classes="usage" Padding="14,12" Background="{DynamicResource BgCardBrush}"
+              BorderBrush="Transparent" BorderThickness="1" CornerRadius="10">
         <DockPanel>
-          <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0" IsVisible="{Binding ShowsLocalTokens}"
+          <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0" IsVisible="{Binding ShowsLocalTokens}"
                       ToolTip.Tip="Recorded on this computer this month; input includes cached tokens.">
             <StackPanel.Styles>
               <Style Selector="TransitioningContentControl.tokenFooter">
@@ -37,7 +37,7 @@
                 </Setter>
                 <Setter Property="ContentTemplate">
                   <DataTemplate x:DataType="x:String">
-                    <TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextWrapping="Wrap" />
                   </DataTemplate>
                 </Setter>
               </Style>
@@ -45,8 +45,8 @@
             <TransitioningContentControl Classes="tokenFooter" Content="{Binding LocalTokens.ClaudeText}" IsVisible="{Binding ShowsClaudeTokens}" />
             <TransitioningContentControl Classes="tokenFooter" Content="{Binding LocalTokens.CodexText}" IsVisible="{Binding ShowsCodexTokens}" />
           </StackPanel>
-          <StackPanel Spacing="12">
-            <TextBlock Text="{Binding Name}" FontWeight="Medium" />
+          <StackPanel Spacing="10">
+            <TextBlock Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource TextChromeBrush}" FontSize="{DynamicResource UiFontSizeSmall}" />
             <ContentControl Content="{Binding Source}" ContentTemplate="{StaticResource DashboardUsageTemplate}"
                             IsVisible="{Binding ShowsLimits}" />
             <c:UsageHoverSpace IsVisible="{Binding ShowsCost}">
@@ -415,32 +415,67 @@
       <Setter Property="IsVisible" Value="False" />
     </Style>
 
-    <!-- New-session project cards: a lighter edge on hover, the check colour when it is the session's folder. -->
+    <!-- Minimalist project tiles: borderless at rest, quiet lift on hover, smooth accent outline on click. -->
+    <Style Selector="Border#NewSessionUsage Button#UsageDashboardButton">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border#NewSessionUsage:pointerover Button#UsageDashboardButton, Border#NewSessionUsage Button#UsageDashboardButton:flyout-open">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
     <Style Selector="Button.project">
-      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgCardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BgCardBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="14,12,14,11" />
+      <Setter Property="Padding" Value="14,11" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="Margin" Value="5" />
-      <Setter Property="Height" Value="163" />
+      <Setter Property="Height" Value="70" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="VerticalContentAlignment" Value="Stretch" />
       <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.project.top">
+      <Setter Property="Height" Value="152" />
+      <Setter Property="Padding" Value="15,12,15,11" />
+    </Style>
+    <Style Selector="Button.project /template/ ContentPresenter">
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
-          <BrushTransition Property="Background" Duration="0:0:0.15" Easing="CubicEaseOut" />
+          <c:ColorFadeTransition Property="BorderBrush" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <c:ColorFadeTransition Property="Background" Duration="0:0:0.18" Easing="CubicEaseOut" />
         </Transitions>
       </Setter>
     </Style>
     <Style Selector="Button.project:pointerover /template/ ContentPresenter">
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
-      <Setter Property="Background" Value="{DynamicResource BgSidebarBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
     </Style>
     <Style Selector="Button.project.selected /template/ ContentPresenter">
-      <Setter Property="BorderBrush" Value="{DynamicResource CheckBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+    </Style>
+    <Style Selector="Button.project c|Icon.selcheck">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="MaxWidth" Value="0" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <DoubleTransition Property="MaxWidth" Duration="0:0:0.2" Easing="CubicEaseOut" />
+          <ThicknessTransition Property="Margin" Duration="0:0:0.2" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.project.selected c|Icon.selcheck">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="MaxWidth" Value="13" />
+      <Setter Property="Margin" Value="8,0,0,0" />
     </Style>
     <!-- The pin: shown on hover, and always on a pinned card. -->
     <Style Selector="Button.pin">
@@ -478,7 +513,7 @@
     <Style Selector="Button.pin.pinned :is(Control).pin-off">
       <Setter Property="Opacity" Value="0" />
     </Style>
-    <Style Selector="StackPanel.gitpart">
+    <Style Selector="Panel.gitpart">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
@@ -486,7 +521,7 @@
         </Transitions>
       </Setter>
     </Style>
-    <Style Selector="StackPanel.gitpart.loaded">
+    <Style Selector="Panel.gitpart.loaded">
       <Setter Property="Opacity" Value="1" />
     </Style>
 
@@ -529,7 +564,16 @@
       <Setter Property="RenderTransform" Value="scale(1)" />
     </Style>
 
-    <!-- Files being dragged over the session: the composer lights up, and the session says they can go in. -->
+    <!-- Files being dragged over the session or composer focused: subtle highlight on the frame. -->
+    <Style Selector="Border#ComposerBar">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    </Style>
+    <Style Selector="Border#ComposerBar:pointerover">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
+    </Style>
+    <Style Selector="Border#ComposerBar:focus-within">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
     <Style Selector="Border#ComposerBar.dragover">
       <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
     </Style>
@@ -579,8 +623,10 @@
         <Border Grid.Column="1"
                 HorizontalAlignment="Right"
                 Background="{DynamicResource BgRaisedBrush}"
-                CornerRadius="10"
-                Padding="12,6,12,7">
+                BorderBrush="{DynamicResource BorderCardBrush}"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="14,9,14,10">
           <StackPanel Spacing="6">
             <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsFromDevice}" Margin="0,2,0,-2" ToolTip.Tip="{Binding FromDeviceToolTip}">
               <c:Icon Size="12" Data="{StaticResource IconLaptop}" Classes="tick" VerticalAlignment="Center" />
@@ -1402,11 +1448,11 @@
         </StackPanel>
       </Border>
 
-      <!-- New session: optional provider usage, followed by up to twelve projects. -->
+      <!-- New session: quiet usage strip and compact project tiles. -->
       <ScrollViewer IsVisible="{Binding IsNew}" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="24,20" Spacing="10" MaxWidth="{DynamicResource ColumnMaxWidth}">
-          <Border Name="NewSessionUsage" c:Fold.IsOpen="{Binding ShowNewSessionUsage}" IsVisible="False">
-            <StackPanel Spacing="6" Margin="0,0,0,20">
+        <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="32,24" Spacing="14" MaxWidth="980">
+          <Border Name="NewSessionUsage" c:Fold.IsOpen="{Binding ShowNewSessionUsage}" IsVisible="False" Background="Transparent">
+            <StackPanel Spacing="6" Margin="0,0,0,18">
               <Button Name="UsageDashboardButton" HorizontalAlignment="Right" Theme="{StaticResource LineButton}"
                       ToolTip.Tip="Choose and order the usage cards">
                 <StackPanel Orientation="Horizontal" Spacing="5">
@@ -1437,7 +1483,7 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
-              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+              <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
                 <Grid.Styles>
                   <Style Selector="TransitioningContentControl.dashboardCard">
                     <Setter Property="ContentTemplate" Value="{StaticResource DashboardCardTemplate}" />
@@ -1452,31 +1498,102 @@
               </Grid>
             </StackPanel>
           </Border>
-          <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="2,0">
-            <TextBlock Text="Recent projects" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
-            <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnWorkPageClick" Margin="0,0,16,0" ToolTip.Tip="Open pull requests and issues of these projects (Ctrl+M)">
+          <Grid ColumnDefinitions="*,Auto,Auto" Margin="2,0">
+            <TextBlock Text="Projects" Foreground="{DynamicResource TextMutedBrush}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" IsVisible="{Binding HasProjects}" />
+            <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,14,0" ToolTip.Tip="Claude works in a new scratch folder">
               <StackPanel Orientation="Horizontal" Spacing="5">
-                <c:Icon Size="12" Data="{StaticResource IconPullRequest}" />
-                <TextBlock Text="Pull requests &amp; issues" FontSize="{DynamicResource UiFontSizeSmall}" />
-              </StackPanel>
-            </Button>
-            <Button Grid.Column="2" Theme="{StaticResource LineButton}" Click="OnNoFolderClick" Margin="0,0,16,0" ToolTip.Tip="Claude works in a new scratch folder">
-              <StackPanel Orientation="Horizontal" Spacing="5">
-                <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsNoFolder}" />
+                <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource AccentBrush}" IsVisible="{Binding IsNoFolder}" />
                 <TextBlock Text="No folder" FontSize="{DynamicResource UiFontSizeSmall}" />
               </StackPanel>
             </Button>
-            <Button Grid.Column="3" Theme="{StaticResource LineButton}" Click="OnOpenFolderClick">
+            <Button Grid.Column="2" Theme="{StaticResource LineButton}" Click="OnOpenFolderClick">
               <StackPanel Orientation="Horizontal" Spacing="5">
                 <c:Icon Size="12" Data="{StaticResource IconFolderOpen}" />
                 <TextBlock Text="Open folder…" FontSize="{DynamicResource UiFontSizeSmall}" />
               </StackPanel>
             </Button>
           </Grid>
-          <ItemsControl Name="ProjectCards" ItemsSource="{Binding Projects}" Margin="-5">
+          <StackPanel Name="ProjectCardsHost" Spacing="2" Margin="-5">
+          <!-- First three projects: larger cards with recent commits. -->
+          <ItemsControl Name="ProjectCards" ItemsSource="{Binding TopProjects}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <UniformGrid Columns="4" />
+                <UniformGrid Columns="3" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProjectViewModel">
+                <Button Theme="{StaticResource FlatButton}"
+                        Classes="project top"
+                        Classes.selected="{Binding IsSelected}"
+                        Click="OnProjectClick"
+                        ToolTip.Tip="{Binding Path}">
+                  <Button.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="{Binding PinToolTip}" Click="OnPinClick" />
+                      <MenuItem Header="Remove from recent projects" Click="OnRemoveProjectClick" />
+                    </ContextMenu>
+                  </Button.ContextMenu>
+                  <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"
+                                 TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Branch}" IsVisible="{Binding HasBranch}"
+                                 FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeTiny}"
+                                 Foreground="{DynamicResource TextMutedBrush}" MaxWidth="90" TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                      <Button Grid.Column="2" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
+                              Click="OnPinClick" ToolTip.Tip="{Binding PinToolTip}">
+                        <Panel>
+                          <c:Icon Classes="pin-off" Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                          <Panel Classes="pin-on">
+                            <c:Icon Size="12" Data="{StaticResource IconPinHead}" Stroke="{DynamicResource TextPrimaryBrush}" IsFilled="True" />
+                            <c:Icon Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextPrimaryBrush}" />
+                          </Panel>
+                        </Panel>
+                      </Button>
+                      <c:Icon Grid.Column="3" Classes="selcheck" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                    </Grid>
+                    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,Auto,*" Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
+                      <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Classes="muted" Classes.warn="{Binding HasChanges}" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" IsVisible="{Binding HasBothFooterParts}" Margin="6,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding LastSessionText}" IsVisible="{Binding HasLastSession}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
+                    <!-- The latest commits, with placeholder rows while git is read. -->
+                    <Panel Margin="0,10,0,6">
+                      <c:Skeleton IsActive="{Binding !IsLoaded}" Rows="3" RowHeight="8" RowSpacing="12" Widths="0.78,0.6,0.7"
+                                  Fill="{DynamicResource SkeletonBrush}" Margin="14,4,40,0" VerticalAlignment="Top" />
+                      <StackPanel Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
+                        <ItemsControl ItemsSource="{Binding TopCommits}" IsVisible="{Binding HasCommits}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Spacing="4" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:CommitRow">
+                              <Grid ColumnDefinitions="Auto,*,Auto">
+                                <Ellipse Width="3.5" Height="3.5" Fill="{DynamicResource TextMutedBrush}" Opacity="0.6" VerticalAlignment="Center" Margin="2,0,8,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="Not a git repository" IsVisible="{Binding IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" />
+                      </StackPanel>
+                    </Panel>
+                  </DockPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- Remaining projects: compact two-row tiles. -->
+          <ItemsControl Name="MoreProjectCards" ItemsSource="{Binding MoreProjects}" IsVisible="{Binding HasMoreProjects}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="3" />
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -1493,62 +1610,36 @@
                     </ContextMenu>
                   </Button.ContextMenu>
                   <DockPanel>
-                    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto">
-                      <c:Icon Size="14" Data="{StaticResource IconFolder}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-                      <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}"
-                                 TextTrimming="CharacterEllipsis" Margin="8,0" VerticalAlignment="Center" />
-                      <Border Grid.Column="2" IsVisible="{Binding HasBranch}" Background="{DynamicResource BgChipBrush}" CornerRadius="4" Padding="6,1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Branch}" FontFamily="{DynamicResource MonoFont}"
-                                   FontSize="{DynamicResource UiFontSizeTiny}" Foreground="{DynamicResource TextChromeBrush}" MaxWidth="110" TextTrimming="CharacterEllipsis" />
-                      </Border>
-                      <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"
+                                 TextTrimming="CharacterEllipsis" Margin="0,0,8,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding Branch}" IsVisible="{Binding HasBranch}"
+                                 FontFamily="{DynamicResource MonoFont}" FontSize="{DynamicResource UiFontSizeTiny}"
+                                 Foreground="{DynamicResource TextMutedBrush}" MaxWidth="90" TextTrimming="CharacterEllipsis"
+                                 VerticalAlignment="Center" />
+                      <Button Grid.Column="2" Theme="{StaticResource FlatButton}" Classes="pin" Classes.pinned="{Binding IsPinned}"
                               Click="OnPinClick" ToolTip.Tip="{Binding PinToolTip}">
                         <Panel>
-                          <c:Icon Classes="pin-off" Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
+                          <c:Icon Classes="pin-off" Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" />
                           <Panel Classes="pin-on">
-                            <c:Icon Size="13" Data="{StaticResource IconPinHead}" Stroke="{DynamicResource TextPrimaryBrush}" IsFilled="True" />
-                            <c:Icon Size="13" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextPrimaryBrush}" />
+                            <c:Icon Size="12" Data="{StaticResource IconPinHead}" Stroke="{DynamicResource TextPrimaryBrush}" IsFilled="True" />
+                            <c:Icon Size="12" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextPrimaryBrush}" />
                           </Panel>
                         </Panel>
                       </Button>
-                      <c:Icon Grid.Column="4" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource CheckBrush}" IsVisible="{Binding IsSelected}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                      <c:Icon Grid.Column="3" Classes="selcheck" Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
                     </Grid>
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding Path}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
-                               TextTrimming="CharacterEllipsis" Margin="22,1,0,0" />
-                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
-                      <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Classes="muted" Classes.warn="{Binding HasChanges}" FontSize="{DynamicResource UiFontSizeTiny}" />
-                      <TextBlock Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" IsVisible="{Binding HasBothFooterParts}" />
-                      <TextBlock Text="{Binding LastSessionText}" IsVisible="{Binding HasLastSession}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-                    <!-- The latest commits, with placeholder rows while git is read. -->
-                    <Panel Margin="0,9,0,6">
-                      <c:Skeleton IsActive="{Binding !IsLoaded}" Rows="3" RowHeight="8" RowSpacing="12" Widths="0.78,0.6,0.7"
-                                  Fill="{DynamicResource SkeletonBrush}" Margin="18,4,40,0" VerticalAlignment="Top" />
-                      <StackPanel Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
-                        <ItemsControl ItemsSource="{Binding TopCommits}" IsVisible="{Binding HasCommits}">
-                          <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                              <StackPanel Spacing="3" />
-                            </ItemsPanelTemplate>
-                          </ItemsControl.ItemsPanel>
-                          <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:CommitRow">
-                              <Grid ColumnDefinitions="Auto,*,Auto">
-                                <Ellipse Width="4" Height="4" Fill="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="5,0,9,0" />
-                                <TextBlock Grid.Column="1" Text="{Binding Subject}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextChromeBrush}" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding WhenText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                              </Grid>
-                            </DataTemplate>
-                          </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock Text="Not a git repository" IsVisible="{Binding IsNotGit}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" Margin="1,0,0,0" />
-                      </StackPanel>
-                    </Panel>
+                    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,Auto,*" Classes="gitpart" Classes.loaded="{Binding IsLoaded}">
+                      <TextBlock Text="{Binding StatusText}" IsVisible="{Binding HasStatus}" Classes="muted" Classes.warn="{Binding HasChanges}" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="·" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" IsVisible="{Binding HasBothFooterParts}" Margin="6,0" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding LastSessionText}" IsVisible="{Binding HasLastSession}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
                   </DockPanel>
                 </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          </StackPanel>
         </StackPanel>
       </ScrollViewer>
 
@@ -1732,10 +1823,9 @@
            pasted into it or dropped anywhere on the session. -->
       <Border Name="ComposerBar"
               Background="{DynamicResource BgInputBrush}"
-              BorderBrush="{DynamicResource BorderInputBrush}"
               BorderThickness="1"
-              CornerRadius="10"
-              MinHeight="44"
+              CornerRadius="12"
+              MinHeight="46"
               Classes="composer"
               Cursor="IBeam"
               PointerPressed="OnComposerBarPressed">
@@ -1819,7 +1909,7 @@
           <!-- The buttons stay level with the first line while the text grows. -->
           <Button Name="PlusButton"
                   Theme="{StaticResource IconButton}"
-                  Margin="7,7,0,0"
+                  Margin="9,9,0,0"
                   VerticalAlignment="Top"
                   ToolTip.Tip="More">
             <c:Icon Data="{StaticResource IconPlus}" />
@@ -1900,12 +1990,12 @@
                    TextWrapping="Wrap"
                    FontSize="{DynamicResource UiFontSizeLarge}"
                    MaxHeight="190"
-                   Margin="0,11,2,11"
+                   Margin="2,13,2,13"
                    VerticalContentAlignment="Top"
                    ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
           <!-- While Claude works, Send queues the prompt and Stop sits beside it. -->
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,7,8,0" VerticalAlignment="Top">
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,9,9,0" VerticalAlignment="Top">
             <!-- A suggested prompt is showing as ghost text: how to take it. -->
             <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
               <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
@@ -2215,7 +2305,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- Effort: a small slider, Low to Max (on OpenCode, the model's variants). -->
+        <!-- Effort: a tactile pill slider, Low to Max (on OpenCode, the model's variants). -->
         <StackPanel Orientation="Horizontal" Spacing="8" Classes="effortstrip" Classes.none="{Binding !HasEffortLevels}" ToolTip.Tip="{Binding EffortToolTip}">
           <c:FillSlider Name="EffortSlider"
                         Width="168" Height="24"
@@ -2224,7 +2314,7 @@
                         Maximum="{Binding EffortMaximum}"
                         Value="{Binding EffortPosition}"
                         TrackBrush="{DynamicResource BarTrackBrush}"
-                        FillBrush="{DynamicResource RingBrush}"
+                        FillBrush="{DynamicResource AccentBrush}"
                         KnobBrush="White"
                         VerticalAlignment="Center" />
           <!-- Fixed width (fits "Extra high"), so the row doesn't shift while dragging. -->
@@ -2309,7 +2399,7 @@
                                   Maximum="{Binding EffortMaximum}"
                                   Value="{Binding EffortPosition}"
                                   TrackBrush="{DynamicResource BarTrackBrush}"
-                                  FillBrush="{DynamicResource RingBrush}"
+                                  FillBrush="{DynamicResource AccentBrush}"
                                   KnobBrush="White"
                                   VerticalAlignment="Center" />
                     <TextBlock Text="{Binding EffortLabel}" Classes="status muted" VerticalAlignment="Center" />

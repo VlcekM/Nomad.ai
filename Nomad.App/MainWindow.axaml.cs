@@ -983,7 +983,7 @@ public partial class MainWindow : Window
                     ViewSwitch.Transitions = null;
                 }
 
-                ViewSwitch.Margin = new Thickness(left, 4, 0, 0);
+                ViewSwitch.Margin = new Thickness(left, 5, 0, 0);
                 ViewSwitch.Transitions = transitions;
             }
 

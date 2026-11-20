@@ -7,22 +7,22 @@
        fill behind: where using the week up evenly, 24/7, would be by now) and a forecast. The usage popup and the
        side panel both use it. -->
   <DataTemplate x:Key="UsageRowTemplate" x:DataType="vm:UsageRow">
-    <StackPanel Spacing="5" Classes="usagerow" Classes.hasdetail="{Binding HasDetail}" Background="Transparent">
+    <StackPanel Spacing="6" Classes="usagerow" Classes.hasdetail="{Binding HasDetail}" Background="Transparent">
       <Grid ColumnDefinitions="*,Auto,Auto">
-        <TextBlock Text="{Binding Label}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Label}" FontWeight="Medium" Foreground="{DynamicResource TextChromeBrush}" FontSize="{DynamicResource UiFontSizeSmall}" TextTrimming="CharacterEllipsis" />
         <TextBlock Grid.Column="1" Text="{Binding ResetsText}" Classes="muted resets" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" Margin="8,0,0,0" />
-        <TextBlock Grid.Column="2" Text="{Binding PercentText}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Text="{Binding PercentText}" Foreground="{DynamicResource TextChromeBrush}" FontWeight="Medium" FontSize="{DynamicResource UiFontSizeTiny}" MinWidth="34" TextAlignment="Right" VerticalAlignment="Center" />
       </Grid>
       <!-- Not a slider here: a hover only shows the pace. -->
       <Panel Background="Transparent" ToolTip.Tip="{Binding PaceToolTip}" ToolTip.IsEnabled="{Binding HasPace}">
-        <c:FillSlider Height="5" Thickness="5"
+        <c:FillSlider Height="4" Thickness="4"
                       Maximum="1"
                       Value="{Binding Fraction}"
                       PaceValue="{Binding PaceFraction}"
                       PaceBrush="{DynamicResource PaceBrush}"
                       IsHitTestVisible="False"
                       TrackBrush="{DynamicResource BarTrackBrush}"
-                      FillBrush="{DynamicResource RingBrush}"
+                      FillBrush="{DynamicResource AccentBrush}"
                       Classes.high="{Binding IsHigh}" />
       </Panel>
       <TextBlock Text="{Binding ForecastText}"

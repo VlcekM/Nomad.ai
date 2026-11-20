@@ -53,10 +53,10 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </ControlTheme>
 
-  <!-- Window caption buttons, 46x36 (close turns Windows red). -->
+  <!-- Window caption buttons, 46x40 (close turns Windows red). -->
   <ControlTheme x:Key="CaptionButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Width" Value="46" />
-    <Setter Property="Height" Value="36" />
+    <Setter Property="Height" Value="40" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -71,10 +71,11 @@
     </Style>
   </ControlTheme>
 
-  <!-- Sidebar rows: 30 px, radius 6, selected = Bg.Selected + weight 500. -->
+  <!-- Sidebar rows: 30 px, radius 7, selected = Bg.Selected + weight 500. -->
   <ControlTheme x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
     <Setter Property="Height" Value="30" />
     <Setter Property="Padding" Value="10,0" />
+    <Setter Property="CornerRadius" Value="7" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
@@ -87,19 +88,23 @@
 
   <!-- Status-row chips (folder, mode, model): flat, Bg.Chip when hovered or open. -->
   <ControlTheme x:Key="ChipButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Height" Value="24" />
-    <Setter Property="Padding" Value="7,0" />
-    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
     <Style Selector="^:pointerover">
       <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
     </Style>
     <Style Selector="^.open">
       <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     </Style>
     <!-- The current model among the model chips. -->
     <Style Selector="^.selected">
       <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </ControlTheme>
@@ -239,12 +244,12 @@
     </Style>
   </ControlTheme>
 
-  <!-- Composer send / stop: 28 px, accent fill for send. -->
+  <!-- Composer send / stop: 30 px, accent fill for send. -->
   <ControlTheme x:Key="SendButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
-    <Setter Property="Width" Value="28" />
-    <Setter Property="Height" Value="28" />
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="CornerRadius" Value="9" />
     <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource TextOnAccentBrush}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />

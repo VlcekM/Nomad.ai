@@ -124,7 +124,7 @@
     <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="CornerRadius" Value="10" />
     <Setter Property="Padding" Value="5" />
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="MaxWidth" Value="480" />
@@ -132,7 +132,7 @@
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
   </Style>
   <Style Selector="FlyoutPresenter.menu /template/ Border#LayoutRoot">
-    <Setter Property="BoxShadow" Value="0 8 24 0 #73000000" />
+    <Setter Property="BoxShadow" Value="0 10 28 0 #80000000" />
   </Style>
 
   <!-- Separators inside menus and lists -->

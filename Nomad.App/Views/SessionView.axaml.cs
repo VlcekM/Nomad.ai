@@ -1053,7 +1053,9 @@ public partial class SessionView : UserControl
             return;
         }
 
-        var card = ProjectCards.GetRealizedContainers().FirstOrDefault(c => c.DataContext == project);
+        var card = ProjectCards.GetRealizedContainers()
+            .Concat(MoreProjectCards.GetRealizedContainers())
+            .FirstOrDefault(c => c.DataContext == project);
         if (card is null || TopLevel.GetTopLevel(card) is not { } top)
         {
             RearrangeCards(() => vm.RemoveProject(project));
@@ -1085,19 +1087,19 @@ public partial class SessionView : UserControl
     private void RearrangeCards(Action change)
     {
         var before = new Dictionary<object, Point>();
-        foreach (var c in ProjectCards.GetRealizedContainers())
+        foreach (var c in ProjectCards.GetRealizedContainers().Concat(MoreProjectCards.GetRealizedContainers()))
         {
-            if (c.DataContext is { } item && c.TranslatePoint(default, ProjectCards) is { } p)
+            if (c.DataContext is { } item && c.TranslatePoint(default, ProjectCardsHost) is { } p)
             {
                 before[item] = p;
             }
         }
 
         change();
-        ProjectCards.UpdateLayout();
-        foreach (var c in ProjectCards.GetRealizedContainers())
+        ProjectCardsHost.UpdateLayout();
+        foreach (var c in ProjectCards.GetRealizedContainers().Concat(MoreProjectCards.GetRealizedContainers()))
         {
-            if (c.DataContext is { } item && before.TryGetValue(item, out var from) && c.TranslatePoint(default, ProjectCards) is { } to)
+            if (c.DataContext is { } item && before.TryGetValue(item, out var from) && c.TranslatePoint(default, ProjectCardsHost) is { } to)
             {
                 if (from != to)
                 {
