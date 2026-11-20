@@ -10,16 +10,22 @@ namespace Nomad.App.ViewModels;
 /// </summary>
 public sealed partial class BackgroundTaskViewModel : ObservableObject
 {
-    public BackgroundTaskViewModel(string toolUseId, string toolName, JsonElement input)
+    public BackgroundTaskViewModel(string toolUseId, string toolName, JsonElement input, bool isForeground = false)
     {
         ToolUseId = toolUseId;
         ToolName = toolName;
+        IsForeground = isForeground;
         StartedUtc = DateTime.UtcNow;
         Command = ToolText.Str(input, "command") ?? "";
         Description = ToolText.Str(input, "description") is { Length: > 0 } d ? d : ToolText.FirstLine(Command) is { Length: > 0 } line ? line : toolName;
     }
 
     public string ToolUseId { get; }
+
+    /// <summary>
+    /// Whether the tool result, rather than a background task notification, ends this command.
+    /// </summary>
+    public bool IsForeground { get; }
 
     /// <summary>"Bash", "PowerShell": the row's chip.</summary>
     public string ToolName { get; }

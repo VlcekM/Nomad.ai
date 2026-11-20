@@ -48,18 +48,19 @@ public sealed class AntigravityTests
         var turn = new AntigravityTurn(AntigravityBackend.DefaultModel, events.Add);
         Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Checking "}}""");
         Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"the file."}}""");
-        Send(turn, """{"sessionUpdate":"tool_call","toolCallId":"read-1","title":"Read file","status":"in_progress"}""");
-        Send(turn, """{"sessionUpdate":"tool_call_update","toolCallId":"read-1","status":"completed","rawOutput":"contents"}""");
+        Send(turn, """{"sessionUpdate":"tool_call","toolCallId":"command-1","title":"Run command","kind":"execute","status":"in_progress"}""");
+        Send(turn, """{"sessionUpdate":"tool_call_update","toolCallId":"command-1","status":"completed","rawOutput":"contents"}""");
         Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Done."}}""");
         turn.FinishBlock();
 
         var contents = events.Where(e => e is BlockCompletedEvent or ToolCallEvent or ToolResultEvent).ToArray();
         Assert.Collection(contents,
             e => Assert.Equal("Checking the file.", Assert.IsType<BlockCompletedEvent>(e).Text),
-            e => Assert.Equal("read-1", Assert.IsType<ToolCallEvent>(e).ToolUseId),
+            e => Assert.Equal("command-1", Assert.IsType<ToolCallEvent>(e).ToolUseId),
             e => Assert.Equal("contents", Assert.IsType<ToolResultEvent>(e).Text),
             e => Assert.Equal("Done.", Assert.IsType<BlockCompletedEvent>(e).Text));
         Assert.Equal(AntigravityBackend.DefaultModel, Assert.Single(events.OfType<AssistantMessageStartedEvent>()).Model);
+        Assert.True(Assert.Single(events.OfType<ToolCallEvent>()).IsShellCommand);
     }
 
     /// <summary>

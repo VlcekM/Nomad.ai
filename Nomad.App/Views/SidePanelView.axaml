@@ -353,7 +353,7 @@
           <StackPanel>
             <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="Tasks" Click="OnHeaderClick">
               <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Background tasks" />
+                <TextBlock Text="Running commands" />
                 <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
               </StackPanel>
             </Button>
@@ -399,7 +399,7 @@
           <StackPanel>
             <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="FinishedTasks" Click="OnHeaderClick">
               <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Finished background tasks" />
+                <TextBlock Text="Finished commands" />
                 <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
               </StackPanel>
             </Button>
@@ -479,7 +479,7 @@
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="Tasks" Click="OnCardToggleClick">
-              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Background tasks" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
+              <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Running commands" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>
             </Button>
             <Button Theme="{StaticResource MenuItemButton}" Tag="FinishedSubagents" Click="OnCardToggleClick">
               <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Finished subagents" /><Border Grid.Column="1" Classes="switch" VerticalAlignment="Center"><Ellipse /></Border></Grid>

@@ -1554,7 +1554,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
     // ------------------------------------------------------------------ background tasks
 
-    /// <summary>Commands started with <c>run_in_background</c>, newest first: the side panel lists them.</summary>
+    /// <summary>Commands reported by the agent, newest first: the side panel lists them.</summary>
     public ObservableCollection<BackgroundTaskViewModel> BackgroundTasks { get; } = [];
 
     /// <summary>
@@ -1575,14 +1575,14 @@ public sealed partial class SessionViewModel : ObservableObject
     private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
     private DispatcherTimer? _backgroundTaskTimer;
 
-    private void StartBackgroundTask(string toolUseId, string toolName, System.Text.Json.JsonElement input)
+    private void StartBackgroundTask(string toolUseId, string toolName, System.Text.Json.JsonElement input, bool isForeground = false)
     {
         if (_backgroundTaskById.ContainsKey(toolUseId))
         {
             return;
         }
 
-        var task = new BackgroundTaskViewModel(toolUseId, toolName, input);
+        var task = new BackgroundTaskViewModel(toolUseId, toolName, input, isForeground);
         _backgroundTaskById[toolUseId] = task;
         BackgroundTasks.Insert(0, task);
         task.PropertyChanged += (_, e) =>
@@ -1787,7 +1787,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         foreach (var task in BackgroundTasks.Where(t => t.IsRunning))
         {
-            task.Finish(failed: false, "Stopped with Claude Code");
+            task.Finish(failed: false, $"Stopped with {BackendName}");
         }
     }
 
@@ -3767,6 +3767,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 {
                     StartBackgroundTask(call.ToolUseId, call.Name, call.Input);
                 }
+                else if (!IsClaudeCode && (call.IsShellCommand || call.Name is "Bash" or "PowerShell"))
+                {
+                    StartBackgroundTask(call.ToolUseId, call.Name, call.Input, isForeground: true);
+                }
 
                 break;
 
@@ -3789,7 +3793,11 @@ public sealed partial class SessionViewModel : ObservableObject
                 else if (_backgroundTaskById.TryGetValue(r.ToolUseId, out var task))
                 {
                     // It failed to start, or says which task it became, for the notification that ends it.
-                    if (r.IsError)
+                    if (task.IsForeground)
+                    {
+                        task.Finish(r.IsError, null);
+                    }
+                    else if (r.IsError)
                     {
                         task.Finish(failed: true, ToolText.FirstLine(r.Text));
                     }
@@ -4149,6 +4157,9 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
+        foreach (var task in BackgroundTasks.Where(task => task.IsForeground && task.IsRunning))
+            task.Finish(result.IsError, null, stopped: result.Interrupted);
+
         FinishSubagents(includingBackground: false);
         foreach (var block in _blocks.Values)
         {

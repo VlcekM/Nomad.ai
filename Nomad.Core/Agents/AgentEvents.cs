@@ -115,7 +115,13 @@ public sealed record BlockCompletedEvent(
     string? ParentToolUseId) : AgentEvent;
 
 /// <summary>A tool call with its complete input.</summary>
-public sealed record ToolCallEvent(string ToolUseId, string Name, JsonElement Input, string? ParentToolUseId) : AgentEvent;
+public sealed record ToolCallEvent(string ToolUseId, string Name, JsonElement Input, string? ParentToolUseId) : AgentEvent
+{
+    /// <summary>
+    /// The agent reports this tool as a shell command even when its display name is dynamic.
+    /// </summary>
+    public bool IsShellCommand { get; init; }
+}
 
 /// <summary>A tool finished. <paramref name="Structured"/> is the tool's structured output, if any.</summary>
 public sealed record ToolResultEvent(

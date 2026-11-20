@@ -107,7 +107,10 @@ internal sealed class AntigravityTurn(string? model, Action<AgentEvent> raise)
         if (input.ValueKind != JsonValueKind.Object) input = CodexJson.ToElement(new JsonObject { ["description"] = title });
 
         raise(new BlockStartedEvent(_message, _index++, AgentBlockKind.ToolUse, id, title, null));
-        raise(new ToolCallEvent(id, title, input.Clone(), null));
+        raise(new ToolCallEvent(id, title, input.Clone(), null)
+        {
+            IsShellCommand = CodexJson.Str(update, "kind") == "execute",
+        });
     }
 
     /// <summary>
