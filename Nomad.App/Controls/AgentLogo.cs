@@ -65,6 +65,10 @@ public sealed class AgentLogo : Control
                 Fill(context, "IconCodexFrame", "TextMutedBrush");
                 Fill(context, "IconCodexPrompt", "TextPrimaryBrush");
             }
+            else if (backend == AgentBackends.Antigravity)
+            {
+                Fill(context, "IconAntigravity", "TextPrimaryBrush");
+            }
             else
             {
                 Fill(context, "IconClaude", "ClaudeBrandBrush");

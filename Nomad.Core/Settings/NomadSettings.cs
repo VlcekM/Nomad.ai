@@ -103,6 +103,11 @@ public sealed class NomadSettings
     /// <summary>The Codex model last picked; null: Codex's own default.</summary>
     public string? CodexModel { get; set; }
 
+    /// <summary>
+    /// The Antigravity sessions opened in Nomad, indexed by the CLI's session ID.
+    /// </summary>
+    public Dictionary<string, Sessions.SessionSummary> AntigravitySessions { get; set; } = new(StringComparer.Ordinal);
+
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
     public bool RemoteControlByDefault { get; set; } = true;

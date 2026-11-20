@@ -1221,6 +1221,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var history = item.IsOpenCode ? await LoadOpenCodeHistoryAsync(item)
                 : item.IsCodex ? await LoadCodexHistoryAsync(item)
+                : item.Backend == AgentBackends.Antigravity ? await Nomad.Core.Antigravity.AntigravityHistory.LoadAsync(item.SessionId, item.WorkingDirectory!)
                 : await Task.Run(() => SessionStore.LoadHistory(item.FilePath!));
             session.LoadHistory(summary, history);
             _ = session.WatchIfLiveAsync();
@@ -1382,7 +1383,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         IsLoadingSessions = false;
         _claudeSummaries = summaries;
-        MergeSummaries([.. summaries, .. _openCodeSummaries, .. _codexSummaries]);
+        MergeSummaries([.. summaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
         _ = RefreshOpenCodeSessionsAsync();
         _ = RefreshCodexSessionsAsync();
         await AutoArchiveSessionsAsync(fold: false);
@@ -1417,7 +1418,7 @@ public sealed partial class MainViewModel : ObservableObject
             var sessions = await OpenCodeClient.ListSessionsAsync(server);
             _openCodeSummaries = [.. sessions.Select(s => new SessionSummary(
                 s.Id, "", s.Directory, s.Title.Length > 0 ? s.Title : UntitledOpenCode, s.UpdatedUtc, 0, Backend: AgentBackends.OpenCode))];
-            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries]);
+            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
             OnPropertyChanged(nameof(RecentFolders));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
@@ -1450,7 +1451,7 @@ public sealed partial class MainViewModel : ObservableObject
             var threads = await Nomad.Core.Codex.CodexClient.ListThreadsAsync(server);
             _codexSummaries = [.. threads.Select(t => new SessionSummary(
                 t.Id, "", t.Directory, t.Title.Length > 0 ? t.Title : "Untitled Codex session", t.UpdatedUtc, 0, Backend: AgentBackends.Codex))];
-            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries]);
+            MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
             OnPropertyChanged(nameof(RecentFolders));
         }
         catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
@@ -2491,6 +2492,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         _all.Remove(item);
+        Settings.AntigravitySessions.Remove(item.SessionId);
         ForgetForks(item.SessionId);
         Settings.ArchivedSessions.Remove(item.SessionId);
         Settings.MovedSessionFolders.Remove(item.SessionId);
@@ -2569,6 +2571,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (replaced is not null && replaced != id) ArchiveReplaced(session, replaced);
 
+        RememberAntigravitySession(session);
         _starting.Remove(session);
         _open[id] = session;
         var vm = _all.FirstOrDefault(s => s.SessionId == id);
@@ -2719,6 +2722,11 @@ public sealed partial class MainViewModel : ObservableObject
         {
             _ = RenameCodexAsync(item.SessionId, title);
         }
+        else if (Settings.AntigravitySessions.TryGetValue(item.SessionId, out var antigravity))
+        {
+            Settings.AntigravitySessions[item.SessionId] = antigravity with { Title = SessionTitles.Shorten(title) };
+            SaveSettings();
+        }
         else
         {
             var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
@@ -2832,6 +2840,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnSessionTitleChanged(SessionViewModel session)
     {
+        RememberAntigravitySession(session);
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {
             vm.Title = session.Title;
@@ -2857,6 +2866,17 @@ public sealed partial class MainViewModel : ObservableObject
 
             MoveToTop(vm);
         }
+    }
+
+    /// <summary>
+    /// Persists the sidebar entry for an Antigravity conversation Nomad has started.
+    /// </summary>
+    private void RememberAntigravitySession(SessionViewModel session)
+    {
+        if (session.Backend != AgentBackends.Antigravity || session.SessionId is not { } id || session.Folder is not { } folder) return;
+
+        Settings.AntigravitySessions[id] = new SessionSummary(id, "", folder, session.Title, DateTime.UtcNow, 0, Backend: session.Backend);
+        SaveSettings();
     }
 
     public void OnSessionFolderChanged(SessionViewModel session)
@@ -2895,6 +2915,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OnTurnCompleted(SessionViewModel session)
     {
+        RememberAntigravitySession(session);
         HubTurnCompleted(session);
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {

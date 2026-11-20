@@ -313,6 +313,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     {
         AgentBackends.OpenCode => [.. _main.Settings.OpenCodeFavorites],
         AgentBackends.Codex => [.. CodexCatalog.Models.Take(4).Select(m => m.Id)],
+        AgentBackends.Antigravity => [Nomad.Core.Antigravity.AntigravityBackend.DefaultModel],
         _ => [.. Catalog.Models.Select(m => m.Id)],
     };
 
@@ -323,6 +324,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     {
         AgentBackends.OpenCode => _main.Settings.OpenCodeModel ?? OpenCodeCatalog.DefaultModel,
         AgentBackends.Codex => _main.Settings.CodexModel ?? CodexCatalog.DefaultModel,
+        AgentBackends.Antigravity => Nomad.Core.Antigravity.AntigravityBackend.DefaultModel,
         _ => _main.DefaultModel,
     };
 

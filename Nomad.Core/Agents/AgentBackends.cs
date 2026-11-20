@@ -1,3 +1,4 @@
+using Nomad.Core.Antigravity;
 using Nomad.Core.Codex;
 using Nomad.Core.OpenCode;
 
@@ -13,10 +14,16 @@ public static class AgentBackends
     public const string OpenCode = "opencode";
     public const string Codex = "codex";
 
+    /// <summary>
+    /// Google's Antigravity CLI backend.
+    /// </summary>
+    public const string Antigravity = "antigravity";
+
     public static readonly IReadOnlyList<AgentBackendInfo> All =
     [
         new(ClaudeCode, "Claude Code", "Anthropic's agent, on your Claude plan or API key"),
         new(Codex, "Codex", "OpenAI's agent, on your ChatGPT plan or API key"),
+        new(Antigravity, "Antigravity", "Google's coding agent, on your Antigravity account"),
         new(OpenCode, "OpenCode", "Any provider OpenCode is connected to: OpenRouter, Anthropic, OpenCode Zen, …"),
     ];
 
@@ -29,6 +36,7 @@ public static class AgentBackends
     {
         OpenCode => new OpenCodeBackend(),
         Codex => new CodexBackend(),
+        Antigravity => new AntigravityBackend(),
         _ => new ClaudeCodeBackend(),
     };
 }

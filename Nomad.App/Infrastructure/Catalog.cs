@@ -103,6 +103,8 @@ public static class Catalog
             return "Default model";
         }
 
+        if (id == Nomad.Core.Antigravity.AntigravityBackend.DefaultModel) return "Gemini 4 Neon";
+
         // OpenCode's "provider/model": its name in OpenCode's catalogue, else the model part.
         if (Nomad.Core.OpenCode.OpenCodeClient.SplitModel(id) is var (_, model))
         {

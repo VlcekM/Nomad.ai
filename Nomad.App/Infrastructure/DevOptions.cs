@@ -8,7 +8,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-cwd &lt;folder&gt;          folder of the initial new session
 /// --dev-prompt "&lt;text&gt;"        send this prompt on start
 /// --dev-model &lt;id&gt;             model for the initial session (tests use claude-haiku-5-5; OpenCode: opencode/big-pickle; Codex: gpt-6.1-sol)
-/// --dev-backend claude-code|codex|opencode  agent of the initial session
+/// --dev-backend claude-code|codex|opencode|antigravity  agent of the initial session
 /// --dev-session &lt;id&gt;           open this stored session on start
 /// --dev-screenshot &lt;png&gt;       render the window to a PNG and exit (off-screen, unfocused) …
 /// --dev-after &lt;seconds&gt;        … this many seconds after start (default 5)

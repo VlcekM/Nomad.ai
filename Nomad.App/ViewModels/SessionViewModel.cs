@@ -59,7 +59,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Folder = string.IsNullOrWhiteSpace(folder) ? null : folder;
         Backend = backend ?? AgentBackends.Normalize(main.Settings.DefaultBackend);
         Model = DefaultModelFor(Backend);
-        PermissionMode = main.Settings.DefaultPermissionMode;
+        PermissionMode = IsAntigravity ? "default" : main.Settings.DefaultPermissionMode;
         Effort = main.EffortFor(Model);
         IsRemoteControl = main.Settings.RemoteControlByDefault;
         Files.SetFolder(Folder);
@@ -76,6 +76,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => _main.Settings.OpenCodeModel ?? OpenCodeCatalog.DefaultModel ?? "",
         AgentBackends.Codex => _main.Settings.CodexModel ?? CodexCatalog.DefaultModel ?? "",
+        AgentBackends.Antigravity => Nomad.Core.Antigravity.AntigravityBackend.DefaultModel,
         _ => _main.DefaultModel,
     };
 
@@ -123,6 +124,10 @@ public sealed partial class SessionViewModel : ObservableObject
                 ModelOptions.Add(new MenuOption(m.Id, m.Name, shortcut: i <= 4 ? i : 0));
             }
         }
+        else if (IsAntigravity)
+        {
+            ModelOptions.Add(new MenuOption(Nomad.Core.Antigravity.AntigravityBackend.DefaultModel, "Gemini 4 Neon", shortcut: 1));
+        }
         else
         {
             foreach (var m in Catalog.Models)
@@ -136,12 +141,13 @@ public sealed partial class SessionViewModel : ObservableObject
         foreach (var m in Catalog.Modes)
         {
             // OpenCode has no classifier to decide for the user ("auto"); Codex has its reviewer.
-            if (!(IsOpenCode && m.Id == "auto"))
+            if (!(IsOpenCode && m.Id == "auto") && (!IsAntigravity || m.Id == "default"))
             {
                 var description = Backend switch
                 {
                     AgentBackends.OpenCode => Catalog.OpenCodeModeDescription(m.Id),
                     AgentBackends.Codex => Catalog.CodexModeDescription(m.Id),
+                    AgentBackends.Antigravity => "Ask according to Antigravity CLI permission settings",
                     _ => null,
                 };
                 ModeOptions.Add(new MenuOption(m.Id, m.DisplayName, description ?? m.Description, m.Shortcut)
@@ -246,6 +252,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => [.. Favorites.Take(4)],
         AgentBackends.Codex => [.. CodexCatalog.Models.Take(4).Select(m => m.Id)],
+        AgentBackends.Antigravity => [Nomad.Core.Antigravity.AntigravityBackend.DefaultModel],
         _ => [.. Catalog.Models.Select(m => m.Id)],
     };
 
@@ -704,6 +711,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsCodex => Backend == AgentBackends.Codex;
 
+    /// <summary>
+    /// Whether the session uses Google's CLI.
+    /// </summary>
+    private bool IsAntigravity => Backend == AgentBackends.Antigravity;
+
     /// <summary>Claude Code's own features show only then: fast mode, Ultracode, Remote Control, slash commands.</summary>
     public bool IsClaudeCode => Backend == AgentBackends.ClaudeCode;
 
@@ -752,7 +764,7 @@ public sealed partial class SessionViewModel : ObservableObject
         ModelFilter = "";
         Model = DefaultModelFor(newValue);
         Effort = _main.EffortFor(Model);
-        if (IsOpenCode && PermissionMode == "auto")
+        if (IsAntigravity || IsOpenCode && PermissionMode == "auto")
         {
             PermissionMode = "default";
         }
@@ -977,6 +989,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             AgentBackends.OpenCode => [Catalog.Efforts[0], .. (OpenCodeCatalog.Find(Model)?.Variants ?? []).Select(v => new EffortOption(v, Catalog.EffortName(v)))],
             AgentBackends.Codex => [Catalog.Efforts[0], .. (CodexCatalog.Find(Model)?.Efforts ?? []).Select(v => new EffortOption(v, Catalog.EffortName(v)))],
+            AgentBackends.Antigravity => [Catalog.Efforts[0]],
             _ => Catalog.EffortLevels,
         };
         if (stops.Select(s => s.Id).SequenceEqual(_effortStops.Select(s => s.Id)))
@@ -2579,7 +2592,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
         CloseGroup();
         var uuid = Guid.NewGuid().ToString();
-        var message = new UserMessageItem(text, uuid, DateTime.UtcNow, seen: false)
+        var message = new UserMessageItem(text, IsAntigravity ? null : uuid, DateTime.UtcNow, seen: false)
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
@@ -2793,7 +2806,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         if (IsNew && !_modePicked)
         {
-            PermissionMode = _main.Settings.DefaultPermissionMode;
+            PermissionMode = IsAntigravity ? "default" : _main.Settings.DefaultPermissionMode;
         }
     }
 
