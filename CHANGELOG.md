@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.41.0
+
+- Antigravity's effort slider sets the model's thinking level. The **Mode** menu now offers **Accept edits**, **Auto**,
+  **Plan**, and **Bypass permissions** alongside **Manual**.
+- The side panel shows running shell commands reported by Antigravity, Codex, and OpenCode.
+- Codex subagent cards track the child agent's reported status. Antigravity subagent launches appear in **Subagent history**
+  with their role and prompt. Antigravity's ACP interface reports the launch but may omit the child's completion status.
+
 ## v1.40.0
 
 - Choose Antigravity as the agent for a new chat to use your Antigravity CLI sign-in. Gemini 4 Neon is the default,
