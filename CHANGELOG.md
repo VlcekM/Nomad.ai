@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.41.1
+
+- Antigravity subagents keep running in the side panel, with their timers, until the main agent reports them finished. Its
+  messages after the turn ends, one as each subagent finishes, now appear in the chat.
+- Opening an idle Antigravity chat and sending a message no longer shows "Antigravity is not running" first.
+- The new-session page starts in the default mode from the settings again after switching agents, Antigravity included.
+
 ## v1.41.0
 
 - Antigravity's effort slider sets the model's thinking level. The **Mode** menu now offers **Accept edits**, **Auto**,
