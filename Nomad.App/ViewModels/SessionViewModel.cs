@@ -1615,6 +1615,20 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     public bool HasFinishedBackgroundTasks => FinishedBackgroundTasks.Count > 0;
 
+    /// <summary>Clears the finished commands history from the side panel.</summary>
+    [RelayCommand]
+    private void ClearFinishedBackgroundTasks()
+    {
+        foreach (var task in FinishedBackgroundTasks)
+        {
+            task.IsListedFinished = false;
+            BackgroundTasks.Remove(task);
+        }
+
+        FinishedBackgroundTasks.Clear();
+        OnPropertyChanged(nameof(HasFinishedBackgroundTasks));
+    }
+
     private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
     private DispatcherTimer? _backgroundTaskTimer;
 

@@ -397,12 +397,19 @@
         <Panel IsVisible="{Binding HasFinishedBackgroundTasks, Mode=OneTime}" c:Fold.IsOpen="{Binding HasFinishedBackgroundTasks}">
         <Border Classes="card">
           <StackPanel>
-            <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="FinishedTasks" Click="OnHeaderClick">
-              <StackPanel Orientation="Horizontal" Spacing="4">
-                <TextBlock Text="Finished commands" />
-                <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
-              </StackPanel>
-            </Button>
+            <Grid ColumnDefinitions="*,Auto">
+              <Button Theme="{StaticResource LineButton}" Classes="cardheader" Tag="FinishedTasks" Click="OnHeaderClick">
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <TextBlock Text="Finished commands" />
+                  <c:Icon Classes="fold" Size="12" Data="{StaticResource IconChevronDown}" />
+                </StackPanel>
+              </Button>
+              <Button Grid.Column="1" Theme="{StaticResource LineButton}"
+                      Command="{Binding ClearFinishedBackgroundTasksCommand}"
+                      ToolTip.Tip="Clear finished commands">
+                <c:Icon Size="12" Data="{StaticResource IconTrash}" />
+              </Button>
+            </Grid>
             <ItemsControl ItemsSource="{Binding FinishedBackgroundTasks}" Margin="0,2,0,0">
               <ItemsControl.ItemTemplate>
                 <!-- The latest to end first; a row unfolds at the top as one ends. -->
