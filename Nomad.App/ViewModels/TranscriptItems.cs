@@ -628,9 +628,25 @@ public sealed partial class NewChatItem : TranscriptItem
     public string Prompt { get; }
 
     /// <summary>
+    /// The start of the prompt for the card's tooltip, so long handoff prompts do not fill the screen.
+    /// </summary>
+    public string PromptToolTip => Truncate(Prompt, 280);
+
+    /// <summary>
     /// Why it deserves its own chat, or the prompt's start when Claude gave no reason.
     /// </summary>
     public string Subtitle { get; }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        if (text.Length <= maxLength) return text;
+
+        var cut = maxLength;
+        while (cut > maxLength - 40 && !char.IsWhiteSpace(text[cut])) cut--;
+        if (cut <= maxLength - 40) cut = maxLength;
+
+        return text[..cut].TrimEnd() + "…";
+    }
 
     /// <summary>
     /// The chat started from the card in this run of Nomad; null until then.

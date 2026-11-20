@@ -769,7 +769,7 @@
       <Border Classes="artifact" Margin="0,10,0,4" MinHeight="44" MaxWidth="560" Padding="10,7,8,7" CornerRadius="8"
               HorizontalAlignment="Left"
               Background="{DynamicResource BgInputBrush}" BorderThickness="1"
-              ToolTip.Tip="{Binding Prompt}">
+              ToolTip.Tip="{Binding PromptToolTip}">
         <Grid ColumnDefinitions="Auto,*,Auto">
           <c:Icon Size="15" Data="{StaticResource IconFork}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,9,0" />
           <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
