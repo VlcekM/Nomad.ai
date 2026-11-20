@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -1284,7 +1284,8 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private void ApplySubagentState(SubagentStateEvent state)
     {
-        var key = $"subagent:{state.AgentId}";
+        // Codex's carry the child's id; Antigravity's the call that launched it.
+        var key = _subagentById.ContainsKey(state.AgentId) ? state.AgentId : $"subagent:{state.AgentId}";
         var agent = _subagentById.TryGetValue(key, out var known) ? known : AddSubagent(key);
         if (!string.IsNullOrWhiteSpace(state.Prompt))
         {
@@ -1303,7 +1304,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else
         {
-            agent.Finish(state.Status == "failed", state.Message, stopped: state.Status == "stopped");
+            agent.Finish(state.Status == "failed", state.Message, stopped: state.Status == "stopped", unreported: state.Status == "unreported");
         }
 
         ContentChanged?.Invoke();
@@ -1442,11 +1443,17 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private void FinishSubagents(bool includingBackground)
     {
+        // One whose agent reports only its launch ends with the process, unfinished as far as anyone knows.
         foreach (var agent in Subagents.Where(a => a.IsRunning && (includingBackground || !a.IsBackground)))
         {
-            agent.Finish(failed: false, result: null);
+            agent.Finish(failed: false, result: null, stopped: agent.ReportsLaunchOnly);
         }
     }
+
+    /// <summary>
+    /// Whether a subagent call's result says it went on in the background (Claude Code's async launch).
+    /// </summary>
+    private static bool IsAsyncLaunch(string result) => result.TrimStart().StartsWith("Async agent launched", StringComparison.OrdinalIgnoreCase);
 
     // ------------------------------------------------------------------ workflows
 
@@ -3863,7 +3870,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
                 if (_subagentById.TryGetValue(r.ToolUseId, out var finished))
                 {
-                    if (!r.IsError && (finished.IsBackground || r.Text.TrimStart().StartsWith("Async agent launched", StringComparison.OrdinalIgnoreCase)))
+                    if (!r.IsError && (finished.IsBackground || finished.ReportsLaunchOnly || IsAsyncLaunch(r.Text)))
                     {
                         finished.MarkBackground();
                     }

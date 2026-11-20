@@ -106,11 +106,16 @@ public sealed partial class SubagentViewModel : ObservableObject
     public partial bool IsStopped { get; set; }
 
     /// <summary>
-    /// Whether the harness acknowledges launches without tracking child completion.
+    /// Whether its agent reports only the launch, the finish coming (if at all) by other means.
     /// </summary>
     public bool ReportsLaunchOnly { get; set; }
 
-    public bool IsDone => !IsRunning && !IsFailed && !IsStopped && !ReportsLaunchOnly;
+    /// <summary>
+    /// It ended without its agent saying how.
+    /// </summary>
+    private bool _unreported;
+
+    public bool IsDone => !IsRunning && !IsFailed && !IsStopped && !_unreported;
 
     /// <summary>
     /// In the side panel's finished card: set a moment after it ends, once its row there exists, so the row unfolds rather than pops in.
@@ -293,8 +298,11 @@ public sealed partial class SubagentViewModel : ObservableObject
         }
     }
 
-    /// <summary>Its Agent call returned, its task notification came, or the turn or process ended without either.</summary>
-    public void Finish(bool failed, string? result, bool stopped = false)
+    /// <summary>
+    /// Its Agent call returned, its task notification came, or the turn or process ended without either. Unreported: its agent
+    /// stopped following it without saying how it ended.
+    /// </summary>
+    public void Finish(bool failed, string? result, bool stopped = false, bool unreported = false)
     {
         if (!IsRunning)
         {
@@ -305,11 +313,12 @@ public sealed partial class SubagentViewModel : ObservableObject
         EndedUtc = DateTime.UtcNow;
         IsFailed = failed && !stopped;
         IsStopped = stopped;
+        _unreported = unreported;
         IsRunning = false;
 
         // Without a result of its own (a background one): its last words.
         ResultText = result?.Trim() is { Length: > 0 } given ? given : Entries.OfType<AssistantTextItem>().LastOrDefault()?.Text.Trim() ?? "";
-        LastStatus = stopped ? "Stopped" : IsFailed ? "Failed" : ReportsLaunchOnly ? "Launched · completion status unavailable" : "Done";
+        LastStatus = stopped ? "Stopped" : IsFailed ? "Failed" : unreported ? "Finish not reported" : "Done";
         foreach (var call in _calls.Values.Where(c => c.IsRunning))
         {
             call.Status = ToolStatus.Done;

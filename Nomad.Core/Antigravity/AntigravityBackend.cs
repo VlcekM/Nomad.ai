@@ -57,6 +57,16 @@ public sealed class AntigravityBackend : IAgentBackend
     private string? _model;
 
     /// <summary>
+    /// The parent's replies between prompts and the subagents they report on.
+    /// </summary>
+    private readonly AntigravityBackgroundWork _background;
+
+    /// <summary>
+    /// Creates a backend whose process starts with <see cref="StartAsync"/>.
+    /// </summary>
+    public AntigravityBackend() => _background = new AntigravityBackgroundWork(Raise, () => _model);
+
+    /// <summary>
     /// The agent's name in Nomad.
     /// </summary>
     public string DisplayName => "Antigravity";
@@ -115,12 +125,18 @@ public sealed class AntigravityBackend : IAgentBackend
     {
         if (Interlocked.Exchange(ref _connection, null) is { } connection)
             await connection.DisposeAsync().ConfigureAwait(false);
+
+        _background.Stop();
     }
 
     /// <summary>
     /// Releases process resources.
     /// </summary>
-    public async ValueTask DisposeAsync() => await StopAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync().ConfigureAwait(false);
+        _background.Dispose();
+    }
 
     /// <summary>
     /// Changes the model using the session's advertised config option.
@@ -131,7 +147,7 @@ public sealed class AntigravityBackend : IAgentBackend
         if (_availableModels.Count > 0 && !_availableModels.Contains(model))
             throw new InvalidOperationException($"Antigravity does not offer {model} for the signed-in account.");
 
-        if (_modelOption is null || IsTurnRunning) return false;
+        if (_modelOption is null || IsPromptRunning) return false;
 
         var args = SessionParameters();
         args["configId"] = _modelOption;
@@ -232,8 +248,11 @@ public sealed class AntigravityBackend : IAgentBackend
     /// <summary>
     /// Propagates unexpected exits to the session view.
     /// </summary>
-    private void ProcessExited(int code, bool expected) =>
+    private void ProcessExited(int code, bool expected)
+    {
+        _background.Stop();
         Raise(new ProcessExitedEvent(code, expected, expected ? "" : "Antigravity CLI stopped. Check agy acp --login."));
+    }
 
     /// <summary>
     /// Publishes a backend-neutral event.
@@ -250,9 +269,14 @@ public sealed class AntigravityBackend : IAgentBackend
     private AntigravityTurn? _turn;
 
     /// <summary>
-    /// Whether a prompt is still running.
+    /// Whether a prompt is still running, or the agent is replying by itself (a subagent finished).
     /// </summary>
-    public bool IsTurnRunning => Volatile.Read(ref _turn) is not null;
+    public bool IsTurnRunning => Volatile.Read(ref _turn) is not null || _background.IsReplying;
+
+    /// <summary>
+    /// Whether a prompt Nomad sent is still running (settings can't change under it).
+    /// </summary>
+    private bool IsPromptRunning => Volatile.Read(ref _turn) is not null;
 
     /// <summary>
     /// Sends prompt content and streams updates until the agent returns its stop reason.
@@ -261,6 +285,7 @@ public sealed class AntigravityBackend : IAgentBackend
         CancellationToken cancellationToken = default)
     {
         var connection = Connection;
+        _background.EndReply();
         var turn = new AntigravityTurn(_model, Raise);
         if (Interlocked.CompareExchange(ref _turn, turn, null) is not null)
             throw new InvalidOperationException("Antigravity is already working on a prompt.");
@@ -301,10 +326,14 @@ public sealed class AntigravityBackend : IAgentBackend
     /// <summary>
     /// Asks the agent to stop the current prompt.
     /// </summary>
-    public Task InterruptAsync(CancellationToken cancellationToken = default) =>
-        IsTurnRunning && _connection is { IsRunning: true } connection
-            ? connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken)
-            : Task.CompletedTask;
+    public Task InterruptAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsTurnRunning || _connection is not { IsRunning: true } connection) return Task.CompletedTask;
+
+        // An unprompted reply has no prompt for the cancel to end: it stops showing as running here.
+        _background.EndReply();
+        return connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken);
+    }
 
     /// <summary>
     /// Encodes text and image attachments as ACP content blocks.
@@ -364,7 +393,10 @@ public sealed class AntigravityBackend : IAgentBackend
         var id = CodexJson.Any(message, "id");
         if (method == "session/update")
         {
-            Volatile.Read(ref _turn)?.Update(CodexJson.Obj(parameters, "update"));
+            var update = CodexJson.Obj(parameters, "update");
+            _background.Track(update);
+            if (Volatile.Read(ref _turn) is { } turn) turn.Update(update);
+            else _background.Update(update);
         }
         else if (method == "session/request_permission" && IsTurnRunning)
         {
@@ -447,7 +479,7 @@ public sealed class AntigravityBackend : IAgentBackend
     public async Task<bool> SetEffortAsync(string? effort, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(effort)) return true;
-        if (IsTurnRunning || CodexJson.Str(_thinkingLevel, "id") is not { } id) return false;
+        if (IsPromptRunning || CodexJson.Str(_thinkingLevel, "id") is not { } id) return false;
         if (CodexJson.Str(_thinkingLevel, "currentValue") == effort) return true;
         if (!CodexJson.Arr(_thinkingLevel, "options").Any(option => CodexJson.Str(option, "value") == effort))
             throw new InvalidOperationException($"Antigravity does not offer thinking level {effort} for {_model}.");

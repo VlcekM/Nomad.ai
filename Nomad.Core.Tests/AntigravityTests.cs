@@ -88,6 +88,60 @@ public sealed class AntigravityTests
     /// <summary>
     /// Passes a scoped document to the translator to catch retained JSON references.
     /// </summary>
+    /// <summary>
+    /// The parent replies by itself once per finished subagent; the rows end once replies match launches.
+    /// </summary>
+    [Fact]
+    public async Task EndsSubagentsWhenTheParentHasRepliedForEach()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"a","name":"invoke_subagent","status":"completed"}""");
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"b","name":"invoke_subagent","status":"completed"}""");
+
+        await ReplyAsync(work, "A finished.");
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        await ReplyAsync(work, "B finished.");
+        lock (events)
+        {
+            Assert.Equal(2, events.OfType<TurnResumedEvent>().Count());
+            Assert.Equal(2, events.OfType<TurnCompletedEvent>().Count());
+            Assert.Equal(["a", "b"], events.OfType<SubagentStateEvent>().Where(s => s.Status == "completed").Select(s => s.AgentId));
+        }
+    }
+
+    /// <summary>
+    /// Sends an unprompted reply and waits for the quiet moment that ends it.
+    /// </summary>
+    private static async Task ReplyAsync(AntigravityBackgroundWork work, string text)
+    {
+        Feed(work, $$$"""{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"{{{text}}}"}}""");
+        Feed(work, """{"sessionUpdate":"usage_update","used":1,"size":2}""");
+        for (var i = 0; i < 50 && work.IsReplying; i++) await Task.Delay(100);
+
+        Assert.False(work.IsReplying);
+    }
+
+    /// <summary>
+    /// Passes an update through as the backend does with no prompt running.
+    /// </summary>
+    private static void Feed(AntigravityBackgroundWork work, string update)
+    {
+        using var document = JsonDocument.Parse(update);
+        work.Track(document.RootElement);
+        work.Update(document.RootElement);
+    }
+
+    /// <summary>
+    /// Notes a launch, as from a prompt's updates.
+    /// </summary>
+    private static void Track(AntigravityBackgroundWork work, string update)
+    {
+        using var document = JsonDocument.Parse(update);
+        work.Track(document.RootElement);
+    }
+
     private static void Send(AntigravityTurn turn, string update)
     {
         using var document = JsonDocument.Parse(update);
