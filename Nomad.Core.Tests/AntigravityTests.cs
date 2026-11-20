@@ -142,6 +142,42 @@ public sealed class AntigravityTests
         work.Track(document.RootElement);
     }
 
+    /// <summary>
+    /// Strips a streamed prompt-suggestion tag across chunk boundaries without leaking it into visible text.
+    /// </summary>
+    [Fact]
+    public void StripsPromptSuggestionTagAcrossChunks()
+    {
+        var events = new List<AgentEvent>();
+        var turn = new AntigravityTurn(AntigravityBackend.DefaultModel, events.Add);
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Fixed the bug."}}""");
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"\n\n<nomad-"}}""");
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"suggestion>Run the tests</nomad-sug"}}""");
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"gestion>\n"}}""");
+        turn.FinishBlock();
+
+        Assert.Equal("Run the tests", turn.Suggestion);
+        var streamed = string.Concat(events.OfType<TextDeltaEvent>().Select(e => e.Text));
+        Assert.Equal("Fixed the bug.", streamed);
+        Assert.Equal("Fixed the bug.", Assert.Single(events.OfType<BlockCompletedEvent>()).Text);
+    }
+
+    /// <summary>
+    /// Ordinary angle brackets and trailing whitespace pass through unchanged when no suggestion tag is present.
+    /// </summary>
+    [Fact]
+    public void KeepsOrdinaryAngleBracketsAndWhitespace()
+    {
+        var events = new List<AgentEvent>();
+        var turn = new AntigravityTurn(AntigravityBackend.DefaultModel, events.Add);
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Use List<int> "}}""");
+        Send(turn, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"here.\n"}}""");
+        turn.FinishBlock();
+
+        Assert.Null(turn.Suggestion);
+        Assert.Equal("Use List<int> here.\n", Assert.Single(events.OfType<BlockCompletedEvent>()).Text);
+    }
+
     private static void Send(AntigravityTurn turn, string update)
     {
         using var document = JsonDocument.Parse(update);

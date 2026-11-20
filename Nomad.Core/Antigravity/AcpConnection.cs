@@ -89,6 +89,28 @@ internal sealed class AcpConnection : IAsyncDisposable
     /// </summary>
     public async Task<JsonElement> CallAsync(string method, JsonObject parameters, CancellationToken cancellationToken)
     {
+        var (id, reply) = await StartCallCoreAsync(method, parameters, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await reply.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _pending.TryRemove(id, out _);
+        }
+    }
+
+    /// <summary>
+    /// Writes a request and returns a task that completes when the agent replies.
+    /// </summary>
+    public async Task<Task<JsonElement>> StartCallAsync(string method, JsonObject parameters, CancellationToken cancellationToken)
+    {
+        var (id, reply) = await StartCallCoreAsync(method, parameters, cancellationToken).ConfigureAwait(false);
+        return WaitForReplyAsync(id, reply);
+    }
+
+    private async Task<(int Id, Task<JsonElement> Reply)> StartCallCoreAsync(string method, JsonObject parameters, CancellationToken cancellationToken)
+    {
         var id = Interlocked.Increment(ref _nextId);
         var reply = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = reply;
@@ -97,7 +119,20 @@ internal sealed class AcpConnection : IAsyncDisposable
         {
             await WriteAsync(new JsonObject { ["id"] = id, ["method"] = method, ["params"] = parameters }, cancellationToken)
                 .ConfigureAwait(false);
-            return await reply.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            return (id, reply.Task);
+        }
+        catch
+        {
+            _pending.TryRemove(id, out _);
+            throw;
+        }
+    }
+
+    private async Task<JsonElement> WaitForReplyAsync(int id, Task<JsonElement> reply)
+    {
+        try
+        {
+            return await reply.ConfigureAwait(false);
         }
         finally
         {

@@ -47,9 +47,20 @@ public sealed class AntigravityBackend : IAgentBackend
     private JsonElement _executionMode;
 
     /// <summary>
+    /// Appended to Antigravity's system prompt when prompt suggestions are enabled.
+    /// </summary>
+    internal const string PromptSuggestionInstruction =
+        "At the very end of your final response, if there is an obvious next step the user would type, append a short, specific follow-up prompt (2-8 words, imperative/casual user phrasing like \"run the tests\" or \"commit these changes\") wrapped in <nomad-suggestion>...</nomad-suggestion> with nothing after it. Never suggest generic replies (like \"thanks\" or \"sounds good\"); omit the tag if no clear next step fits.";
+
+    /// <summary>
     /// Whether this process was launched with approval prompts bypassed.
     /// </summary>
     private bool _bypassPermissions;
+
+    /// <summary>
+    /// Whether follow-up prompt suggestions are enabled for this session.
+    /// </summary>
+    private bool _promptSuggestions;
 
     /// <summary>
     /// The model associated with streamed messages.
@@ -173,11 +184,29 @@ public sealed class AntigravityBackend : IAgentBackend
         var hello = await Connection.CallAsync("initialize", InitializeParameters(), cancellationToken).ConfigureAwait(false);
         if (CodexJson.Long(hello, "protocolVersion") != 1) throw new InvalidOperationException("Antigravity needs a different ACP version.");
 
+        var capabilities = CodexJson.Obj(hello, "agentCapabilities");
+        var antigravityMeta = CodexJson.Obj(CodexJson.Obj(capabilities, "_meta"), "antigravity");
+        _promptSuggestions = options.PromptSuggestions
+            && CodexJson.Bool(CodexJson.Obj(antigravityMeta, "systemPrompt"), "append") == true;
+
         var args = new JsonObject { ["cwd"] = options.WorkingDirectory, ["mcpServers"] = new JsonArray() };
+        if (_promptSuggestions)
+        {
+            args["_meta"] = new JsonObject
+            {
+                ["antigravity"] = new JsonObject
+                {
+                    ["systemPrompt"] = new JsonObject
+                    {
+                        ["append"] = PromptSuggestionInstruction,
+                    },
+                },
+            };
+        }
+
         var method = "session/new";
         if (options.ResumeSessionId is { } id)
         {
-            var capabilities = CodexJson.Obj(hello, "agentCapabilities");
             var sessionCapabilities = CodexJson.Obj(capabilities, "sessionCapabilities");
             method = CodexJson.Obj(sessionCapabilities, "resume").ValueKind == JsonValueKind.Object ? "session/resume" : "session/load";
             args["sessionId"] = id;
@@ -279,7 +308,7 @@ public sealed class AntigravityBackend : IAgentBackend
     private bool IsPromptRunning => Volatile.Read(ref _turn) is not null;
 
     /// <summary>
-    /// Sends prompt content and streams updates until the agent returns its stop reason.
+    /// Sends prompt content and streams updates in the background until the agent returns its stop reason.
     /// </summary>
     public async Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null,
         CancellationToken cancellationToken = default)
@@ -291,13 +320,32 @@ public sealed class AntigravityBackend : IAgentBackend
             throw new InvalidOperationException("Antigravity is already working on a prompt.");
 
         var start = Stopwatch.GetTimestamp();
+        Raise(new TurnStartedEvent(text));
+        Task<JsonElement> pendingReply;
+        try
+        {
+            var parameters = SessionParameters();
+            parameters["prompt"] = PromptContent(text, images);
+            pendingReply = await connection.StartCallAsync("session/prompt", parameters, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            Volatile.Write(ref _turn, null);
+            throw;
+        }
+
+        _ = CompleteTurnAsync(turn, pendingReply, start);
+    }
+
+    /// <summary>
+    /// Waits for the in-flight prompt RPC to finish and emits the turn completion event.
+    /// </summary>
+    private async Task CompleteTurnAsync(AntigravityTurn turn, Task<JsonElement> pendingReply, long start)
+    {
         var result = new TurnResult();
         try
         {
-            Raise(new TurnStartedEvent(text));
-            var parameters = SessionParameters();
-            parameters["prompt"] = PromptContent(text, images);
-            var reply = await connection.CallAsync("session/prompt", parameters, cancellationToken).ConfigureAwait(false);
+            var reply = await pendingReply.ConfigureAwait(false);
             var reason = CodexJson.Str(reply, "stopReason") ?? "end_turn";
             result = new TurnResult { Subtype = reason, Interrupted = reason == "cancelled" };
         }
@@ -320,6 +368,10 @@ public sealed class AntigravityBackend : IAgentBackend
 
             Volatile.Write(ref _turn, null);
             Raise(new TurnCompletedEvent(result with { DurationMs = (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds }));
+            if (_promptSuggestions && !result.Interrupted && !result.IsError && turn.Suggestion is { Length: > 0 } suggestion)
+            {
+                Raise(new PromptSuggestionEvent(suggestion));
+            }
         }
     }
 
