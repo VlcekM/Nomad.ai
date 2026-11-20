@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.1
+
+- Softened inline code pill font weight to SemiLight so monospace code spans read lighter and more balanced against surrounding text.
+
 ## v2.1.0
 
 - Added native Linux (`linux-x64`) AppImage builds with self-updates alongside the Windows releases, with cross-platform file manager, terminal, trash, Roslyn LSP, and SkiaSharp Linux native asset support.

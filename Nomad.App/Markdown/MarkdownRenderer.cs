@@ -410,6 +410,7 @@ public static class MarkdownRenderer
         {
             FontFamily = style.CodeFont,
             FontSize = style.CodeSize,
+            FontWeight = FontWeight.SemiLight,
             Foreground = InlineCode,
         };
         target.Add(run);
