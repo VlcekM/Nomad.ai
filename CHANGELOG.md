@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.0.0
+
+- Minimalist visual overhaul with a darker pure-neutral dark palette (`#0B0B0C` sidebar, `#0F0F10` canvas, `#151516` borderless cards) and `#009868` emerald as the default Nomad theme accent.
+- Removed the extra built-in preset themes so only the default Nomad theme is built in (custom JSON themes continue to work).
+- Redesigned the new-session dashboard on a centered 3-column grid: borderless usage strip with hover-only configuration, top 3 projects with recent commits, and remaining projects as compact two-row tiles with smooth fade-in accent outlines on selection.
+- Removed the sidebar's bottom account footer and moved the Settings button to the top right of the sidebar header.
+- Refined the composer focus ring, title bar, user bubbles, side panel cards, and compact command history rows.
+- The **Pull requests & issues** page now checks only the top 3 projects.
+
 ## v1.42.1
 
 - Suggested-chat cards now truncate long prompt tooltips to the first ~280 characters instead of filling the screen.
