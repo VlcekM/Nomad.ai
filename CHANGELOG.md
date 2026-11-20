@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v1.40.0
+
+- Choose Antigravity as the agent for a new chat to use your Antigravity CLI sign-in. Gemini 4 Neon is the default,
+  with Gemini 4 Hydrogen and Carbon available according to your account's model access. Saved chats can be reopened and resumed.
+- Open **Usage cards** above recent projects to pick and order your three cards. Antigravity is on the right by default
+  and shows live Gemini weekly and five-hour limits. OpenCode cost is available in the dialog.
+- Claude replies have a **Fork** button next to **Copy**. Claude can also suggest a separate chat when a later prompt
+  asks for an unrelated task.
+
 ## v1.39.0
 
 - Claude can suggest a side task for a chat of its own (a bug it noticed along the way, a follow-up) instead of doing

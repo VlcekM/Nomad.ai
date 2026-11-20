@@ -129,7 +129,7 @@ jobs:
             echo "## Download"; echo
             echo "- \`Nomad-win-x64-Setup.exe\` installs Nomad.ai for your Windows user (no admin rights) and keeps it up to date."
             echo "- \`Nomad-win-x64-Portable.zip\` runs from any folder, without updates."
-            echo; echo "Verify downloads against \`SHA256SUMS\`. Nomad.ai needs the Claude Code CLI, installed and signed in."
+            echo; echo "Verify downloads against \`SHA256SUMS\`. Install and sign in to the CLI for the agent you want to use."
           } > "$RUNNER_TEMP/notes.md"
           flags=(--latest)
           [ "$PRERELEASE" = true ] && flags=(--prerelease --latest=false)
