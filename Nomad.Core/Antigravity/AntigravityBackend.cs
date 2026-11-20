@@ -32,6 +32,11 @@ public sealed class AntigravityBackend : IAgentBackend
     private string? _modelOption;
 
     /// <summary>
+    /// Model IDs the CLI offers to this signed-in account.
+    /// </summary>
+    private HashSet<string> _availableModels = [];
+
+    /// <summary>
     /// The model associated with streamed messages.
     /// </summary>
     private string? _model;
@@ -106,6 +111,9 @@ public sealed class AntigravityBackend : IAgentBackend
     public async Task<bool> SetModelAsync(string model, CancellationToken cancellationToken = default)
     {
         if (_model == model) return true;
+        if (_availableModels.Count > 0 && !_availableModels.Contains(model))
+            throw new InvalidOperationException($"Antigravity does not offer {model} for the signed-in account.");
+
         if (_modelOption is null || IsTurnRunning) return false;
 
         var args = SessionParameters();
@@ -147,6 +155,7 @@ public sealed class AntigravityBackend : IAgentBackend
 
         var model = ModelOption(session);
         _modelOption = CodexJson.Str(model, "id");
+        _availableModels = [.. CodexJson.Arr(model, "options").Select(option => CodexJson.Str(option, "value")).OfType<string>()];
         _model = CodexJson.Str(model, "currentValue");
         var requested = string.IsNullOrWhiteSpace(options.Model) ? DefaultModel : options.Model;
         if (!await SetModelAsync(requested, cancellationToken).ConfigureAwait(false))

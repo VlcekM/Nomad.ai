@@ -96,6 +96,16 @@ public static class Catalog
     /// <summary>The effort slider's stops, left to right (Efforts without "Default").</summary>
     public static readonly IReadOnlyList<EffortOption> EffortLevels = [.. Efforts.Where(e => e.Id.Length > 0)];
 
+    /// <summary>
+    /// The Gemini models shown for Antigravity. The CLI checks the signed-in account's access.
+    /// </summary>
+    public static readonly IReadOnlyList<ModelOption> AntigravityModels =
+    [
+        new(Nomad.Core.Antigravity.AntigravityBackend.DefaultModel, "Gemini 4 Neon", 1),
+        new("gemini-4-carbon", "Gemini 4 Carbon", 2),
+        new("gemini-4-hydrogen", "Gemini 4 Hydrogen", 3),
+    ];
+
     public static string ModelName(string? id)
     {
         if (string.IsNullOrEmpty(id))
@@ -103,7 +113,7 @@ public static class Catalog
             return "Default model";
         }
 
-        if (id == Nomad.Core.Antigravity.AntigravityBackend.DefaultModel) return "Gemini 4 Neon";
+        if (AntigravityModels.FirstOrDefault(model => model.Id == id) is { } antigravity) return antigravity.DisplayName;
 
         // OpenCode's "provider/model": its name in OpenCode's catalogue, else the model part.
         if (Nomad.Core.OpenCode.OpenCodeClient.SplitModel(id) is var (_, model))

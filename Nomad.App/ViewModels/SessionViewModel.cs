@@ -126,7 +126,10 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else if (IsAntigravity)
         {
-            ModelOptions.Add(new MenuOption(Nomad.Core.Antigravity.AntigravityBackend.DefaultModel, "Gemini 4 Neon", shortcut: 1));
+            foreach (var model in Catalog.AntigravityModels)
+            {
+                ModelOptions.Add(new MenuOption(model.Id, model.DisplayName, shortcut: model.Shortcut));
+            }
         }
         else
         {
@@ -252,7 +255,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => [.. Favorites.Take(4)],
         AgentBackends.Codex => [.. CodexCatalog.Models.Take(4).Select(m => m.Id)],
-        AgentBackends.Antigravity => [Nomad.Core.Antigravity.AntigravityBackend.DefaultModel],
+        AgentBackends.Antigravity => [.. Catalog.AntigravityModels.Select(m => m.Id)],
         _ => [.. Catalog.Models.Select(m => m.Id)],
     };
 
@@ -2772,6 +2775,22 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private async Task SwitchModelAsync(string id)
     {
+        if (IsAntigravity && _backend is { IsProcessRunning: true } antigravity)
+        {
+            try
+            {
+                _restartRequired = !await antigravity.SetModelAsync(id);
+                Model = id;
+            }
+            catch (InvalidOperationException ex)
+            {
+                Items.Add(new ErrorItem(ex.Message));
+                ContentChanged?.Invoke();
+            }
+
+            return;
+        }
+
         Model = id;
         if (_backend is { IsProcessRunning: true } backend && !await backend.SetModelAsync(id))
         {
