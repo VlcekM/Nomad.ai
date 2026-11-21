@@ -313,7 +313,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     {
         AgentBackends.OpenCode => [.. _main.Settings.OpenCodeFavorites],
         AgentBackends.Codex => [.. CodexCatalog.Models.Take(4).Select(m => m.Id)],
-        AgentBackends.Antigravity => [.. Catalog.AntigravityModels.Select(m => m.Id)],
+        AgentBackends.Antigravity => [.. Catalog.AvailableAntigravityModels(_main.Settings.AntigravityModels).Select(m => m.Id)],
         _ => [.. Catalog.Models.Select(m => m.Id)],
     };
 

@@ -120,6 +120,20 @@ public static class Catalog
     ];
 
     /// <summary>
+    /// The Antigravity models offered in menus and chips: filtered to what the signed-in account advertised,
+    /// hiding subscription-gated models like Carbon until the CLI confirms access.
+    /// </summary>
+    public static IReadOnlyList<ModelOption> AvailableAntigravityModels(IReadOnlyCollection<string>? advertised)
+    {
+        var hasList = advertised is { Count: > 0 };
+        var filtered = AntigravityModels
+            .Where(model => hasList ? advertised!.Contains(model.Id) : model.Id != "gemini-4-carbon")
+            .ToList();
+        if (filtered.Count == 0) filtered = [AntigravityModels[0]];
+        return [.. filtered.Select((model, index) => model with { Shortcut = index + 1 })];
+    }
+
+    /// <summary>
     /// The thinking levels for the Gemini models shown in Nomad.
     /// </summary>
     public static IReadOnlyList<EffortOption> AntigravityEfforts(string model) =>

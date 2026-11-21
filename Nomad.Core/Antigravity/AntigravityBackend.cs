@@ -220,8 +220,16 @@ public sealed class AntigravityBackend : IAgentBackend
 
         var model = ModelOption(session);
         _modelOption = CodexJson.Str(model, "id");
-        _availableModels = [.. CodexJson.Arr(model, "options").Select(option => CodexJson.Str(option, "value")).OfType<string>()];
+        var advertised = CodexJson.Arr(model, "options")
+            .Select(option => new ModelInfo { Value = CodexJson.Str(option, "value"), DisplayName = CodexJson.Str(option, "name") })
+            .Where(option => !string.IsNullOrEmpty(option.Value))
+            .ToList();
+        _availableModels = [.. advertised.Select(option => option.Value!)];
         _model = CodexJson.Str(model, "currentValue");
+        if (advertised.Count > 0)
+        {
+            Raise(new AccountInfoEvent(null, null, advertised));
+        }
         var requested = string.IsNullOrWhiteSpace(options.Model) ? DefaultModel : options.Model;
         if (!await SetModelAsync(requested, cancellationToken).ConfigureAwait(false))
             throw new InvalidOperationException("Antigravity did not expose model selection. Update the CLI and check your Google sign-in.");

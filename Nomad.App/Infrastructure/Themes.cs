@@ -76,6 +76,7 @@ public static class Themes
         ["TextSelection"] = ("Ring", "Ring"),
         ["AccentEmphasis"] = ("Accent", "BgMain"),
         ["AccentSubtle"] = ("Accent", "Accent"),
+        ["ComposerFocus"] = ("Accent", "Accent"),
         ["InlineCode"] = ("Accent", "TextPrimary"),
         ["DiffAdd"] = ("Success", "TextPrimary"),
         ["DiffAddBg"] = ("Success", "BgMain"),

@@ -572,10 +572,10 @@
       <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
     </Style>
     <Style Selector="Border#ComposerBar:focus-within">
-      <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ComposerFocusBrush}" />
     </Style>
     <Style Selector="Border#ComposerBar.dragover">
-      <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ComposerFocusBrush}" />
     </Style>
     <Style Selector="Panel#DropOverlay">
       <Setter Property="Opacity" Value="0" />
@@ -1909,7 +1909,7 @@
           <!-- The buttons stay level with the first line while the text grows. -->
           <Button Name="PlusButton"
                   Theme="{StaticResource IconButton}"
-                  Margin="9,9,0,0"
+                  Margin="9,8,0,8"
                   VerticalAlignment="Top"
                   ToolTip.Tip="More">
             <c:Icon Data="{StaticResource IconPlus}" />
@@ -1995,7 +1995,7 @@
                    ScrollViewer.VerticalScrollBarVisibility="Auto" />
 
           <!-- While Claude works, Send queues the prompt and Stop sits beside it. -->
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,9,9,0" VerticalAlignment="Top">
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="0,7,8,7" VerticalAlignment="Top">
             <!-- A suggested prompt is showing as ghost text: how to take it. -->
             <Border Classes="keyhint" IsVisible="{Binding HasSuggestion}" VerticalAlignment="Center" Height="20" Padding="6,0" CornerRadius="4" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" ToolTip.Tip="Tab, → or a right-click puts the suggestion in; Esc dismisses it">
               <TextBlock Text="Tab" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />

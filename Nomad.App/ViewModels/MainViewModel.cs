@@ -3026,8 +3026,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    public void OnAccountInfo(AccountInfoEvent info)
+    public void OnAccountInfo(string backend, AccountInfoEvent info)
     {
+        if (backend == AgentBackends.Antigravity)
+        {
+            RememberAntigravityModels(info.Models);
+            return;
+        }
+
         var plan = info.SubscriptionType switch
         {
             null or "" => null,
@@ -3046,6 +3052,22 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         RememberClaudeModels(Catalog.OtherModels(info.Models));
+    }
+
+    /// <summary>
+    /// Keeps the model IDs the signed-in Antigravity CLI advertised and refreshes model menus when they change.
+    /// </summary>
+    private void RememberAntigravityModels(IReadOnlyList<Nomad.Core.Protocol.ModelInfo> models)
+    {
+        var ids = models.Select(m => m.Value).Where(id => !string.IsNullOrEmpty(id)).Cast<string>().Distinct(StringComparer.Ordinal).ToList();
+        if (ids.Count == 0 || ids.SequenceEqual(Settings.AntigravityModels, StringComparer.Ordinal)) return;
+
+        Settings.AntigravityModels = ids;
+        SaveSettings();
+        foreach (var session in _open.Values.Append(Current).Append(_draft).OfType<SessionViewModel>().Distinct())
+        {
+            session.RebuildOptions();
+        }
     }
 
     /// <summary>

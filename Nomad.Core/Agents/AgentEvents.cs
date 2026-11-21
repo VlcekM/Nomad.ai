@@ -62,7 +62,8 @@ public sealed record TaskStartedEvent(
     string? TaskType = null,
     string? Description = null,
     string? AgentType = null,
-    string? Prompt = null) : AgentEvent;
+    string? Prompt = null,
+    bool IsBackground = true) : AgentEvent;
 
 /// <summary>A Workflow call's run started in the background: its task, its call, its name and script.</summary>
 public sealed record WorkflowStartedEvent(string TaskId, string? ToolUseId, string? Name, string? Description, string? Script) : AgentEvent;

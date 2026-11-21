@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.4
+
+- Fixed stale **Running commands** entries in Claude Code when long-running foreground `Bash` commands emitted `task_started` with `is_backgrounded: false`.
+- Restored the theme accent border around the prompt bar with a softer highlight (`ComposerFocusBrush`) and centered the Send and `+` buttons vertically inside the composer.
+- Hidden **Gemini 4 Carbon** from Antigravity model menus and chips unless advertised by the signed-in account's subscription.
+
 ## v2.1.3
 
 - Highlight the prompt bar frame with primary white (`TextPrimaryBrush`) instead of the theme accent when focused or dragging files.

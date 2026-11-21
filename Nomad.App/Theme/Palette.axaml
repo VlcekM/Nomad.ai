@@ -52,6 +52,7 @@
       <Color x:Key="AccentColor">#009868</Color>
       <Color x:Key="AccentEmphasisColor">#008259</Color>
       <Color x:Key="AccentSubtleColor">#24009868</Color>
+      <Color x:Key="ComposerFocusColor">#78009868</Color>
       <Color x:Key="SuccessColor">#3FB950</Color>
       <Color x:Key="DiffAddColor">#52C664</Color>
       <Color x:Key="DiffAddBgColor">#1B3B20</Color>
@@ -136,6 +137,7 @@
       <SolidColorBrush x:Key="AccentBrush" Color="#009868" />
       <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#008259" />
       <SolidColorBrush x:Key="AccentSubtleBrush" Color="#24009868" />
+      <SolidColorBrush x:Key="ComposerFocusBrush" Color="#78009868" />
       <SolidColorBrush x:Key="SuccessBrush" Color="#3FB950" />
       <SolidColorBrush x:Key="DiffAddBrush" Color="#52C664" />
       <SolidColorBrush x:Key="DiffAddBgBrush" Color="#1B3B20" />
@@ -251,6 +253,7 @@
       <Color x:Key="AccentColor">#009868</Color>
       <Color x:Key="AccentEmphasisColor">#007E56</Color>
       <Color x:Key="AccentSubtleColor">#1F009868</Color>
+      <Color x:Key="ComposerFocusColor">#8C009868</Color>
       <Color x:Key="SuccessColor">#2E8B3A</Color>
       <Color x:Key="DiffAddColor">#1A7F37</Color>
       <Color x:Key="DiffAddBgColor">#DCF3E0</Color>
@@ -335,6 +338,7 @@
       <SolidColorBrush x:Key="AccentBrush" Color="#009868" />
       <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#007E56" />
       <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F009868" />
+      <SolidColorBrush x:Key="ComposerFocusBrush" Color="#8C009868" />
       <SolidColorBrush x:Key="SuccessBrush" Color="#2E8B3A" />
       <SolidColorBrush x:Key="DiffAddBrush" Color="#1A7F37" />
       <SolidColorBrush x:Key="DiffAddBgBrush" Color="#DCF3E0" />

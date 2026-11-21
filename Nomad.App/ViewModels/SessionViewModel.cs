@@ -126,7 +126,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else if (IsAntigravity)
         {
-            foreach (var model in Catalog.AntigravityModels)
+            foreach (var model in Catalog.AvailableAntigravityModels(_main.Settings.AntigravityModels))
             {
                 ModelOptions.Add(new MenuOption(model.Id, model.DisplayName, shortcut: model.Shortcut));
             }
@@ -255,7 +255,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => [.. Favorites.Take(4)],
         AgentBackends.Codex => [.. CodexCatalog.Models.Take(4).Select(m => m.Id)],
-        AgentBackends.Antigravity => [.. Catalog.AntigravityModels.Select(m => m.Id)],
+        AgentBackends.Antigravity => [.. Catalog.AvailableAntigravityModels(_main.Settings.AntigravityModels).Select(m => m.Id)],
         _ => [.. Catalog.Models.Select(m => m.Id)],
     };
 
@@ -1826,15 +1826,22 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else if (_backgroundTaskById.TryGetValue(call, out var task))
         {
-            task.MarkBackground(started.TaskId);
-            if (!BackgroundTasks.Contains(task))
+            if (started.IsBackground)
             {
-                BackgroundTasks.Insert(0, task);
-            }
+                task.MarkBackground(started.TaskId);
+                if (!BackgroundTasks.Contains(task))
+                {
+                    BackgroundTasks.Insert(0, task);
+                }
 
-            OnBackgroundTasksRunningChanged();
+                OnBackgroundTasksRunningChanged();
+            }
+            else if (!string.IsNullOrEmpty(started.TaskId))
+            {
+                task.TaskId = started.TaskId;
+            }
         }
-        else if (started.TaskType == "local_bash" && _calls.TryGetValue(call, out var toolCall))
+        else if (started.TaskType == "local_bash" && started.IsBackground && !IsClaudeCode && _calls.TryGetValue(call, out var toolCall))
         {
             StartBackgroundTask(call, toolCall.Name, toolCall.Input, isForeground: false, taskId: started.TaskId);
             if (_backgroundTaskById.TryGetValue(call, out var created))
@@ -1919,6 +1926,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private void FinishUncalledSubagent(ForegroundTaskEndedEvent ended)
     {
+        if (BackgroundTaskOf(ended.ToolUseId, ended.TaskId) is { IsRunning: true } command)
+        {
+            command.Finish(failed: ended.Status == "failed", null, stopped: ended.Status is "killed" or "stopped");
+        }
+
         if (ended.ToolUseId is not { } call || !_subagentById.TryGetValue(call, out var agent)) return;
         if (!agent.IsRunning || (agent.HasAgentCall && agent.ToolUseId == call)) return;
 
@@ -3826,7 +3838,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case AccountInfoEvent a:
-                _main.OnAccountInfo(a);
+                _main.OnAccountInfo(Backend, a);
                 if (a.Commands is { Count: > 0 } commands)
                 {
                     _main.OnSlashCommands(commands);

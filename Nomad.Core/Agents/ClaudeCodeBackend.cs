@@ -560,7 +560,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     _foregroundTasks.TryAdd(system.TaskId, 0);
                 }
 
-                Raise(new TaskStartedEvent(system.TaskId, system.ToolUseId, system.TaskType, system.Description, system.SubagentType, system.Prompt));
+                Raise(new TaskStartedEvent(system.TaskId, system.ToolUseId, system.TaskType, system.Description, system.SubagentType, system.Prompt,
+                    IsBackground: system.IsBackgrounded != false));
                 break;
             case "task_progress" when system.TaskId is not null && system.WorkflowProgress is { ValueKind: JsonValueKind.Array } or null:
                 // Workflows send progress; so may other tasks, which the app ignores (it knows no run by their id).

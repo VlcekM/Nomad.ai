@@ -113,6 +113,11 @@ public sealed class NomadSettings
     /// </summary>
     public Dictionary<string, Sessions.SessionSummary> AntigravitySessions { get; set; } = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Model IDs last advertised by the signed-in Antigravity CLI, so subscription-gated models stay hidden when unavailable.
+    /// </summary>
+    public List<string> AntigravityModels { get; set; } = [];
+
     // Remote Control
     /// <summary>Sessions start with Remote Control on, so they can be continued from claude.ai or the phone.</summary>
     public bool RemoteControlByDefault { get; set; } = true;
