@@ -57,11 +57,52 @@ public sealed class ChatImage : Border
                 e.Handled = true;
             }
         };
+
+        // Right-click: copy it, or save the original file.
+        var copy = new MenuItem { Header = "Copy image" };
+        copy.Click += (_, _) =>
+        {
+            if (Bitmap is { } bitmap && TopLevel.GetTopLevel(this)?.TryGetPlatformHandle()?.Handle is { } owner)
+            {
+                Infrastructure.PromptImages.CopyImage(bitmap, owner);
+            }
+        };
+        var save = new MenuItem { Header = "Save image as…" };
+        save.Click += async (_, _) =>
+        {
+            if (Savable is { } image)
+            {
+                await Infrastructure.ImageSaving.SaveAsync(TopLevel.GetTopLevel(this), image);
+            }
+        };
+        ContextMenu = new ContextMenu { Items = { copy, save } };
+        ContextRequested += (_, e) => e.Handled = Bitmap is null; // nothing to offer until it has loaded
     }
 
     public string? Source { get => GetValue(SourceProperty); set => SetValue(SourceProperty, value); }
     public string? Caption { get => GetValue(CaptionProperty); set => SetValue(CaptionProperty, value); }
     public Bitmap? Bitmap => _image.Source as Bitmap;
+
+    // The file as it came (the shown bitmap is scaled down to 1600 pixels wide), and its extension.
+    private byte[]? _bytes;
+    private string? _extension;
+
+    /// <summary>The image with its original bytes, for saving; null until it has loaded.</summary>
+    public Infrastructure.SavableImage? Savable => Bitmap is { } bitmap
+        ? new(bitmap, string.IsNullOrWhiteSpace(Caption) ? NameOf(_loadedSource) : Caption!, _bytes, _extension)
+        : null;
+
+    private static string NameOf(string? source)
+    {
+        if (string.IsNullOrWhiteSpace(source) || source.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "image";
+        }
+
+        var path = Uri.TryCreate(source, UriKind.Absolute, out var uri) ? uri.IsFile ? uri.LocalPath : uri.AbsolutePath : source;
+        var name = Path.GetFileName(path.TrimEnd('/', '\\'));
+        return string.IsNullOrWhiteSpace(name) ? "image" : name;
+    }
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -116,12 +157,15 @@ public sealed class ChatImage : Border
         Fold.SetIsOpen(_image, false);
         try
         {
-            var bitmap = await Task.Run(() => ReadAsync(source, directory, token), token);
+            var (bitmap, bytes, extension) = await Task.Run(() => ReadAsync(source, directory, token), token);
             if (token.IsCancellationRequested)
             {
                 bitmap.Dispose();
                 return;
             }
+
+            _bytes = bytes;
+            _extension = extension;
 
             var previous = Bitmap;
             _image.Source = bitmap;
@@ -146,9 +190,10 @@ public sealed class ChatImage : Border
         }
     }
 
-    private static async Task<Bitmap> ReadAsync(string source, string? directory, CancellationToken token)
+    private static async Task<(Bitmap Bitmap, byte[] Bytes, string? Extension)> ReadAsync(string source, string? directory, CancellationToken token)
     {
         byte[] bytes;
+        string? extension;
         if (source.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
         {
             var comma = source.IndexOf(',');
@@ -158,6 +203,7 @@ public sealed class ChatImage : Border
             }
 
             bytes = Convert.FromBase64String(source[(comma + 1)..]);
+            extension = ExtensionOf(source["data:image/".Length..source.IndexOfAny([';', ','])]);
         }
         else if (Uri.TryCreate(source, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https")
         {
@@ -170,6 +216,8 @@ public sealed class ChatImage : Border
 
             await using var stream = await response.Content.ReadAsStreamAsync(token);
             bytes = await ReadBytesAsync(stream, token);
+            extension = response.Content.Headers.ContentType?.MediaType is { } type && type.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                ? ExtensionOf(type["image/".Length..]) : Path.GetExtension(uri.AbsolutePath);
         }
         else
         {
@@ -182,12 +230,23 @@ public sealed class ChatImage : Border
 
             await using var stream = File.OpenRead(path);
             bytes = await ReadBytesAsync(stream, token);
+            extension = Path.GetExtension(path);
         }
 
         token.ThrowIfCancellationRequested();
         using var data = new MemoryStream(bytes);
-        return Avalonia.Media.Imaging.Bitmap.DecodeToWidth(data, 1600, BitmapInterpolationMode.HighQuality);
+        return (Avalonia.Media.Imaging.Bitmap.DecodeToWidth(data, 1600, BitmapInterpolationMode.HighQuality), bytes,
+            string.IsNullOrEmpty(extension) ? null : extension);
     }
+
+    /// <summary>A file extension for an image media subtype ("png", "jpeg", "svg+xml").</summary>
+    private static string ExtensionOf(string subtype) => subtype.ToLowerInvariant() switch
+    {
+        "jpeg" or "pjpeg" => ".jpg",
+        "svg+xml" => ".svg",
+        "x-icon" or "vnd.microsoft.icon" => ".ico",
+        var other => "." + other,
+    };
 
     private static async Task<byte[]> ReadBytesAsync(Stream stream, CancellationToken token)
     {
