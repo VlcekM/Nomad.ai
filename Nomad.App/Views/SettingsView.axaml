@@ -943,6 +943,61 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+
+              <TextBlock Text="Phone view" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Serve the phone view" Classes="rowlabel" />
+                  <TextBlock Text="A web page listing every open chat, Claude Code, Codex and Antigravity alike, to read along, send prompts and answer permission questions. Nomad serves it on this PC only; to open it on a phone, carry the port there yourself, for example with a private network such as Tailscale."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Command="{Binding TogglePhoneViewCommand}" VerticalAlignment="Center" Padding="4">
+                  <Border Classes="switch large" Classes.on="{Binding PhoneViewOn}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <StackPanel IsVisible="{Binding PhoneViewOn}">
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Port" Classes="rowlabel" />
+                    <TextBlock Text="{Binding PhoneViewStatus}" Classes="rowhint" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="field" Width="90">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewPort}" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Address on the phone" Classes="rowlabel" />
+                    <TextBlock Text="Where the phone reaches that port, used in the copied link. Empty uses this PC's own address, which works only here."
+                               Classes="rowhint" />
+                  </StackPanel>
+                  <Border Grid.Column="1" Classes="field" Width="300">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewAddress}" Watermark="http://my-pc.example:8791" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                </Grid>
+                <Border Classes="rowline" />
+
+                <Grid Classes="row" ColumnDefinitions="*,Auto,Auto">
+                  <StackPanel VerticalAlignment="Center" Margin="0,12">
+                    <TextBlock Text="Link" Classes="rowlabel" />
+                    <TextBlock Text="Carries the access key: anyone with it can read and drive your chats. A new key makes every earlier link stop working."
+                               Classes="rowhint" />
+                  </StackPanel>
+                  <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnCopyPhoneLinkClick" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                    <TextBlock Text="Copy link" FontWeight="Medium" />
+                  </Button>
+                  <Button Grid.Column="2" Theme="{StaticResource LineButton}" Command="{Binding NewPhoneViewKeyCommand}" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                    <TextBlock Text="New key" FontWeight="Medium" />
+                  </Button>
+                </Grid>
+              </StackPanel>
             </StackPanel>
 
             <!-- Hub -->

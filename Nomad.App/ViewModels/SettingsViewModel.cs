@@ -81,6 +81,9 @@ public sealed partial class SettingsViewModel : ObservableObject
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
         RemoteControlByDefault = s.RemoteControlByDefault;
+        PhoneViewOn = s.PhoneView;
+        PhoneViewPort = s.PhoneViewPort.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        PhoneViewAddress = s.PhoneViewAddress ?? "";
         PromptSuggestions = s.PromptSuggestions;
         ConfirmModelSwitch = s.ConfirmModelSwitch;
         ModelFunctionKeys = s.ModelFunctionKeys;
@@ -362,6 +365,66 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ToggleRemoteControlByDefault() => RemoteControlByDefault = !RemoteControlByDefault;
 
     partial void OnRemoteControlByDefaultChanged(bool value) => Apply(s => s.RemoteControlByDefault = value, appearance: false);
+
+    // ------------------------------------------------------------------ Remote Control › Phone view
+
+    [ObservableProperty]
+    public partial bool PhoneViewOn { get; set; }
+
+    [ObservableProperty]
+    public partial string PhoneViewPort { get; set; } = "";
+
+    [ObservableProperty]
+    public partial string PhoneViewAddress { get; set; } = "";
+
+    /// <summary>"Serving on …", why it could not start, or "Off".</summary>
+    public string PhoneViewStatus => PhoneView.Current?.Status ?? "Off";
+
+    public string PhoneViewLink => PhoneView.Current?.Link() ?? "";
+
+    [RelayCommand]
+    private void TogglePhoneView() => PhoneViewOn = !PhoneViewOn;
+
+    partial void OnPhoneViewOnChanged(bool value)
+    {
+        Apply(s => s.PhoneView = value, appearance: false);
+        RestartPhoneView();
+    }
+
+    partial void OnPhoneViewPortChanged(string value)
+    {
+        if (int.TryParse(value, out var port) && port is > 0 and < 65536 && port != _main.Settings.PhoneViewPort)
+        {
+            Apply(s => s.PhoneViewPort = port, appearance: false);
+            RestartPhoneView();
+        }
+    }
+
+    partial void OnPhoneViewAddressChanged(string value)
+    {
+        Apply(s => s.PhoneViewAddress = string.IsNullOrWhiteSpace(value) ? null : value.Trim(), appearance: false);
+        OnPropertyChanged(nameof(PhoneViewLink));
+    }
+
+    /// <summary>Makes a new key, so every link copied before stops working.</summary>
+    [RelayCommand]
+    private void NewPhoneViewKey()
+    {
+        Apply(s => s.PhoneViewKey = Nomad.Core.Phone.PhoneHttpServer.NewKey(), appearance: false);
+        RestartPhoneView();
+    }
+
+    private void RestartPhoneView()
+    {
+        if (!_loaded)
+        {
+            return;
+        }
+
+        PhoneView.Current?.Apply();
+        OnPropertyChanged(nameof(PhoneViewStatus));
+        OnPropertyChanged(nameof(PhoneViewLink));
+    }
 
     [ObservableProperty]
     public partial bool PromptSuggestions { get; set; }

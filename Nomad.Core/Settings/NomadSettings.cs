@@ -34,6 +34,18 @@ public sealed class NomadSettings
     /// <summary>Under each prompt, what the user's hooks added to it (UserPromptSubmit context); off by default.</summary>
     public bool ShowHookContext { get; set; }
 
+    /// <summary>Serve the phone view (Settings › Remote Control) on 127.0.0.1; off by default.</summary>
+    public bool PhoneView { get; set; }
+
+    /// <summary>The phone view's port on 127.0.0.1.</summary>
+    public int PhoneViewPort { get; set; } = 8791;
+
+    /// <summary>The phone view's access key, made the first time it is turned on; every request but the page needs it.</summary>
+    public string? PhoneViewKey { get; set; }
+
+    /// <summary>The address a phone reaches the port by (a tunnel or private network the user set up); the copied link uses it.</summary>
+    public string? PhoneViewAddress { get; set; }
+
     /// <summary>The ring at the end of the status row (plan usage; spins while a turn runs, opens the usage limits).</summary>
     public bool ShowUsageRing { get; set; } = true;
 

@@ -139,6 +139,13 @@ generated notes since the previous tag.
   session across restarts (`reattach_session_id`), and runs the CLI with `--replay-user-messages`
   so prompts typed on the phone appear in the transcript (with a phone mark). Sessions with Remote
   Control on are not ended by the idle timeout. Permission prompts appear in Nomad as usual.
+- **Phone view.** Settings → Remote Control → Phone view serves a small web page on 127.0.0.1 (off by
+  default; port 8791) listing every open chat of every agent. It shows a chat's transcript as it grows, sends
+  prompts into it (queued behind a running turn, as typed) and answers its permission and question cards.
+  Nomad never listens beyond this PC: reaching the port from a phone is up to you, for example with a private
+  network such as Tailscale (`tailscale serve --http=8791 http://127.0.0.1:8791`); enter the address the phone
+  uses so **Copy link** gives the right one. Every request but the page itself needs the access key, which the
+  link carries after `#` (never sent to the server or kept in its address); **New key** retires old links.
 - **Starting sessions from the phone.** For each folder under Settings → Claude Code → Start sessions
   from the phone, Nomad keeps `claude remote-control --spawn same-dir` running, so the Claude app
   can start new sessions there. Those sessions belong to that server's child processes, so Nomad

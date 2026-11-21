@@ -61,11 +61,14 @@ public partial class App : Application
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
             Nomad.Core.Agents.ChatTools.Directory = new ChatDirectory(vm);
             Nomad.Core.Agents.ChatBridge.Listen();
+            PhoneView.Current = new PhoneView(vm);
+            PhoneView.Current.Apply();
             var window = new MainWindow(vm);
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;
             desktop.Exit += (_, _) =>
             {
+                PhoneView.Current?.Dispose();
                 ClaudeCliProcess.KillAllOwned();
                 Nomad.Core.OpenCode.OpenCodeServer.KillShared();
                 Nomad.Core.Codex.CodexServer.KillShared();

@@ -105,6 +105,14 @@ public partial class SettingsView : UserControl
 
     private static readonly FilePickerFileType ThemeFiles = new("Nomad.ai theme") { Patterns = ["*.json"] };
 
+    private async void OnCopyPhoneLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is SettingsViewModel vm && vm.PhoneViewLink.Length > 0 && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(vm.PhoneViewLink);
+        }
+    }
+
     private async void OnImportThemeClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)
