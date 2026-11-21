@@ -311,6 +311,22 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return response?.Subtype == "success";
     }
 
+    /// <summary>
+    /// Renames the running session as <c>/rename</c> does. The CLI keeps the name in memory and writes it to the transcript
+    /// again on later turns, so a <c>custom-title</c> record appended from outside is overwritten by the old name; this way
+    /// the process itself has the new one.
+    /// </summary>
+    public async Task<bool> RenameAsync(string title, CancellationToken cancellationToken = default)
+    {
+        if (_cli is not { IsRunning: true })
+        {
+            return false;
+        }
+
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "rename_session", Title = title }, cancellationToken).ConfigureAwait(false);
+        return response?.Subtype == "success";
+    }
+
     public async Task<bool> StopTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
         var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "stop_task", TaskId = taskId }, cancellationToken).ConfigureAwait(false);
