@@ -21,6 +21,18 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
 {
     public string Text { get; } = text;
 
+    // Sent by another chat (Claude Code's cross-session message, Nomad's send_to_chat), not typed by the user.
+    private readonly Nomad.Core.Text.ChatOrigin? _origin = Nomad.Core.Text.ChatOrigins.Parse(text);
+
+    public bool IsFromChat => _origin is not null;
+
+    public string FromChatName => _origin?.Name ?? "";
+
+    public string FromChatDetail => _origin?.Detail is { } detail ? "· " + detail : "";
+
+    /// <summary>What the bubble shows: the message itself, without another chat's wrapper.</summary>
+    public string DisplayText => _origin?.Body ?? Text;
+
     /// <summary>The transcript record's uuid (null for very old transcripts).</summary>
     public string? Uuid { get; } = uuid;
 
