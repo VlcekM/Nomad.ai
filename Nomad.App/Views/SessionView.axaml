@@ -572,10 +572,10 @@
       <Setter Property="BorderBrush" Value="{DynamicResource BorderInputBrush}" />
     </Style>
     <Style Selector="Border#ComposerBar:focus-within">
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="Border#ComposerBar.dragover">
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
     <Style Selector="Panel#DropOverlay">
       <Setter Property="Opacity" Value="0" />

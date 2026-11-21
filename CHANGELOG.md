@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.3
+
+- Highlight the prompt bar frame with primary white (`TextPrimaryBrush`) instead of the theme accent when focused or dragging files.
+- Softened inline code pill text to muted sage (`#84B8A3` dark, `#2A6950` light) so inline code is easier on the eyes.
+- Clicking `file:///` and relative Markdown file links in chat now opens them in the Files view (at `#L` line targets) when enabled, or via the OS handler / Explorer fallback when Files view is turned off.
+
 ## v2.1.2
 
 - Show what Antigravity is waiting on after a turn ends (backgrounded shell commands and non-daemon timers) in the chat waiting row, sidebar status indicator, and side panel.

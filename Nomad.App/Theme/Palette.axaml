@@ -64,7 +64,7 @@
       <Color x:Key="WaitingColor">#E5B54A</Color>
       <Color x:Key="CheckColor">#3B78C8</Color>
       <Color x:Key="RingColor">#3B78C8</Color>
-      <Color x:Key="InlineCodeColor">#3CC497</Color>
+      <Color x:Key="InlineCodeColor">#84B8A3</Color>
       <!-- The code editor (Visual Studio's colors) and the syntax colors of code, by kind (Ide/Highlighter.cs). -->
       <Color x:Key="CodeBackgroundColor">#1E1E1E</Color>
       <Color x:Key="CodeTextColor">#DCDCDC</Color>
@@ -161,7 +161,7 @@
       <SolidColorBrush x:Key="GhMergedBrush" Color="#A371F7" />
       <SolidColorBrush x:Key="GhClosedBrush" Color="#F85149" />
       <SolidColorBrush x:Key="GhNeutralBrush" Color="#8B949E" />
-      <SolidColorBrush x:Key="InlineCodeBrush" Color="#3CC497" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#84B8A3" />
       <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#1E1E1E" />
       <SolidColorBrush x:Key="CodeTextBrush" Color="#DCDCDC" />
       <SolidColorBrush x:Key="CodeKeywordBrush" Color="#569CD6" />
@@ -263,7 +263,7 @@
       <Color x:Key="WaitingColor">#B7871C</Color>
       <Color x:Key="CheckColor">#2A74CC</Color>
       <Color x:Key="RingColor">#2A78D6</Color>
-      <Color x:Key="InlineCodeColor">#007A54</Color>
+      <Color x:Key="InlineCodeColor">#2A6950</Color>
       <!-- The code editor (Visual Studio's colors) and the syntax colors of code, by kind (Ide/Highlighter.cs). -->
       <Color x:Key="CodeBackgroundColor">#FFFFFF</Color>
       <Color x:Key="CodeTextColor">#000000</Color>
@@ -360,7 +360,7 @@
       <SolidColorBrush x:Key="GhMergedBrush" Color="#8250DF" />
       <SolidColorBrush x:Key="GhClosedBrush" Color="#CF222E" />
       <SolidColorBrush x:Key="GhNeutralBrush" Color="#59636E" />
-      <SolidColorBrush x:Key="InlineCodeBrush" Color="#007A54" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#2A6950" />
       <SolidColorBrush x:Key="CodeBackgroundBrush" Color="#FFFFFF" />
       <SolidColorBrush x:Key="CodeTextBrush" Color="#000000" />
       <SolidColorBrush x:Key="CodeKeywordBrush" Color="#0000FF" />

@@ -840,8 +840,8 @@ public static partial class LinkSupport
     /// <summary>Marks a link that is a name from inline code (opened at its declaration in the Files view, or as a file).</summary>
     public const string SymbolPrefix = "symbol:";
 
-    // What a link opens: a web address, an existing file or folder, or a name declared in the session's code.
-    private readonly record struct LinkTarget(string? Url, string? Path, string? Symbol);
+    // What a link opens: a web address, an existing file or folder (with optional line), or a name declared in the session's code.
+    private readonly record struct LinkTarget(string? Url, string? Path, string? Symbol, int? Line = null, bool PreferFilesView = false);
 
     // Null: nothing (a path that isn't there, a name the code doesn't declare).
     private static LinkTarget? Resolve(SelectableTextBlock block, LinkRange link)
@@ -859,8 +859,32 @@ public static partial class LinkSupport
             return ResolvePath(block, link.Url) is { } path ? new LinkTarget(null, path, null) : null;
         }
 
-        return new LinkTarget(link.Url, null, null);
+        if (Uri.TryCreate(link.Url, UriKind.Absolute, out var uri))
+        {
+            if (uri.IsFile)
+            {
+                var line = FragmentLine(uri.Fragment);
+                return ResolvePath(block, PathPrefix + uri.LocalPath) is { } filePath
+                    ? new LinkTarget(null, filePath, null, line, PreferFilesView: true)
+                    : null;
+            }
+
+            return new LinkTarget(link.Url, null, null);
+        }
+
+        // Relative markdown file links like [notes.md](docs/notes.md#L10).
+        var hash = link.Url.IndexOf('#');
+        var rawPath = hash >= 0 ? link.Url[..hash] : link.Url;
+        var fragmentLine = hash >= 0 ? FragmentLine(link.Url[hash..]) : null;
+        return ResolvePath(block, PathPrefix + rawPath) is { } relativePath
+            ? new LinkTarget(null, relativePath, null, fragmentLine, PreferFilesView: true)
+            : null;
     }
+
+    private static int? FragmentLine(string fragment) =>
+        LineFragment().Match(fragment) is { Success: true } m && int.TryParse(m.Groups[1].Value, out var line) && line > 0
+            ? line
+            : null;
 
     private static Nomad.App.ViewModels.SessionViewModel? Session(Control block) =>
         block.FindAncestorOfType<Nomad.App.Views.SessionView>()?.DataContext as Nomad.App.ViewModels.SessionViewModel;
@@ -973,12 +997,25 @@ public static partial class LinkSupport
         }
         else if (target.Path is { } path)
         {
+            if (target.PreferFilesView && File.Exists(path) && Session(block) is { CanShowFiles: true, Folder: { } folder } session
+                && IsInsideFolder(path, folder))
+            {
+                session.OpenFile(path, target.Line);
+                return;
+            }
+
             OpenWithShell(path);
         }
         else if (target.Symbol is { } name)
         {
             Session(block)?.OpenSymbol(name);
         }
+    }
+
+    private static bool IsInsideFolder(string path, string folder)
+    {
+        var root = Path.GetFullPath(folder).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+        return Path.GetFullPath(path).StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
     private static MenuItem Item(string header, Action action)
@@ -1067,6 +1104,9 @@ public static partial class LinkSupport
 
     [System.Text.RegularExpressions.GeneratedRegex(@":\d+(:\d+)?$")]
     private static partial System.Text.RegularExpressions.Regex LineSuffix();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^#L(\d+)(?:-L?\d+)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex LineFragment();
 
     [System.Text.RegularExpressions.GeneratedRegex(@"(?<![\w@/.])(?:https?://|www\.)[^\s<>""'`]+", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
     private static partial System.Text.RegularExpressions.Regex BareUrl();
@@ -1175,6 +1215,12 @@ public static partial class LinkSupport
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto"))
         {
+            return;
+        }
+
+        if (Program.Dev.ScreenshotPath is not null)
+        {
+            Console.Error.WriteLine($"OpenUrl {uri.AbsoluteUri}");
             return;
         }
 

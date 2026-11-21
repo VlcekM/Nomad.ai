@@ -20,7 +20,7 @@ public static partial class PlatformShell
         "xterm",
     ];
 
-    /// <summary>Opens <paramref name="path"/> with the OS's default handler.</summary>
+    /// <summary>Opens <paramref name="path"/> with the OS's default handler, falling back to the file manager if none is registered.</summary>
     public static void OpenWithShell(string path)
     {
         if (OperatingSystem.IsWindows())
@@ -29,7 +29,10 @@ public static partial class PlatformShell
             AllowSetForegroundWindow(AsfwAny);
         }
 
-        TryStart(new ProcessStartInfo(path) { UseShellExecute = true });
+        if (!TryStart(new ProcessStartInfo(path) { UseShellExecute = true }) && File.Exists(path))
+        {
+            RevealInFileManager(path);
+        }
     }
 
     /// <summary>Opens <paramref name="folder"/> in Explorer (Windows) or the default file manager (Linux).</summary>
