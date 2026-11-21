@@ -816,7 +816,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="System prompts by folder" Classes="rowlabel" />
-                  <TextBlock Text="A text file that replaces Claude Code's and Codex's own system prompt in a folder and the folders inside it. Antigravity can only add to its prompt, so it is left out. Sessions take it the next time they start."
+                  <TextBlock Text="A text file that replaces Claude Code's or Codex's own system prompt in a folder and the folders inside it. Antigravity can only add to its prompt, so it is left out. Sessions take it the next time they start."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddFolderSystemPromptClick" Margin="16,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
@@ -830,18 +830,41 @@
               <ItemsControl ItemsSource="{Binding FolderSystemPrompts}" IsVisible="{Binding HasFolderSystemPrompts}" Margin="0,0,0,4">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FolderSystemPromptRow">
-                    <Grid ColumnDefinitions="*,Auto" Margin="0,6">
-                      <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Folder}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding Status}" Classes="rowhint" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}"
-                                   ToolTip.Tip="{Binding File}" />
-                      </StackPanel>
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" Margin="0,6">
+                      <TextBlock Text="{Binding Folder}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                       <Button Grid.Column="1" Theme="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center"
                               Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveFolderSystemPromptCommand}"
                               CommandParameter="{Binding}"
-                              ToolTip.Tip="Remove">
+                              ToolTip.Tip="Remove the folder: both agents use a parent folder's file, if any">
                         <c:Icon Size="13" Data="{StaticResource IconClose}" />
                       </Button>
+                      <!-- One line per agent: its file (or its own prompt), Choose… and Clear. -->
+                      <Grid Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="96,*,Auto,Auto" Margin="12,2,0,0">
+                        <TextBlock Text="Claude Code" Classes="rowhint" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding ClaudeStatus}" Classes="rowhint" TextTrimming="CharacterEllipsis"
+                                   FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" ToolTip.Tip="{Binding ClaudeFile}" />
+                        <Button Grid.Column="2" Theme="{StaticResource FlatButton}" Padding="6,2" Margin="8,0,0,0" Tag="claude" Click="OnChooseSystemPromptClick">
+                          <TextBlock Text="Choose…" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </Button>
+                        <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Padding="6,2" IsVisible="{Binding HasClaudeFile}"
+                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).ClearClaudeSystemPromptCommand}"
+                                CommandParameter="{Binding}" ToolTip.Tip="Claude Code uses its own prompt here">
+                          <TextBlock Text="Clear" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </Button>
+                      </Grid>
+                      <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="96,*,Auto,Auto" Margin="12,0,0,0">
+                        <TextBlock Text="Codex" Classes="rowhint" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="{Binding CodexStatus}" Classes="rowhint" TextTrimming="CharacterEllipsis"
+                                   FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" ToolTip.Tip="{Binding CodexFile}" />
+                        <Button Grid.Column="2" Theme="{StaticResource FlatButton}" Padding="6,2" Margin="8,0,0,0" Tag="codex" Click="OnChooseSystemPromptClick">
+                          <TextBlock Text="Choose…" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </Button>
+                        <Button Grid.Column="3" Theme="{StaticResource FlatButton}" Padding="6,2" IsVisible="{Binding HasCodexFile}"
+                                Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).ClearCodexSystemPromptCommand}"
+                                CommandParameter="{Binding}" ToolTip.Tip="Codex uses its own prompt here">
+                          <TextBlock Text="Clear" FontSize="{DynamicResource UiFontSizeSmall}" />
+                        </Button>
+                      </Grid>
                     </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>

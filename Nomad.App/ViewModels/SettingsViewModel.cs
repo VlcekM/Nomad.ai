@@ -562,25 +562,39 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasFolderSystemPrompts => FolderSystemPrompts.Count > 0;
 
-    public void SetFolderSystemPrompt(string folder, string file)
+    public void SetFolderSystemPrompt(string folder, string? file, bool claude = true, bool codex = true)
     {
-        _main.SetFolderSystemPrompt(folder, file);
+        _main.SetFolderSystemPrompt(folder, file, claude, codex);
         RefreshFolderSystemPrompts();
     }
 
     [RelayCommand]
     private void RemoveFolderSystemPrompt(FolderSystemPromptRow row)
     {
-        _main.SetFolderSystemPrompt(row.Folder, null);
+        _main.RemoveFolderSystemPrompts(row.Folder);
         RefreshFolderSystemPrompts();
     }
+
+    [RelayCommand]
+    private void ClearClaudeSystemPrompt(FolderSystemPromptRow row) => SetFolderSystemPrompt(row.Folder, null, codex: false);
+
+    [RelayCommand]
+    private void ClearCodexSystemPrompt(FolderSystemPromptRow row) => SetFolderSystemPrompt(row.Folder, null, claude: false);
 
     private void RefreshFolderSystemPrompts()
     {
         FolderSystemPrompts.Clear();
-        foreach (var (folder, file) in _main.Settings.FolderSystemPrompts.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+        var settings = _main.Settings;
+        var codex = settings.FolderCodexSystemPrompts ?? settings.FolderSystemPrompts;
+        string? Lookup(Dictionary<string, string> prompts, string folder) =>
+            prompts.FirstOrDefault(p => string.Equals(p.Key.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)).Value;
+        var folders = settings.FolderSystemPrompts.Keys.Concat(codex.Keys)
+            .Select(f => f.TrimEnd('\\', '/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in folders)
         {
-            FolderSystemPrompts.Add(new FolderSystemPromptRow(folder, file));
+            FolderSystemPrompts.Add(new FolderSystemPromptRow(folder, Lookup(settings.FolderSystemPrompts, folder), Lookup(codex, folder)));
         }
 
         OnPropertyChanged(nameof(HasFolderSystemPrompts));
@@ -1144,14 +1158,25 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 }
 
-/// <summary>A folder's system prompt on the settings page: the folder, and the file that replaces the agent's prompt there.</summary>
-public sealed class FolderSystemPromptRow(string folder, string file)
+/// <summary>A folder's system prompts on the settings page: the folder, and the files that replace Claude Code's and Codex's.</summary>
+public sealed class FolderSystemPromptRow(string folder, string? claudeFile, string? codexFile)
 {
     public string Folder { get; } = folder;
 
-    public string File { get; } = file;
+    public string? ClaudeFile { get; } = string.IsNullOrEmpty(claudeFile) ? null : claudeFile;
 
-    public string Status => System.IO.File.Exists(File) ? File : File + " (missing: sessions here use the agent's own prompt)";
+    public string? CodexFile { get; } = string.IsNullOrEmpty(codexFile) ? null : codexFile;
+
+    public bool HasClaudeFile => ClaudeFile is not null;
+
+    public bool HasCodexFile => CodexFile is not null;
+
+    public string ClaudeStatus => Status(ClaudeFile);
+
+    public string CodexStatus => Status(CodexFile);
+
+    private static string Status(string? file) => file is null ? "Its own prompt"
+        : System.IO.File.Exists(file) ? file : file + " (not there: its own prompt)";
 }
 
 /// <summary>A phone folder on the settings page: where the phone can start sessions, and how that is going.</summary>

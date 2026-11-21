@@ -194,18 +194,48 @@ public sealed partial class MainViewModel : ObservableObject
         StartPhoneServer(folder);
     }
 
-    /// <summary>Sets the system prompt file for sessions in a folder and below it, or removes it (null).</summary>
-    public void SetFolderSystemPrompt(string folder, string? file)
+    /// <summary>
+    /// Sets the system prompt file for sessions in a folder and below it, or clears it (null): Claude Code's, Codex's, or both.
+    /// A cleared one stays listed as the agent's own prompt until the folder is removed, so a parent folder's file does not
+    /// take over.
+    /// </summary>
+    public void SetFolderSystemPrompt(string folder, string? file, bool claude = true, bool codex = true)
     {
         folder = folder.TrimEnd('\\', '/');
-        foreach (var key in Settings.FolderSystemPrompts.Keys.Where(k => string.Equals(k.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)).ToList())
+        void Set(Dictionary<string, string> prompts)
         {
-            Settings.FolderSystemPrompts.Remove(key);
+            foreach (var key in prompts.Keys.Where(k => string.Equals(k.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                prompts.Remove(key);
+            }
+
+            prompts[folder] = file ?? "";
         }
 
-        if (!string.IsNullOrWhiteSpace(file))
+        if (claude)
         {
-            Settings.FolderSystemPrompts[folder] = file;
+            Set(Settings.FolderSystemPrompts);
+        }
+
+        if (codex)
+        {
+            Set(Settings.CodexSystemPrompts());
+        }
+
+        SaveSettings();
+    }
+
+    /// <summary>Takes a folder off the list: Claude Code and Codex both fall back to a parent folder's file, if any.</summary>
+    public void RemoveFolderSystemPrompts(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        bool Same(string key) => string.Equals(key.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase);
+        foreach (var prompts in new[] { Settings.FolderSystemPrompts, Settings.CodexSystemPrompts() })
+        {
+            foreach (var key in prompts.Keys.Where(Same).ToList())
+            {
+                prompts.Remove(key);
+            }
         }
 
         SaveSettings();
