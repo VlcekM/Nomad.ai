@@ -3668,6 +3668,7 @@ public sealed partial class SessionViewModel : ObservableObject
         ResumeSessionId = SessionId ?? _forkFrom,
         ResumeSessionAt = _resumeAt,
         ForkSession = SessionId is null && _forkFrom is not null,
+        SystemPromptFile = _main.Settings.SystemPromptFor(Folder),
         CliPath = _main.Settings.CliPath,
         ExtraArguments = _main.Dev.ExtraCliArguments,
     };

@@ -194,6 +194,23 @@ public sealed partial class MainViewModel : ObservableObject
         StartPhoneServer(folder);
     }
 
+    /// <summary>Sets the system prompt file for sessions in a folder and below it, or removes it (null).</summary>
+    public void SetFolderSystemPrompt(string folder, string? file)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        foreach (var key in Settings.FolderSystemPrompts.Keys.Where(k => string.Equals(k.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)).ToList())
+        {
+            Settings.FolderSystemPrompts.Remove(key);
+        }
+
+        if (!string.IsNullOrWhiteSpace(file))
+        {
+            Settings.FolderSystemPrompts[folder] = file;
+        }
+
+        SaveSettings();
+    }
+
     public async Task RemovePhoneFolderAsync(string folder)
     {
         folder = folder.TrimEnd('\\', '/');

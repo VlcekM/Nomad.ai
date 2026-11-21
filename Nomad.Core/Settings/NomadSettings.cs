@@ -149,6 +149,12 @@ public sealed class NomadSettings
     /// <summary>Extra workspace folders selected for each chat; the original working directory stays the same.</summary>
     public Dictionary<string, List<string>> SessionAdditionalDirectories { get; set; } = [];
 
+    /// <summary>
+    /// Folder to a text file that replaces the agent's own system prompt for sessions in that folder or below it
+    /// (Claude Code <c>--system-prompt-file</c>, Codex base instructions).
+    /// </summary>
+    public Dictionary<string, string> FolderSystemPrompts { get; set; } = [];
+
     // Updates (only a Setup install updates itself)
 
     /// <summary>
@@ -306,6 +312,29 @@ public sealed class NomadSettings
         {
             RemoteControlBridges.Remove(RemoteControlBridges.Keys.First());
         }
+    }
+
+    /// <summary>
+    /// The system prompt file for a session folder: the entry for the folder itself or its nearest parent, when the file
+    /// exists (a missing file is skipped, so the session still starts).
+    /// </summary>
+    public string? SystemPromptFor(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || FolderSystemPrompts.Count == 0)
+        {
+            return null;
+        }
+
+        string Trim(string path) => path.Replace('/', '\\').TrimEnd('\\');
+        var target = Trim(folder);
+        var best = FolderSystemPrompts
+            .Where(entry => Trim(entry.Key) is { Length: > 0 } key
+                && (string.Equals(target, key, StringComparison.OrdinalIgnoreCase)
+                    || target.StartsWith(key + "\\", StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(entry => Trim(entry.Key).Length)
+            .Select(entry => entry.Value)
+            .FirstOrDefault();
+        return best is not null && File.Exists(best) ? best : null;
     }
 
     /// <summary>Moves a folder to the front of the recent list (max 12).</summary>

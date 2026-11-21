@@ -86,6 +86,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         ModelFunctionKeys = s.ModelFunctionKeys;
         LoadColorThemes(s.ColorTheme);
         RefreshPhoneFolders();
+        RefreshFolderSystemPrompts();
         main.PhoneServerChanged += OnPhoneServerChanged;
         UpdateCliStatus();
         _loaded = true;
@@ -554,6 +555,35 @@ public sealed partial class SettingsViewModel : ObservableObject
         {
             row.Status = "Could not open a terminal.";
         }
+    }
+
+    /// <summary>Folders whose sessions get a system prompt file in place of the agent's own.</summary>
+    public ObservableCollection<FolderSystemPromptRow> FolderSystemPrompts { get; } = [];
+
+    public bool HasFolderSystemPrompts => FolderSystemPrompts.Count > 0;
+
+    public void SetFolderSystemPrompt(string folder, string file)
+    {
+        _main.SetFolderSystemPrompt(folder, file);
+        RefreshFolderSystemPrompts();
+    }
+
+    [RelayCommand]
+    private void RemoveFolderSystemPrompt(FolderSystemPromptRow row)
+    {
+        _main.SetFolderSystemPrompt(row.Folder, null);
+        RefreshFolderSystemPrompts();
+    }
+
+    private void RefreshFolderSystemPrompts()
+    {
+        FolderSystemPrompts.Clear();
+        foreach (var (folder, file) in _main.Settings.FolderSystemPrompts.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            FolderSystemPrompts.Add(new FolderSystemPromptRow(folder, file));
+        }
+
+        OnPropertyChanged(nameof(HasFolderSystemPrompts));
     }
 
     private void RefreshPhoneFolders()
@@ -1112,6 +1142,16 @@ public sealed partial class SettingsViewModel : ObservableObject
 
         return list;
     }
+}
+
+/// <summary>A folder's system prompt on the settings page: the folder, and the file that replaces the agent's prompt there.</summary>
+public sealed class FolderSystemPromptRow(string folder, string file)
+{
+    public string Folder { get; } = folder;
+
+    public string File { get; } = file;
+
+    public string Status => System.IO.File.Exists(File) ? File : File + " (missing: sessions here use the agent's own prompt)";
 }
 
 /// <summary>A phone folder on the settings page: where the phone can start sessions, and how that is going.</summary>

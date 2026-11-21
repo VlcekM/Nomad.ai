@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.App.ViewModels"
              xmlns:inf="using:Nomad.App.Infrastructure"
@@ -811,6 +811,41 @@
                   </StackPanel>
                 </Border>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="System prompts by folder" Classes="rowlabel" />
+                  <TextBlock Text="A text file that replaces Claude Code's and Codex's own system prompt in a folder and the folders inside it. Antigravity can only add to its prompt, so it is left out. Sessions take it the next time they start."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddFolderSystemPromptClick" Margin="16,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <c:Icon Size="13" Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Add folder…" FontWeight="Medium" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+
+              <ItemsControl ItemsSource="{Binding FolderSystemPrompts}" IsVisible="{Binding HasFolderSystemPrompts}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FolderSystemPromptRow">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,6">
+                      <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Folder}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Status}" Classes="rowhint" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}"
+                                   ToolTip.Tip="{Binding File}" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Theme="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveFolderSystemPromptCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="Remove">
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
 
             <!-- Remote Control -->
