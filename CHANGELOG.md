@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.3.0
+
+- Chats can now list and message each other: Claude Code and Antigravity chats get `list_chats` and `send_to_chat`. A message waits in the target chat's queue until its turn ends, names the sender so it can be answered, and a chat may send at most ten per five minutes.
+- Codex now has its own per-folder system prompt file in **Settings > Agents > System prompts by folder**: each folder lists a Claude Code line and a Codex line, each with **Choose…** and **Clear**, and a cleared agent keeps its own prompt instead of a parent folder's file. Older settings keep Codex on the shared files until one is changed.
+
 ## v2.2.0
 
 - Added per-folder system prompt files for Claude Code (`--system-prompt-file`) and Codex (thread base instructions) in **Settings > Agents**, replacing the agent's default system prompt for sessions in that folder and its subfolders while keeping Nomad's instructions appended.
