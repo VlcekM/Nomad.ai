@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.2.0
+
+- Added per-folder system prompt files for Claude Code (`--system-prompt-file`) and Codex (thread base instructions) in **Settings > Agents**, replacing the agent's default system prompt for sessions in that folder and its subfolders while keeping Nomad's instructions appended.
+- Added the MIT `LICENSE` to the repository.
+
 ## v2.1.5
 
 - Sessions started from **Pull requests & issues** now show short sidebar titles such as `Merge PR #42`, `Review PR #39`, and `Fix Issue #40`.
