@@ -3287,6 +3287,13 @@ public sealed partial class MainViewModel : ObservableObject
     internal IEnumerable<SessionViewModel> OpenChats => LiveSessions;
 
     /// <summary>
+    /// The open chats another chat or the phone view can reach: started (with a session id), and not a phone session that
+    /// Claude's own app drives.
+    /// </summary>
+    internal IEnumerable<SessionViewModel> ReachableChats =>
+        OpenChats.Where(s => !s.IsNew && !s.IsPhoneSession && !string.IsNullOrEmpty(s.SessionId));
+
+    /// <summary>
     /// A turn is running here, or a phone session is (Nomad can't see its turns): Nomad must not restart now, because
     /// its CLI processes die with it.
     /// </summary>

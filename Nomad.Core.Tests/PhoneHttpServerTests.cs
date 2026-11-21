@@ -71,6 +71,56 @@ public sealed class PhoneHttpServerTests
     }
 
     [Fact]
+    public async Task TheKeyIsNotTakenFromTheAddress()
+    {
+        using var server = PhoneHttpServer.Start(0, Key, Echo);
+        using var http = new HttpClient();
+
+        var response = await http.GetAsync($"http://127.0.0.1:{server.Port}/api/chats?key={Key}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("POST /api/send HTTP/1.1\r\nX-Nomad-Key: " + Key + "\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n", "411")]
+    [InlineData("POST /api/send HTTP/1.1\r\nX-Nomad-Key: " + Key + "\r\nContent-Length: 999999999\r\n\r\n", "413")]
+    [InlineData("POST /api/send HTTP/1.1\r\nX-Nomad-Key: " + Key + "\r\nContent-Length: 2\r\nContent-Length: 5\r\n\r\nhi", "400")]
+    [InlineData("POST /api/send HTTP/1.1\r\nContent-Length: 5\r\n\r\n", "401")]
+    public async Task RefusesBadFramingAndChecksTheKeyBeforeTheBody(string raw, string status)
+    {
+        using var server = PhoneHttpServer.Start(0, Key, Echo);
+        using var client = new System.Net.Sockets.TcpClient();
+        await client.ConnectAsync(IPAddress.Loopback, server.Port);
+        var stream = client.GetStream();
+
+        await stream.WriteAsync(Encoding.ASCII.GetBytes(raw));
+        var reply = await new StreamReader(stream).ReadLineAsync();
+
+        Assert.StartsWith($"HTTP/1.1 {status} ", reply);
+    }
+
+    [Fact]
+    public async Task ThePageCannotBeFramed()
+    {
+        using var server = PhoneHttpServer.Start(0, Key, Echo);
+        using var http = new HttpClient();
+
+        var page = await http.GetAsync($"http://127.0.0.1:{server.Port}/");
+
+        Assert.Equal("DENY", page.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Contains("frame-ancestors 'none'", page.Content.Headers.Contains("Content-Security-Policy")
+            ? page.Content.Headers.GetValues("Content-Security-Policy").Single()
+            : page.Headers.GetValues("Content-Security-Policy").Single());
+    }
+
+    [Theory]
+    [InlineData("abcdef", 10, "abcdef")]
+    [InlineData("abcdef", 3, "abc…")]
+    [InlineData("ab\U0001F600cd", 3, "ab…")]
+    [InlineData("ab\U0001F600cd", 4, "ab\U0001F600…")]
+    public void ClipNeverSplitsASurrogatePair(string text, int max, string expected) => Assert.Equal(expected, PhoneText.Clip(text, max));
+
+    [Fact]
     public void KeysAreRandomAndUrlSafe()
     {
         var a = PhoneHttpServer.NewKey();

@@ -74,8 +74,7 @@ internal sealed class ChatDirectory(MainViewModel main) : IChatDirectory
     /// <summary>
     /// The chats the tools can reach: opened, with a session id, and not a phone session.
     /// </summary>
-    private IEnumerable<SessionViewModel> Chats() =>
-        main.OpenChats.Where(s => !s.IsNew && !s.IsPhoneSession && !string.IsNullOrEmpty(s.SessionId));
+    private IEnumerable<SessionViewModel> Chats() => main.ReachableChats;
 
     /// <summary>
     /// How the tools describe <paramref name="s"/>.

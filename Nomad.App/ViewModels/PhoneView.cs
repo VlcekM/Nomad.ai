@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Net.Sockets;
-using System.Text;
 using System.Text.Json;
 using Avalonia.Threading;
 using Nomad.Core.Agents;
@@ -20,7 +19,7 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
     private const int MaxItems = 80;
 
     /// <summary>How much of one item's text is sent at most.</summary>
-    private const int MaxText = 20_000;
+    private const int MaxText = 12_000;
 
     private PhoneHttpServer? _server;
 
@@ -29,11 +28,6 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
 
     /// <summary>"Serving on …", why it could not start, or "Off".</summary>
     public string Status { get; private set; } = "Off";
-
-    public bool IsRunning => _server is not null;
-
-    /// <summary>Raised on the UI thread after <see cref="Apply"/> changed <see cref="Status"/>.</summary>
-    public event Action? StatusChanged;
 
     /// <summary>Starts, restarts or stops the server to match the settings (a new port or key restarts it).</summary>
     public void Apply()
@@ -44,27 +38,24 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
         if (!s.PhoneView)
         {
             Status = "Off";
+            return;
         }
-        else
+
+        if (string.IsNullOrEmpty(s.PhoneViewKey))
         {
-            if (string.IsNullOrEmpty(s.PhoneViewKey))
-            {
-                s.PhoneViewKey = PhoneHttpServer.NewKey();
-                main.SaveSettings();
-            }
-
-            try
-            {
-                _server = PhoneHttpServer.Start(s.PhoneViewPort, s.PhoneViewKey, HandleAsync);
-                Status = $"Serving on 127.0.0.1:{_server.Port}, on this PC only.";
-            }
-            catch (SocketException e)
-            {
-                Status = $"Could not start on port {s.PhoneViewPort}: {e.Message}";
-            }
+            s.PhoneViewKey = PhoneHttpServer.NewKey();
+            main.SaveSettings();
         }
 
-        StatusChanged?.Invoke();
+        try
+        {
+            _server = PhoneHttpServer.Start(s.PhoneViewPort, s.PhoneViewKey, HandleAsync);
+            Status = $"Serving on 127.0.0.1:{_server.Port}, on this PC only.";
+        }
+        catch (SocketException e)
+        {
+            Status = $"Could not start on port {s.PhoneViewPort}: {e.Message}";
+        }
     }
 
     /// <summary>The link to open on the phone: the address it uses (or this PC's), with the key in the fragment.</summary>
@@ -85,26 +76,24 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
 
     private async Task<PhoneResponse> HandleAsync(PhoneRequest request)
     {
-        var id = request.Query.TryGetValue("id", out var value) ? value : "";
+        string Query(string name) => request.Query.TryGetValue(name, out var value) ? value : "";
+
         return (request.Method, request.Path) switch
         {
             ("GET", "/") => PhoneResponse.Html(PhoneViewPage.Html),
             ("GET", "/api/chats") => PhoneResponse.Json(await OnUiAsync(ListChats)),
-            ("GET", "/api/chat") => await OnUiAsync(() => Chat(id)),
-            ("POST", "/api/send") => await OnUiTaskAsync(() => SendAsync(id, request.Body)),
-            ("POST", "/api/answer") => await OnUiAsync(() => Answer(id, request.Body)),
+            ("GET", "/api/chat") => await OnUiAsync(() => Chat(Query("id"), Query("v"))),
+            ("POST", "/api/send") => await OnUiAsync(() => Send(Query("id"), request.Body)),
+            ("POST", "/api/answer") => await OnUiAsync(() => Answer(Query("id"), request.Body)),
             _ => PhoneResponse.Text(404, "Not found"),
         };
     }
 
     private static Task<T> OnUiAsync<T>(Func<T> work) => Dispatcher.UIThread.InvokeAsync(work).GetTask();
 
-    private static Task<T> OnUiTaskAsync<T>(Func<Task<T>> work) => Dispatcher.UIThread.InvokeAsync(work);
+    private SessionViewModel? Find(string id) => main.ReachableChats.FirstOrDefault(s => s.ChatKey == id);
 
-    /// <summary>The chats the phone can see: opened ones, not the phone sessions Claude's own app drives.</summary>
-    private IEnumerable<SessionViewModel> Chats() => main.OpenChats.Where(s => !s.IsNew && !s.IsPhoneSession);
-
-    private SessionViewModel? Find(string id) => Chats().FirstOrDefault(s => s.ChatKey == id);
+    private static PhoneResponse Gone() => PhoneResponse.Text(404, "That chat is no longer open in Nomad.");
 
     private static string State(SessionViewModel s) =>
         s.PendingPermission is { IsAnswered: false } ? "waiting" : s.IsTurnRunning ? "working" : s.IsProcessRunning ? "idle" : "stopped";
@@ -112,7 +101,7 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
     private byte[] ListChats() => Write(w =>
     {
         w.WriteStartArray();
-        foreach (var s in Chats())
+        foreach (var s in main.ReachableChats)
         {
             w.WriteStartObject();
             w.WriteString("id", s.ChatKey);
@@ -143,17 +132,51 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
         return "";
     }
 
-    private PhoneResponse Chat(string id)
+    /// <summary>
+    /// A cheap fingerprint of what <see cref="Chat"/> would send: the state, the queue, the item count and the shape of the
+    /// newest items (the only ones that still change), so an unchanged chat is answered without serializing it.
+    /// </summary>
+    private static string Version(SessionViewModel s)
+    {
+        var hash = new HashCode();
+        hash.Add(State(s));
+        hash.Add(s.Queued.Count);
+        hash.Add(s.Items.Count);
+        hash.Add(s.PendingPermission);
+        for (var i = Math.Max(0, s.Items.Count - 4); i < s.Items.Count; i++)
+        {
+            var item = s.Items[i];
+            hash.Add(item);
+            hash.Add(item switch
+            {
+                AssistantTextItem a => a.Text.Length,
+                ToolGroupItem g => g.Summary.Length * 1000 + g.Calls.Count,
+                PermissionItem p => p.IsAnswered ? 1 : 0,
+                _ => 0,
+            });
+        }
+
+        return hash.ToHashCode().ToString("x8", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private PhoneResponse Chat(string id, string known)
     {
         if (Find(id) is not { } s)
         {
-            return PhoneResponse.Text(404, "That chat is no longer open in Nomad.");
+            return Gone();
+        }
+
+        var version = Version(s);
+        if (version == known)
+        {
+            return PhoneResponse.NotModified;
         }
 
         return PhoneResponse.Json(Write(w =>
         {
             w.WriteStartObject();
             w.WriteString("id", s.ChatKey);
+            w.WriteString("v", version);
             w.WriteString("title", s.TitleOrPlaceholder);
             w.WriteString("agent", s.BackendName);
             w.WriteString("state", State(s));
@@ -195,21 +218,22 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
             case QuestionItem q:
                 w.WriteStartObject();
                 w.WriteString("kind", "question");
+                w.WriteString("card", q.Request.RequestId);
                 w.WriteBoolean("pending", pending && !q.IsAnswered);
                 w.WriteString("answer", q.AnswerText);
                 w.WriteStartArray("questions");
                 foreach (var entry in q.Questions)
                 {
                     w.WriteStartObject();
-                    w.WriteString("question", entry.Question);
-                    w.WriteString("header", entry.Header);
+                    w.WriteString("question", Clip(entry.Question, 2000));
+                    w.WriteString("header", Clip(entry.Header, 200));
                     w.WriteBoolean("multi", entry.MultiSelect);
                     w.WriteStartArray("options");
                     foreach (var option in entry.Options)
                     {
                         w.WriteStartObject();
-                        w.WriteString("label", option.Label);
-                        w.WriteString("description", option.Description ?? "");
+                        w.WriteString("label", Clip(option.Label, 500));
+                        w.WriteString("description", Clip(option.Description ?? "", 2000));
                         w.WriteEndObject();
                     }
 
@@ -223,9 +247,10 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
             case PermissionItem p:
                 w.WriteStartObject();
                 w.WriteString("kind", "permission");
+                w.WriteString("card", p.Request.RequestId);
                 w.WriteString("title", p.Title);
                 w.WriteString("detail", Clip(p.Detail, 4000));
-                w.WriteString("description", p.Description ?? "");
+                w.WriteString("description", Clip(p.Description ?? "", 2000));
                 w.WriteBoolean("pending", pending && !p.IsAnswered);
                 w.WriteBoolean("canSession", p.CanAllowForSession);
                 w.WriteString("allowText", p.AllowText);
@@ -262,105 +287,168 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
         w.WriteEndObject();
     }
 
-    private async Task<PhoneResponse> SendAsync(string id, byte[] body)
+    /// <summary>
+    /// Sends <c>{"text": …}</c> into the chat as if typed: queued behind a running turn, sent now otherwise. Answers once the
+    /// prompt is queued, not when the agent has started (that can take a while), so a slow start never looks like a failure.
+    /// </summary>
+    private PhoneResponse Send(string id, byte[] body)
     {
         if (Find(id) is not { } s)
         {
-            return PhoneResponse.Text(404, "That chat is no longer open in Nomad.");
+            return Gone();
         }
 
-        var text = ReadString(body, "text")?.Trim();
+        using var doc = Parse(body);
+        var text = doc is { RootElement.ValueKind: JsonValueKind.Object } && doc.RootElement.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String
+            ? t.GetString()?.Trim()
+            : null;
         if (string.IsNullOrEmpty(text))
         {
             return PhoneResponse.Text(400, "Nothing to send.");
         }
 
         var busy = s.IsTurnRunning;
-        await s.ReceiveMessageAsync(text);
+        _ = s.ReceiveMessageAsync(text);
         return PhoneResponse.Text(200, busy ? "Queued: it is working, and gets this when the turn ends." : "Sent.");
     }
 
     /// <summary>
-    /// Answers the chat's pending card: <c>{"choice": "allow" | "session" | "deny"}</c>, and for a question card
-    /// <c>"answers": [{"options": [labels], "other": "text"}, …]</c> in the order of its questions.
+    /// Answers one card: <c>{"card": request id, "choice": "allow" | "session" | "deny"}</c>, and for a question card
+    /// <c>"answers": [{"options": [labels], "other": "text"}, …]</c> in the order of its questions. The card must still be
+    /// the one waiting, so an answer meant for one request never lands on another; nothing changes unless the whole answer
+    /// is valid.
     /// </summary>
     private PhoneResponse Answer(string id, byte[] body)
     {
         if (Find(id) is not { } s)
         {
-            return PhoneResponse.Text(404, "That chat is no longer open in Nomad.");
-        }
-
-        if (s.PendingPermission is not { IsAnswered: false } pending)
-        {
-            return PhoneResponse.Text(409, "Nothing is waiting for an answer any more.");
+            return Gone();
         }
 
         using var doc = Parse(body);
-        if (doc is null)
+        if (doc is not { RootElement.ValueKind: JsonValueKind.Object })
         {
-            return PhoneResponse.Text(400, "Not JSON.");
+            return PhoneResponse.Text(400, "Not a JSON object.");
         }
 
         var root = doc.RootElement;
-        var choice = (root.TryGetProperty("choice", out var c) ? c.GetString() : null) switch
+        var card = StringOf(root, "card");
+        if (s.PendingPermission is not { IsAnswered: false } pending || card is null || pending.Request.RequestId != card)
+        {
+            return PhoneResponse.Text(409, "That request is no longer the one waiting. The page shows what is waiting now.");
+        }
+
+        PermissionChoice? choice = StringOf(root, "choice") switch
         {
             "allow" => PermissionChoice.Allow,
-            "session" => PermissionChoice.AllowForSession,
+            "session" when pending.CanAllowForSession && pending is not QuestionItem => PermissionChoice.AllowForSession,
             "deny" => PermissionChoice.Deny,
-            _ => (PermissionChoice?)null,
+            _ => null,
         };
         if (choice is not { } picked)
         {
-            return PhoneResponse.Text(400, "choice must be allow, session or deny.");
+            return PhoneResponse.Text(400, "That choice is not offered for this request.");
         }
 
         if (pending is QuestionItem question && picked != PermissionChoice.Deny)
         {
-            if (!root.TryGetProperty("answers", out var answers) || answers.ValueKind != JsonValueKind.Array)
+            if (ReadAnswers(question, root) is not { } answers)
             {
-                return PhoneResponse.Text(400, "A question needs its answers.");
+                return PhoneResponse.Text(400, "Every question needs an answer: pick an option or type one.");
             }
 
-            var i = 0;
-            foreach (var answer in answers.EnumerateArray())
-            {
-                if (i >= question.Questions.Count)
-                {
-                    break;
-                }
-
-                var entry = question.Questions[i++];
-                foreach (var option in entry.Options)
-                {
-                    option.IsSelected = false;
-                }
-
-                if (answer.TryGetProperty("options", out var labels) && labels.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var label in labels.EnumerateArray())
-                    {
-                        if (entry.Options.FirstOrDefault(o => o.Label == label.GetString()) is { } option)
-                        {
-                            entry.Pick(option);
-                        }
-                    }
-                }
-
-                entry.OtherText = answer.TryGetProperty("other", out var other) ? other.GetString() ?? "" : "";
-            }
-
-            if (!question.Questions.All(q => q.IsAnswered))
-            {
-                return PhoneResponse.Text(400, "Every question needs an answer.");
-            }
+            ApplyAnswers(question, answers);
         }
 
         s.AnswerPending(picked);
-        return PhoneResponse.Text(200, "Answered.");
+        return pending.IsAnswered
+            ? PhoneResponse.Text(200, "Answered.")
+            : PhoneResponse.Text(409, s.Items.LastOrDefault() is ErrorItem error ? error.Message : "Nomad did not take that answer. Look at the chat on the PC.");
+    }
+
+    /// <summary>The chosen options and typed text for each question, or null unless every question gets a valid answer.</summary>
+    private static List<(HashSet<QuestionOption> Options, string Other)>? ReadAnswers(QuestionItem question, JsonElement root)
+    {
+        if (!root.TryGetProperty("answers", out var answers) || answers.ValueKind != JsonValueKind.Array
+            || answers.GetArrayLength() != question.Questions.Count)
+        {
+            return null;
+        }
+
+        var result = new List<(HashSet<QuestionOption>, string)>();
+        var i = 0;
+        foreach (var answer in answers.EnumerateArray())
+        {
+            var entry = question.Questions[i++];
+            if (answer.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            var picked = new HashSet<QuestionOption>();
+            if (answer.TryGetProperty("options", out var labels))
+            {
+                if (labels.ValueKind != JsonValueKind.Array)
+                {
+                    return null;
+                }
+
+                foreach (var label in labels.EnumerateArray())
+                {
+                    if (label.ValueKind != JsonValueKind.String || entry.Options.FirstOrDefault(o => o.Label == label.GetString()) is not { } option)
+                    {
+                        return null;
+                    }
+
+                    picked.Add(option);
+                }
+            }
+
+            var other = (StringOf(answer, "other") ?? "").Trim();
+            if ((picked.Count == 0 && other.Length == 0) || (!entry.MultiSelect && picked.Count + (other.Length > 0 ? 1 : 0) > 1))
+            {
+                return null;
+            }
+
+            result.Add((picked, other));
+        }
+
+        return result;
+    }
+
+    /// <summary>Puts validated answers on the card through its own Pick and OtherText, so its state stays consistent.</summary>
+    private static void ApplyAnswers(QuestionItem question, List<(HashSet<QuestionOption> Options, string Other)> answers)
+    {
+        for (var i = 0; i < answers.Count; i++)
+        {
+            var entry = question.Questions[i];
+            var (picked, other) = answers[i];
+            if (entry.MultiSelect)
+            {
+                foreach (var option in entry.Options.Where(o => o.IsSelected != picked.Contains(o)).ToList())
+                {
+                    entry.Pick(option);
+                }
+
+                entry.OtherText = other;
+            }
+            else if (picked.Count == 1)
+            {
+                entry.Pick(picked.First());
+            }
+            else
+            {
+                entry.OtherText = other;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private static string? StringOf(JsonElement element, string name) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : null;
 
     private static byte[] Write(Action<Utf8JsonWriter> write)
     {
@@ -385,13 +473,5 @@ internal sealed class PhoneView(MainViewModel main) : IDisposable
         }
     }
 
-    private static string? ReadString(byte[] body, string name)
-    {
-        using var doc = Parse(body);
-        return doc is { RootElement.ValueKind: JsonValueKind.Object } && doc.RootElement.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString()
-            : null;
-    }
-
-    private static string Clip(string text, int max = MaxText) => text.Length <= max ? text : text[..max] + "…";
+    private static string Clip(string text, int max = MaxText) => PhoneText.Clip(text, max);
 }

@@ -960,14 +960,14 @@
               </Grid>
               <Border Classes="rowline" />
 
-              <StackPanel IsVisible="{Binding PhoneViewOn}">
+              <StackPanel c:Fold.IsOpen="{Binding PhoneViewOn}" IsVisible="False">
                 <Grid Classes="row" ColumnDefinitions="*,Auto">
                   <StackPanel VerticalAlignment="Center" Margin="0,12">
                     <TextBlock Text="Port" Classes="rowlabel" />
                     <TextBlock Text="{Binding PhoneViewStatus}" Classes="rowhint" />
                   </StackPanel>
                   <Border Grid.Column="1" Classes="field" Width="90">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewPort}" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewPort, UpdateSourceTrigger=LostFocus}" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                 </Grid>
                 <Border Classes="rowline" />
@@ -979,7 +979,7 @@
                                Classes="rowhint" />
                   </StackPanel>
                   <Border Grid.Column="1" Classes="field" Width="300">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewAddress}" Watermark="http://my-pc.example:8791" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding PhoneViewAddress, UpdateSourceTrigger=LostFocus}" Watermark="http://my-pc.example:8791" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                 </Grid>
                 <Border Classes="rowline" />

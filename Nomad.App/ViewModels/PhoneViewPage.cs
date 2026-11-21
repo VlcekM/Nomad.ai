@@ -87,11 +87,12 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
   try { if (key) localStorage.setItem('nomad-key', key); else key = localStorage.getItem('nomad-key'); } catch (e) {}
   const startChat = params.get('c');
   if (params.get('k') || startChat) history.replaceState(null, '', location.pathname);
-  let current = null, lastJson = '', timer = null, sending = false;
+  let current = null, lastJson = '', version = '', timer = null, sending = false;
 
   async function api(path, body) {
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Nomad-Key': key || '', 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+    if (r.status === 304) return null;
     const text = await r.text();
     if (!r.ok) throw new Error(text || ('Error ' + r.status));
     return r.headers.get('Content-Type')?.includes('json') ? JSON.parse(text) : text;
@@ -116,6 +117,7 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
 
   async function showList() {
     const chats = await api('api/chats');
+    if (current) return;
     const json = JSON.stringify(chats);
     if (json === lastJson) return;
     lastJson = json;
@@ -132,12 +134,12 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
       case 'activity': return `<div class="item activity">${esc(it.text)}</div>`;
       case 'notice': return `<div class="item notice">${esc(it.text)}</div>`;
       case 'error': return `<div class="item error">${esc(it.text)}</div>`;
-      case 'permission': return `<div class="item card${it.pending ? ' pending' : ''}"><div class="title">${esc(it.title)}</div>
+      case 'permission': return `<div class="item card${it.pending ? ' pending' : ''}" data-card="${esc(it.card)}"><div class="title">${esc(it.title)}</div>
         ${it.description ? `<div class="answer">${esc(it.description)}</div>` : ''}${it.detail ? `<pre>${esc(it.detail)}</pre>` : ''}
         ${it.pending ? `<div class="row"><button class="primary" data-choice="allow">${esc(it.allowText)}</button>
           ${it.canSession ? '<button data-choice="session">Allow for this session</button>' : ''}<button data-choice="deny">${esc(it.denyText)}</button></div>`
           : it.answer ? `<div class="answer">${esc(it.answer)}</div>` : ''}</div>`;
-      case 'question': return `<div class="item card${it.pending ? ' pending' : ''}">${it.questions.map((q, qi) => `<div class="q" data-q="${qi}">
+      case 'question': return `<div class="item card${it.pending ? ' pending' : ''}" data-card="${esc(it.card)}">${it.questions.map((q, qi) => `<div class="q" data-q="${qi}">
           <div class="qt">${esc(q.question)}</div>${it.pending ? q.options.map(o => `<label><input type="${q.multi ? 'checkbox' : 'radio'}" name="q${qi}" value="${esc(o.label)}">
           <span>${esc(o.label)}${o.description ? `<div class="desc">${esc(o.description)}</div>` : ''}</span></label>`).join('')
           + `<input type="text" placeholder="Or type an answer">` : ''}</div>`).join('')}
@@ -148,7 +150,9 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
   }
 
   async function showChat() {
-    const chat = await api('api/chat?id=' + encodeURIComponent(current));
+    const view = current;
+    const chat = await api('api/chat?id=' + encodeURIComponent(view) + '&v=' + encodeURIComponent(version));
+    if (view !== current || !chat) return;
     $('title').textContent = chat.title;
     $('state').textContent = chat.agent + ' · ' + (stateText[chat.state] || chat.state) + (chat.queued ? ` · ${chat.queued} queued` : '');
     const json = JSON.stringify(chat.items) + chat.truncated;
@@ -156,19 +160,19 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
     // A question being filled in is not redrawn under the user's fingers.
     if (document.querySelector('#chat .card.pending .q input:checked, #chat .card.pending .q input[type=text]:not(:placeholder-shown)')) return;
     const atBottom = innerHeight + scrollY >= document.body.scrollHeight - 80;
-    lastJson = json;
+    lastJson = json; version = chat.v;
     $('chat').innerHTML = (chat.truncated ? '<p class="notice">Earlier messages are on the PC.</p>' : '') + chat.items.map(itemHtml).join('');
     if (atBottom) scrollTo(0, document.body.scrollHeight);
   }
 
   function open(id) {
-    current = id; lastJson = '';
+    current = id; lastJson = ''; version = '';
     $('list').classList.add('hidden'); $('chat').classList.remove('hidden'); $('chat').innerHTML = '';
     $('composer').classList.remove('hidden'); $('back').classList.remove('hidden'); toast('');
     refresh().then(() => scrollTo(0, document.body.scrollHeight));
   }
   function close() {
-    current = null; lastJson = '';
+    current = null; lastJson = ''; version = '';
     $('chat').classList.add('hidden'); $('list').classList.remove('hidden'); $('composer').classList.add('hidden');
     $('back').classList.add('hidden'); $('title').textContent = 'Nomad'; $('state').textContent = '';
     refresh();
@@ -180,13 +184,13 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
 
   $('chat').addEventListener('click', async e => {
     const b = e.target.closest('button[data-choice]'); if (!b) return;
-    const card = b.closest('.card'); const body = { choice: b.dataset.choice };
+    const card = b.closest('.card'); const body = { card: card.dataset.card, choice: b.dataset.choice };
     if (card.querySelector('.q')) body.answers = [...card.querySelectorAll('.q')].map(q => ({
       options: [...q.querySelectorAll('input:checked')].map(i => i.value), other: q.querySelector('input[type=text]')?.value || '' }));
     card.querySelectorAll('button').forEach(x => x.disabled = true);
     try { toast(await api('api/answer?id=' + encodeURIComponent(current), body)); }
     catch (err) { toast(err.message, true); card.querySelectorAll('button').forEach(x => x.disabled = false); }
-    lastJson = ''; refresh();
+    lastJson = ''; version = ''; refresh();
   });
 
   const text = $('text');
@@ -194,7 +198,7 @@ textarea { flex:1; font:inherit; min-height:44px; max-height:40vh; resize:none; 
   $('send').addEventListener('click', async () => {
     const t = text.value.trim(); if (!t || sending) return;
     sending = true; $('send').disabled = true;
-    try { toast(await api('api/send?id=' + encodeURIComponent(current), { text: t })); text.value = ''; text.style.height = 'auto'; lastJson = ''; refresh(); }
+    try { toast(await api('api/send?id=' + encodeURIComponent(current), { text: t })); text.value = ''; text.style.height = 'auto'; lastJson = ''; version = ''; refresh(); }
     catch (err) { toast('Not sent: ' + err.message, true); }
     finally { sending = false; $('send').disabled = false; }
   });
