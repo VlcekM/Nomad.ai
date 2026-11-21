@@ -27,6 +27,10 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // An agent (Antigravity) started this copy as its chat-tools server: relay to the Nomad that named the pipe, nothing else.
+        if (args is [Nomad.Core.Agents.ChatBridge.Argument, var pipe, var chatKey])
+            return Nomad.Core.Agents.ChatBridge.Relay(pipe, chatKey);
+
         // First: Velopack runs its install, update and uninstall hooks here and may exit; an update downloaded
         // earlier but not applied yet is applied now and Nomad restarts into it (UpdateService).
         Velopack.VelopackApp.Build().Run();

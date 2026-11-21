@@ -263,6 +263,12 @@ public sealed record AgentStartOptions
     /// </summary>
     public string? SystemPromptFile { get; init; }
 
+    /// <summary>
+    /// Identifies the chat to the chat tools (<see cref="ChatTools"/>), so a message it sends says who it is from; null leaves
+    /// Antigravity without them.
+    /// </summary>
+    public string? ChatKey { get; init; }
+
     public string? CliPath { get; init; }
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
 }

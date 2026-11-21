@@ -7,7 +7,7 @@ namespace Nomad.Core.Agents;
 /// The SDK-hosted MCP server Nomad gives Claude ("nomad_session"): it speaks the protocol and hands each call to its tool, a folder
 /// move (which Nomad approves, even in bypass mode) or a suggested new chat.
 /// </summary>
-internal sealed class NomadSessionServer(string workingDirectory)
+internal sealed class NomadSessionServer(string workingDirectory, string? chatKey = null)
 {
     /// <summary>
     /// The server's name, as the CLI's mcp_message control requests carry it.
@@ -17,7 +17,8 @@ internal sealed class NomadSessionServer(string workingDirectory)
     /// <summary>
     /// Appended to Claude's system prompt: when to use each tool.
     /// </summary>
-    public const string Instructions = FolderMoveTool.Instructions + "\n\n" + NewChatTool.Instructions;
+    public const string Instructions =
+        FolderMoveTool.Instructions + "\n\n" + NewChatTool.Instructions + "\n\n" + ChatTools.Instructions;
 
     /// <summary>
     /// The folder-move tool, whose approval and cancellation the backend drives.
@@ -27,7 +28,18 @@ internal sealed class NomadSessionServer(string workingDirectory)
     /// <summary>
     /// Whether <paramref name="toolName"/> is one of this server's tools, as the CLI names it (mcp__nomad_session__…).
     /// </summary>
-    public static bool Owns(string? toolName) => toolName is FolderMoveTool.ToolName or NewChatTool.ToolName;
+    public static bool Owns(string? toolName) =>
+        toolName is FolderMoveTool.ToolName or NewChatTool.ToolName or ListChatsToolName or SendToChatToolName;
+
+    /// <summary>
+    /// The listing chat tool as Claude calls it.
+    /// </summary>
+    public const string ListChatsToolName = "mcp__nomad_session__" + ChatTools.ListName;
+
+    /// <summary>
+    /// The sending chat tool as Claude calls it.
+    /// </summary>
+    public const string SendToChatToolName = "mcp__nomad_session__" + ChatTools.SendName;
 
     /// <summary>
     /// Answers one JSON-RPC message from the CLI; null for a notification, which needs no response.
@@ -45,7 +57,7 @@ internal sealed class NomadSessionServer(string workingDirectory)
         {
             "initialize" => Initialize(message),
             "ping" => new JsonObject(),
-            "tools/list" => new JsonObject { ["tools"] = new JsonArray(FolderMoveTool.Descriptor(), NewChatTool.Descriptor()) },
+            "tools/list" => new JsonObject { ["tools"] = new JsonArray(Descriptors()) },
             "tools/call" => await CallAsync(message, mainAgent).ConfigureAwait(false),
             _ => null,
         };
@@ -86,7 +98,12 @@ internal sealed class NomadSessionServer(string workingDirectory)
     }
 
     /// <summary>
-    /// A tools/call, handed to the tool it names; subagents may use neither.
+    /// Every tool this server offers, as tools/list describes them.
+    /// </summary>
+    private static JsonNode[] Descriptors() => [FolderMoveTool.Descriptor(), NewChatTool.Descriptor(), .. ChatTools.Descriptors()];
+
+    /// <summary>
+    /// A tools/call, handed to the tool it names; subagents may only list chats.
     /// </summary>
     private async Task<JsonObject> CallAsync(JsonElement message, bool mainAgent)
     {
@@ -99,6 +116,9 @@ internal sealed class NomadSessionServer(string workingDirectory)
             NewChatTool.Name when !mainAgent =>
                 ToolResult("Only the main conversation can suggest a new chat. Mention the task to your parent agent instead.", error: true),
             NewChatTool.Name => NewChatTool.Call(parameters),
+            ChatTools.SendName when !mainAgent =>
+                ToolResult("Only the main conversation can message another chat. Return the message to your parent agent.", error: true),
+            ChatTools.ListName or ChatTools.SendName => await ChatTools.CallAsync(name, parameters, chatKey).ConfigureAwait(false),
             _ => ToolResult($"Unknown tool: {name}.", error: true),
         };
     }
