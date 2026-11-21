@@ -31,6 +31,9 @@ public sealed class NomadSettings
     /// <summary>Show the activity lines (thinking, tool groups such as "Read a file"); off: only prompts and replies.</summary>
     public bool ShowActivity { get; set; } = true;
 
+    /// <summary>Under each prompt, what the user's hooks added to it (UserPromptSubmit context); off by default.</summary>
+    public bool ShowHookContext { get; set; }
+
     /// <summary>The ring at the end of the status row (plan usage; spins while a turn runs, opens the usage limits).</summary>
     public bool ShowUsageRing { get; set; } = true;
 

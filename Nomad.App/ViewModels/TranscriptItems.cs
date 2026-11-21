@@ -65,6 +65,22 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
     public bool HasText => Text.Length > 0;
 
     public void Tick() => TimeText = Format.Ago(SentUtc);
+
+    /// <summary>What the user's hooks added to the prompt before the agent read it (UserPromptSubmit context).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasHookContext))]
+    public partial string HookContext { get; set; } = "";
+
+    public bool HasHookContext => HookContext.Length > 0;
+
+    /// <summary>The hook text is shown, not only its heading.</summary>
+    [ObservableProperty]
+    public partial bool IsHookContextOpen { get; set; }
+
+    [RelayCommand]
+    private void ToggleHookContextOpen() => IsHookContextOpen = !IsHookContextOpen;
+
+    public void AddHookContext(string text) => HookContext = HookContext.Length == 0 ? text : HookContext + "\n\n" + text;
 }
 
 /// <summary>A prompt waiting for the running turn to end; its text can be edited in place until it goes out.</summary>

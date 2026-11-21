@@ -544,6 +544,25 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Under each prompt, what the user's hooks added to it.</summary>
+    public bool ShowHookContext
+    {
+        get => Settings.ShowHookContext;
+        set
+        {
+            if (Settings.ShowHookContext != value)
+            {
+                Settings.ShowHookContext = value;
+                SaveSettings();
+                OnPropertyChanged();
+                foreach (var session in _open.Values.Append(Current).Distinct())
+                {
+                    session.OnShowHookContextChanged();
+                }
+            }
+        }
+    }
+
     /// <summary>Thinking and tool lines in the transcript; off, only prompts and replies are shown.</summary>
     public bool ShowActivity
     {

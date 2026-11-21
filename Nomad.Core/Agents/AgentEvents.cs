@@ -161,6 +161,9 @@ public sealed record ModelChangedEvent(string Model) : AgentEvent;
 /// <summary>Coarse status: "requesting", "compacting", or null when idle.</summary>
 public sealed record StatusEvent(string? Status) : AgentEvent;
 
+/// <summary>A UserPromptSubmit hook added text to the prompt just sent (shown under it when the user asks to see it).</summary>
+public sealed record HookContextEvent(string Text) : AgentEvent;
+
 /// <summary>The context in use changed mid-turn: a new call of the main conversation, or a compaction.</summary>
 public sealed record ContextUsageEvent(long Tokens) : AgentEvent;
 

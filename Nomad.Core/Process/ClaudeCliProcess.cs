@@ -107,6 +107,11 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             args.Add("--replay-user-messages");
         }
 
+        if (o.IncludeHookEvents)
+        {
+            args.Add("--include-hook-events");
+        }
+
         if (o.PermissionPromptOverStdio)
         {
             args.Add("--permission-prompt-tool");

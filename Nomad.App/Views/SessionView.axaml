@@ -683,6 +683,29 @@
                                  FontSize="{DynamicResource BodyFontSize}"
                                  LineHeight="{DynamicResource BodyLineHeight}"
                                  Foreground="{DynamicResource TextPrimaryBrush}" />
+            <!-- What the user's hooks added to this prompt (the "Show hook context" switch), folded until clicked. -->
+            <Panel IsVisible="{Binding $parent[UserControl].((vm:SessionViewModel)DataContext).ShowHookContext}">
+              <StackPanel IsVisible="{Binding HasHookContext}" Spacing="5" Margin="0,2,0,0">
+                <Button Theme="{StaticResource FlatButton}" Padding="0" HorizontalAlignment="Left" Background="Transparent"
+                        Command="{Binding ToggleHookContextOpenCommand}"
+                        ToolTip.Tip="What your hooks added to this message before the agent read it">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <c:Icon Size="11" Data="{StaticResource IconTool}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="Added by hooks" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                    <c:Icon Size="10" Data="{StaticResource IconChevronRight}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                            IsVisible="{Binding !IsHookContextOpen}" />
+                    <c:Icon Size="10" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                            IsVisible="{Binding IsHookContextOpen}" />
+                  </StackPanel>
+                </Button>
+                <Border IsVisible="{Binding IsHookContextOpen}" Background="{DynamicResource BgCodeBrush}" CornerRadius="6" Padding="9,7">
+                  <ScrollViewer MaxHeight="320" HorizontalScrollBarVisibility="Disabled">
+                    <SelectableTextBlock Text="{Binding HookContext}" TextWrapping="Wrap" FontFamily="{DynamicResource MonoFont}"
+                                         FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </ScrollViewer>
+                </Border>
+              </StackPanel>
+            </Panel>
           </StackPanel>
         </Border>
         <StackPanel Grid.Row="1" Grid.Column="1"
@@ -1966,6 +1989,16 @@
                     </StackPanel>
                   </Button>
                   <Border Classes="rule" />
+                  <!-- What hooks add to each prompt, folded under it. -->
+                  <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleHookContextCommand}"
+                          ToolTip.Tip="Under each message, what your hooks added to it before the agent read it">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <TextBlock Text="Show hook context" VerticalAlignment="Center" />
+                      <Border Grid.Column="1" Classes="switch" Classes.on="{Binding ShowHookContext}" VerticalAlignment="Center" Margin="12,0,0,0">
+                        <Ellipse />
+                      </Border>
+                    </Grid>
+                  </Button>
                   <!-- Activity lines: thinking and tool groups between the replies. -->
                   <Button Theme="{StaticResource MenuItemButton}" Command="{Binding ToggleActivityCommand}"
                           ToolTip.Tip="Thinking and tool lines (&quot;Read a file&quot;) between the replies">
