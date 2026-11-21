@@ -1643,30 +1643,58 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             task.IsListedFinished = false;
             BackgroundTasks.Remove(task);
+            _backgroundTaskById.Remove(task.ToolUseId);
         }
 
         FinishedBackgroundTasks.Clear();
         OnPropertyChanged(nameof(HasFinishedBackgroundTasks));
     }
 
+    private static readonly TimeSpan ForegroundCommandRevealDelay = TimeSpan.FromSeconds(1.5);
     private readonly Dictionary<string, BackgroundTaskViewModel> _backgroundTaskById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _activeTimers = new(StringComparer.Ordinal);
     private DispatcherTimer? _backgroundTaskTimer;
 
-    private void StartBackgroundTask(string toolUseId, string toolName, System.Text.Json.JsonElement input, bool isForeground = false)
+    private void StartBackgroundTask(string toolUseId, string toolName, System.Text.Json.JsonElement input, bool isForeground = false, string? taskId = null)
     {
         if (_backgroundTaskById.ContainsKey(toolUseId))
         {
             return;
         }
 
-        var task = new BackgroundTaskViewModel(toolUseId, toolName, input, isForeground);
+        var task = new BackgroundTaskViewModel(toolUseId, toolName, input, isForeground)
+        {
+            TaskId = string.IsNullOrEmpty(taskId) ? null : taskId,
+        };
         _backgroundTaskById[toolUseId] = task;
-        BackgroundTasks.Insert(0, task);
+        if (!isForeground)
+        {
+            BackgroundTasks.Insert(0, task);
+        }
+
         task.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(BackgroundTaskViewModel.IsRunning))
             {
-                if (!task.IsRunning) ListFinished(FinishedBackgroundTasks, task, () => task.IsListedFinished = true);
+                if (!task.IsRunning)
+                {
+                    if (task.IsForeground)
+                    {
+                        // Foreground commands are shown only while running long enough to matter, never spammed into Finished commands.
+                        BackgroundTasks.Remove(task);
+                        _backgroundTaskById.Remove(task.ToolUseId);
+                    }
+                    else
+                    {
+                        if (!BackgroundTasks.Contains(task))
+                        {
+                            BackgroundTasks.Insert(0, task);
+                        }
+
+                        ListFinished(FinishedBackgroundTasks, task, () => task.IsListedFinished = true);
+                    }
+                }
+
                 OnBackgroundTasksRunningChanged();
             }
         };
@@ -1706,11 +1734,23 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private void TickBackgroundTasks()
     {
+        var now = DateTime.UtcNow;
         var running = false;
-        foreach (var task in BackgroundTasks.Where(t => t.IsRunning))
+        var revealed = false;
+        foreach (var task in _backgroundTaskById.Values.Where(t => t.IsRunning))
         {
             task.Tick();
             running = true;
+            if (task.IsForeground && now - task.StartedUtc >= ForegroundCommandRevealDelay && !BackgroundTasks.Contains(task))
+            {
+                BackgroundTasks.Insert(0, task);
+                revealed = true;
+            }
+        }
+
+        if (revealed)
+        {
+            OnBackgroundTasksRunningChanged();
         }
 
         if (!running)
@@ -1736,6 +1776,12 @@ public sealed partial class SessionViewModel : ObservableObject
                 _ = FinishWorkflowAsync(run, status);
             }
 
+            return;
+        }
+
+        if (toolUseId is not null && _activeTimers.Remove(toolUseId))
+        {
+            UpdateAwaiting();
             return;
         }
 
@@ -1767,13 +1813,34 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
+        if (started.TaskType == "timer")
+        {
+            _activeTimers[call] = started.Description is { Length: > 0 } d ? d : "timer";
+            UpdateAwaiting();
+            return;
+        }
+
         if (_subagentById.TryGetValue(call, out var agent))
         {
-            agent.TaskId = started.TaskId;
+            agent.TaskId = string.IsNullOrEmpty(started.TaskId) ? null : started.TaskId;
         }
         else if (_backgroundTaskById.TryGetValue(call, out var task))
         {
-            task.TaskId = started.TaskId;
+            task.MarkBackground(started.TaskId);
+            if (!BackgroundTasks.Contains(task))
+            {
+                BackgroundTasks.Insert(0, task);
+            }
+
+            OnBackgroundTasksRunningChanged();
+        }
+        else if (started.TaskType == "local_bash" && _calls.TryGetValue(call, out var toolCall))
+        {
+            StartBackgroundTask(call, toolCall.Name, toolCall.Input, isForeground: false, taskId: started.TaskId);
+            if (_backgroundTaskById.TryGetValue(call, out var created))
+            {
+                created.MarkBackground(started.TaskId);
+            }
         }
         else if (started.TaskType == "local_agent")
         {
@@ -1862,7 +1929,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The process went, and its background commands with it.</summary>
     private void FinishBackgroundTasks()
     {
-        foreach (var task in BackgroundTasks.Where(t => t.IsRunning))
+        foreach (var task in _backgroundTaskById.Values.Where(t => t.IsRunning).ToList())
         {
             task.Finish(failed: false, $"Stopped with {BackendName}");
         }
@@ -2544,44 +2611,73 @@ public sealed partial class SessionViewModel : ObservableObject
 
     private void UpdateAwaiting()
     {
-        var commands = BackgroundTasks.Count(t => t.IsRunning);
-        var agents = Subagents.Count(a => a.IsRunning);
-        var workflows = Workflows.Count(w => w.IsRunning);
-        if (commands + agents + workflows > 0)
+        var commands = _backgroundTaskById.Values.Where(t => t.IsRunning).ToList();
+        var agents = Subagents.Where(a => a.IsRunning).ToList();
+        var workflows = Workflows.Where(w => w.IsRunning).ToList();
+        var timers = _activeTimers.Values.ToList();
+        var total = commands.Count + agents.Count + workflows.Count + timers.Count;
+        if (total > 0)
         {
-            AwaitingText = WaitingFor(commands, agents, workflows);
+            AwaitingText = WaitingFor(commands, agents, workflows, timers);
         }
 
-        IsAwaitingBackground = !IsTurnRunning && commands + agents + workflows > 0;
+        IsAwaitingBackground = !IsTurnRunning && total > 0;
         _main.OnSubagentsChanged(this);
     }
 
-    private static string WaitingFor(int commands, int agents, int workflows)
+    private static string WaitingFor(
+        IReadOnlyList<BackgroundTaskViewModel> commands,
+        IReadOnlyList<SubagentViewModel> agents,
+        IReadOnlyList<WorkflowRunItem> workflows,
+        IReadOnlyList<string> timers)
     {
         static string Count(int n, string what) => n == 1 ? (what[0] is 'a' ? "an " : "a ") + what : $"{n} {what}s";
+        static string Clip(string text)
+        {
+            var line = ToolText.FirstLine(text);
+            return line.Length <= 48 ? line : line[..47].TrimEnd() + "…";
+        }
+
+        var total = commands.Count + agents.Count + workflows.Count + timers.Count;
+        if (total <= 2)
+        {
+            List<string> names =
+            [
+                .. commands.Select(c => Clip(c.Description)),
+                .. agents.Select(a => Clip(a.Description)),
+                .. workflows.Select(w => Clip(string.IsNullOrWhiteSpace(w.Name) ? "workflow" : w.Name)),
+                .. timers.Select(Clip),
+            ];
+            return "Waiting for " + (names.Count == 1 ? names[0] : $"{names[0]} and {names[1]}");
+        }
 
         List<string> parts = [];
-        if (commands > 0)
+        if (commands.Count > 0)
         {
-            parts.Add(Count(commands, "background command"));
+            parts.Add(Count(commands.Count, "background command"));
         }
 
-        if (agents > 0)
+        if (agents.Count > 0)
         {
-            parts.Add(Count(agents, "agent"));
+            parts.Add(Count(agents.Count, "agent"));
         }
 
-        if (workflows > 0)
+        if (workflows.Count > 0)
         {
-            parts.Add(Count(workflows, "workflow"));
+            parts.Add(Count(workflows.Count, "workflow"));
+        }
+
+        if (timers.Count > 0)
+        {
+            parts.Add(Count(timers.Count, "timer"));
         }
 
         var list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
         return "Waiting for " + list;
     }
 
-    /// <summary>A subagent or background command is still at work, so the idle timeout leaves the process alone.</summary>
-    public bool HasBackgroundWork => BackgroundTasks.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning) || HasRunningWorkflows;
+    /// <summary>A subagent, background command, workflow, or timer is still at work, so the idle timeout leaves the process alone.</summary>
+    public bool HasBackgroundWork => _backgroundTaskById.Values.Any(t => t.IsRunning) || Subagents.Any(a => a.IsRunning) || HasRunningWorkflows || _activeTimers.Count > 0;
 
     /// <summary>Raised after items were added or grew, so the view can follow the bottom.</summary>
     public event Action? ContentChanged;
@@ -3913,12 +4009,16 @@ public sealed partial class SessionViewModel : ObservableObject
                         finished.Finish(r.IsError, r.Text);
                     }
                 }
+                else if (_activeTimers.Remove(r.ToolUseId))
+                {
+                    UpdateAwaiting();
+                }
                 else if (_backgroundTaskById.TryGetValue(r.ToolUseId, out var task))
                 {
-                    // It failed to start, or says which task it became, for the notification that ends it.
-                    if (task.IsForeground)
+                    // Foreground or Antigravity-promoted commands end on their tool result; Claude's return an ID at launch.
+                    if (task.IsForeground || task.CompletesOnResult)
                     {
-                        task.Finish(r.IsError, null);
+                        task.Finish(r.IsError, r.IsError ? ToolText.FirstLine(r.Text) : null);
                     }
                     else if (r.IsError)
                     {
@@ -3984,9 +4084,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
                 _backend = null;
                 ForgetBridgeProcess();
+                _activeTimers.Clear();
                 FinishSubagents(includingBackground: true);
                 FinishBackgroundTasks();
                 FinishWorkflows();
+                UpdateAwaiting();
                 _main.OnAliveChanged(this);
                 _main.ReassertTitle(this);
                 break;
@@ -4280,7 +4382,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
-        foreach (var task in BackgroundTasks.Where(task => task.IsForeground && task.IsRunning))
+        foreach (var task in _backgroundTaskById.Values.Where(task => task.IsForeground && task.IsRunning).ToList())
             task.Finish(result.IsError, null, stopped: result.Interrupted);
 
         FinishSubagents(includingBackground: false);

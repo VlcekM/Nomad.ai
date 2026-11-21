@@ -178,6 +178,102 @@ public sealed class AntigravityTests
         Assert.Equal("Use List<int> here.\n", Assert.Single(events.OfType<BlockCompletedEvent>()).Text);
     }
 
+    /// <summary>
+    /// Maps <c>run_command</c> inputs (<c>CommandLine</c>, <c>toolSummary</c>) to the shared shell tool shape.
+    /// </summary>
+    [Fact]
+    public void MapsRunCommandInputsToSharedShellShape()
+    {
+        var events = new List<AgentEvent>();
+        var turn = new AntigravityTurn(AntigravityBackend.DefaultModel, events.Add);
+        Send(turn, """
+            {"sessionUpdate":"tool_call","toolCallId":"cmd-1","name":"run_command","kind":"execute","status":"in_progress",
+             "title":"node -e \"console.log(42)\"","rawInput":{"CommandLine":"node -e \"console.log(42)\"","toolSummary":"Quick JS check"}}
+            """);
+
+        var call = Assert.Single(events.OfType<ToolCallEvent>());
+        Assert.True(call.IsShellCommand);
+        Assert.Equal(OperatingSystem.IsWindows() ? "PowerShell" : "Bash", call.Name);
+        Assert.Equal("node -e \"console.log(42)\"", call.Input.GetProperty("command").GetString());
+        Assert.Equal("Quick JS check", call.Input.GetProperty("description").GetString());
+    }
+
+    /// <summary>
+    /// Commands and non-daemon timers still open at <c>end_turn</c> promote to awaited work, complete on their late
+    /// <c>tool_call_update</c> without opening a reply, and keep their wake-up reply from closing pending subagents.
+    /// </summary>
+    [Fact]
+    public async Task PromotesOpenCommandsAndTimersAcrossTurns()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","status":"in_progress","title":"Run invoke_subagent"}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call_update","toolCallId":"sub-1","name":"invoke_subagent","status":"completed"}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"cmd-bg","name":"run_command","kind":"execute","status":"in_progress",
+             "title":"dotnet build","rawInput":{"CommandLine":"dotnet build","toolSummary":"Build .NET app"}}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"cmd-daemon","name":"run_command","kind":"execute","status":"in_progress",
+             "title":"npm run dev","rawInput":{"CommandLine":"npm run dev","toolSummary":"Dev server","IsDaemon":true}}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"timer-1","name":"schedule","kind":"other","status":"in_progress",
+             "title":"Run schedule","rawInput":{"DurationSeconds":6,"Prompt":"check builds"}}
+            """);
+
+        work.PromoteOpenWork();
+
+        lock (events)
+        {
+            var started = events.OfType<TaskStartedEvent>().ToList();
+            Assert.Collection(started,
+                cmd =>
+                {
+                    Assert.Equal("cmd-bg", cmd.ToolUseId);
+                    Assert.Equal("local_bash", cmd.TaskType);
+                    Assert.Equal("Build .NET app", cmd.Description);
+                },
+                timer =>
+                {
+                    Assert.Equal("timer-1", timer.ToolUseId);
+                    Assert.Equal("timer", timer.TaskType);
+                    Assert.Equal("6s timer: check builds", timer.Description);
+                });
+        }
+
+        // A lone tool_call_update completing the timer emits ToolResultEvent without starting an unprompted reply.
+        Feed(work, """{"sessionUpdate":"tool_call_update","toolCallId":"timer-1","name":"schedule","status":"completed"}""");
+        Assert.False(work.IsReplying);
+        lock (events)
+        {
+            Assert.Single(events.OfType<ToolResultEvent>(), r => r.ToolUseId == "timer-1" && !r.IsError);
+        }
+
+        // The timer's wake-up reply does not prematurely complete sub-1.
+        await ReplyAsync(work, "Checking builds.");
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        // The background command completes, and its wake-up reply also doesn't close sub-1.
+        Feed(work, """{"sessionUpdate":"tool_call_update","toolCallId":"cmd-bg","name":"run_command","status":"completed","rawOutput":{"output":"ok"}}""");
+        await ReplyAsync(work, "Build finished.");
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        // Now sub-1's own unprompted reply closes sub-1.
+        await ReplyAsync(work, "Subagent finished.");
+        lock (events)
+        {
+            var sub = Assert.Single(events.OfType<SubagentStateEvent>());
+            Assert.Equal("sub-1", sub.AgentId);
+            Assert.Equal("completed", sub.Status);
+        }
+    }
+
     private static void Send(AntigravityTurn turn, string update)
     {
         using var document = JsonDocument.Parse(update);

@@ -25,7 +25,12 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     /// <summary>
     /// Whether the tool result, rather than a background task notification, ends this command.
     /// </summary>
-    public bool IsForeground { get; }
+    public bool IsForeground { get; private set; }
+
+    /// <summary>
+    /// Whether a backgrounded command ends on its <c>ToolResultEvent</c> (Antigravity) rather than a separate notification (Claude Code).
+    /// </summary>
+    public bool CompletesOnResult { get; private set; }
 
     /// <summary>"Bash", "PowerShell": the row's chip.</summary>
     public string ToolName { get; }
@@ -65,7 +70,24 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     public partial bool IsListedFinished { get; set; }
 
     /// <summary>The row's Stop: it runs, and the CLI said which task it is.</summary>
-    public bool CanStop => IsRunning && TaskId is not null;
+    public bool CanStop => IsRunning && !string.IsNullOrEmpty(TaskId);
+
+    /// <summary>
+    /// Promotes a running foreground command that outlived its turn to a tracked background command.
+    /// </summary>
+    public void MarkBackground(string? taskId)
+    {
+        if (IsForeground)
+        {
+            IsForeground = false;
+            CompletesOnResult = true;
+        }
+
+        if (!string.IsNullOrEmpty(taskId))
+        {
+            TaskId = taskId;
+        }
+    }
 
     /// <summary>The user pressed Stop: however its end is reported, it was stopped.</summary>
     public bool StopRequested { get; set; }

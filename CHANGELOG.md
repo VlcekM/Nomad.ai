@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.2
+
+- Show what Antigravity is waiting on after a turn ends (backgrounded shell commands and non-daemon timers) in the chat waiting row, sidebar status indicator, and side panel.
+- Normalized Antigravity shell calls (`run_command`) to the shared command format so transcript groups summarize them as commands instead of generic tools.
+- Stopped quick foreground commands from spamming the side panel's **Finished commands** list and debounced **Running commands** so brief commands don't flicker the card.
+
 ## v2.1.1
 
 - Softened inline code pill font weight to SemiLight so monospace code spans read lighter and more balanced against surrounding text.

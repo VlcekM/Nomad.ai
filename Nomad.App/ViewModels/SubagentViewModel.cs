@@ -129,7 +129,7 @@ public sealed partial class SubagentViewModel : ObservableObject
     public partial string? TaskId { get; set; }
 
     /// <summary>The row's Stop: it runs, and the CLI said which task it is.</summary>
-    public bool CanStop => IsRunning && TaskId is not null;
+    public bool CanStop => IsRunning && !string.IsNullOrEmpty(TaskId);
 
     /// <summary>The user pressed Stop: however its end is reported (its call's error, a notification), it was stopped.</summary>
     public bool StopRequested { get; set; }

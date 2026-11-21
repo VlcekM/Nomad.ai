@@ -367,6 +367,9 @@ public sealed class AntigravityBackend : IAgentBackend
             }
 
             Volatile.Write(ref _turn, null);
+            if (!result.Interrupted && !result.IsError) _background.PromoteOpenWork();
+            else _background.ClearOpenWork();
+
             Raise(new TurnCompletedEvent(result with { DurationMs = (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds }));
             if (_promptSuggestions && !result.Interrupted && !result.IsError && turn.Suggestion is { Length: > 0 } suggestion)
             {

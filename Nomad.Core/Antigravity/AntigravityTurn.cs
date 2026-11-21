@@ -284,21 +284,37 @@ internal sealed class AntigravityTurn(string? model, Action<AgentEvent> raise)
         FinishBlock();
         StartMessage();
         var title = CodexJson.Str(update, "title") ?? "Antigravity action";
+        var toolName = CodexJson.Str(update, "name");
         var input = CodexJson.Any(update, "rawInput");
-        if (input.ValueKind != JsonValueKind.Object) input = CodexJson.ToElement(new JsonObject { ["description"] = title });
+        var isShell = CodexJson.Str(update, "kind") == "execute" || toolName == "run_command";
+        var isSubagentLaunch = toolName == "invoke_subagent";
 
-        var name = title;
-        var isSubagentLaunch = CodexJson.Str(update, "name") == "invoke_subagent";
+        string name;
         if (isSubagentLaunch)
         {
             name = "Task";
             input = SubagentInput(input);
         }
+        else if (isShell)
+        {
+            name = OperatingSystem.IsWindows() ? "PowerShell" : "Bash";
+            input = CommandInput(input, title);
+        }
+        else if (toolName == "schedule")
+        {
+            name = "Schedule";
+            input = ScheduleInput(input, title);
+        }
+        else
+        {
+            name = title;
+            if (input.ValueKind != JsonValueKind.Object) input = CodexJson.ToElement(new JsonObject { ["description"] = title });
+        }
 
         raise(new BlockStartedEvent(_message, _index++, AgentBlockKind.ToolUse, id, name, null));
         raise(new ToolCallEvent(id, name, input.Clone(), null)
         {
-            IsShellCommand = CodexJson.Str(update, "kind") == "execute",
+            IsShellCommand = isShell,
             IsSubagentLaunch = isSubagentLaunch,
         });
     }
@@ -315,19 +331,97 @@ internal sealed class AntigravityTurn(string? model, Action<AgentEvent> raise)
     });
 
     /// <summary>
-    /// Adds terminal tool output and diff content to its transcript entry.
+    /// Extracts the command text from Antigravity's shell tool input.
     /// </summary>
-    private void FinishTool(JsonElement update)
+    internal static string? CommandLine(JsonElement input) =>
+        CodexJson.Str(input, "CommandLine") ?? CodexJson.Str(input, "command");
+
+    /// <summary>
+    /// Extracts a short description for a shell command from Antigravity's tool input or title.
+    /// </summary>
+    internal static string? CommandDescription(JsonElement input, string? title)
+    {
+        var summary = CodexJson.Str(input, "toolSummary") ?? CodexJson.Str(input, "description");
+        if (!string.IsNullOrWhiteSpace(summary)) return summary;
+
+        var command = CommandLine(input);
+        if (!string.IsNullOrWhiteSpace(title) && !string.Equals(title, command, StringComparison.Ordinal)) return title;
+
+        return command;
+    }
+
+    /// <summary>
+    /// Maps Antigravity's <c>run_command</c> fields to the shared command tool input shape.
+    /// </summary>
+    private static JsonElement CommandInput(JsonElement input, string title)
+    {
+        var obj = new JsonObject();
+        var command = CommandLine(input);
+        if (!string.IsNullOrWhiteSpace(command)) obj["command"] = command;
+
+        var description = CommandDescription(input, title);
+        if (!string.IsNullOrWhiteSpace(description) && !string.Equals(description, command, StringComparison.Ordinal))
+            obj["description"] = description;
+
+        if (obj.Count == 0 && !string.IsNullOrWhiteSpace(title))
+            obj["description"] = title;
+
+        return CodexJson.ToElement(obj);
+    }
+
+    /// <summary>
+    /// Formats a short human-readable description for a <c>schedule</c> timer or cron call.
+    /// </summary>
+    internal static string ScheduleDescription(JsonElement input, string? title)
+    {
+        if (input.ValueKind == JsonValueKind.Object)
+        {
+            var prompt = CodexJson.Str(input, "Prompt");
+            var firstLine = string.IsNullOrWhiteSpace(prompt) ? null : prompt.Trim().Split(['\r', '\n'], 2)[0].Trim();
+            if (CodexJson.Long(input, "DurationSeconds") is { } seconds and > 0)
+                return firstLine is { Length: > 0 } ? $"{seconds}s timer: {firstLine}" : $"{seconds}s timer";
+
+            if (CodexJson.Str(input, "CronExpression") is { Length: > 0 } cron)
+                return firstLine is { Length: > 0 } ? $"Schedule ({cron}): {firstLine}" : $"Schedule ({cron})";
+        }
+
+        return !string.IsNullOrWhiteSpace(title) ? title : "timer";
+    }
+
+    /// <summary>
+    /// Keeps Antigravity's schedule parameters alongside a summary description.
+    /// </summary>
+    private static JsonElement ScheduleInput(JsonElement input, string title)
+    {
+        var obj = input.ValueKind == JsonValueKind.Object
+            ? JsonNode.Parse(input.GetRawText()) as JsonObject ?? new JsonObject()
+            : new JsonObject();
+        obj["description"] = ScheduleDescription(input, title);
+        return CodexJson.ToElement(obj);
+    }
+
+    /// <summary>
+    /// Converts a terminal <c>tool_call_update</c> into a transcript result event, or null if still running.
+    /// </summary>
+    internal static ToolResultEvent? CreateToolResult(JsonElement update)
     {
         var status = CodexJson.Str(update, "status");
-        if (status is not ("completed" or "failed") || CodexJson.Str(update, "toolCallId") is not { } id) return;
+        if (status is not ("completed" or "failed") || CodexJson.Str(update, "toolCallId") is not { } id) return null;
 
         var output = CodexJson.Any(update, "rawOutput");
         var content = CodexJson.Arr(update, "content").Select(ToolContent).Where(text => text.Length > 0);
         var text = string.Join("\n", content);
         if (text.Length == 0 && output.ValueKind != JsonValueKind.Undefined) text = output.ToString();
 
-        raise(new ToolResultEvent(id, status == "failed", text, CodexJson.Keep(output), null));
+        return new ToolResultEvent(id, status == "failed", text, CodexJson.Keep(output), null);
+    }
+
+    /// <summary>
+    /// Adds terminal tool output and diff content to its transcript entry.
+    /// </summary>
+    private void FinishTool(JsonElement update)
+    {
+        if (CreateToolResult(update) is { } result) raise(result);
     }
 
     /// <summary>
