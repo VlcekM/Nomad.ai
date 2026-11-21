@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.4.0
+
+- Messages sent from another chat (`send_to_chat` or Claude Code's `SendMessage`) now appear as left-aligned accent-colored cards headed with the sending chat's name and agent instead of looking like user messages.
+- Images in replies and thumbnails now have a right-click menu with **Copy** and **Save image as...** (saving the original file), and the image preview adds a **Save** button, `Ctrl+S`, and the same right-click menu.
+- Added a **Show hook context** toggle in the composer menu (off by default) to display context added by `UserPromptSubmit` hooks folded under **Added by hooks** beneath each prompt.
+- Editing or replacing a folder's system prompt file now automatically refreshes running Claude Code and Codex chats on their next message (restarting on the same conversation when no background work is running and dropping stale saved snapshots).
+- Renaming a running Claude Code chat now updates the live process via `rename_session` so subsequent turns keep the new name.
+
 ## v2.3.0
 
 - Chats can now list and message each other: Claude Code and Antigravity chats get `list_chats` and `send_to_chat`. A message waits in the target chat's queue until its turn ends, names the sender so it can be answered, and a chat may send at most ten per five minutes.
