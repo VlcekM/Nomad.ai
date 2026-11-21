@@ -197,6 +197,21 @@
     </Style>
 
     <!-- Prompt and response actions: hidden until the message is hovered, then a quick fade. -->
+    <!-- A prompt bubble: the user's on the right; one another chat sent stands apart, on the left, in the accent colour. -->
+    <Style Selector="Border.bubble">
+      <Setter Property="Grid.Column" Value="1" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+    </Style>
+    <Style Selector="Border.bubble.fromchat">
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="2" />
+      <Setter Property="Margin" Value="0,0,64,0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
     <Style Selector="Grid.usermsg StackPanel.msgactions, Grid.response StackPanel.msgactions">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
@@ -620,14 +635,20 @@
     <DataTemplate DataType="{x:Type vm:UserMessageItem}" x:DataType="vm:UserMessageItem">
       <!-- Bubble, then a row that fades in on hover: seen mark, time, Copy, Rewind, Fork. -->
       <Grid Classes="usermsg" ColumnDefinitions="*,3*" RowDefinitions="Auto,Auto" Margin="0,22,0,0" Background="Transparent">
-        <Border Grid.Column="1"
-                HorizontalAlignment="Right"
-                Background="{DynamicResource BgRaisedBrush}"
-                BorderBrush="{DynamicResource BorderCardBrush}"
+        <Border Classes="bubble"
+                Classes.fromchat="{Binding IsFromChat}"
                 BorderThickness="1"
                 CornerRadius="14"
                 Padding="14,9,14,10">
           <StackPanel Spacing="6">
+            <!-- From another chat: who sent it, above the message. -->
+            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsFromChat}" Margin="0,1,0,-1">
+              <c:Icon Size="12" Data="{StaticResource IconChat}" Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="From" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding FromChatName}" FontWeight="SemiBold" FontSize="{DynamicResource UiFontSizeSmall}"
+                         Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+              <TextBlock Text="{Binding FromChatDetail}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding IsFromDevice}" Margin="0,2,0,-2" ToolTip.Tip="{Binding FromDeviceToolTip}">
               <c:Icon Size="12" Data="{StaticResource IconLaptop}" Classes="tick" VerticalAlignment="Center" />
               <TextBlock Text="{Binding FromDevice}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
@@ -677,7 +698,7 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <SelectableTextBlock md:LinkSupport.LinkedText="{Binding Text}"
+            <SelectableTextBlock md:LinkSupport.LinkedText="{Binding DisplayText}"
                                  IsVisible="{Binding HasText}"
                                  TextWrapping="Wrap"
                                  FontSize="{DynamicResource BodyFontSize}"
