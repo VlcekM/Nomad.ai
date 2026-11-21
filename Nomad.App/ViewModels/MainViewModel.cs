@@ -2752,6 +2752,22 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        if (!SaveSessionTitle(item, title)) return;
+
+        item.Title = SessionTitles.Shorten(title);
+        if (_open.Values.Append(Current).FirstOrDefault(s => s.SessionId == item.SessionId) is { } session)
+        {
+            session.Title = item.Title;
+            session.RenamedTitle = title;
+            session.InitialTitle = null;
+        }
+    }
+
+    /// <summary>
+    /// Saves a title in the store for the session's backend.
+    /// </summary>
+    private bool SaveSessionTitle(SessionListItemViewModel item, string title)
+    {
         if (item.IsOpenCode)
         {
             _ = RenameOpenCodeAsync(item.WorkingDirectory, item.SessionId, title);
@@ -2768,10 +2784,7 @@ public sealed partial class MainViewModel : ObservableObject
         else
         {
             var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
-            if (file is null)
-            {
-                return;
-            }
+            if (file is null) return false;
 
             try
             {
@@ -2779,16 +2792,11 @@ public sealed partial class MainViewModel : ObservableObject
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return;
+                return false;
             }
         }
 
-        item.Title = SessionTitles.Shorten(title);
-        if (_open.Values.Append(Current).FirstOrDefault(s => s.SessionId == item.SessionId) is { } session)
-        {
-            session.Title = item.Title;
-            session.RenamedTitle = title;
-        }
+        return true;
     }
 
     private static async Task RenameOpenCodeAsync(string? directory, string sessionId, string title)
@@ -2818,7 +2826,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>A renamed session's CLI has exited: its name goes back on top of the title the CLI re-appended.</summary>
     public void ReassertTitle(SessionViewModel session)
     {
-        if (session is { RenamedTitle: { } title, SessionId: { } id } && Store.FindTranscript(id) is { } file)
+        if ((session.RenamedTitle ?? session.InitialTitle) is { } title
+            && session.SessionId is { } id && Store.FindTranscript(id) is { } file)
         {
             try
             {
@@ -2957,6 +2966,12 @@ public sealed partial class MainViewModel : ObservableObject
         HubTurnCompleted(session);
         if (session.SessionId is { } id && _all.FirstOrDefault(s => s.SessionId == id) is { } vm)
         {
+            if (session.InitialTitle is { } title && SaveSessionTitle(vm, title))
+            {
+                session.RenamedTitle = title;
+                session.InitialTitle = null;
+            }
+
             vm.IsRunning = false;
             vm.IsUnread = !ReferenceEquals(session, Current);
             vm.LastActivityUtc = DateTime.UtcNow;

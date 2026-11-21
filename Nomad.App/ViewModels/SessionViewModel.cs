@@ -308,6 +308,11 @@ public sealed partial class SessionViewModel : ObservableObject
     public partial string Title { get; set; } = "";
 
     /// <summary>
+    /// The title supplied at launch, pending persistence once the first turn has written its session.
+    /// </summary>
+    public string? InitialTitle { get; set; }
+
+    /// <summary>
     /// The name given with Rename while this window ran the session: written again when its CLI exits, since the
     /// CLI re-appends the title it knew to the transcript then.
     /// </summary>
@@ -2791,7 +2796,7 @@ public sealed partial class SessionViewModel : ObservableObject
         var firstTitle = SessionTitles.Shorten(text.Length > 0 ? text : files.Count > 0 ? files[0].Name : "Image");
         if (first)
         {
-            Title = text.Length > 0 ? UntitledTitle : firstTitle;
+            Title = InitialTitle ?? (text.Length > 0 ? UntitledTitle : firstTitle);
             _worktreePending = UseWorktree && !StartsInPlace && IsGitFolder && Folder is not null;
             IsNew = false;
         }

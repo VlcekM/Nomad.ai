@@ -366,20 +366,23 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// Fixes an issue, in the project's checkout (Ctrl+click: a new worktree).
     /// </summary>
     [RelayCommand]
-    private Task FixAsync(WorkRowViewModel row) => StartAsync(row, $"Fix this issue: {row.Url}", worktree: CtrlClick);
+    private Task FixAsync(WorkRowViewModel row) =>
+        StartAsync(row, $"Fix this issue: {row.Url}", $"Fix Issue {row.NumberText}", worktree: CtrlClick);
 
     /// <summary>
     /// Reviews a pull request, in the project's checkout (Ctrl+click: a new worktree, the checkout left alone).
     /// </summary>
     [RelayCommand]
-    private Task ReviewAsync(WorkRowViewModel row) => StartAsync(row, $"Review this pull request: {row.Url}", worktree: CtrlClick);
+    private Task ReviewAsync(WorkRowViewModel row) =>
+        StartAsync(row, $"Review this pull request: {row.Url}", $"Review PR {row.NumberText}", worktree: CtrlClick);
 
     /// <summary>
     /// Merges a pull request, the agent reconciling it with the repository (conflicts, its style) as it would when asked in a
     /// session; in the project's checkout (Ctrl+click: a new worktree).
     /// </summary>
     [RelayCommand]
-    private Task MergeAsync(WorkRowViewModel row) => StartAsync(row, $"Merge this pull request: {row.Url}", worktree: CtrlClick);
+    private Task MergeAsync(WorkRowViewModel row) =>
+        StartAsync(row, $"Merge this pull request: {row.Url}", $"Merge PR {row.NumberText}", worktree: CtrlClick);
 
     /// <summary>
     /// The chip: shows the row's session in place of the page.
@@ -415,7 +418,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// <summary>
     /// Starts the session in the background; why it couldn't (git failed to make the worktree) shows under the row.
     /// </summary>
-    private async Task StartAsync(WorkRowViewModel row, string prompt, bool worktree)
+    private async Task StartAsync(WorkRowViewModel row, string prompt, string title, bool worktree)
     {
         if (row.HasSession || Groups.FirstOrDefault(g => g.PullRequests.Contains(row) || g.Issues.Contains(row)) is not { } group) return;
 
@@ -423,7 +426,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         row.IsLaunching = true;
         try
         {
-            _started[row.Url] = await _main.StartBackgroundSessionAsync(group.Folder, prompt, SelectedModel, worktree);
+            _started[row.Url] = await _main.StartBackgroundSessionAsync(group.Folder, prompt, title, SelectedModel, worktree);
         }
         catch (Exception ex)
         {
