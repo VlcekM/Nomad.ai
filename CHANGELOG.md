@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.1.5
+
+- Sessions started from **Pull requests & issues** now show short sidebar titles such as `Merge PR #42`, `Review PR #39`, and `Fix Issue #40`.
+
 ## v2.1.4
 
 - Fixed stale **Running commands** entries in Claude Code when long-running foreground `Bash` commands emitted `task_started` with `is_backgrounded: false`.
