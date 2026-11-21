@@ -48,4 +48,30 @@ public sealed class FolderSystemPromptTests : IDisposable
 
         Assert.Null(settings.SystemPromptFor(@"C:\Work"));
     }
+
+    [Fact]
+    public void CodexFollowsTheSharedFilesInOlderSettings()
+    {
+        var file = Prompt("a.txt");
+        var settings = new NomadSettings { FolderSystemPrompts = { [@"C:\Work"] = file } };
+
+        Assert.Equal(file, settings.SystemPromptFor(@"C:\Work", codex: true));
+    }
+
+    [Fact]
+    public void ClaudeCodeAndCodexCanDiffer()
+    {
+        var claude = Prompt("claude.txt");
+        var codex = Prompt("codex.txt");
+        var settings = new NomadSettings
+        {
+            FolderSystemPrompts = { [@"C:\Work"] = claude, [@"C:\Work\Tools"] = "" },
+            FolderCodexSystemPrompts = new() { [@"C:\Work"] = "", [@"C:\Work\Tools"] = codex },
+        };
+
+        Assert.Equal(claude, settings.SystemPromptFor(@"C:\Work\Game"));
+        Assert.Null(settings.SystemPromptFor(@"C:\Work\Game", codex: true));
+        Assert.Null(settings.SystemPromptFor(@"C:\Work\Tools"));   // cleared here: the parent's file does not stand in
+        Assert.Equal(codex, settings.SystemPromptFor(@"C:\Work\Tools\x", codex: true));
+    }
 }

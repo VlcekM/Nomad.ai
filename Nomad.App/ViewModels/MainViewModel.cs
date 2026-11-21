@@ -194,21 +194,53 @@ public sealed partial class MainViewModel : ObservableObject
         StartPhoneServer(folder);
     }
 
-    /// <summary>Sets the system prompt file for sessions in a folder and below it, or removes it (null).</summary>
-    public void SetFolderSystemPrompt(string folder, string? file)
+    /// <summary>
+    /// Sets the system prompt file for sessions in a folder and below it, or clears it (null): Claude Code's, Codex's, or both.
+    /// A cleared one stays listed as the agent's own prompt until the folder is removed, so a parent folder's file does not
+    /// take over.
+    /// </summary>
+    public void SetFolderSystemPrompt(string folder, string? file, bool claude = true, bool codex = true)
     {
         folder = folder.TrimEnd('\\', '/');
-        foreach (var key in Settings.FolderSystemPrompts.Keys.Where(k => string.Equals(k.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase)).ToList())
-        {
-            Settings.FolderSystemPrompts.Remove(key);
-        }
-
-        if (!string.IsNullOrWhiteSpace(file))
-        {
-            Settings.FolderSystemPrompts[folder] = file;
-        }
+        if (claude) SetFolderPrompt(Settings.FolderSystemPrompts, folder, file);
+        if (codex) SetFolderPrompt(Settings.CodexSystemPrompts(), folder, file);
 
         SaveSettings();
+    }
+
+    /// <summary>
+    /// Takes a folder off the list: Claude Code and Codex both fall back to a parent folder's file, if any.
+    /// </summary>
+    public void RemoveFolderSystemPrompts(string folder)
+    {
+        folder = folder.TrimEnd('\\', '/');
+        RemoveFolderPrompt(Settings.FolderSystemPrompts, folder);
+        RemoveFolderPrompt(Settings.CodexSystemPrompts(), folder);
+
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// Replaces one agent's entry for a folder; an empty file keeps the folder listed with the agent's own prompt.
+    /// </summary>
+    private static void SetFolderPrompt(Dictionary<string, string> prompts, string folder, string? file)
+    {
+        RemoveFolderPrompt(prompts, folder);
+        prompts[folder] = file ?? "";
+    }
+
+    /// <summary>
+    /// Removes one agent's entries for a folder, however its path ends.
+    /// </summary>
+    private static void RemoveFolderPrompt(Dictionary<string, string> prompts, string folder)
+    {
+        var keys = prompts.Keys
+            .Where(k => string.Equals(k.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        foreach (var key in keys)
+        {
+            prompts.Remove(key);
+        }
     }
 
     public async Task RemovePhoneFolderAsync(string folder)

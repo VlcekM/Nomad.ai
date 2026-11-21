@@ -562,29 +562,59 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public bool HasFolderSystemPrompts => FolderSystemPrompts.Count > 0;
 
-    public void SetFolderSystemPrompt(string folder, string file)
+    /// <summary>
+    /// Sets (or clears, null) a folder's system prompt file for Claude Code, Codex or both, and refreshes the list.
+    /// </summary>
+    public void SetFolderSystemPrompt(string folder, string? file, bool claude = true, bool codex = true)
     {
-        _main.SetFolderSystemPrompt(folder, file);
+        _main.SetFolderSystemPrompt(folder, file, claude, codex);
         RefreshFolderSystemPrompts();
     }
 
     [RelayCommand]
     private void RemoveFolderSystemPrompt(FolderSystemPromptRow row)
     {
-        _main.SetFolderSystemPrompt(row.Folder, null);
+        _main.RemoveFolderSystemPrompts(row.Folder);
         RefreshFolderSystemPrompts();
     }
+
+    /// <summary>
+    /// Gives Claude Code its own prompt in a listed folder.
+    /// </summary>
+    [RelayCommand]
+    private void ClearClaudeSystemPrompt(FolderSystemPromptRow row) => SetFolderSystemPrompt(row.Folder, null, codex: false);
+
+    /// <summary>
+    /// Gives Codex its own prompt in a listed folder.
+    /// </summary>
+    [RelayCommand]
+    private void ClearCodexSystemPrompt(FolderSystemPromptRow row) => SetFolderSystemPrompt(row.Folder, null, claude: false);
 
     private void RefreshFolderSystemPrompts()
     {
         FolderSystemPrompts.Clear();
-        foreach (var (folder, file) in _main.Settings.FolderSystemPrompts.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+
+        var claude = _main.Settings.FolderSystemPrompts;
+        var codex = _main.Settings.FolderCodexSystemPrompts ?? claude;
+        var folders = claude.Keys
+            .Concat(codex.Keys)
+            .Select(f => f.TrimEnd('\\', '/'))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in folders)
         {
-            FolderSystemPrompts.Add(new FolderSystemPromptRow(folder, file));
+            FolderSystemPrompts.Add(new FolderSystemPromptRow(folder, FolderPrompt(claude, folder), FolderPrompt(codex, folder)));
         }
 
         OnPropertyChanged(nameof(HasFolderSystemPrompts));
     }
+
+    /// <summary>
+    /// One agent's entry for a folder, however its path ends; null when it has none.
+    /// </summary>
+    private static string? FolderPrompt(Dictionary<string, string> prompts, string folder) => prompts
+        .FirstOrDefault(p => string.Equals(p.Key.TrimEnd('\\', '/'), folder, StringComparison.OrdinalIgnoreCase))
+        .Value;
 
     private void RefreshPhoneFolders()
     {
@@ -1144,14 +1174,54 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 }
 
-/// <summary>A folder's system prompt on the settings page: the folder, and the file that replaces the agent's prompt there.</summary>
-public sealed class FolderSystemPromptRow(string folder, string file)
+/// <summary>
+/// A folder's system prompts on the settings page: the folder, and the files that replace Claude Code's and Codex's.
+/// </summary>
+public sealed class FolderSystemPromptRow(string folder, string? claudeFile, string? codexFile)
 {
+    /// <summary>
+    /// The folder the prompts apply in, with the folders inside it.
+    /// </summary>
     public string Folder { get; } = folder;
 
-    public string File { get; } = file;
+    /// <summary>
+    /// Claude Code's file here, or null for its own prompt.
+    /// </summary>
+    public string? ClaudeFile { get; } = string.IsNullOrEmpty(claudeFile) ? null : claudeFile;
 
-    public string Status => System.IO.File.Exists(File) ? File : File + " (missing: sessions here use the agent's own prompt)";
+    /// <summary>
+    /// Codex's file here, or null for its own prompt.
+    /// </summary>
+    public string? CodexFile { get; } = string.IsNullOrEmpty(codexFile) ? null : codexFile;
+
+    /// <summary>
+    /// Whether Claude Code has a file here (shows its Clear button).
+    /// </summary>
+    public bool HasClaudeFile => ClaudeFile is not null;
+
+    /// <summary>
+    /// Whether Codex has a file here (shows its Clear button).
+    /// </summary>
+    public bool HasCodexFile => CodexFile is not null;
+
+    /// <summary>
+    /// Claude Code's line: its file, or that it uses its own prompt.
+    /// </summary>
+    public string ClaudeStatus => Status(ClaudeFile);
+
+    /// <summary>
+    /// Codex's line: its file, or that it uses its own prompt.
+    /// </summary>
+    public string CodexStatus => Status(CodexFile);
+
+    /// <summary>
+    /// The line for one agent's file: the file, its own prompt, or a missing file (which also means its own prompt).
+    /// </summary>
+    private static string Status(string? file) => file is null
+        ? "Its own prompt"
+        : System.IO.File.Exists(file)
+            ? file
+            : file + " (not there: its own prompt)";
 }
 
 /// <summary>A phone folder on the settings page: where the phone can start sessions, and how that is going.</summary>

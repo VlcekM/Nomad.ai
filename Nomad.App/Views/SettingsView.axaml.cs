@@ -66,17 +66,41 @@ public partial class SettingsView : UserControl
             return;
         }
 
+        if (await PickPromptAsync(top, "System prompt for " + Path.GetFileName(folder.TrimEnd('\\', '/'))) is { } file)
+        {
+            vm.SetFolderSystemPrompt(folder, file);
+        }
+    }
+
+    /// <summary>
+    /// One agent's file for a listed folder (the button's Tag names the agent).
+    /// </summary>
+    private async void OnChooseSystemPromptClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top) return;
+        if (sender is not Button { DataContext: FolderSystemPromptRow row, Tag: string agent }) return;
+
+        var codex = agent == "codex";
+        var title = (codex ? "Codex" : "Claude Code") + " system prompt for " + Path.GetFileName(row.Folder);
+        if (await PickPromptAsync(top, title) is { } file)
+        {
+            vm.SetFolderSystemPrompt(row.Folder, file, claude: !codex, codex: codex);
+        }
+    }
+
+    /// <summary>
+    /// Asks for the text file that becomes a system prompt; null when the picker is cancelled.
+    /// </summary>
+    private static async Task<string?> PickPromptAsync(TopLevel top, string title)
+    {
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "System prompt for " + Path.GetFileName(folder.TrimEnd('\\', '/')),
+            Title = title,
             AllowMultiple = false,
             FileTypeFilter = [PromptFiles, FilePickerFileTypes.All],
         });
 
-        if (files.Count > 0 && files[0].TryGetLocalPath() is { } file)
-        {
-            vm.SetFolderSystemPrompt(folder, file);
-        }
+        return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
     private static readonly FilePickerFileType ThemeFiles = new("Nomad.ai theme") { Patterns = ["*.json"] };

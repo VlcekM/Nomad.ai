@@ -150,10 +150,16 @@ public sealed class NomadSettings
     public Dictionary<string, List<string>> SessionAdditionalDirectories { get; set; } = [];
 
     /// <summary>
-    /// Folder to a text file that replaces the agent's own system prompt for sessions in that folder or below it
-    /// (Claude Code <c>--system-prompt-file</c>, Codex base instructions).
+    /// Folder to a text file that replaces Claude Code's system prompt (<c>--system-prompt-file</c>) for sessions in that
+    /// folder or below it.
     /// </summary>
     public Dictionary<string, string> FolderSystemPrompts { get; set; } = [];
+
+    /// <summary>
+    /// The same for Codex (its base instructions). Null in settings saved before Codex had its own: Codex then follows
+    /// <see cref="FolderSystemPrompts"/>, as it did.
+    /// </summary>
+    public Dictionary<string, string>? FolderCodexSystemPrompts { get; set; }
 
     // Updates (only a Setup install updates itself)
 
@@ -315,19 +321,27 @@ public sealed class NomadSettings
     }
 
     /// <summary>
-    /// The system prompt file for a session folder: the entry for the folder itself or its nearest parent, when the file
-    /// exists (a missing file is skipped, so the session still starts).
+    /// The Codex prompts, starting from the shared ones for settings saved before Codex had its own.
     /// </summary>
-    public string? SystemPromptFor(string? folder)
+    public Dictionary<string, string> CodexSystemPrompts() =>
+        FolderCodexSystemPrompts ??= new Dictionary<string, string>(FolderSystemPrompts, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The system prompt file for a session folder (Claude Code's, or Codex's): the entry for the folder itself or its
+    /// nearest parent, when the file exists. A missing file means the agent's own prompt, so the session still starts; a
+    /// parent folder's file does not stand in for it.
+    /// </summary>
+    public string? SystemPromptFor(string? folder, bool codex = false)
     {
-        if (string.IsNullOrWhiteSpace(folder) || FolderSystemPrompts.Count == 0)
+        var prompts = codex ? FolderCodexSystemPrompts ?? FolderSystemPrompts : FolderSystemPrompts;
+        if (string.IsNullOrWhiteSpace(folder) || prompts.Count == 0)
         {
             return null;
         }
 
         string Trim(string path) => path.Replace('/', '\\').TrimEnd('\\');
         var target = Trim(folder);
-        var best = FolderSystemPrompts
+        var best = prompts
             .Where(entry => Trim(entry.Key) is { Length: > 0 } key
                 && (string.Equals(target, key, StringComparison.OrdinalIgnoreCase)
                     || target.StartsWith(key + "\\", StringComparison.OrdinalIgnoreCase)))
