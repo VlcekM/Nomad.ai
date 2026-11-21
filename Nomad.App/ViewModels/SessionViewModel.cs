@@ -40,6 +40,9 @@ public sealed partial class SessionViewModel : ObservableObject
     private ToolGroupItem? _openGroup;
     private bool _restartRequired;
 
+    // The system prompt file the running process started with, and when that file was last written.
+    private (string? Path, DateTime Written) _startedPrompt;
+
     // Rewind / fork: where the next process resumes (null: the whole transcript), and from which
     // session a fork starts. Kept until a prompt went out in a process started with them.
     private string? _resumeAt;
@@ -3611,6 +3614,15 @@ public sealed partial class SessionViewModel : ObservableObject
     private async Task StartBackendIfNeededAsync()
     {
         await AwaitWatchStartingAsync();
+
+        // The folder's system prompt changed (edited, or another file chosen) since the process started: the process holds
+        // the old one for good, so it restarts on the same conversation. Not while background work would die with it.
+        if (_backend is ClaudeCodeBackend { IsProcessRunning: true } or Nomad.Core.Codex.CodexBackend { IsProcessRunning: true }
+            && !_restartRequired && !HasBackgroundWork && PromptStamp() != _startedPrompt)
+        {
+            _restartRequired = true;
+        }
+
         if (_backend is { IsProcessRunning: true } && !_restartRequired)
         {
             return;
@@ -3673,6 +3685,26 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         try
         {
+            _startedPrompt = PromptStamp();
+
+            // Claude Code resumes a session with the system prompt it saved when the session started, not the file it is
+            // given: when the folder's prompt is no longer the saved one, drop the saved copy so the current file applies.
+            if (backend is ClaudeCodeBackend && SessionId is { } id && _startedPrompt.Path is { } promptFile
+                && _main.Store.FindTranscript(id) is { } transcript)
+            {
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        Nomad.Core.Sessions.PromptSnapshots.DropIfStale(transcript, File.ReadAllText(promptFile));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // Left as it is: the session keeps the prompt it has.
+                    }
+                });
+            }
+
             await backend.StartAsync(StartOptions());
         }
         catch
@@ -3686,6 +3718,20 @@ public sealed partial class SessionViewModel : ObservableObject
 
             await backend.DisposeAsync();
             throw;
+        }
+    }
+
+    /// <summary>The folder's system prompt file for this session, and when it was last written.</summary>
+    private (string? Path, DateTime Written) PromptStamp()
+    {
+        var path = _main.Settings.SystemPromptFor(Folder);
+        try
+        {
+            return (path, path is null ? default : File.GetLastWriteTimeUtc(path));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return (path, default);
         }
     }
 
