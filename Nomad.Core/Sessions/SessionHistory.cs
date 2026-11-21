@@ -7,6 +7,9 @@ namespace Nomad.Core.Sessions;
 /// <summary>One displayable piece of a stored conversation.</summary>
 public abstract record HistoryItem;
 
+/// <summary>What a UserPromptSubmit hook added to the prompt before it (the CLI's hook_additional_context attachment).</summary>
+public sealed record HistoryHookContext(string Text) : HistoryItem;
+
 public sealed record HistoryUserMessage(string Text) : HistoryItem
 {
     /// <summary>The transcript record's uuid (rewind and fork point at it).</summary>
@@ -205,6 +208,9 @@ public sealed class SessionHistory
                 return;
             case "attachment" when WorktreeMove(record.Attachment) is { } move:
                 items.Add(new HistoryNotice(move));
+                return;
+            case "attachment" when HookContext.FromAttachment(record.Attachment) is { } added:
+                items.Add(new HistoryHookContext(added));
                 return;
             case "system" when record.Subtype == "compact_boundary":
                 items.Add(new HistoryNotice("Conversation compacted"));

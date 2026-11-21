@@ -2209,6 +2209,23 @@ public sealed partial class SessionViewModel : ObservableObject
     [RelayCommand]
     private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
 
+    /// <summary>Show what hooks added to each prompt, folded under it.</summary>
+    public bool ShowHookContext => _main.ShowHookContext;
+
+    public void OnShowHookContextChanged() => OnPropertyChanged(nameof(ShowHookContext));
+
+    [RelayCommand]
+    private void ToggleHookContext() => _main.ShowHookContext = !_main.ShowHookContext;
+
+    /// <summary>Hook text belongs to the prompt it was added to: the latest one.</summary>
+    private void AddHookContext(string text)
+    {
+        if (Items.OfType<UserMessageItem>().LastOrDefault() is { } prompt)
+        {
+            prompt.AddHookContext(text);
+        }
+    }
+
     // ------------------------------------------------------------------ attachments
 
     /// <summary>Images and files pasted, dropped or picked into the composer, sent with the next prompt.</summary>
@@ -3393,6 +3410,9 @@ public sealed partial class SessionViewModel : ObservableObject
                     CloseGroup();
                     Items.Add(new AssistantTextItem(a.MessageId, -1, a.Text, streaming: false));
                     break;
+                case HistoryHookContext h:
+                    AddHookContext(h.Text);
+                    break;
                 case HistoryThinking t:
                     AddThinking(new ThinkingItem("", -1, t.Text, streaming: false, NarratesInThinking));
                     break;
@@ -3829,6 +3849,9 @@ public sealed partial class SessionViewModel : ObservableObject
 
         switch (e)
         {
+            case HookContextEvent hook:
+                AddHookContext(hook.Text);
+                break;
             case SessionStartedEvent s:
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)
                 {

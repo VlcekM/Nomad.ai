@@ -128,6 +128,11 @@ public sealed class SystemLine : CliLine
     /// <summary>For <c>task_updated</c>: what changed (its status, when it ended).</summary>
     [JsonPropertyName("patch")] public WireTaskPatch? Patch { get; set; }
 
+    /// <summary>For <c>hook_response</c>: the hook's event ("UserPromptSubmit") and what it printed.</summary>
+    [JsonPropertyName("hook_event")] public string? HookEvent { get; set; }
+    [JsonPropertyName("hook_name")] public string? HookName { get; set; }
+    [JsonPropertyName("stdout")] public string? Stdout { get; set; }
+
     /// <summary>For <c>compact_boundary</c>: the context before and after compacting.</summary>
     [JsonPropertyName("compact_metadata")] public WireCompactMetadata? CompactMetadata { get; set; }
 }

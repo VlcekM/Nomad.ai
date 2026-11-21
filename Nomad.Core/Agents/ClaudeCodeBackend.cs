@@ -538,6 +538,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     {
         switch (system.Subtype)
         {
+            case "hook_response" when system.HookEvent == "UserPromptSubmit" && HookContext.FromOutput(system.Stdout) is { } added:
+                Raise(new HookContextEvent(added));
+                break;
             case "init":
                 if (!string.IsNullOrEmpty(system.SessionId))
                 {

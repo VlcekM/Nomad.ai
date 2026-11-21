@@ -48,6 +48,9 @@ public sealed record ClaudeCliOptions
     /// </summary>
     public bool ReplayUserMessages { get; init; } = true;
 
+    /// <summary><c>--include-hook-events</c>: hook_started / hook_response lines, so what a hook added to a prompt can be shown.</summary>
+    public bool IncludeHookEvents { get; init; } = true;
+
     /// <summary>Route permission prompts to us as <c>can_use_tool</c> control requests.</summary>
     public bool PermissionPromptOverStdio { get; init; } = true;
 
