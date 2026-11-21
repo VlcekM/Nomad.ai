@@ -2623,6 +2623,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
     public bool IsProcessRunning => _backend?.IsProcessRunning == true;
 
+    /// <summary>Renames the session inside its running Claude Code process; false when there is none or it refused.</summary>
+    public async Task<bool> RenameProcessAsync(string title) =>
+        _backend is ClaudeCodeBackend { IsProcessRunning: true } claude && await claude.RenameAsync(title);
+
     /// <summary>
     /// The shared new-session usage layout.
     /// </summary>

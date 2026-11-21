@@ -2833,6 +2833,14 @@ public sealed partial class MainViewModel : ObservableObject
         else
         {
             var file = item.FilePath ?? Store.FindTranscript(item.SessionId);
+
+            // A running Claude Code process would write its old name back on its next turn: tell it instead.
+            if (_open.Values.Append(Current).FirstOrDefault(s => s.SessionId == item.SessionId) is { IsClaudeCode: true, IsProcessRunning: true } running)
+            {
+                _ = RenameRunningAsync(running, file, item.SessionId, title);
+                return true;
+            }
+
             if (file is null) return false;
 
             try
@@ -2846,6 +2854,24 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         return true;
+    }
+
+    /// <summary>Renames through the running process; if it refuses, appends the title to the transcript as for a stopped one.</summary>
+    private static async Task RenameRunningAsync(SessionViewModel session, string? file, string sessionId, string title)
+    {
+        if (await session.RenameProcessAsync(title) || file is null)
+        {
+            return;
+        }
+
+        try
+        {
+            SessionStore.AppendCustomTitle(file, sessionId, title);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The sidebar keeps the name until the next scan reads the transcript.
+        }
     }
 
     private static async Task RenameOpenCodeAsync(string? directory, string sessionId, string title)
