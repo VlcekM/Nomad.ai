@@ -189,7 +189,14 @@ public sealed class AntigravityBackend : IAgentBackend
         _promptSuggestions = options.PromptSuggestions
             && CodexJson.Bool(CodexJson.Obj(antigravityMeta, "systemPrompt"), "append") == true;
 
-        var args = new JsonObject { ["cwd"] = options.WorkingDirectory, ["mcpServers"] = new JsonArray() };
+        // The chat tools, through a bridge process: Antigravity takes only command-line MCP servers.
+        var servers = new JsonArray();
+        if (options.ChatKey is { } chatKey && ChatBridge.AcpServer(chatKey) is { } bridge)
+        {
+            servers.Add((JsonNode)bridge);
+        }
+
+        var args = new JsonObject { ["cwd"] = options.WorkingDirectory, ["mcpServers"] = servers };
         if (_promptSuggestions)
         {
             args["_meta"] = new JsonObject

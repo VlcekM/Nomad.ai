@@ -90,7 +90,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
 
         SessionId = options.ForkSession ? null : options.ResumeSessionId;
         _prompted = !string.IsNullOrWhiteSpace(options.ResumeSessionId);
-        _sessionServer = new NomadSessionServer(options.WorkingDirectory);
+        _sessionServer = new NomadSessionServer(options.WorkingDirectory, options.ChatKey);
         _folderMoveTool = _sessionServer.FolderMove;
         _folderMoveTool.PermissionRequested += request => Raise(new PermissionRequestedEvent(request));
         _folderMoveTool.MoveApproved += move =>

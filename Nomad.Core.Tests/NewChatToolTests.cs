@@ -7,12 +7,12 @@ namespace Nomad.Core.Tests;
 public sealed class NewChatToolTests
 {
     [Fact]
-    public async Task ListsBothTools()
+    public async Task ListsItsTools()
     {
         var response = await new NomadSessionServer(".").HandleAsync(Message("tools/list", null));
 
         var names = response!["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>());
-        Assert.Equal(["request_folder_move", "suggest_new_chat"], names);
+        Assert.Equal(["request_folder_move", "suggest_new_chat", "list_chats", "send_to_chat"], names);
     }
 
     [Fact]

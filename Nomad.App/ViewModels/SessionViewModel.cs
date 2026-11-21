@@ -2256,6 +2256,22 @@ public sealed partial class SessionViewModel : ObservableObject
     // The turn ended while a queued prompt was being edited: the queue goes out when the edit is done.
     private bool _sendAfterEdit;
 
+    /// <summary>Identifies this chat to the chat tools (list_chats, send_to_chat) for as long as the window has it.</summary>
+    public string ChatKey { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// A message from another chat: sent now when this one is idle (starting its agent if it stopped), queued behind the running
+    /// turn otherwise, like a prompt typed meanwhile.
+    /// </summary>
+    public async Task ReceiveMessageAsync(string text)
+    {
+        Queue(text, []);
+        if (!IsTurnRunning)
+        {
+            await SendQueuedAsync();
+        }
+    }
+
     public void Queue(string text, IReadOnlyList<Attachment> attachments)
     {
         Queued.Add(new QueuedPrompt(text, attachments));
@@ -3669,6 +3685,7 @@ public sealed partial class SessionViewModel : ObservableObject
         ResumeSessionAt = _resumeAt,
         ForkSession = SessionId is null && _forkFrom is not null,
         SystemPromptFile = _main.Settings.SystemPromptFor(Folder),
+        ChatKey = ChatKey,
         CliPath = _main.Settings.CliPath,
         ExtraArguments = _main.Dev.ExtraCliArguments,
     };

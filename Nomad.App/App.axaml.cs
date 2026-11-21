@@ -59,6 +59,8 @@ public partial class App : Application
             }
 
             var vm = new MainViewModel(settings, Program.SettingsPath, Program.Dev);
+            Nomad.Core.Agents.ChatTools.Directory = new ChatDirectory(vm);
+            Nomad.Core.Agents.ChatBridge.Listen();
             var window = new MainWindow(vm);
             desktop.MainWindow = window;
             desktop.ShutdownMode = ShutdownMode.OnMainWindowClose;

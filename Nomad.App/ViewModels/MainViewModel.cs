@@ -3204,6 +3204,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The sessions that may have a CLI running: every opened one and the current one.</summary>
     private IEnumerable<SessionViewModel> LiveSessions => _open.Values.Concat(_starting).Append(Current).Distinct();
 
+    /// <summary>The chats the chat tools can reach: every opened one and the current one.</summary>
+    internal IEnumerable<SessionViewModel> OpenChats => LiveSessions;
+
     /// <summary>
     /// A turn is running here, or a phone session is (Nomad can't see its turns): Nomad must not restart now, because
     /// its CLI processes die with it.
