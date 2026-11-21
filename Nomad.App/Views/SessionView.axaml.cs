@@ -22,9 +22,9 @@ public partial class SessionView : UserControl
         InitializeComponent();
         AddHandler(Controls.ChatImage.PreviewRequestedEvent, (_, e) =>
         {
-            if (e.Source is Controls.ChatImage { Bitmap: { } bitmap } image)
+            if (e.Source is Controls.ChatImage { Savable: { } image })
             {
-                OpenPreview([(bitmap, image.Caption ?? "Image")], 0);
+                OpenPreview([image], 0);
                 e.Handled = true;
             }
         });
@@ -1314,7 +1314,7 @@ public partial class SessionView : UserControl
 
     // ------------------------------------------------------------------ image preview
 
-    private List<(Avalonia.Media.Imaging.Bitmap Image, string Name)> _previews = [];
+    private List<Infrastructure.SavableImage> _previews = [];
     private int _previewIndex;
 
     private bool IsPreviewOpen => ImagePreview.Classes.Contains("open");
@@ -1323,8 +1323,8 @@ public partial class SessionView : UserControl
     {
         if (sender is Control { DataContext: Infrastructure.Attachment { Preview: { } shown } } && Vm is { } vm)
         {
-            var images = vm.Attachments.Where(a => a.Preview is not null).Select(a => (a.Preview!, a.Name)).ToList();
-            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.Item1, shown)));
+            var images = vm.Attachments.Where(a => a.Preview is not null).Select(a => new Infrastructure.SavableImage(a.Preview!, a.Name)).ToList();
+            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.Image, shown)));
             e.Handled = true;
         }
     }
@@ -1334,8 +1334,8 @@ public partial class SessionView : UserControl
         if (sender is Control { DataContext: Avalonia.Media.Imaging.Bitmap shown } control
             && control.FindAncestorOfType<ItemsControl>()?.ItemsSource is IEnumerable<Avalonia.Media.Imaging.Bitmap> all)
         {
-            var images = all.Select((b, i) => (b, $"Image {i + 1}")).ToList();
-            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.b, shown)));
+            var images = all.Select((b, i) => new Infrastructure.SavableImage(b, $"Image {i + 1}")).ToList();
+            OpenPreview(images, images.FindIndex(i => ReferenceEquals(i.Image, shown)));
             e.Handled = true;
         }
     }
@@ -1425,7 +1425,7 @@ public partial class SessionView : UserControl
         }
     }
 
-    private void OpenPreview(List<(Avalonia.Media.Imaging.Bitmap, string)> images, int index)
+    private void OpenPreview(List<Infrastructure.SavableImage> images, int index)
     {
         if (images.Count == 0)
         {
@@ -1442,7 +1442,7 @@ public partial class SessionView : UserControl
     private void ShowPreview(int index)
     {
         _previewIndex = (index + _previews.Count) % _previews.Count;
-        var (image, name) = _previews[_previewIndex];
+        var (image, name, _, _) = _previews[_previewIndex];
         PreviewImage.Source = image;
 
         // At most the session's size, less the margins and the caption.
@@ -1465,6 +1465,36 @@ public partial class SessionView : UserControl
         if (image is not null)
         {
             CopyImage(image);
+        }
+    }
+
+    /// <summary>A thumbnail's "Save image as…" (a sent image, or one attached to the composer).</summary>
+    private async void OnSaveImageClick(object? sender, RoutedEventArgs e)
+    {
+        var image = (sender as Control)?.DataContext switch
+        {
+            Avalonia.Media.Imaging.Bitmap bitmap => new Infrastructure.SavableImage(bitmap, "image"),
+            Infrastructure.Attachment { Preview: { } preview } attachment => new Infrastructure.SavableImage(preview, attachment.Name),
+            _ => null,
+        };
+        if (image is not null)
+        {
+            await Infrastructure.ImageSaving.SaveAsync(TopLevel.GetTopLevel(this), image);
+        }
+    }
+
+    private async void OnSavePreviewClick(object? sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        await SavePreviewAsync();
+    }
+
+    private async Task SavePreviewAsync()
+    {
+        if (_previews.Count > 0)
+        {
+            await Infrastructure.ImageSaving.SaveAsync(TopLevel.GetTopLevel(this), _previews[_previewIndex]);
+            ImagePreview.Focus();
         }
     }
 
@@ -1496,8 +1526,20 @@ public partial class SessionView : UserControl
 
     private void OnImagePreviewPressed(object? sender, PointerPressedEventArgs e)
     {
-        ClosePreview();
         e.Handled = true;
+
+        // A right-click offers copy and save; only a left (or middle) click closes the preview.
+        if (e.GetCurrentPoint(ImagePreview).Properties.IsRightButtonPressed)
+        {
+            var copy = new MenuItem { Header = "Copy image" };
+            copy.Click += (_, _) => CopyPreview();
+            var save = new MenuItem { Header = "Save image as…" };
+            save.Click += async (_, _) => await SavePreviewAsync();
+            new ContextMenu { Items = { copy, save }, Placement = PlacementMode.Pointer }.Open(ImagePreview);
+            return;
+        }
+
+        ClosePreview();
     }
 
     /// <summary>While the preview is open, Esc (or Space, Enter) closes it and ← → step through the images.</summary>
@@ -1528,6 +1570,9 @@ public partial class SessionView : UserControl
                 break;
             case Key.C when e.KeyModifiers == KeyModifiers.Control:
                 CopyPreview();
+                break;
+            case Key.S when e.KeyModifiers == KeyModifiers.Control:
+                _ = SavePreviewAsync();
                 break;
             default:
                 return;

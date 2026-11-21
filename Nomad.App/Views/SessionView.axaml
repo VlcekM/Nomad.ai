@@ -644,6 +644,7 @@
                     <Border.ContextMenu>
                       <ContextMenu>
                         <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                        <MenuItem Header="Save image as…" Click="OnSaveImageClick" />
                       </ContextMenu>
                     </Border.ContextMenu>
                     <Image Source="{Binding}" Stretch="Uniform" />
@@ -746,6 +747,7 @@
                 <Border.ContextMenu>
                   <ContextMenu>
                     <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                    <MenuItem Header="Save image as…" Click="OnSaveImageClick" />
                   </ContextMenu>
                 </Border.ContextMenu>
                 <Image Source="{Binding}" Stretch="Uniform" />
@@ -1856,6 +1858,7 @@
                     <Panel.ContextMenu>
                       <ContextMenu>
                         <MenuItem Header="Copy image" Click="OnCopyImageClick" />
+                        <MenuItem Header="Save image as…" Click="OnSaveImageClick" />
                       </ContextMenu>
                     </Panel.ContextMenu>
                     <Border CornerRadius="8" ClipToBounds="True">
@@ -2704,6 +2707,9 @@
               <c:Icon Size="12" Data="{StaticResource IconCopy}" />
               <TextBlock Name="PreviewCopyText" Text="Copy image" FontSize="{DynamicResource UiFontSizeSmall}" />
             </StackPanel>
+          </Button>
+          <Button Theme="{StaticResource LineButton}" Click="OnSavePreviewClick" ToolTip.Tip="Save the image to a file (Ctrl+S)">
+            <TextBlock Text="Save image…" FontSize="{DynamicResource UiFontSizeSmall}" />
           </Button>
         </StackPanel>
       </StackPanel>
