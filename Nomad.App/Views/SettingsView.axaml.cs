@@ -45,6 +45,40 @@ public partial class SettingsView : UserControl
         }
     }
 
+    private static readonly FilePickerFileType PromptFiles = new("Text") { Patterns = ["*.txt", "*.md"] };
+
+    // A folder, then the text file that becomes the system prompt there.
+    private async void OnAddFolderSystemPromptClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Folder the system prompt is for",
+            AllowMultiple = false,
+        });
+
+        if (folders.Count == 0 || folders[0].TryGetLocalPath() is not { } folder)
+        {
+            return;
+        }
+
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "System prompt for " + Path.GetFileName(folder.TrimEnd('\\', '/')),
+            AllowMultiple = false,
+            FileTypeFilter = [PromptFiles, FilePickerFileTypes.All],
+        });
+
+        if (files.Count > 0 && files[0].TryGetLocalPath() is { } file)
+        {
+            vm.SetFolderSystemPrompt(folder, file);
+        }
+    }
+
     private static readonly FilePickerFileType ThemeFiles = new("Nomad.ai theme") { Patterns = ["*.json"] };
 
     private async void OnImportThemeClick(object? sender, RoutedEventArgs e)

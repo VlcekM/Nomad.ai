@@ -83,7 +83,8 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             ForkSession = options.ForkSession,
             NewSessionId = string.IsNullOrWhiteSpace(options.ResumeSessionId) || options.ForkSession ? Guid.NewGuid().ToString() : null,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
-            ExtraArguments = ["--append-system-prompt", NomadSessionServer.Instructions,
+            ExtraArguments = [.. string.IsNullOrWhiteSpace(options.SystemPromptFile) ? [] : new[] { "--system-prompt-file", options.SystemPromptFile },
+                "--append-system-prompt", NomadSessionServer.Instructions,
                 .. options.AdditionalDirectories.SelectMany(path => new[] { "--add-dir", path }), .. options.ExtraArguments],
         };
 

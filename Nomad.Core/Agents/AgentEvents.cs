@@ -257,6 +257,12 @@ public sealed record AgentStartOptions
     /// <summary>Resume into a new session id, leaving the original as it is (fork).</summary>
     public bool ForkSession { get; init; }
 
+    /// <summary>
+    /// A text file that replaces the agent's own system prompt (Claude Code <c>--system-prompt-file</c>, Codex base
+    /// instructions); null keeps the agent's. Nomad's own instructions are still appended.
+    /// </summary>
+    public string? SystemPromptFile { get; init; }
+
     public string? CliPath { get; init; }
     public IReadOnlyList<string> ExtraArguments { get; init; } = [];
 }

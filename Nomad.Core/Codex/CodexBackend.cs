@@ -66,6 +66,12 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
             ["approvalsReviewer"] = reviewer,
             ["sandbox"] = sandbox,
         };
+        // A folder's system prompt replaces Codex's own (as model_instructions_file does on its command line).
+        if (!string.IsNullOrWhiteSpace(options.SystemPromptFile))
+        {
+            parameters["baseInstructions"] = await File.ReadAllTextAsync(options.SystemPromptFile, cancellationToken).ConfigureAwait(false);
+        }
+
         // Send an empty string too, so removing the last folder clears instructions saved on the thread.
         parameters["developerInstructions"] = _additionalDirectories.Count == 0 ? ""
             : "Additional workspace folders selected by the user:\n" + string.Join("\n", _additionalDirectories);
