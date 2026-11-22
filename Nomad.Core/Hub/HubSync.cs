@@ -610,7 +610,8 @@ public sealed class HubSync : IAsyncDisposable
         // in place whole.
         if (theirs == mine)
         {
-            if (synced == mine)
+            // With no record of it (the sync state was reset), this PC's side files go on top as they always did.
+            if (synced is null || synced == mine)
             {
                 return await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
             }
@@ -840,6 +841,8 @@ public sealed class HubSync : IAsyncDisposable
                     _state.Retry.Remove(key);
                 }
 
+                _retryAt.Remove(key);
+
                 continue;
             }
 
@@ -925,9 +928,9 @@ public sealed class HubSync : IAsyncDisposable
                     SessionPulled?.Invoke(new PulledSession(backend, sessionId, folder, remote.WorkingDirectory, true, remote.Title, remote.LastActivityUtc));
                 }
             }
-            catch (Exception e) when (e is not OperationCanceledException)
+            catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
             {
-                return; // The hub is away, say: tried again when the app next starts syncing.
+                return; // The hub is away or slow, say: tried again when the app next starts syncing.
             }
         }
     }
@@ -1032,6 +1035,10 @@ public sealed class HubSync : IAsyncDisposable
             }
 
             _retryAt.Remove(Key(remote.Backend, remote.SessionId));
+            lock (_state)
+            {
+                _state.DeletedHere.Remove(Key(remote.Backend, remote.SessionId)); // Back from another PC: listed again.
+            }
 
             SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null, remote.Title,
                 remote.LastActivityUtc));
@@ -1046,6 +1053,8 @@ public sealed class HubSync : IAsyncDisposable
                 {
                     _state.Retry.Remove(Key(remote.Backend, remote.SessionId));
                 }
+
+                _retryAt.Remove(Key(remote.Backend, remote.SessionId));
             }
             else
             {
