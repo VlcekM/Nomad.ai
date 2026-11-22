@@ -44,6 +44,12 @@ public sealed partial class UserMessageItem(string text, string? uuid, DateTime 
     /// <summary>Typed in Remote Control (claude.ai or the phone), not in Nomad.</summary>
     public bool IsRemote { get; init; }
 
+    /// <summary>
+    /// Sent into a running turn (Claude Code takes it in at its next step). The CLI stores it as a queued command, not a
+    /// prompt of its own, so it is no rewind or fork point: those look past it to the prompts around it.
+    /// </summary>
+    public bool IsSteered { get; init; }
+
     /// <summary>Typed on another PC of the hub (the one running the session, or one watching it): its name.</summary>
     public string? FromDevice { get; init; }
 

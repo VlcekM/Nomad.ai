@@ -138,6 +138,21 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         }
     }
 
+    /// <summary>
+    /// Writes a prompt into the turn running now, as Claude Code's terminal does with one typed mid-turn: the CLI takes it in at
+    /// its next step. The turn's state (a Stop asked for, an error so far) is left as it is, and no new turn starts.
+    /// </summary>
+    /// <returns>The uuid it went with: <see cref="PromptTakenEvent"/> names it once the CLI has taken it in.</returns>
+    public async Task<string> SteerAsync(string text, IReadOnlyList<PromptImage>? images = null, string? uuid = null, CancellationToken cancellationToken = default)
+    {
+        var cli = RequireRunning();
+        uuid ??= Guid.NewGuid().ToString();
+        _sentUuids[uuid] = 0; // Its replayed copy is no Remote Control prompt.
+        var reminder = !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+        await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images, reminder), cancellationToken).ConfigureAwait(false);
+        return uuid;
+    }
+
     public async Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default)
     {
         if (_folderMoveTool?.Respond(request, decision) == true)
@@ -734,6 +749,12 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         if (line.Message?.Content is not { } content)
         {
             return;
+        }
+
+        // A replayed prompt we sent: the CLI has taken it in.
+        if (line.IsReplay == true && line.ParentToolUseId is null && line.Uuid is { } taken && _sentUuids.ContainsKey(taken))
+        {
+            Raise(new PromptTakenEvent(taken));
         }
 
         // A replayed prompt we did not send came from Remote Control: it starts a turn of its own.

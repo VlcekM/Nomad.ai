@@ -1264,7 +1264,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         // Keep through the end of this turn: up to the record before the next prompt, or everything.
-        var next = source.Items.Skip(index + 1).OfType<UserMessageItem>().FirstOrDefault();
+        var next = source.Items.Skip(index + 1).OfType<UserMessageItem>().FirstOrDefault(m => !m.IsSteered);
         string? resumeAt = null;
         if (next is not null)
         {

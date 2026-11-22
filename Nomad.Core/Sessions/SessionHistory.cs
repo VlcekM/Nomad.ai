@@ -22,6 +22,9 @@ public sealed record HistoryUserMessage(string Text) : HistoryItem
 
     /// <summary>The images sent with it, base64 as stored (decoded only when shown).</summary>
     public IReadOnlyList<HistoryImage> Images { get; init; } = [];
+
+    /// <summary>Sent while a turn ran, and taken in by it: stored as the CLI's queued command, so no rewind or fork point.</summary>
+    public bool IsQueued { get; init; }
 }
 
 public sealed record HistoryImage(string MediaType, string Base64);
@@ -141,7 +144,7 @@ public sealed class SessionHistory
             else if (items[i] is HistoryToolResult { IsError: false } result && calls.Contains(result.ToolUseId))
             {
                 var next = i + 1;
-                while (next < items.Count && items[next] is not HistoryUserMessage)
+                while (next < items.Count && items[next] is not HistoryUserMessage { IsQueued: false })
                 {
                     next++;
                 }
@@ -206,6 +209,9 @@ public sealed class SessionHistory
                 && TaskNotification.TryParse(prompt.GetString(), out var summary):
                 items.Add(new HistoryNotice(summary));
                 return;
+            case "attachment" when QueuedPrompt(record.Attachment) is { } queued:
+                items.Add(queued with { TimestampUtc = DateTime.TryParse(record.Timestamp, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var queuedAt) ? queuedAt : null });
+                return;
             case "attachment" when WorktreeMove(record.Attachment) is { } move:
                 items.Add(new HistoryNotice(move));
                 return;
@@ -222,6 +228,50 @@ public sealed class SessionHistory
                 AddAssistantItems(record, items);
                 return;
         }
+    }
+
+    /// <summary>
+    /// A prompt sent while a turn ran, which the CLI took in mid-turn and stored as a <c>queued_command</c> attachment: from
+    /// Nomad, content blocks (its text without the reminder Nomad adds, and images); typed in a terminal, plain text. A task
+    /// notification queued between turns is not a prompt (it shows as a notice).
+    /// </summary>
+    private static HistoryUserMessage? QueuedPrompt(JsonElement attachment)
+    {
+        if (attachment.ValueKind != JsonValueKind.Object || Str(attachment, "type") != "queued_command"
+            || !attachment.TryGetProperty("prompt", out var prompt))
+        {
+            return null;
+        }
+
+        var texts = new List<string>();
+        var images = new List<HistoryImage>();
+        if (prompt.ValueKind == JsonValueKind.String && prompt.GetString() is { } typed)
+        {
+            if (TaskNotification.TryParse(typed, out _) || typed.TrimStart().StartsWith("<system-reminder>", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            texts.Add(typed.Trim());
+        }
+        else if (prompt.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var block in prompt.EnumerateArray())
+            {
+                if (Str(block, "type") == "text" && Str(block, "text") is { } text && !string.IsNullOrWhiteSpace(text)
+                    && !text.TrimStart().StartsWith("<system-reminder>", StringComparison.Ordinal))
+                {
+                    texts.Add(text.Trim());
+                }
+                else if (Str(block, "type") == "image" && block.TryGetProperty("source", out var source) && Str(source, "data") is { } data)
+                {
+                    images.Add(new HistoryImage(Str(source, "media_type") ?? "image/png", data));
+                }
+            }
+        }
+
+        texts.RemoveAll(t => t.Length == 0);
+        return texts.Count == 0 && images.Count == 0 ? null : new HistoryUserMessage(string.Join("\n\n", texts)) { Images = images, IsQueued = true };
     }
 
     /// <summary>The CLI's <c>environment</c> attachment when its working folder moved into or out of a worktree.</summary>

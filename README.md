@@ -217,7 +217,7 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 
 | Keys | Action |
 |------|--------|
-| Enter / Shift+Enter | Send / new line; while Claude works, Enter queues the prompt and Ctrl+Enter (or Ctrl+click on Send) stops Claude and sends it now |
+| Enter / Shift+Enter | Send / new line; while Claude Code works, Enter sends the prompt into the running turn (Claude reads it at its next step, as in its terminal; the other agents queue it), and Ctrl+Enter (or Ctrl+click on Send) stops Claude and sends it now |
 | Esc | Deny a pending permission (a running turn stops only with the Stop button) |
 | Ctrl+1 … Ctrl+9 | Open the sidebar's sessions, top to bottom (hold Ctrl to see their numbers) |
 | Ctrl+Shift+1 … Ctrl+Shift+4 | Switch model |

@@ -2035,7 +2035,30 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Something to send: while a turn runs, sending queues it.</summary>
     public bool ShowSendButton => HasComposerText || HasAttachments;
 
-    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now" : "Send (Enter)";
+    public string SendToolTip => !IsTurnRunning ? "Send (Enter)"
+        : CanSteer ? "Send (Enter): Claude reads it at its next step · Ctrl+Enter or Ctrl+click stops Claude and sends it"
+        : "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now";
+
+    /// <summary>
+    /// Whether a prompt sent while Claude Code works goes straight into the running turn, as typed in its terminal: the CLI
+    /// reads it at its next step, without stopping. Not for the other agents (they queue it), a session watched on another PC
+    /// or one the Claude app drives.
+    /// </summary>
+    private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer
+        && !_stopRequested && !_movingFolder && _pendingFolderMove is null;
+
+    /// <summary>Whether Enter steers or queues changed (a Stop, a folder move): the hint and the Send tooltip say it again.</summary>
+    private void RefreshSteerHints()
+    {
+        OnPropertyChanged(nameof(ComposerPlaceholder));
+        OnPropertyChanged(nameof(SendToolTip));
+    }
+
+    /// <summary>Set while Ctrl+Enter queues a prompt, which is then sent with the queue (Claude stopped) rather than steered in.</summary>
+    private bool _queueOnly;
+
+    /// <summary>Prompts sent into the running turn, by the uuid they went with: seen once the CLI says it took each in.</summary>
+    private readonly Dictionary<string, UserMessageItem> _steered = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
@@ -2055,7 +2078,15 @@ public sealed partial class SessionViewModel : ObservableObject
                 return false;
             }
 
-            SendCommand.Execute(null);
+            _queueOnly = true; // SendAsync decides before its first await, so this covers it.
+            try
+            {
+                SendCommand.Execute(null);
+            }
+            finally
+            {
+                _queueOnly = false;
+            }
         }
 
         if (Queued.Count == 0)
@@ -2477,8 +2508,10 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    // While Claude works: Enter queues the prompt, Ctrl+Enter stops Claude and sends it at once.
+    // While Claude works: Enter sends the prompt into the turn (Claude Code) or queues it (the others), Ctrl+Enter stops
+    // Claude and sends it at once.
     public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
+        : CanSteer ? "Enter: Claude reads it at its next step · Ctrl+Enter stops it and sends"
         : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : !IsClaudeCode ? "Ask a follow-up" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
@@ -2782,10 +2815,20 @@ public sealed partial class SessionViewModel : ObservableObject
         Attachments.Clear();
         OnAttachmentsChanged();
 
-        // While Claude works, a prompt waits its turn (above the composer, with "Send now").
+        // While Claude Code works, a prompt goes straight in and it reads it at its next step; with the other agents, or for
+        // Ctrl+Enter, it waits its turn (above the composer, with "Send now").
         if (IsTurnRunning)
         {
-            Queue(text, images);
+            // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
+            if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
+            {
+                await SteerAsync(text, images);
+            }
+            else
+            {
+                Queue(text, images);
+            }
+
             return;
         }
 
@@ -2824,6 +2867,39 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         await SendPromptAsync(text);
+    }
+
+    /// <summary>
+    /// Sends a prompt into the turn Claude Code is running, as its terminal does with one typed mid-turn: the CLI takes it at
+    /// its next step and carries on, so the turn and its state stay as they are.
+    /// </summary>
+    private async Task SteerAsync(string text, IReadOnlyList<Attachment> attachments)
+    {
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files = attachments.Where(a => a.IsFile).ToList();
+        CloseGroup();
+        var message = new UserMessageItem(text, null, DateTime.UtcNow, seen: false)
+        {
+            Images = images.Select(i => i.Preview!).ToList(),
+            Files = files,
+            IsSteered = true,
+        };
+        Items.Add(message);
+        ContentChanged?.Invoke();
+        _main.OnSessionActivity(this);
+        try
+        {
+            var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
+            var uuid = Guid.NewGuid().ToString();
+            _steered[uuid] = message;
+            await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
+            _relay?.PublishPrompt(sent, uuid);
+        }
+        catch (Exception ex)
+        {
+            Items.Add(new ErrorItem(ex.Message));
+            ContentChanged?.Invoke();
+        }
     }
 
     public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
@@ -2936,6 +3012,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         _stopRequested = true;
         _pendingFolderMove = null;
+        RefreshSteerHints();
         if (_movingFolder)
         {
             _cancelFolderMove = true;
@@ -3407,6 +3484,7 @@ public sealed partial class SessionViewModel : ObservableObject
                         ParentUuid = u.ParentUuid,
                         Files = promptFiles,
                         Images = u.Images.Select(DecodeImage).OfType<Avalonia.Media.Imaging.Bitmap>().ToList(),
+                        IsSteered = u.IsQueued,
                     });
                     break;
                 case HistoryAssistantText a:
@@ -3765,6 +3843,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             _stopRequested = true;
             _pendingFolderMove = null;
+            RefreshSteerHints();
             _cancelFolderMove = _movingFolder;
         }
 
@@ -3943,6 +4022,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case TurnStartedEvent:
                 _stopRequested = false;
+                RefreshSteerHints();
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
@@ -3950,6 +4030,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case TurnResumedEvent:
                 _stopRequested = false;
+                RefreshSteerHints();
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
@@ -3958,6 +4039,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case RelayPromptEvent relayed:
                 ShowRelayedPrompt(relayed);
+                break;
+
+            case PromptTakenEvent taken when _steered.Remove(taken.Uuid, out var steered):
+                steered.IsSeen = true;
                 break;
 
             case RelayAnsweredEvent answered:
@@ -3970,6 +4055,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case RemotePromptEvent remote:
                 _stopRequested = false;
+                RefreshSteerHints();
                 CloseGroup();
 
                 // A background task's end, which the CLI hands to Claude in the user's place: a notice, not a prompt.
@@ -4167,6 +4253,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case FolderMoveApprovedEvent move when !_stopRequested:
                 _pendingFolderMove = move.Path;
+                RefreshSteerHints();
                 break;
 
             case PermissionCancelledEvent pc:
@@ -4192,6 +4279,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ProcessExitedEvent x:
+                _steered.Clear(); // Never taken in: their bubbles stay unticked.
                 if (!x.Expected && x.ExitCode != 0 && !IsTurnRunning)
                 {
                     var message = string.IsNullOrWhiteSpace(x.StderrTail)
@@ -4604,6 +4692,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private async Task ContinueInFolderAsync(string destination)
     {
         _movingFolder = true;
+        RefreshSteerHints();
         _cancelFolderMove = false;
         IsTurnRunning = true; // Prompts typed during the move join the queue.
         State = AgentState.Running;
@@ -4663,6 +4752,7 @@ public sealed partial class SessionViewModel : ObservableObject
         finally
         {
             _movingFolder = false;
+            RefreshSteerHints();
             if (_cancelFolderMove)
             {
                 IsTurnRunning = false;

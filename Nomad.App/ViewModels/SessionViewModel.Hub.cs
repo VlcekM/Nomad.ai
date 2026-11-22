@@ -134,6 +134,20 @@ public sealed partial class SessionViewModel
         {
             switch (input.Kind)
             {
+                // Into the turn running here, as one typed here would go (Claude Code takes it in at its next step).
+                case RelayInput.Prompt when input.Text is { } text && CanSteer && !text.TrimStart().StartsWith('/') && backend is ClaudeCodeBackend claude:
+                    var steeredUuid = input.Uuid ?? Guid.NewGuid().ToString();
+                    var (shown, files) = AttachedFiles.Split(text);
+                    var steered = new UserMessageItem(shown, null, DateTime.UtcNow, seen: false) { Files = files, FromDevice = from, IsSteered = true };
+                    CloseGroup();
+                    Items.Add(steered);
+                    _steered[steeredUuid] = steered;
+                    ContentChanged?.Invoke();
+                    _main.OnSessionActivity(this);
+                    await claude.SteerAsync(text, input.Images, steeredUuid);
+                    _relay?.PublishPrompt(text, steeredUuid, from);
+                    break;
+
                 case RelayInput.Prompt when input.Text is { } text:
                     var uuid = input.Uuid ?? Guid.NewGuid().ToString();
                     ShowRelayedPrompt(new RelayPromptEvent(text, uuid, from));
@@ -195,6 +209,17 @@ public sealed partial class SessionViewModel
     /// <summary>A prompt the session took on the PC running it (or one this PC relayed, which shows already).</summary>
     private void ShowRelayedPrompt(RelayPromptEvent prompt)
     {
+        // Watching, a prompt the host sent into the turn running there: a prompt in that turn, which goes on as it was.
+        if (IsRelayViewer && IsTurnRunning)
+        {
+            var (steeredText, steeredFiles) = AttachedFiles.Split(prompt.Text);
+            CloseGroup();
+            Items.Add(new UserMessageItem(steeredText, null, DateTime.UtcNow, seen: true) { Files = steeredFiles, FromDevice = prompt.From, IsSteered = true });
+            ContentChanged?.Invoke();
+            _main.OnSessionActivity(this);
+            return;
+        }
+
         _stopRequested = false;
         CloseGroup();
         if (IsNew)
