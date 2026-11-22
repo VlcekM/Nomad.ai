@@ -121,11 +121,10 @@ public sealed partial class HubViewModel : ObservableObject
             backends.Add(new OpenCodeFiles(() => OpenCodeServer.ResolveExecutable(OpenCodeServer.CliPath)));
         }
 
-        if (AntigravityFiles.HasData)
-        {
-            _antigravitySessions = [.. _main.Settings.AntigravitySessions.Values];
-            backends.Add(new AntigravityFiles(AntigravityFiles.DefaultHome, () => _antigravitySessions));
-        }
+        // Always, not only once this PC has Antigravity chats: the change feed passes each chat once, so a PC that skipped
+        // them would never get them. Nothing is written here until another PC sends one.
+        _antigravitySessions = [.. _main.Settings.AntigravitySessions.Values];
+        backends.Add(new AntigravityFiles(AntigravityFiles.DefaultHome, () => _antigravitySessions));
 
         var statePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_main.SettingsPath))!, "hub-sync.json");
         _sync = new HubSync(new HubClient(url, secret), backends, statePath, (_, id) => _busy.ContainsKey(id));

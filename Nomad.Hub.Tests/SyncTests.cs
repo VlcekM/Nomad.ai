@@ -255,38 +255,126 @@ public sealed class SyncTests : IDisposable
     }
 
     [Fact]
-    public async Task AnAntigravityChatChangedOnBothPcsIsNeverOverwritten()
+    public async Task AnAntigravityChatChangedOnBothPcsIsSetAsideNotLost()
     {
         const string chat = "0249691e-9698-4760-95a6-5b1bb6355635";
         var a = await AntigravityPcAsync("A");
         var b = await AntigravityPcAsync("B");
+        var db = (string home) => Path.Combine(home, "conversations", chat + ".db");
         a.Chats.Add(new SessionSummary(chat, "", Path.Combine(_root, "A", "work"), "Shared", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "hub copy");
+        Write(db(a.Home), "database");
         await a.Sync.SyncNowAsync();
-
-        // B had its own copy from before the hub, which went its own way: a database can't be compared, so it stays.
-        b.Chats.Add(a.Chats[0]);
-        Write(Path.Combine(b.Home, "conversations", chat + ".db"), "B's own copy");
-        await b.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync(); // B has no annotations folder: a fetch without one must not need it.
+        Assert.Single(b.Pulled);
+        b.Chats.Add(new SessionSummary(chat, "", b.Pulled[0].Folder, "Shared", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
         await b.Sync.SyncNowAsync();
 
-        Assert.Equal("B's own copy", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
-        Assert.Empty(b.Pulled);
+        // Both add turns while apart. With the CLI keeping the chat open they land in the log, and the database file itself
+        // doesn't change, so its first bytes can't tell the copies apart.
+        Write(db(a.Home) + "-wal", "A's turns");
+        Write(db(b.Home) + "-wal", "B's turns");
         await a.Sync.SyncNowAsync();
-        Assert.Equal("hub copy", File.ReadAllText(Path.Combine(a.Home, "conversations", chat + ".db")));
+        var statuses = new List<string>();
+        b.Sync.Status += statuses.Add;
+        await b.Sync.SyncNowAsync();
+
+        // B's upload is refused: its copy is kept whole, and A's (the hub's) is used.
+        Assert.Equal("A's turns", File.ReadAllText(db(b.Home) + "-wal"));
+        var aside = Assert.Single(Directory.GetDirectories(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Equal("B's turns", File.ReadAllText(Path.Combine(aside, "conversations", chat + ".db-wal")));
+        Assert.Contains(statuses, s => s.Contains(aside, StringComparison.Ordinal));
+
+        // And the PCs agree from then on: nothing more is set aside, and A keeps its turns.
+        await b.Sync.SyncNowAsync();
+        await a.Sync.SyncNowAsync();
+        Assert.Single(Directory.GetDirectories(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Equal("A's turns", File.ReadAllText(db(a.Home) + "-wal"));
     }
 
     [Fact]
-    public async Task AnAntigravityChatIdIsNeverAPath()
+    public async Task AnAntigravityCopyFromBeforeTheHubIsComparedWhole()
+    {
+        const string chat = "0438bf40-efae-4d22-a6d0-3231a4a2f8d9";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        var summary = new SessionSummary(chat, "", Path.Combine(_root, "A", "work"), "Copied", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity);
+        a.Chats.Add(summary);
+        b.Chats.Add(summary);
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "same");
+        File.WriteAllText(Path.Combine(_root, "same.db"), "same");
+        Directory.CreateDirectory(Path.Combine(b.Home, "conversations"));
+        File.Copy(Path.Combine(a.Home, "conversations", chat + ".db"), Path.Combine(b.Home, "conversations", chat + ".db"));
+
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        // The same chat on both: nothing is set aside, fetched or uploaded again.
+        Assert.False(Directory.Exists(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Empty(b.Pulled);
+        Assert.Equal(1, (await b.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Version);
+    }
+
+    [Fact]
+    public async Task ReadingAnAntigravityChatIsNotAChange()
+    {
+        const string chat = "055bc3b1-1c70-4de8-8425-3e8dfb992206";
+        var a = await AntigravityPcAsync("A");
+        a.Chats.Add(new SessionSummary(chat, "", null, "Read only", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database");
+        await a.Sync.SyncNowAsync();
+
+        Write(Path.Combine(a.Home, "conversations", chat + ".db-wal"), ""); // What the CLI leaves after loading a chat.
+        await a.Sync.SyncNowAsync();
+
+        Assert.Equal(1, (await a.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Version);
+    }
+
+    [Fact]
+    public async Task AntigravityNotesDeletedAtTheSourceGoEverywhere()
+    {
+        const string chat = "07a66e40-6da8-4130-b23b-dfbd9100de95";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(new SessionSummary(chat, "", null, "Notes", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "v1");
+        Write(Path.Combine(a.Home, "brain", chat, "keep.md"), "keep");
+        Write(Path.Combine(a.Home, "brain", chat, "drop.md"), "drop");
+        Write(Path.Combine(a.Home, "annotations", chat + ".pbtxt"), "title");
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+        b.Chats.Add(a.Chats[0]);
+        Assert.True(File.Exists(Path.Combine(b.Home, "brain", chat, "drop.md")));
+
+        File.Delete(Path.Combine(a.Home, "brain", chat, "drop.md"));
+        File.Delete(Path.Combine(a.Home, "annotations", chat + ".pbtxt"));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "v2");
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal("v2", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
+        Assert.True(File.Exists(Path.Combine(b.Home, "brain", chat, "keep.md")));
+        Assert.False(File.Exists(Path.Combine(b.Home, "brain", chat, "drop.md")));
+        Assert.False(File.Exists(Path.Combine(b.Home, "annotations", chat + ".pbtxt")));
+    }
+
+    [Fact]
+    public async Task AnAntigravityChatIdIsNeverAPathNorListed()
     {
         var home = Path.Combine(_root, "C", "antigravity");
-        var files = new AntigravityFiles(home, () => [new SessionSummary("..\\..\\evil", "", null, "x", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity)]);
+        var odd = new[] { "..\\..\\evil", "{0249691E-9698-4760-95A6-5B1BB6355635}", "0249691e96984760 95a65b1bb6355635" };
+        var files = new AntigravityFiles(home, () => [.. odd.Select(id => new SessionSummary(id, "", null, "x", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity))]);
         var download = Path.Combine(_root, "download.db");
         Write(download, "x");
-        var remote = new SessionDto(AgentBackends.Antigravity, "..\\..\\evil", null, null, "x", null, null, DateTime.UtcNow, 1, 1, [], Guid.Empty, 1, false, null, null);
 
         Assert.Empty(files.List(CancellationToken.None));
-        Assert.Null(await files.WriteAsync(remote, new Dictionary<string, string> { [AntigravityFiles.Database] = download }, _root, CancellationToken.None));
+        foreach (var id in odd)
+        {
+            var remote = new SessionDto(AgentBackends.Antigravity, id, null, null, "x", null, null, DateTime.UtcNow, 1, 1, [], Guid.Empty, 1, false, null, null);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                files.WriteAsync(remote, new Dictionary<string, string> { [AntigravityFiles.Database] = download }, _root, CancellationToken.None));
+        }
+
         Assert.False(Directory.Exists(home));
     }
 }

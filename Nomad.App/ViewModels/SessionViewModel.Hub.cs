@@ -271,16 +271,40 @@ public sealed partial class SessionViewModel
     /// <summary>A newer version came from the hub while this session sat idle: the new turns join the transcript.</summary>
     public async Task ReloadFromStoreAsync()
     {
-        if (!CanReloadFromStore || Backend != AgentBackends.ClaudeCode || SessionId is not { } id || _main.Store.FindTranscript(id) is not { } file)
+        if (!CanReloadFromStore || SessionId is not { } id)
         {
             return;
         }
 
-        var history = await Task.Run(() => SessionStore.LoadHistory(file));
+        SessionHistory history;
+        var whole = _relayed;
+        if (Backend == AgentBackends.ClaudeCode && _main.Store.FindTranscript(id) is { } file)
+        {
+            history = await Task.Run(() => SessionStore.LoadHistory(file));
+        }
+        else if (Backend == AgentBackends.Antigravity && Folder is { } folder)
+        {
+            try
+            {
+                history = await Nomad.Core.Antigravity.AntigravityHistory.LoadAsync(id, folder);
+            }
+            catch (Exception)
+            {
+                return; // The CLI couldn't replay it: the transcript stays as it was until the chat is opened again.
+            }
+
+            // The CLI replays the whole chat, which turns run in this window aren't counted against: it is shown again whole.
+            whole = true;
+        }
+        else
+        {
+            return;
+        }
+
         if (CanReloadFromStore)
         {
             // Relayed turns showed without being in the file: the file's version replaces them all.
-            if (_relayed)
+            if (whole)
             {
                 _relayed = false;
                 Items.Clear();

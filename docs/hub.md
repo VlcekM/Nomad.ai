@@ -96,8 +96,11 @@ Checked against Codex CLI 0.163.0 and OpenCode 1.19.5, in throwaway homes (`CODE
   ACP `session/load` replays them without a resume first; the CLI's own index (`conversation_summaries.db`) adds the chat
   on first use, so nothing else is written. The database is taken with its `-wal` as one snapshot (kept only if neither
   changed while it was copied), and a fetch deletes this PC's old `-wal` and `-shm` before putting the new database in
-  place, so SQLite never replays a stale log into it. A database is not append-only, so a copy that went its own way on
-  two PCs is never replaced: each keeps its own and Nomad says so.
+  place, so SQLite never replays a stale log into it (an empty `-wal`, left by merely reading a chat, isn't a change).
+  Copies of a database can't be told apart as earlier and later, and the chat's id is written inside it, so one that
+  changed on two PCs can't become a fork as a Claude Code session does: the PC whose upload is refused keeps its copy,
+  whole, in `nomad-set-aside/<id>-<time>/` beside the CLI's folders, takes the hub's version, and says where its own went.
+  From then on every PC has the same copy again.
 
 **Nomad's per-session state**, from `NomadSettings`, syncs last-writer-wins per key with a timestamp:
 `ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `InterruptedSessions`. `MovedSessionFolders` stays local

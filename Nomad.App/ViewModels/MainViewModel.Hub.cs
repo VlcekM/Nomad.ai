@@ -75,6 +75,13 @@ public sealed partial class MainViewModel
             Settings.AntigravitySessions[pulled.SessionId] = new SessionSummary(pulled.SessionId, "", known?.WorkingDirectory ?? pulled.Folder,
                 title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity);
             SaveSettings();
+
+            // An open chat keeps its own title and writes it back to the settings on its next turn: it takes the new one.
+            if (_open.TryGetValue(pulled.SessionId, out var open) && title.Length > 0 && open.Title != title)
+            {
+                open.Title = title;
+                OnSessionTitleChanged(open);
+            }
         }
 
         if (_open.TryGetValue(pulled.SessionId, out var session) && session.CanReloadFromStore)

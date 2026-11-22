@@ -546,6 +546,12 @@ public sealed class HubSync : IAsyncDisposable
         }
         catch (CommitRefusedException refused) when (refused.Rejection is { Reason: "version", Current: { } current })
         {
+            if (backend.Opaque)
+            {
+                await ResolveOpaqueAsync(backend, local, commit, current, usageSent, ct).ConfigureAwait(false);
+                return null;
+            }
+
             var mine = commit.Files[0];
             var theirs = current.Files.FirstOrDefault(f => f.Path == mine.Path);
             if (theirs is null || (theirs.Length <= mine.Length && (await HashAsync(payload[0].FullPath, theirs.Length, ct).ConfigureAwait(false)).Hash == theirs.Hash))
@@ -573,6 +579,37 @@ public sealed class HubSync : IAsyncDisposable
             }
 
             return null;
+        }
+    }
+
+    /// <summary>
+    /// The hub moved on while an <see cref="ISessionFiles.Opaque"/> copy changed here too. Two copies of a database can't be
+    /// told apart as earlier and later: the same files are the same state, and anything else changed on both PCs, so this
+    /// PC's copy is set aside, whole, and the hub's version used. Nothing is lost, and the PCs agree again.
+    /// </summary>
+    private async Task ResolveOpaqueAsync(ISessionFiles backend, LocalSession local, SessionCommit commit, SessionDto current, int usageSent, CancellationToken ct)
+    {
+        if (SameFiles(commit.Files, current.Files))
+        {
+            Remember(backend.Backend, local.SessionId, new SyncedSession(current.Version, local.Stamp, current.Files.ToList(), usageSent));
+            return;
+        }
+
+        if (_isBusy(backend.Backend, local.SessionId) || Holds(backend.Backend, local.SessionId))
+        {
+            return; // In use here: sorted out once this PC lets it go.
+        }
+
+        var aside = await backend.SetAsideAsync(local.SessionId, ct).ConfigureAwait(false);
+        if (aside is null)
+        {
+            Status?.Invoke($"{local.Title} changed here and on another PC; this PC's copy wasn't uploaded.");
+            return;
+        }
+
+        if (await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false))
+        {
+            Status?.Invoke($"{local.Title} changed here and on another PC: the other PC's version is used now, and this PC's is kept in {aside}.");
         }
     }
 
@@ -721,6 +758,18 @@ public sealed class HubSync : IAsyncDisposable
         if (mode == Fetch.Normal && stamp is not null && known is not null && stamp != known.Stamp)
         {
             return false; // Changed here since the last sync too: the upload sorts it out (adds to it, or forks).
+        }
+
+        if (backend.Opaque && stamp is not null && (mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)))
+        {
+            // A copy here the hub never had from this PC can't be compared by its first bytes: the upload compares the whole
+            // copies, and sets this one aside if they differ.
+            if (mode == Fetch.Normal)
+            {
+                _pushWanted = true;
+            }
+
+            return false;
         }
 
         _projects ??= await _client.ProjectsAsync(ct).ConfigureAwait(false);

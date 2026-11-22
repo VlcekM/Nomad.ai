@@ -49,6 +49,15 @@ public interface ISessionFiles
     /// OpenCode import merges, so it can't lose anything).
     /// </summary>
     string? MainFile(string sessionId);
+
+    /// <summary>
+    /// Copies can't be compared or merged (a database): a copy that changed here and on another PC is set aside with
+    /// <see cref="SetAsideAsync"/> and the hub's version used, instead of one being taken for an earlier state of the other.
+    /// </summary>
+    bool Opaque => false;
+
+    /// <summary>Keeps this PC's copy of a session somewhere safe before an <see cref="Opaque"/> one is replaced; returns where.</summary>
+    Task<string?> SetAsideAsync(string sessionId, CancellationToken ct) => Task.FromResult<string?>(null);
 }
 
 internal static class Stamps
@@ -347,8 +356,9 @@ public sealed class CodexFiles(string codexHome) : ISessionFiles
 /// chats there are, with their folders and titles.
 /// </summary>
 /// <remarks>
-/// A database is not append-only, so a copy here that differs from the hub's is never replaced by it (<see cref="MainFile"/>
-/// is the database, and no other copy is a prefix of it): two PCs that both changed a chat while offline keep their own.
+/// A database can't be compared with another copy or merged into it, and its id is written inside it, so it can't be kept
+/// as a new chat either (<see cref="Opaque"/>): a chat that changed here and on another PC is set aside here, whole, and the
+/// hub's version is used.
 /// </remarks>
 public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<SessionSummary>> sessions) : ISessionFiles
 {
@@ -362,12 +372,16 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
     public static string DefaultHome =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "antigravity-cli");
 
-    public static bool HasData => Directory.Exists(Path.Combine(DefaultHome, "conversations"));
-
     public string Backend => AgentBackends.Antigravity;
 
-    /// <summary>Chat ids are GUIDs; anything else (from the settings or the hub) never becomes a path.</summary>
-    private static bool IsId(string sessionId) => Guid.TryParse(sessionId, out _);
+    public bool Opaque => true;
+
+    /// <summary>
+    /// Chat ids are GUIDs in their usual lower-case form; anything else (from the settings or the hub) never becomes a path, and
+    /// one chat never gets a second file under another spelling of its id.
+    /// </summary>
+    internal static bool IsId(string sessionId) =>
+        Guid.TryParseExact(sessionId, "D", out var id) && id.ToString("D") == sessionId;
 
     private string DatabaseOf(string id) => Path.Combine(home, "conversations", id + ".db");
 
@@ -375,23 +389,29 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
 
     private string AnnotationOf(string id) => Path.Combine(home, "annotations", id + ".pbtxt");
 
+    /// <summary>The log, when it holds anything: the CLI leaves an empty one after merely reading a chat.</summary>
+    private static string? WalOf(string db) => new FileInfo(db + "-wal") is { Exists: true, Length: > 0 } ? db + "-wal" : null;
+
+    private List<string> BrainFiles(string id) => Directory.Exists(BrainOf(id))
+        ? [.. Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)]
+        : [];
+
     /// <summary>The chat's files as they are on disk, the database first.</summary>
     private List<string> FilesOf(string id)
     {
-        var files = new List<string> { DatabaseOf(id) };
-        foreach (var extra in new[] { DatabaseOf(id) + "-wal", AnnotationOf(id) })
+        var db = DatabaseOf(id);
+        var files = new List<string> { db };
+        if (WalOf(db) is { } wal)
         {
-            if (File.Exists(extra))
-            {
-                files.Add(extra);
-            }
+            files.Add(wal);
         }
 
-        if (Directory.Exists(BrainOf(id)))
+        if (File.Exists(AnnotationOf(id)))
         {
-            files.AddRange(Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal));
+            files.Add(AnnotationOf(id));
         }
 
+        files.AddRange(BrainFiles(id));
         return files;
     }
 
@@ -434,23 +454,22 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
             }
 
             var db = DatabaseOf(s.SessionId);
-            var wal = db + "-wal";
             var written = File.GetLastWriteTimeUtc(db);
-            if (File.Exists(wal) && File.GetLastWriteTimeUtc(wal) > written)
+            if (WalOf(db) is { } wal && File.GetLastWriteTimeUtc(wal) > written)
             {
                 written = File.GetLastWriteTimeUtc(wal);
             }
 
-            var title = TitleOf(s.SessionId, s.Title);
-            result.Add(new LocalSession(Backend, s.SessionId, string.IsNullOrWhiteSpace(title) ? "Antigravity chat" : title, s.WorkingDirectory,
-                null, written, StampFor(s.SessionId, title)));
+            // No placeholder for a missing title: it would travel as a real one.
+            var title = TitleOf(s.SessionId, s.Title) ?? "";
+            result.Add(new LocalSession(Backend, s.SessionId, title, s.WorkingDirectory, null, written, StampFor(s.SessionId, title)));
         }
 
         return result;
     }
 
     public string? StampOf(string sessionId) =>
-        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? StampFor(sessionId, TitleOf(sessionId, Summary(sessionId)?.Title)) : null;
+        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? StampFor(sessionId, TitleOf(sessionId, Summary(sessionId)?.Title) ?? "") : null;
 
     public string? MainFile(string sessionId) =>
         IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? DatabaseOf(sessionId) : null;
@@ -468,52 +487,52 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         }
 
         var db = DatabaseOf(id);
-        var wal = db + "-wal";
         for (var attempt = 0; attempt < 3; attempt++)
         {
-            var before = Stamps.Of([db, wal]);
+            var before = Stamps.Of([db, db + "-wal"]);
             var snapshot = new List<PayloadFile>();
             try
             {
                 snapshot.Add(new PayloadFile(Database, await CopyToTempAsync(db, ct).ConfigureAwait(false)));
-                if (File.Exists(wal))
+                if (WalOf(db) is { } wal)
                 {
                     snapshot.Add(new PayloadFile(Wal, await CopyToTempAsync(wal, ct).ConfigureAwait(false)));
                 }
+
+                if (Stamps.Of([db, db + "-wal"]) != before)
+                {
+                    Release(snapshot);
+                    await Task.Delay(250, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (File.Exists(AnnotationOf(id)))
+                {
+                    snapshot.Add(new PayloadFile(Annotation, AnnotationOf(id)));
+                }
+
+                snapshot.AddRange(BrainFiles(id).Select(f => new PayloadFile(BrainPrefix + Path.GetRelativePath(BrainOf(id), f).Replace('\\', '/'), f)));
+
+                // Nomad's title for it, so a rename alone is a change to upload.
+                if (!string.IsNullOrWhiteSpace(session.Title))
+                {
+                    var title = TempPath();
+                    snapshot.Add(new PayloadFile(Title, title));
+                    await File.WriteAllTextAsync(title, session.Title, ct).ConfigureAwait(false);
+                }
+
+                return snapshot;
             }
-            catch (IOException)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
                 Release(snapshot);
                 return [];
             }
-
-            if (Stamps.Of([db, wal]) != before)
+            catch
             {
-                Release(snapshot);
-                await Task.Delay(250, ct).ConfigureAwait(false);
-                continue;
+                Release(snapshot); // Cancelled (Nomad closing), say: no copy is left behind.
+                throw;
             }
-
-            if (File.Exists(AnnotationOf(id)))
-            {
-                snapshot.Add(new PayloadFile(Annotation, AnnotationOf(id)));
-            }
-
-            if (Directory.Exists(BrainOf(id)))
-            {
-                snapshot.AddRange(Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)
-                    .Select(f => new PayloadFile(BrainPrefix + Path.GetRelativePath(BrainOf(id), f).Replace('\\', '/'), f)));
-            }
-
-            // Nomad's title for it, so a rename alone is a change to upload.
-            if (!string.IsNullOrWhiteSpace(session.Title))
-            {
-                var title = TempPath();
-                await File.WriteAllTextAsync(title, session.Title, ct).ConfigureAwait(false);
-                snapshot.Add(new PayloadFile(Title, title));
-            }
-
-            return snapshot;
         }
 
         return []; // Still being written: the next round takes it.
@@ -524,10 +543,18 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
     private static async Task<string> CopyToTempAsync(string file, CancellationToken ct)
     {
         var temp = TempPath();
-        await using var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        await using var target = File.Create(temp);
-        await source.CopyToAsync(target, ct).ConfigureAwait(false);
-        return temp;
+        try
+        {
+            await using var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            await using var target = File.Create(temp);
+            await source.CopyToAsync(target, ct).ConfigureAwait(false);
+            return temp;
+        }
+        catch
+        {
+            File.Delete(temp);
+            throw;
+        }
     }
 
     /// <summary>Deletes the temporary copies (the database, its log and the title); the chat's own files stay.</summary>
@@ -544,40 +571,87 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         var id = remote.SessionId;
         if (!IsId(id) || !files.TryGetValue(Database, out var database))
         {
-            return Task.FromResult<string?>(null);
+            throw new InvalidOperationException($"\"{remote.Title}\" from the hub isn't an Antigravity chat this PC can use.");
         }
 
         var db = DatabaseOf(id);
         var brain = BrainOf(id);
+        Directory.CreateDirectory(Path.GetDirectoryName(db)!);
 
-        // The log and index of the copy being replaced go first (SQLite would replay this PC's old log into the hub's
-        // database), then the database, then its log: stopped half way, what is left is a whole database.
+        // The new database and log are copied beside the old ones first, so a failed copy changes nothing. Then the old log and
+        // index go (SQLite would replay this PC's old log into the hub's database), the database moves into place, then its log.
+        var stagedDb = Stage(database, db);
+        var stagedWal = files.TryGetValue(Wal, out var wal) ? Stage(wal, db + "-wal") : null;
         File.Delete(db + "-wal");
         File.Delete(db + "-shm");
-        Stamps.Copy(database, db, remote.LastActivityUtc);
-        if (files.TryGetValue(Wal, out var wal))
+        File.Move(stagedDb, db, overwrite: true);
+        if (stagedWal is not null)
         {
-            Stamps.Copy(wal, db + "-wal", remote.LastActivityUtc);
+            File.Move(stagedWal, db + "-wal", overwrite: true);
         }
 
-        foreach (var (path, downloaded) in files)
+        if (files.TryGetValue(Annotation, out var annotation))
         {
-            if (path == Annotation)
+            Stamps.Copy(annotation, AnnotationOf(id), remote.LastActivityUtc);
+        }
+        else if (File.Exists(AnnotationOf(id)))
+        {
+            File.Delete(AnnotationOf(id)); // Gone on the PC it came from.
+        }
+
+        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (path, downloaded) in files.Where(f => f.Key.StartsWith(BrainPrefix, StringComparison.Ordinal)))
+        {
+            var target = Path.GetFullPath(Path.Combine(brain, path[BrainPrefix.Length..]));
+            if (target.StartsWith(brain + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
-                Stamps.Copy(downloaded, AnnotationOf(id), remote.LastActivityUtc);
+                Stamps.Copy(downloaded, target, remote.LastActivityUtc); // Never outside the chat's own folder.
+                keep.Add(target);
             }
-            else if (path.StartsWith(BrainPrefix, StringComparison.Ordinal))
-            {
-                var target = Path.GetFullPath(Path.Combine(brain, path[BrainPrefix.Length..]));
-                if (target.StartsWith(brain + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                {
-                    Stamps.Copy(downloaded, target, remote.LastActivityUtc); // Never outside the chat's own folder.
-                }
-            }
+        }
+
+        foreach (var stale in BrainFiles(id).Where(f => !keep.Contains(Path.GetFullPath(f))))
+        {
+            File.Delete(stale); // Gone on the PC it came from.
         }
 
         _pulledTitles[id] = (remote.Title, Summary(id)?.Title);
         return Task.FromResult<string?>(StampFor(id, remote.Title));
+
+        string Stage(string from, string to)
+        {
+            var staged = to + ".nomad-hub";
+            File.Copy(from, staged, overwrite: true);
+            if (remote.LastActivityUtc > DateTime.UnixEpoch && remote.LastActivityUtc <= DateTime.UtcNow)
+            {
+                File.SetLastWriteTimeUtc(staged, remote.LastActivityUtc);
+            }
+
+            return staged;
+        }
+    }
+
+    /// <summary>
+    /// Keeps this PC's copy of a chat, whole, in <c>nomad-set-aside/&lt;id&gt;-&lt;time&gt;/</c> beside the CLI's folders, before
+    /// the hub's version replaces it; returns that folder. Putting its files back where they were restores it.
+    /// </summary>
+    public Task<string?> SetAsideAsync(string sessionId, CancellationToken ct)
+    {
+        if (!IsId(sessionId) || !File.Exists(DatabaseOf(sessionId)))
+        {
+            return Task.FromResult<string?>(null);
+        }
+
+        var target = Path.Combine(home, "nomad-set-aside", $"{sessionId}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        var db = DatabaseOf(sessionId);
+        foreach (var file in new[] { db, db + "-wal", AnnotationOf(sessionId) }.Where(File.Exists).Concat(BrainFiles(sessionId)))
+        {
+            var to = Path.Combine(target, Path.GetRelativePath(home, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            File.Copy(file, to, overwrite: true);
+        }
+
+        return Task.FromResult<string?>(target);
     }
 }
 
