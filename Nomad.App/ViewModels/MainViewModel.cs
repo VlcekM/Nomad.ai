@@ -57,9 +57,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Every file with unsaved edits, in every opened session.</summary>
     public IEnumerable<FileTab> EditedFiles => LiveSessions.SelectMany(s => s.Files.EditedFiles);
 
-    /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
-    public static readonly TimeSpan IdleTimeout = TimeSpan.FromHours(1);
-
     public MainViewModel(NomadSettings settings, string settingsPath, DevOptions dev)
     {
         Settings = settings;
@@ -1290,6 +1287,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void SleepIdleSessions()
     {
+        if (!Settings.SleepIdleSessions)
+        {
+            return;
+        }
+
+        var idleTimeout = TimeSpan.FromHours(Math.Clamp(Settings.SleepAfterHours, 1, NomadSettings.MaxSleepAfterHours));
         var now = DateTime.UtcNow;
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {
@@ -1297,7 +1300,7 @@ public sealed partial class MainViewModel : ObservableObject
             // pinned ones. Remote Control ones idle too: it is on by default, so sparing them would spare every session.
             if (session.IsProcessRunning && !session.IsTurnRunning && !session.HasBackgroundWork
                 && !(session.SessionId is { } id && Settings.PinnedSessions.Contains(id))
-                && now - session.LastActivityUtc > IdleTimeout)
+                && now - session.LastActivityUtc > idleTimeout)
             {
                 _ = session.SleepAsync();
             }

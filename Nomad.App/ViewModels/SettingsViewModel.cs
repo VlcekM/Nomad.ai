@@ -66,6 +66,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
+        SleepIdle = s.SleepIdleSessions;
+        SleepAfterHoursText = Math.Clamp(s.SleepAfterHours, 1, NomadSettings.MaxSleepAfterHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         CloseToTray = s.CloseToTray;
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
@@ -662,6 +664,56 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleAutoArchive() => AutoArchive = !AutoArchive;
+
+    /// <summary>Whether a quiet session's process is ended after <see cref="SleepAfterHoursText"/> hours.</summary>
+    [ObservableProperty]
+    public partial bool SleepIdle { get; set; } = true;
+
+    /// <summary>
+    /// The idle time in whole hours, as typed: below 1 becomes 1, above a year a year, and it is saved once it has settled.
+    /// </summary>
+    [ObservableProperty]
+    public partial string SleepAfterHoursText { get; set; } = "1";
+
+    [RelayCommand]
+    private void ToggleSleepIdle() => SleepIdle = !SleepIdle;
+
+    partial void OnSleepIdleChanged(bool value) => Apply(s => s.SleepIdleSessions = value, appearance: false);
+
+    partial void OnSleepAfterHoursTextChanged(string value)
+    {
+        if (!int.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var hours))
+        {
+            return;
+        }
+
+        if (hours < 1 || hours > NomadSettings.MaxSleepAfterHours)
+        {
+            SleepAfterHoursText = Math.Clamp(hours, 1, NomadSettings.MaxSleepAfterHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return;
+        }
+
+        if (!_loaded)
+        {
+            Apply(s => s.SleepAfterHours = hours, appearance: false);
+            return;
+        }
+
+        // Typing "12" passes through "1": saved only once the number has settled, so no session is ended on the way.
+        _sleepDelay ??= new Avalonia.Threading.DispatcherTimer(TimeSpan.FromSeconds(2), Avalonia.Threading.DispatcherPriority.Background, (_, _) =>
+        {
+            _sleepDelay!.Stop();
+            if (int.TryParse(SleepAfterHoursText.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var settled)
+                && settled >= 1 && settled <= NomadSettings.MaxSleepAfterHours)
+            {
+                Apply(s => s.SleepAfterHours = settled, appearance: false);
+            }
+        });
+        _sleepDelay.Stop();
+        _sleepDelay.Start();
+    }
+
+    private Avalonia.Threading.DispatcherTimer? _sleepDelay;
 
     partial void OnAutoArchiveChanged(bool value)
     {

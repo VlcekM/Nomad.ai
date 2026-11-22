@@ -335,6 +335,38 @@
                   <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
                 </StackPanel>
               </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="End quiet sessions" Classes="rowlabel" />
+                  <TextBlock Text="End the process of a session left quiet for a while; it moves to Idle and resumes when you send it something. Turn off to keep every session running until you end it. Pinned sessions, and ones with background work, are never ended."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleSleepIdleCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding SleepIdle}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding SleepIdle}">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="End after" Classes="rowlabel" />
+                  <TextBlock Text="Hours without activity before a session's process is ended (at least 1)." Classes="rowhint" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Border Classes="field" Width="72">
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding SleepAfterHoursText}" Watermark="1" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                  </Border>
+                  <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
+                </StackPanel>
+              </Grid>
 
               <TextBlock Classes="rowhint" Margin="0,28,0,0" FontSize="{DynamicResource UiFontSizeSmall}">
                 <Run Text="Settings are saved to" />
