@@ -22,6 +22,9 @@ public sealed record HistoryUserMessage(string Text) : HistoryItem
 
     /// <summary>The images sent with it, base64 as stored (decoded only when shown).</summary>
     public IReadOnlyList<HistoryImage> Images { get; init; } = [];
+
+    /// <summary>Sent while a turn ran, and taken in by it: stored as the CLI's queued command, so no rewind or fork point.</summary>
+    public bool IsQueued { get; init; }
 }
 
 public sealed record HistoryImage(string MediaType, string Base64);
@@ -206,6 +209,9 @@ public sealed class SessionHistory
                 && TaskNotification.TryParse(prompt.GetString(), out var summary):
                 items.Add(new HistoryNotice(summary));
                 return;
+            case "attachment" when QueuedPrompt(record.Attachment) is { } queued:
+                items.Add(queued);
+                return;
             case "attachment" when WorktreeMove(record.Attachment) is { } move:
                 items.Add(new HistoryNotice(move));
                 return;
@@ -222,6 +228,35 @@ public sealed class SessionHistory
                 AddAssistantItems(record, items);
                 return;
         }
+    }
+
+    /// <summary>
+    /// A prompt sent while a turn ran, which the CLI took in mid-turn and stored as a <c>queued_command</c> attachment whose
+    /// prompt is content blocks: its text (without the reminders added to it) and images.
+    /// </summary>
+    private static HistoryUserMessage? QueuedPrompt(JsonElement attachment)
+    {
+        if (attachment.ValueKind != JsonValueKind.Object || Str(attachment, "type") != "queued_command"
+            || !attachment.TryGetProperty("prompt", out var prompt) || prompt.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var texts = new List<string>();
+        var images = new List<HistoryImage>();
+        foreach (var block in prompt.EnumerateArray())
+        {
+            if (Str(block, "type") == "text" && Str(block, "text") is { } text && !text.TrimStart().StartsWith('<') && !string.IsNullOrWhiteSpace(text))
+            {
+                texts.Add(text.Trim());
+            }
+            else if (Str(block, "type") == "image" && block.TryGetProperty("source", out var source) && Str(source, "data") is { } data)
+            {
+                images.Add(new HistoryImage(Str(source, "media_type") ?? "image/png", data));
+            }
+        }
+
+        return texts.Count == 0 && images.Count == 0 ? null : new HistoryUserMessage(string.Join("\n\n", texts)) { Images = images, IsQueued = true };
     }
 
     /// <summary>The CLI's <c>environment</c> attachment when its working folder moved into or out of a worktree.</summary>

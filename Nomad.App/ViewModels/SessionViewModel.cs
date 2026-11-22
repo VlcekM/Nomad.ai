@@ -2044,10 +2044,14 @@ public sealed partial class SessionViewModel : ObservableObject
     /// reads it at its next step, without stopping. Not for the other agents (they queue it), a session watched on another PC
     /// or one the Claude app drives.
     /// </summary>
-    private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer;
+    private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer
+        && !_stopRequested && !_movingFolder && _pendingFolderMove is null;
 
     /// <summary>Set while Ctrl+Enter queues a prompt, which is then sent with the queue (Claude stopped) rather than steered in.</summary>
     private bool _queueOnly;
+
+    /// <summary>Prompts sent into the running turn: taken in by the time it ends, so they show as seen then.</summary>
+    private readonly List<UserMessageItem> _steered = [];
 
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
@@ -2808,7 +2812,8 @@ public sealed partial class SessionViewModel : ObservableObject
         // Ctrl+Enter, it waits its turn (above the composer, with "Send now").
         if (IsTurnRunning)
         {
-            if (CanSteer && !_queueOnly && _backend is { IsProcessRunning: true })
+            // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
+            if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
             {
                 await SteerAsync(text, images);
             }
@@ -2866,17 +2871,19 @@ public sealed partial class SessionViewModel : ObservableObject
         var images = attachments.Where(a => a.IsImage).ToList();
         var files = attachments.Where(a => a.IsFile).ToList();
         CloseGroup();
-        var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false)
+        var message = new UserMessageItem(text, null, DateTime.UtcNow, seen: false)
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
+            IsSteered = true,
         };
         Items.Add(message);
+        _steered.Add(message);
         ContentChanged?.Invoke();
         _main.OnSessionActivity(this);
         try
         {
-            await _backend!.SendPromptAsync(AttachedFiles.AddTo(text, files.Select(f => f.Path!)), message.Uuid, images.Select(i => i.Image!).ToList());
+            await ((ClaudeCodeBackend)_backend!).SteerAsync(AttachedFiles.AddTo(text, files.Select(f => f.Path!)), images.Select(i => i.Image!).ToList());
         }
         catch (Exception ex)
         {
@@ -3466,6 +3473,7 @@ public sealed partial class SessionViewModel : ObservableObject
                         ParentUuid = u.ParentUuid,
                         Files = promptFiles,
                         Images = u.Images.Select(DecodeImage).OfType<Avalonia.Media.Imaging.Bitmap>().ToList(),
+                        IsSteered = u.IsQueued,
                     });
                     break;
                 case HistoryAssistantText a:
@@ -4560,6 +4568,12 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
+        foreach (var steered in _steered)
+        {
+            steered.IsSeen = true;
+        }
+
+        _steered.Clear();
         foreach (var task in _backgroundTaskById.Values.Where(task => task.IsForeground && task.IsRunning).ToList())
             task.Finish(result.IsError, null, stopped: result.Interrupted);
 

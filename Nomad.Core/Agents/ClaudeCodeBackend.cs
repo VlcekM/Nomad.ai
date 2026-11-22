@@ -138,6 +138,19 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         }
     }
 
+    /// <summary>
+    /// Writes a prompt into the turn running now, as Claude Code's terminal does with one typed mid-turn: the CLI takes it in at
+    /// its next step. The turn's state (a Stop asked for, an error so far) is left as it is, and no new turn starts.
+    /// </summary>
+    public async Task SteerAsync(string text, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default)
+    {
+        var cli = RequireRunning();
+        var uuid = Guid.NewGuid().ToString();
+        _sentUuids[uuid] = 0; // Its replayed copy is no Remote Control prompt.
+        var reminder = !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+        await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images, reminder), cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default)
     {
         if (_folderMoveTool?.Respond(request, decision) == true)
