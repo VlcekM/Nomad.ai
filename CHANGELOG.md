@@ -3,6 +3,12 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.1
+
+- On Linux, Nomad uses its own title bar by default. Drag any edge or corner to resize the window.
+- Start multiple worktrees in the same second, including from different rows on the pull requests and issues page.
+- Starting a Fix session with automatic issue assignment keeps the pull requests and issues page in place. Assignees update on the next scheduled or manual refresh.
+
 ## v2.8.0
 
 - Sort pull requests and issues by last update or by number in either direction. Nomad remembers the selected order.
