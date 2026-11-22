@@ -3689,8 +3689,13 @@ public sealed partial class SessionViewModel : ObservableObject
 
             // Claude Code resumes a session with the system prompt it saved when the session started, not the file it is
             // given and not what Nomad appends: when either is no longer the saved one, drop the saved copy so both apply.
+            // A fork resumes from the chat it came from, so that chat's saved copy counts, unless that chat is running now (its file
+            // is being written).
             var options = StartOptions();
-            if (backend is ClaudeCodeBackend && SessionId is { } id && _main.Store.FindTranscript(id) is { } transcript)
+            var from = SessionId ?? _forkFrom;
+            var running = SessionId is null && from is not null
+                && (_main.IsRunningElsewhere(from) || _main.OpenChats.Any(s => s.SessionId == from && s.IsProcessRunning));
+            if (backend is ClaudeCodeBackend && from is { } id && !running && _main.Store.FindTranscript(id) is { } transcript)
             {
                 var promptFile = _startedPrompt.Path;
                 await Task.Run(() =>

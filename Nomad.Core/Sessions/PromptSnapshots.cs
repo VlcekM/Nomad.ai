@@ -34,7 +34,7 @@ public static class PromptSnapshots
         }
 
         if (latest is null || Parts(latest) is not { Count: > 0 } parts
-            || ((systemPrompt is null || Same(parts[0], systemPrompt)) && (appended is null || parts.Any(part => Same(part, appended)))))
+            || ((systemPrompt is null || Same(parts[0], systemPrompt)) && (appended is null || parts.Any(part => Holds(part, appended)))))
         {
             return false;
         }
@@ -119,6 +119,17 @@ public static class PromptSnapshots
 
         var replacement = survivor(parent) is { } kept ? $"\"{field}\":\"{kept}\"" : $"\"{field}\":null";
         return string.Concat(line.AsSpan(0, at), replacement, line.AsSpan(at + key.Length));
+    }
+
+    /// <summary>
+    /// Whether a saved part is <paramref name="appended"/>, alone or with more appended after it (the CLI joins another source's
+    /// text on with a blank line).
+    /// </summary>
+    private static bool Holds(string saved, string appended)
+    {
+        var part = saved.ReplaceLineEndings("\n");
+        var text = appended.ReplaceLineEndings("\n").TrimEnd();
+        return Same(part, text) || part.StartsWith(text + "\n\n", StringComparison.Ordinal);
     }
 
     private static bool Same(string saved, string current) =>

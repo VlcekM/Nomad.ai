@@ -95,4 +95,13 @@ public sealed class PromptSnapshotsTests : IDisposable
 
         Assert.Equal([child.Replace("\"parentUuid\":\"s\"", "\"parentUuid\":null")], File.ReadAllLines(_file));
     }
+
+    [Fact]
+    public void AnAppendedPartWithMoreJoinedAfterItStillCounts()
+    {
+        File.WriteAllLines(_file, [Snapshot("Prompt.").Replace("\"Appended.\"", "\"Appended.\\n\\nAnother source's text.\""), User]);
+
+        Assert.False(PromptSnapshots.DropIfStale(_file, null, "Appended."));
+        Assert.True(PromptSnapshots.DropIfStale(_file, null, "Appended differently."));
+    }
 }
