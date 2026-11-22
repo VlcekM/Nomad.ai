@@ -2035,7 +2035,19 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Something to send: while a turn runs, sending queues it.</summary>
     public bool ShowSendButton => HasComposerText || HasAttachments;
 
-    public string SendToolTip => IsTurnRunning ? "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now" : "Send (Enter)";
+    public string SendToolTip => !IsTurnRunning ? "Send (Enter)"
+        : CanSteer ? "Send (Enter): Claude reads it at its next step · Ctrl+Enter or Ctrl+click stops Claude and sends it"
+        : "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now";
+
+    /// <summary>
+    /// Whether a prompt sent while Claude Code works goes straight into the running turn, as typed in its terminal: the CLI
+    /// reads it at its next step, without stopping. Not for the other agents (they queue it), a session watched on another PC
+    /// or one the Claude app drives.
+    /// </summary>
+    private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer;
+
+    /// <summary>Set while Ctrl+Enter queues a prompt, which is then sent with the queue (Claude stopped) rather than steered in.</summary>
+    private bool _queueOnly;
 
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
@@ -2055,7 +2067,15 @@ public sealed partial class SessionViewModel : ObservableObject
                 return false;
             }
 
-            SendCommand.Execute(null);
+            _queueOnly = true; // SendAsync decides before its first await, so this covers it.
+            try
+            {
+                SendCommand.Execute(null);
+            }
+            finally
+            {
+                _queueOnly = false;
+            }
         }
 
         if (Queued.Count == 0)
@@ -2477,8 +2497,10 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    // While Claude works: Enter queues the prompt, Ctrl+Enter stops Claude and sends it at once.
+    // While Claude works: Enter sends the prompt into the turn (Claude Code) or queues it (the others), Ctrl+Enter stops
+    // Claude and sends it at once.
     public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
+        : CanSteer ? "Enter: Claude reads it at its next step · Ctrl+Enter stops it and sends"
         : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : !IsClaudeCode ? "Ask a follow-up" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
@@ -2782,10 +2804,19 @@ public sealed partial class SessionViewModel : ObservableObject
         Attachments.Clear();
         OnAttachmentsChanged();
 
-        // While Claude works, a prompt waits its turn (above the composer, with "Send now").
+        // While Claude Code works, a prompt goes straight in and it reads it at its next step; with the other agents, or for
+        // Ctrl+Enter, it waits its turn (above the composer, with "Send now").
         if (IsTurnRunning)
         {
-            Queue(text, images);
+            if (CanSteer && !_queueOnly && _backend is { IsProcessRunning: true })
+            {
+                await SteerAsync(text, images);
+            }
+            else
+            {
+                Queue(text, images);
+            }
+
             return;
         }
 
@@ -2824,6 +2855,34 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         await SendPromptAsync(text);
+    }
+
+    /// <summary>
+    /// Sends a prompt into the turn Claude Code is running, as its terminal does with one typed mid-turn: the CLI takes it at
+    /// its next step and carries on, so the turn and its state stay as they are.
+    /// </summary>
+    private async Task SteerAsync(string text, IReadOnlyList<Attachment> attachments)
+    {
+        var images = attachments.Where(a => a.IsImage).ToList();
+        var files = attachments.Where(a => a.IsFile).ToList();
+        CloseGroup();
+        var message = new UserMessageItem(text, Guid.NewGuid().ToString(), DateTime.UtcNow, seen: false)
+        {
+            Images = images.Select(i => i.Preview!).ToList(),
+            Files = files,
+        };
+        Items.Add(message);
+        ContentChanged?.Invoke();
+        _main.OnSessionActivity(this);
+        try
+        {
+            await _backend!.SendPromptAsync(AttachedFiles.AddTo(text, files.Select(f => f.Path!)), message.Uuid, images.Select(i => i.Image!).ToList());
+        }
+        catch (Exception ex)
+        {
+            Items.Add(new ErrorItem(ex.Message));
+            ContentChanged?.Invoke();
+        }
     }
 
     public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
