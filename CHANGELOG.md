@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.4.1
+
+- Codex chats now refresh when their own folder system prompt file changes, instead of when the Claude Code file does.
+
 ## v2.4.0
 
 - Messages sent from another chat (`send_to_chat` or Claude Code's `SendMessage`) now appear as left-aligned accent-colored cards headed with the sending chat's name and agent instead of looking like user messages.
