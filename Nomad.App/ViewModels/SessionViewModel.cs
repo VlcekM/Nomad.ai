@@ -3724,7 +3724,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The folder's system prompt file for this session, and when it was last written.</summary>
     private (string? Path, DateTime Written) PromptStamp()
     {
-        var path = _main.Settings.SystemPromptFor(Folder);
+        var path = _main.Settings.SystemPromptFor(Folder, codex: IsCodex);
         try
         {
             return (path, path is null ? default : File.GetLastWriteTimeUtc(path));
