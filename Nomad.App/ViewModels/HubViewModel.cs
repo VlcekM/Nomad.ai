@@ -439,6 +439,18 @@ public sealed partial class HubViewModel : ObservableObject
 
     private bool CanAct() => !IsWorking;
 
+    /// <summary>
+    /// A failed hub call in words. Not <see cref="Exception.Message"/>: the AOT build keeps only resource keys there
+    /// (UseSystemResourceKeys), so a timeout would read "OperationCanceled".
+    /// </summary>
+    private static string Describe(Exception ex) => ex switch
+    {
+        InvalidOperationException => ex.Message, // Ours, such as a token the hub refused.
+        HttpRequestException { StatusCode: { } code } => $"The hub answered {(int)code} {code}.",
+        HttpRequestException { HttpRequestError: HttpRequestError.NameResolutionError } => "The hub's address can't be resolved from this PC.",
+        _ => "Can't reach the hub from this PC. Is it running, and is the network or VPN to it up?",
+    };
+
     [RelayCommand(CanExecute = nameof(CanAct))]
     private async Task ConnectAsync()
     {
@@ -467,7 +479,7 @@ public sealed partial class HubViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
         {
-            Status = ex.Message;
+            Status = Describe(ex);
         }
         finally
         {
@@ -506,7 +518,7 @@ public sealed partial class HubViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            Status = ex.Message;
+            Status = Describe(ex);
         }
         finally
         {
@@ -531,7 +543,7 @@ public sealed partial class HubViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
         {
-            Status = "Sync failed: " + ex.Message;
+            Status = "Sync failed. " + Describe(ex);
         }
         finally
         {
@@ -554,7 +566,7 @@ public sealed partial class HubViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            Status = ex.Message;
+            Status = Describe(ex);
         }
     }
 
@@ -576,7 +588,7 @@ public sealed partial class HubViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            Status = "Hub unreachable: " + ex.Message;
+            Status = Describe(ex);
         }
     }
 
