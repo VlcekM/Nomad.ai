@@ -8,7 +8,8 @@ Where it differs from the design below:
   so the sidebar lists it like any local session. (Hundreds of sessions are a few hundred MB.)
 - **Handoff is by prompt**: a prompt sent to a session another PC runs and doesn't stream asks that PC to hand it
   over and shows a notice; the other PC ends its process once its turn is over, and the next prompt here runs it.
-  There is no Continue here button: a streamed session moves only when its host lets it go (its idle timeout).
+  There is no Continue here button: a streamed session moves only when its host lets it go (its idle timeout, which
+  Settings → General can turn off: then only when its process is ended there).
 - **Watching is automatic**: opening a session another PC streams, or prompting it, makes it a viewer ("Live from
   \<device\>" in the transcript); the prompt goes to that PC. When the stream ends the transcript reloads from the
   synced file, as it does between turns; on starting to watch, that session is fetched first. Prompts typed on
@@ -111,7 +112,7 @@ its files. Nothing is ever merged.
   anything more and becomes a viewer; its unsynced tail, if any, is kept as a separate session (below).
 - The lease belongs to the Nomad that sees a live process for the session on its PC: its own, or one it finds
   (a terminal's, or a phone-started one from its `remote-control --spawn` server). It is released when that
-  process ends, the hour's idle timeout included.
+  process ends, the idle timeout included (an hour by default; off, the process runs until it is ended by hand).
 - A lease held by another PC: the session opens as a viewer (live with the relay, snapshot without it).
 - **Continue here** (handoff): the viewer asks; the host ends its process, pushes the final file and releases the
   lease; the new PC takes the lease, pulls, resumes. A lapsed lease can be taken over at once, with a warning

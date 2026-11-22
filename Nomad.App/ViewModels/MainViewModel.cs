@@ -57,8 +57,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Every file with unsaved edits, in every opened session.</summary>
     public IEnumerable<FileTab> EditedFiles => LiveSessions.SelectMany(s => s.Files.EditedFiles);
 
-    /// <summary>A session whose CLI process has been quiet this long is ended and moves to Idle.</summary>
-
     public MainViewModel(NomadSettings settings, string settingsPath, DevOptions dev)
     {
         Settings = settings;
@@ -1294,7 +1292,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var idleTimeout = TimeSpan.FromHours(Math.Max(1, Settings.SleepAfterHours));
+        var idleTimeout = TimeSpan.FromHours(Math.Clamp(Settings.SleepAfterHours, 1, NomadSettings.MaxSleepAfterHours));
         var now = DateTime.UtcNow;
         foreach (var session in _open.Values.Append(Current).Distinct().ToList())
         {

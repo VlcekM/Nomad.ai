@@ -843,7 +843,7 @@
                     Height="24"
                     Padding="10,0,8,0"
                     Command="{Binding ToggleAliveSectionCommand}"
-                    ToolTip.Tip="Sessions with a running Claude Code process. Quiet for an hour, they move to Idle."
+                    ToolTip.Tip="Sessions with a running Claude Code process. Quiet for a while, they move to Idle (Settings → General → End quiet sessions)."
                     ToolTip.ShowDelay="700">
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Alive" Classes="sectiontitle" />
