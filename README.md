@@ -129,6 +129,10 @@ generated notes since the previous tag.
 - **Prompt suggestions.** After a turn, Claude Code guesses the next prompt (`--prompt-suggestions`);
   it shows as grey text in the empty composer with a Tab hint. Tab, → or a right-click puts it in to
   edit or send, Esc dismisses it, typing replaces it. Settings › Claude Code turns it off.
+- **New chat suggestions.** Asked for a task unrelated to the chat, or noticing one along the way, Claude
+  Code offers it as a card that starts a chat of its own, and stops instead of doing it there (the
+  `suggest_new_chat` tool, with a reminder sent along with prompts). Settings › Agents › Suggest new chats
+  turns it off everywhere, and Not in these folders turns it off in chosen folders and the folders inside them.
 - **Permissions.** Tool requests appear as a card with Allow, Allow for session and Deny (Enter
   allows, Esc denies), shown with the command or a small diff. Answered cards shrink to one line.
   When Claude asks a question (AskUserQuestion), its options and a free-text answer appear in a
