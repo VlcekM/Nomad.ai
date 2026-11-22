@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Nomad.Core.Git;
@@ -122,9 +123,11 @@ public static class GitInfo
         }
 
         var root = Path.GetFullPath(rootText.Trim());
-        var name = DateTime.Now.ToString("yyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var timestamp = DateTime.Now.ToString("yyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var name = $"{timestamp}-{RandomNumberGenerator.GetHexString(16, lowercase: true)}";
         var path = Path.Combine(root, WorktreesPart, name);
-        var (ok, _, error) = await RunFullAsync(root, TimeSpan.FromSeconds(60), "worktree", "add", "-b", "worktree-" + name, path, string.IsNullOrEmpty(from) ? "HEAD" : from);
+        var startPoint = string.IsNullOrEmpty(from) ? "HEAD" : from;
+        var (ok, _, error) = await RunFullAsync(root, TimeSpan.FromSeconds(60), "worktree", "add", "-b", "worktree-" + name, path, startPoint);
         if (!ok)
         {
             throw new InvalidOperationException("Can't make a worktree: " + (string.IsNullOrWhiteSpace(error) ? "git failed." : error.Trim()));

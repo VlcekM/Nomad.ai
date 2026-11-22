@@ -407,7 +407,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// <summary>
     /// Reviews a pull request, in the project's checkout (Ctrl+click: a new worktree, the checkout left alone).
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task ReviewAsync(WorkRowViewModel row) =>
         StartAsync(row, $"Review this pull request: {row.Url}", $"Review PR {row.NumberText}", worktree: CtrlClick);
 
@@ -415,7 +415,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// Merges a pull request, the agent reconciling it with the repository (conflicts, its style) as it would when asked in a
     /// session; in the project's checkout (Ctrl+click: a new worktree).
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task MergeAsync(WorkRowViewModel row) =>
         StartAsync(row, $"Merge this pull request: {row.Url}", $"Merge PR {row.NumberText}", worktree: CtrlClick);
 
