@@ -34,6 +34,8 @@ public partial class MainWindow : Window
         _vm = vm;
         DataContext = vm;
         InitializeComponent();
+        if (OperatingSystem.IsLinux()) ConfigureLinuxWindowChrome();
+
         LayoutUpdated += (_, _) => UpdateTitleArea();
 
         // A debug run (--dev-*) says so in the taskbar too: its own title and a gold tent.
