@@ -1,6 +1,6 @@
 # Nomad Mobile - design
 
-Status: the trial build (§7), Antigravity sync (§8) and the hub's board (§3, §4) are built; the app is next.
+Status: the trial build (§7), Antigravity sync (§8) and the hub's board (§3, and §4 except Add phone) are built; the app is next.
 
 Nomad Mobile is a phone app that shows every chat open in Nomad, on every one of the user's PCs, in one list, and lets the user read, answer and prompt them from anywhere. It targets Android first and is built with Avalonia, like the desktop app. The app talks only to Nomad Hub, never to a PC directly, so it works wherever the hub is reachable and no PC has to accept connections from outside.
 
@@ -32,17 +32,17 @@ A phone enrolls like a PC, with an enrollment token, and is listed and revoked i
 
 ### The chat board
 
-Each Nomad sends `BoardUpdate(List<BoardChat>)` over its existing connection whenever its open chats change, debounced to 500 ms. The update carries the whole list, which is small. A `BoardChat` holds the backend, session id, title, folder name, state, the waiting card if any (its kind and a one-line summary), the last line (clipped to 200 characters) and the last activity time. The hub adds the device id and name.
+Each Nomad sends `BoardPublish(List<BoardChat>)` over its existing connection when its open chats change (it checks once a second, and sends only a change). The update carries the whole list, which is small. A `BoardChat` holds the backend, session id, title, agent name, folder, state, what waits on the user if anything (a few words), the last line (clipped to 200 characters), the last activity time and the number of queued prompts. The hub adds the device id and name. A PC that stops sharing (the relay off in its settings) sends an empty list once, and answers no requests for pages or input.
 
-The hub keeps the board in memory, as it keeps relay buffers. When a PC disconnects, its chats leave the board, which is correct, because nothing could reach them. A viewer calls `BoardWatch()`, which returns the current board and joins the `board` group. Every change after that arrives as `BoardChanged`.
+The hub keeps the board in memory, as it keeps relay buffers. When a PC disconnects, its chats leave the board, which is correct, because nothing could reach them. A PC briefly connected twice (a reconnect while the old connection is not yet timed out) shows once, with the chats of both, and requests go to the connection that published last. Every entry carries a sequence number that grows with each change, so a watcher keeps the newest. A viewer calls `BoardWatch()`, which returns the current board and joins the `board` group. Every change after that arrives as `BoardChanged`.
 
 ### History on demand
 
-`ChatHistory(device, backend, sessionId, before, limit)` asks the PC that has the chat open for a page of its transcript. The hub forwards the request as a SignalR client result (`Clients.Client(connection).InvokeAsync<ChatPage>`) and waits up to 15 seconds. A page holds up to 60 entries, newest last, and `before` is the cursor for scrolling back. Each entry's text is clipped to 12,000 characters, well inside the hub's existing 16 MB message limit.
+`ChatHistory(device, backend, sessionId, before, limit)` asks the PC that has the chat open for a page of its transcript. The hub forwards the request as a SignalR client result (`Clients.Client(connection).InvokeAsync<ChatPage>`) and waits up to 15 seconds. A page holds up to 200 entries (the phone asks for fewer), newest last, and `before` is the cursor for scrolling back: an entry's index is its item's position in the transcript. Positions shift when a transcript reloads or is rewound, so a page carries a generation number that changes then, and the phone starts again from the newest page; it also says while the transcript is still loading. Each entry's text is clipped to 12,000 characters, well inside the hub's existing 16 MB message limit.
 
 ### Routed input
 
-`ChatSend(device, backend, sessionId, ChatInput)` delivers a prompt, an answer or Stop to the PC that has the chat open. That PC replies whether it took it, with a sentence saying what happened. The phone sends every input this way, whether or not the chat is streaming, so a stopped chat works the same as a live one. The relay is used only for what it does best: live events, through the existing `RelayWatch`.
+`ChatSend(device, backend, sessionId, ChatInput)` delivers a prompt, an answer or Stop to the PC that has the chat open. That PC replies whether it took it, with a sentence saying what happened. An input may carry an id: a retry with the same id (after a timeout, say) is answered with the first result and applied once. Stop is answered at once, as the turn stops. The phone sends every input this way, whether or not the chat is streaming, so a stopped chat works the same as a live one. The relay is used only for what it does best: live events, through the existing `RelayWatch`.
 
 All new wire types go in `Nomad.Hub.Contracts`, with source-generated JSON, so the desktop app stays NativeAOT.
 
@@ -90,7 +90,7 @@ The hub speaks plain HTTP, and Android refuses plain HTTP by default, so the app
 - A phone holds a device secret, as a PC does. A viewer can do what a watching PC can (prompt, answer, stop) and nothing more: no files, no new chats, no commands.
 - The PC checks every input as if it were typed there (§4).
 - The secret is stored at rest under the Android Keystore.
-- A lost phone is revoked from Settings › Hub on any PC.
+- A lost phone is revoked from Settings › Hub on any PC; the hub ends its open connections at once, and its secret no longer signs in.
 
 ## 7. Building and testing
 

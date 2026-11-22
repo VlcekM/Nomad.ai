@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Nomad.Hub.Contracts;
@@ -97,5 +98,64 @@ public sealed class BoardTests
         await phone.StartAsync();
         var refused = await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
         Assert.Contains("relay is off", refused.Message);
+    }
+
+    [Fact]
+    public async Task ARevokedPhoneIsCutOffAtOnce()
+    {
+        using var hub = new HubFactory();
+        var pcHttp = await hub.EnrollAsync("PC-A");
+        var phoneHttp = await hub.EnrollAsync("Phone");
+        await using var phone = hub.Connect(phoneHttp);
+        var closed = new TaskCompletionSource();
+        phone.Closed += _ => { closed.TrySetResult(); return Task.CompletedTask; };
+        await phone.StartAsync();
+        await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch);
+        var phoneId = (await phoneHttp.GetFromJsonAsync<HubInfo>("/api/info"))!.DeviceId;
+
+        (await pcHttp.DeleteAsync($"/api/devices/{phoneId}")).EnsureSuccessStatusCode();
+
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(HubConnectionState.Disconnected, phone.State);
+        await using var again = hub.Connect(phoneHttp);
+        await Assert.ThrowsAnyAsync<Exception>(() => again.StartAsync()); // Its secret no longer signs in.
+    }
+
+    [Fact]
+    public async Task APcConnectedTwiceShowsOnceAndIsAskedThroughItsLatestConnection()
+    {
+        using var hub = new HubFactory();
+        var pcHttp = await hub.EnrollAsync("PC-A");
+        await using var old = hub.Connect(pcHttp);
+        await using var fresh = hub.Connect(pcHttp);
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone"));
+        old.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (_, _, _, _) => Task.FromResult(new ChatPage("idle", 0, 1, [new ChatEntry(0, "assistant", "old")])));
+        fresh.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (_, _, _, _) => Task.FromResult(new ChatPage("idle", 0, 1, [new ChatEntry(0, "assistant", "fresh")])));
+        await old.StartAsync();
+        await fresh.StartAsync();
+        await phone.StartAsync();
+
+        await old.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s1"), Chat("only-old") });
+        await fresh.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s1") });
+
+        var device = Assert.Single(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
+        Assert.Equal(["s1", "only-old"], device.Chats.Select(c => c.SessionId));
+        var page = await phone.InvokeAsync<ChatPage>(HubNames.ChatHistory, device.DeviceId, "antigravity", "s1", (int?)null, 20);
+        Assert.Equal("fresh", Assert.Single(page.Entries).Text);
+
+        // The old connection goes: the PC stays, with the chats of the one left.
+        var dropped = new TaskCompletionSource<BoardDevice>();
+        phone.On<BoardDevice>(HubNames.BoardChanged, d =>
+        {
+            if (d.Chats.Count == 1)
+            {
+                dropped.TrySetResult(d);
+            }
+        });
+        await old.StopAsync();
+        Assert.Equal(["s1"], (await dropped.Task.WaitAsync(TimeSpan.FromSeconds(10))).Chats.Select(c => c.SessionId));
+        var after = await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch);
+        Assert.Equal(["s1"], Assert.Single(after).Chats.Select(c => c.SessionId));
+        Assert.True(Assert.Single(after).Seq > device.Seq);
     }
 }

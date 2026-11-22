@@ -32,6 +32,7 @@ builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
 builder.Services.AddSingleton<RelayState>();
 builder.Services.AddSingleton<BoardState>();
+builder.Services.AddSingleton<LiveConnections>();
 builder.Services.AddSingleton<Maintenance>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Maintenance>());
 

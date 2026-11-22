@@ -35,7 +35,7 @@ internal sealed class MobileHost : IDisposable
         _enabled = enabled;
         _timer = new DispatcherTimer(BoardInterval, DispatcherPriority.Background, (_, _) => _ = PublishAsync());
         client.HistoryRequested = (backend, id, before, limit) => OnUiAsync(() => Page(backend, id, before, limit));
-        client.InputRequested = (backend, id, input, from) => OnUiTaskAsync(() => ApplyAsync(backend, id, input, from));
+        client.InputRequested = (backend, id, input, from) => OnUiAsync(() => Apply(backend, id, input, from));
         client.ConnectionChanged += OnConnectionChanged;
         _timer.Start();
     }
@@ -53,18 +53,18 @@ internal sealed class MobileHost : IDisposable
 
     private static Task<T> OnUiAsync<T>(Func<T> work) => Dispatcher.UIThread.InvokeAsync(work).GetTask();
 
-    private static Task<T> OnUiTaskAsync<T>(Func<Task<T>> work) => Dispatcher.UIThread.InvokeAsync(work);
 
     // ------------------------------------------------------------------ the board
 
     private async Task PublishAsync()
     {
-        if (_publishing || !_client.IsConnected || !_enabled())
+        if (_publishing || !_client.IsConnected)
         {
             return;
         }
 
-        var chats = _main.ReachableChats.Select(Board).ToList();
+        // Not shared: the board lists none of this PC's chats (sent once, when it stops sharing).
+        List<BoardChat> chats = _enabled() ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board)] : [];
         var json = JsonSerializer.Serialize(chats, HubJson.Default.IReadOnlyListBoardChat);
         if (json == _lastBoard)
         {
@@ -117,12 +117,47 @@ internal sealed class MobileHost : IDisposable
     }
 
     private SessionViewModel? Find(string backend, string id) =>
-        _main.ReachableChats.FirstOrDefault(s => s.Backend == backend && s.SessionId == id);
+        _main.ReachableChats.FirstOrDefault(s => s.Backend == backend && s.SessionId == id && !s.IsRelayViewer);
+
+    /// <summary>
+    /// Per chat, a number that changes whenever its items before the end change place (a reload clears them, a rewind or a
+    /// folded thinking line removes some): page cursors, which are item positions, hold only within one.
+    /// </summary>
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<SessionViewModel, Generation> _generations = new();
+
+    private sealed class Generation
+    {
+        public int Value;
+    }
+
+    private int GenerationOf(SessionViewModel s)
+    {
+        if (!_generations.TryGetValue(s, out var generation))
+        {
+            generation = new Generation();
+            _generations.Add(s, generation);
+            s.Items.CollectionChanged += (_, e) =>
+            {
+                // Only appends at the end keep earlier positions.
+                if (e.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add || e.NewStartingIndex != s.Items.Count - (e.NewItems?.Count ?? 1))
+                {
+                    generation.Value++;
+                }
+            };
+        }
+
+        return generation.Value;
+    }
 
     // ------------------------------------------------------------------ transcript pages
 
     private ChatPage Page(string backend, string id, int? before, int limit)
     {
+        if (!_enabled())
+        {
+            throw new InvalidOperationException("This PC isn't sharing its chats right now.");
+        }
+
         if (Find(backend, id) is not { } s)
         {
             throw new InvalidOperationException("That chat is no longer open in Nomad.");
@@ -139,7 +174,7 @@ internal sealed class MobileHost : IDisposable
         }
 
         entries.Reverse();
-        return new ChatPage(State(s), s.Queued.Count, s.Items.Count, entries);
+        return new ChatPage(State(s), s.Queued.Count, s.Items.Count, entries, GenerationOf(s), s.IsLoadingHistory);
     }
 
     private static ChatEntry? Entry(int index, TranscriptItem item, bool pending) => item switch
@@ -149,7 +184,7 @@ internal sealed class MobileHost : IDisposable
         ToolGroupItem g => new ChatEntry(index, "activity", g.Summary.Length > 0 ? Clip(g.Summary) : $"{g.Calls.Count} tool call{(g.Calls.Count == 1 ? "" : "s")}"),
         QuestionItem q => new ChatEntry(index, "question", "", Card: new ChatCard(q.Request.RequestId, pending && !q.IsAnswered, null, null, null,
             false, null, null, q.AnswerText, [.. q.Questions.Select(e => new ChatQuestion(Clip(e.Header, 200), Clip(e.Question, 2000), e.MultiSelect,
-                [.. e.Options.Select(o => new ChatOption(Clip(o.Label, 500), o.Description is { } d ? Clip(d, 2000) : null))]))])),
+                [.. e.Options.Select(o => new ChatOption(o.Label, o.Description is { } d ? Clip(d, 2000) : null))]))])),
         PermissionItem p => new ChatEntry(index, "permission", "", Card: new ChatCard(p.Request.RequestId, pending && !p.IsAnswered, p.Title,
             Clip(p.Detail, 4000), p.Description is { } d ? Clip(d, 2000) : null, p.CanAllowForSession, p.AllowText, p.DenyText, p.AnswerText, null)),
         ErrorItem e => new ChatEntry(index, "error", Clip(e.Message)),
@@ -163,7 +198,32 @@ internal sealed class MobileHost : IDisposable
 
     // ------------------------------------------------------------------ input
 
-    private async Task<ChatInputResult> ApplyAsync(string backend, string id, ChatInput input, string from)
+    /// <summary>The latest inputs by their id, with what they were answered: a retry gets the same answer, applied once.</summary>
+    private readonly Dictionary<string, ChatInputResult> _applied = new(StringComparer.Ordinal);
+    private readonly Queue<string> _appliedOrder = new();
+
+    private ChatInputResult Apply(string backend, string id, ChatInput input, string from)
+    {
+        if (input.Id is { Length: > 0 } inputId && _applied.TryGetValue(inputId, out var earlier))
+        {
+            return earlier;
+        }
+
+        var result = ApplyOnce(backend, id, input, from);
+        if (input.Id is { Length: > 0 } key && result.Ok)
+        {
+            _applied[key] = result;
+            _appliedOrder.Enqueue(key);
+            while (_appliedOrder.Count > 200)
+            {
+                _applied.Remove(_appliedOrder.Dequeue());
+            }
+        }
+
+        return result;
+    }
+
+    private ChatInputResult ApplyOnce(string backend, string id, ChatInput input, string from)
     {
         if (!_enabled())
         {
@@ -195,11 +255,12 @@ internal sealed class MobileHost : IDisposable
                     return new ChatInputResult(false, "It isn't working on anything.");
                 }
 
-                await s.StopAsync();
-                return new ChatInputResult(true, "Stopped.");
+                // Answered at once: stopping can take a moment, and the PC's other messages from the hub wait behind this one.
+                _ = s.StopAsync();
+                return new ChatInputResult(true, "Stopping.");
 
             case "answer":
-                return Answer(s, input);
+                return Answer(s, input, from);
 
             default:
                 return new ChatInputResult(false, "Nomad doesn't know that kind of input.");
@@ -210,7 +271,7 @@ internal sealed class MobileHost : IDisposable
     /// Answers the waiting card: only the one the phone names, only with a choice it offers, and for a question only when every
     /// question gets a valid answer (nothing on the card changes otherwise).
     /// </summary>
-    private static ChatInputResult Answer(SessionViewModel s, ChatInput input)
+    private static ChatInputResult Answer(SessionViewModel s, ChatInput input, string from)
     {
         if (s.PendingPermission is not { IsAnswered: false } pending || input.Card is null || pending.Request.RequestId != input.Card)
         {
@@ -240,6 +301,11 @@ internal sealed class MobileHost : IDisposable
         }
 
         s.AnswerPending(picked);
+        if (pending.IsAnswered)
+        {
+            pending.MarkAnswered($"{pending.AnswerText} (on {from})"); // The card says where it was answered, as a relayed answer does.
+        }
+
         return pending.IsAnswered
             ? new ChatInputResult(true, "Answered.")
             : new ChatInputResult(false, s.Items.LastOrDefault() is ErrorItem error ? error.Message : "Nomad didn't take that answer. Look at the chat on the PC.");

@@ -65,9 +65,14 @@ public static class DeviceEndpoints
             return devices.Select(d => new DeviceDto(d.Id, d.Name, d.EnrolledUtc, d.LastSeenUtc, presence.IsOnline(d.Id), d.Id == me)).ToList();
         });
 
-        api.MapDelete("/devices/{id:guid}", async (Guid id, HubDb db, CancellationToken ct) =>
+        api.MapDelete("/devices/{id:guid}", async (Guid id, HubDb db, LiveConnections live, CancellationToken ct) =>
         {
             var n = await db.Devices.Where(d => d.Id == id).ExecuteUpdateAsync(s => s.SetProperty(d => d.Revoked, true), ct);
+            if (n > 0)
+            {
+                live.Abort(id); // Its open connections end too: a lost phone still connected is cut off now.
+            }
+
             return n == 0 ? Results.NotFound() : Results.NoContent();
         });
 

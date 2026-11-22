@@ -11,7 +11,7 @@ namespace Nomad.Hub.Services;
 /// (<see cref="HubNames.Changed"/>), handoff requests to the PC holding a session, the relay, and the phone's board.
 /// </summary>
 [Authorize]
-public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, BoardState board, HubOptions options)
+public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, BoardState board, LiveConnections live, HubOptions options)
     : Microsoft.AspNetCore.SignalR.Hub
 {
     public static string DeviceGroup(Guid device) => $"device:{device:N}";
@@ -24,6 +24,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     {
         var device = Context.User!.DeviceId();
         presence.Connected(device);
+        live.Add(device, Context);
         await Groups.AddToGroupAsync(Context.ConnectionId, DeviceGroup(device));
         await base.OnConnectedAsync();
     }
@@ -31,6 +32,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         presence.Disconnected(Context.User!.DeviceId());
+        live.Remove(Context.ConnectionId);
         foreach (var (backend, sessionId) in relay.DropHost(Context.ConnectionId))
         {
             await Clients.Group(RelayGroup(RelayState.Key(backend, sessionId))).SendAsync(HubNames.RelayEnded, backend, sessionId);
@@ -277,40 +279,40 @@ public static class Leases
 
 /// <summary>
 /// The phone's board: the chats each connected PC has open, as it last published them. In memory only, like the relay; a
-/// PC's chats leave the board with its connection.
+/// PC's chats leave the board with its connection. A PC briefly connected twice (a reconnect while the old connection is
+/// not yet timed out) shows once, with the chats of both, and is asked through the connection that published last.
 /// </summary>
 public sealed class BoardState
 {
-    /// <summary>The most chats one PC may put on the board.</summary>
+    /// <summary>The most chats one connection may put on the board.</summary>
     private const int MaxChats = 200;
 
     private readonly Lock _lock = new();
-    private readonly Dictionary<string, BoardDevice> _byConnection = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (Guid Device, string Name, IReadOnlyList<BoardChat> Chats, long Seq)> _byConnection = new(StringComparer.Ordinal);
+    private long _seq;
 
-    /// <summary>Replaces a connection's chats; returns its board entry.</summary>
+    /// <summary>Replaces a connection's chats; returns its PC's board entry.</summary>
     public BoardDevice Publish(string connection, Guid device, string deviceName, IReadOnlyList<BoardChat>? chats)
     {
-        var entry = new BoardDevice(device, deviceName, [.. (chats ?? []).Take(MaxChats)]);
         lock (_lock)
         {
-            _byConnection[connection] = entry;
+            _byConnection[connection] = (device, deviceName, [.. (chats ?? []).Take(MaxChats)], ++_seq);
+            return EntryOf(device, deviceName);
         }
-
-        return entry;
     }
 
-    /// <summary>Takes a connection's chats off the board; returns the PC with no chats, or null when it had none there.</summary>
+    /// <summary>Takes a connection's chats off the board; returns its PC's entry now (no chats when it has gone), or null.</summary>
     public BoardDevice? Drop(string connection)
     {
         lock (_lock)
         {
-            if (!_byConnection.Remove(connection, out var entry))
+            if (!_byConnection.Remove(connection, out var gone))
             {
                 return null;
             }
 
-            // Another connection of the same PC (a second Nomad window, say) still lists its own chats.
-            return _byConnection.Values.FirstOrDefault(d => d.DeviceId == entry.DeviceId) ?? entry with { Chats = [] };
+            ++_seq;
+            return EntryOf(gone.Device, gone.Name);
         }
     }
 
@@ -318,17 +320,44 @@ public sealed class BoardState
     {
         lock (_lock)
         {
-            return [.. _byConnection.Values];
+            return [.. _byConnection.Values.Select(v => v.Device).Distinct().Select(d => EntryOf(d, _byConnection.Values.First(v => v.Device == d).Name))];
         }
     }
 
-    /// <summary>The connection of <paramref name="device"/> that has the chat open, if any.</summary>
+    /// <summary>The connection of <paramref name="device"/> that has the chat open, the one that published most recently.</summary>
     public string? ConnectionWith(Guid device, string backend, string sessionId)
     {
         lock (_lock)
         {
-            return _byConnection.FirstOrDefault(kv => kv.Value.DeviceId == device
-                && kv.Value.Chats.Any(c => c.Backend == backend && c.SessionId == sessionId)).Key;
+            return _byConnection.Where(kv => kv.Value.Device == device && kv.Value.Chats.Any(c => c.Backend == backend && c.SessionId == sessionId))
+                .OrderByDescending(kv => kv.Value.Seq).Select(kv => kv.Key).FirstOrDefault();
+        }
+    }
+
+    /// <summary>A PC's entry: the chats of all its connections, the latest publication's first, each chat once. Under the lock.</summary>
+    private BoardDevice EntryOf(Guid device, string name)
+    {
+        var chats = _byConnection.Values.Where(v => v.Device == device).OrderByDescending(v => v.Seq).SelectMany(v => v.Chats)
+            .DistinctBy(c => (c.Backend, c.SessionId)).ToList();
+        return new BoardDevice(device, name, chats, _seq);
+    }
+}
+
+/// <summary>Every live connection by device, so revoking a device ends the connections it has open.</summary>
+public sealed class LiveConnections
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (Guid Device, HubCallerContext Context)> _byConnection = new(StringComparer.Ordinal);
+
+    public void Add(Guid device, HubCallerContext context) => _byConnection[context.ConnectionId] = (device, context);
+
+    public void Remove(string connection) => _byConnection.TryRemove(connection, out _);
+
+    /// <summary>Ends every connection of a revoked device: it can't sign in again, so it stays out.</summary>
+    public void Abort(Guid device)
+    {
+        foreach (var (_, live) in _byConnection.Where(kv => kv.Value.Device == device).ToList())
+        {
+            live.Context.Abort();
         }
     }
 }

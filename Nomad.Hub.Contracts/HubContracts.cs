@@ -144,15 +144,20 @@ public sealed record BoardChat(
     DateTime LastActivityUtc,
     int Queued);
 
-/// <summary>A PC on the board and the chats open in its Nomad; no chats when it has gone.</summary>
-public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList<BoardChat> Chats);
+/// <summary>
+/// A PC on the board and the chats open in its Nomad; no chats when it has gone. <paramref name="Seq"/> grows with every change
+/// on the board, so a watcher keeps a PC's entry only when its sequence is newer than the one it has.
+/// </summary>
+public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList<BoardChat> Chats, long Seq = 0);
 
 /// <summary>
 /// A page of a chat's transcript, oldest first: the entries before the cursor asked for (the newest without one).
-/// <paramref name="Total"/> is how many entries the chat has; an entry's <see cref="ChatEntry.Index"/> is the cursor for
-/// the page before it.
+/// <paramref name="Total"/> is how many items the transcript has (some are never sent, such as thinking); an entry's
+/// <see cref="ChatEntry.Index"/> is its item's position, and the cursor for the page before it. <paramref name="Generation"/>
+/// changes whenever items before the end change place (a reload, a rewind): cursors from another generation no longer fit, so
+/// a phone that sees it change starts again from the newest page. <paramref name="Loading"/>: the transcript is still loading.
 /// </summary>
-public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList<ChatEntry> Entries);
+public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList<ChatEntry> Entries, int Generation = 0, bool Loading = false);
 
 /// <summary>
 /// One transcript entry as the phone shows it. <paramref name="Kind"/> is <c>user</c>, <c>assistant</c>, <c>activity</c>
@@ -182,7 +187,11 @@ public sealed record ChatOption(string Label, string? Description);
 /// (<paramref name="Card"/>, <paramref name="Choice"/> <c>allow</c>, <c>session</c> or <c>deny</c>, and for a question one
 /// <see cref="ChatAnswer"/> per question, in order) or <c>stop</c>.
 /// </summary>
-public sealed record ChatInput(string Kind, string? Text = null, string? Card = null, string? Choice = null, IReadOnlyList<ChatAnswer>? Answers = null);
+/// <remarks>
+/// <paramref name="Id"/>, when given, makes a retry safe: the PC applies an input with an id it has just applied only once, and
+/// answers the retry with the first result.
+/// </remarks>
+public sealed record ChatInput(string Kind, string? Text = null, string? Card = null, string? Choice = null, IReadOnlyList<ChatAnswer>? Answers = null, string? Id = null);
 
 /// <summary>A question's answer: the labels picked, and/or typed text.</summary>
 public sealed record ChatAnswer(IReadOnlyList<string> Options, string? Other);
