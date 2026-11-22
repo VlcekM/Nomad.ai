@@ -4055,6 +4055,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case RemotePromptEvent remote:
                 _stopRequested = false;
+                RefreshSteerHints();
                 CloseGroup();
 
                 // A background task's end, which the CLI hands to Claude in the user's place: a notice, not a prompt.
@@ -4278,6 +4279,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ProcessExitedEvent x:
+                _steered.Clear(); // Never taken in: their bubbles stay unticked.
                 if (!x.Expected && x.ExitCode != 0 && !IsTurnRunning)
                 {
                     var message = string.IsNullOrWhiteSpace(x.StderrTail)

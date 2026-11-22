@@ -143,6 +143,7 @@ public sealed partial class SessionViewModel
                     Items.Add(steered);
                     _steered[steeredUuid] = steered;
                     ContentChanged?.Invoke();
+                    _main.OnSessionActivity(this);
                     await claude.SteerAsync(text, input.Images, steeredUuid);
                     _relay?.PublishPrompt(text, steeredUuid, from);
                     break;
@@ -208,6 +209,17 @@ public sealed partial class SessionViewModel
     /// <summary>A prompt the session took on the PC running it (or one this PC relayed, which shows already).</summary>
     private void ShowRelayedPrompt(RelayPromptEvent prompt)
     {
+        // Watching, a prompt the host sent into the turn running there: a prompt in that turn, which goes on as it was.
+        if (IsRelayViewer && IsTurnRunning)
+        {
+            var (steeredText, steeredFiles) = AttachedFiles.Split(prompt.Text);
+            CloseGroup();
+            Items.Add(new UserMessageItem(steeredText, null, DateTime.UtcNow, seen: true) { Files = steeredFiles, FromDevice = prompt.From, IsSteered = true });
+            ContentChanged?.Invoke();
+            _main.OnSessionActivity(this);
+            return;
+        }
+
         _stopRequested = false;
         CloseGroup();
         if (IsNew)
