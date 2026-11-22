@@ -23,9 +23,9 @@ public enum UpdatePhase
 }
 
 /// <summary>
-/// Self-update through Velopack, as Meitou's launcher does it: the feed of the <c>v*</c> GitHub releases, channel
-/// <c>win-x64</c>. Only a Setup install updates itself (<see cref="IsInstalled"/>); a portable or dev build shows its
-/// version and opens the releases page.
+/// Self-update through Velopack using the platform-specific feed of the <c>v*</c> GitHub releases. Windows Setup
+/// installs and Linux AppImages update themselves (<see cref="IsInstalled"/>). A portable zip or dev build shows
+/// its version and opens the releases page.
 /// <para>
 /// Policy. Auto-update on: check at startup and every 6 hours, download silently, then restart into the update when
 /// nothing would be interrupted (<see cref="MainViewModel.CanRestartQuietly"/>: no turn, phone session, prompt being
@@ -63,8 +63,9 @@ public sealed partial class UpdateService : ObservableObject
         Feed = new ReleaseFeed(_http, repository, Path.Combine(cacheDir, cacheName));
 
         CreateManager();
-        IsInstalled = _manager is { IsInstalled: true, IsPortable: false };
-        IsPortable = _manager is { IsInstalled: true, IsPortable: true };
+        // Velopack marks Linux AppImages as portable even when it has detected a valid installation.
+        IsPortable = !OperatingSystem.IsLinux() && _manager is { IsInstalled: true, IsPortable: true };
+        IsInstalled = _manager is { IsInstalled: true } && !IsPortable;
         CurrentVersion = _manager is { IsInstalled: true, CurrentVersion: { } installed }
             ? installed.ToString()
             : typeof(UpdateService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
@@ -73,9 +74,12 @@ public sealed partial class UpdateService : ObservableObject
 
     public ReleaseFeed Feed { get; }
 
-    /// <summary>Installed by Setup, so it can update itself (a portable zip or a dev build cannot).</summary>
+    /// <summary>Whether Velopack can update this installation in place.</summary>
     public bool IsInstalled { get; }
 
+    /// <summary>
+    /// Whether this is a portable distribution that uses manual updates.
+    /// </summary>
     public bool IsPortable { get; }
 
     /// <summary>"1.0.0": Velopack's package version when installed, else the 3-part assembly version.</summary>
@@ -266,7 +270,7 @@ public sealed partial class UpdateService : ObservableObject
 
     // ------------------------------------------------------------------ checking, downloading, applying
 
-    /// <summary>After the window opened: the first check, then one every 6 hours (Setup installs only).</summary>
+    /// <summary>After the window opens, check for updates and repeat every 6 hours.</summary>
     public void Start()
     {
         if (!IsInstalled || _timer is not null)
