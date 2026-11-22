@@ -16,6 +16,32 @@ public sealed class NewChatToolTests
     }
 
     [Fact]
+    public async Task TurnedOffItIsNeitherListedNorExplainedNorCallable()
+    {
+        var server = new NomadSessionServer(".", suggestNewChats: false);
+
+        var tools = (await server.HandleAsync(Message("tools/list", null)))!["result"]!["tools"]!.AsArray().Select(t => t!["name"]!.GetValue<string>());
+        Assert.Equal(["request_folder_move", "list_chats", "send_to_chat"], tools);
+        Assert.DoesNotContain("suggest_new_chat", NomadSessionServer.InstructionsFor(suggestNewChats: false));
+        Assert.Contains("suggest_new_chat", NomadSessionServer.InstructionsFor(suggestNewChats: true));
+        Assert.True((await server.HandleAsync(Suggest("Fix it", "Fix the flaky test.")))!["result"]!["isError"]!.GetValue<bool>());
+    }
+
+    [Theory]
+    [InlineData(true, @"R:\Kenshi", false)]
+    [InlineData(true, @"R:\Kenshi\mods\Fiefdom", false)]
+    [InlineData(true, @"R:\KenshiOther", true)]
+    [InlineData(true, @"R:\Work", true)]
+    [InlineData(false, @"R:\Work", false)]
+    [InlineData(true, null, true)]
+    public void SuggestionsFollowTheSwitchAndTheFolderList(bool on, string? folder, bool expected)
+    {
+        var settings = new Nomad.Core.Settings.NomadSettings { SuggestNewChats = on, NoNewChatFolders = ["R:/Kenshi/"] };
+
+        Assert.Equal(expected, settings.SuggestsNewChatsIn(folder));
+    }
+
+    [Fact]
     public async Task ASuggestionAnswersAtOnceWithoutAsking()
     {
         var server = new NomadSessionServer(".");

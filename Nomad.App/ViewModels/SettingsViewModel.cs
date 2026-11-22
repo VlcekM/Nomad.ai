@@ -82,6 +82,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
         RemoteControlByDefault = s.RemoteControlByDefault;
         PromptSuggestions = s.PromptSuggestions;
+        SuggestNewChats = s.SuggestNewChats;
+        foreach (var folder in s.NoNewChatFolders)
+        {
+            NoNewChatFolders.Add(folder);
+        }
         ConfirmModelSwitch = s.ConfirmModelSwitch;
         ModelFunctionKeys = s.ModelFunctionKeys;
         LoadColorThemes(s.ColorTheme);
@@ -370,6 +375,44 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void TogglePromptSuggestions() => PromptSuggestions = !PromptSuggestions;
 
     partial void OnPromptSuggestionsChanged(bool value) => Apply(s => s.PromptSuggestions = value, appearance: false);
+
+    /// <summary>Claude Code may suggest a task for a chat of its own (Settings → Agents).</summary>
+    [ObservableProperty]
+    public partial bool SuggestNewChats { get; set; } = true;
+
+    [RelayCommand]
+    private void ToggleSuggestNewChats() => SuggestNewChats = !SuggestNewChats;
+
+    partial void OnSuggestNewChatsChanged(bool value) => Apply(s => s.SuggestNewChats = value, appearance: false);
+
+    /// <summary>Folders where Claude Code never suggests a new chat (and the folders inside them).</summary>
+    public ObservableCollection<string> NoNewChatFolders { get; } = [];
+
+    public bool HasNoNewChatFolders => NoNewChatFolders.Count > 0;
+
+    public void AddNoNewChatFolder(string folder)
+    {
+        if (NoNewChatFolders.Any(f => string.Equals(f.TrimEnd('\\', '/'), folder.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        NoNewChatFolders.Add(folder);
+        SaveNoNewChatFolders();
+    }
+
+    [RelayCommand]
+    private void RemoveNoNewChatFolder(string folder)
+    {
+        NoNewChatFolders.Remove(folder);
+        SaveNoNewChatFolders();
+    }
+
+    private void SaveNoNewChatFolders()
+    {
+        OnPropertyChanged(nameof(HasNoNewChatFolders));
+        Apply(s => s.NoNewChatFolders = [.. NoNewChatFolders], appearance: false);
+    }
 
     [ObservableProperty]
     public partial bool ConfirmModelSwitch { get; set; }

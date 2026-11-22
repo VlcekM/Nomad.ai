@@ -48,6 +48,25 @@ public partial class SettingsView : UserControl
     private static readonly FilePickerFileType PromptFiles = new("Text") { Patterns = ["*.txt", "*.md"] };
 
     // A folder, then the text file that becomes the system prompt there.
+    private async void OnAddNoNewChatFolderClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)
+        {
+            return;
+        }
+
+        var folders = await top.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Folder without new-chat suggestions",
+            AllowMultiple = false,
+        });
+
+        if (folders.Count > 0 && folders[0].TryGetLocalPath() is { } folder)
+        {
+            vm.AddNoNewChatFolder(folder);
+        }
+    }
+
     private async void OnAddFolderSystemPromptClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)

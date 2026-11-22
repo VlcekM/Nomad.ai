@@ -3747,6 +3747,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Effort = string.IsNullOrEmpty(Effort) ? null : Effort,
         ThinkingDisplay = "summarized",
         PromptSuggestions = _main.Settings.PromptSuggestions,
+        SuggestNewChats = _main.Settings.SuggestsNewChatsIn(Folder),
         FastMode = FastMode,
         Ultracode = Ultracode,
         WorkflowSize = _main.Settings.WorkflowSize,

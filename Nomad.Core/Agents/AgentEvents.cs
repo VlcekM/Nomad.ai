@@ -245,6 +245,9 @@ public sealed record AgentStartOptions
 
     /// <summary>Ask the CLI for a guess at the next prompt after each turn.</summary>
     public bool PromptSuggestions { get; init; }
+
+    /// <summary>Claude may suggest a task for a chat of its own (the suggest_new_chat tool, its instructions and reminder).</summary>
+    public bool SuggestNewChats { get; init; } = true;
     public bool FastMode { get; init; }
 
     /// <summary>Claude may start workflows (multi-agent runs) without being asked to.</summary>

@@ -84,13 +84,14 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             NewSessionId = string.IsNullOrWhiteSpace(options.ResumeSessionId) || options.ForkSession ? Guid.NewGuid().ToString() : null,
             AllowBypassPermissions = options.PermissionMode == "bypassPermissions",
             ExtraArguments = [.. string.IsNullOrWhiteSpace(options.SystemPromptFile) ? [] : new[] { "--system-prompt-file", options.SystemPromptFile },
-                "--append-system-prompt", NomadSessionServer.Instructions,
+                "--append-system-prompt", NomadSessionServer.InstructionsFor(options.SuggestNewChats),
                 .. options.AdditionalDirectories.SelectMany(path => new[] { "--add-dir", path }), .. options.ExtraArguments],
         };
 
         SessionId = options.ForkSession ? null : options.ResumeSessionId;
         _prompted = !string.IsNullOrWhiteSpace(options.ResumeSessionId);
-        _sessionServer = new NomadSessionServer(options.WorkingDirectory, options.ChatKey);
+        _suggestNewChats = options.SuggestNewChats;
+        _sessionServer = new NomadSessionServer(options.WorkingDirectory, options.ChatKey, options.SuggestNewChats);
         _folderMoveTool = _sessionServer.FolderMove;
         _folderMoveTool.PermissionRequested += request => Raise(new PermissionRequestedEvent(request));
         _folderMoveTool.MoveApproved += move =>
@@ -111,6 +112,9 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         _ = InitializeAsync(options);
     }
 
+    /// <summary>Whether this session offers suggest_new_chat, and so sends its reminder with prompts after the first.</summary>
+    private bool _suggestNewChats = true;
+
     public async Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default)
     {
         var cli = RequireRunning();
@@ -123,7 +127,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         _assistantError = null;
 
         // After the conversation's first prompt, the new-task reminder; never on a slash command, which must stay alone.
-        var reminder = _prompted && !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+        var reminder = _suggestNewChats && _prompted && !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
         _prompted = true;
 
         Raise(new TurnStartedEvent(text));
