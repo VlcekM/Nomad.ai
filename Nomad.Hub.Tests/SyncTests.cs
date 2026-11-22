@@ -599,6 +599,8 @@ public sealed class SyncTests : IDisposable
             ["brain/ok.md"] = note,
             ["brain/bad\0name.md"] = note,
             ["brain/../escape.md"] = note,
+            ["brain/star*.md"] = note, // Fine on another system, refused by Windows.
+            ["brain/a:b.md"] = note,
         }, _root, CancellationToken.None);
 
         Assert.True(File.Exists(Path.Combine(home, "brain", chat, "ok.md")));

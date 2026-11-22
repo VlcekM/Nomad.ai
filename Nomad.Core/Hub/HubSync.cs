@@ -266,6 +266,12 @@ public sealed class HubSync : IAsyncDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
+            lock (_state)
+            {
+                _state.DeletedHere.Add(Key(backend, sessionId)); // Not listed again here, though the hub still has it.
+            }
+
+            Save();
             Status?.Invoke("Couldn't delete the session on the hub: " + ex.Message);
         }
     }
@@ -599,10 +605,22 @@ public sealed class HubSync : IAsyncDisposable
         var theirs = current.Files.FirstOrDefault(f => f.Path == mine.Path);
         var synced = Known(backend.Backend, local.SessionId)?.Files.FirstOrDefault(f => f.Path == mine.Path);
 
-        // The same database: only side files differ (a rename, notes), and this PC's go on top.
+        // The same database: only side files differ. Changed here (a rename, notes) on top of the database this PC synced, they
+        // go on top; with a database this PC never synced itself (a fetch that stopped half way), the hub's version is put
+        // in place whole.
         if (theirs == mine)
         {
-            return await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
+            if (synced == mine)
+            {
+                return await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
+            }
+
+            if (!_isBusy(backend.Backend, local.SessionId) && !Holds(backend.Backend, local.SessionId) && !backend.InUse(local.SessionId))
+            {
+                await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false);
+            }
+
+            return null;
         }
 
         // The hub's database is the one this PC last had: the other PC changed only side files, and this PC's newer chat goes on
@@ -633,7 +651,7 @@ public sealed class HubSync : IAsyncDisposable
 
         // Set aside once per version of the hub's: if putting that version in place fails, the next rounds only try that again.
         var key = Key(backend.Backend, local.SessionId);
-        if (!_setAside.TryGetValue(key, out var earlier) || earlier.Version != current.Version)
+        if (!_setAside.TryGetValue(key, out var earlier) || earlier.Version != current.Version || earlier.Stamp != local.Stamp)
         {
             if (await backend.SetAsideAsync(local.SessionId, ct).ConfigureAwait(false) is not { } folder)
             {
@@ -641,7 +659,7 @@ public sealed class HubSync : IAsyncDisposable
                 return null;
             }
 
-            _setAside[key] = earlier = (current.Version, folder);
+            _setAside[key] = earlier = (current.Version, local.Stamp, folder);
         }
 
         var aside = earlier.Folder;
@@ -652,8 +670,11 @@ public sealed class HubSync : IAsyncDisposable
         return null;
     }
 
-    /// <summary>The copies <see cref="ResolveOpaqueAsync"/> set aside, by session: for which version of the hub's, and where.</summary>
-    private readonly Dictionary<string, (int Version, string Folder)> _setAside = new(StringComparer.Ordinal);
+    /// <summary>
+    /// The copies <see cref="ResolveOpaqueAsync"/> set aside, by session: for which version of the hub's, this PC's copy as it was
+    /// (its stamp), and where. Set aside again only when either has changed.
+    /// </summary>
+    private readonly Dictionary<string, (int Version, string Stamp, string Folder)> _setAside = new(StringComparer.Ordinal);
 
     /// <summary>A copy of a transcript under a new session id, titled "… (from &lt;this PC&gt;)".</summary>
     private static async Task<string> ForkAsync(string transcript, LocalSession local, CancellationToken ct)
@@ -766,6 +787,33 @@ public sealed class HubSync : IAsyncDisposable
 
     private List<ProjectDto>? _projects;
 
+    /// <summary>When each failed fetch is next tried, and how many times it failed.</summary>
+    private readonly Dictionary<string, (DateTime Next, int Failures)> _retryAt = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Asks for a session again on later rounds: every round while it is only open here (that costs no download), and after a
+    /// failed fetch the next round, then 2 minutes doubling to an hour between tries.
+    /// </summary>
+    private void NoteRetry(string key, bool failed)
+    {
+        lock (_state)
+        {
+            if (!_state.Retry.Contains(key))
+            {
+                _state.Retry.Add(key);
+            }
+        }
+
+        if (!failed)
+        {
+            return;
+        }
+
+        var failures = _retryAt.TryGetValue(key, out var earlier) ? earlier.Failures + 1 : 1;
+        var wait = failures == 1 ? TimeSpan.Zero : TimeSpan.FromMinutes(Math.Min(60, 2 << Math.Min(failures - 2, 5)));
+        _retryAt[key] = (DateTime.UtcNow + wait, failures);
+    }
+
     /// <summary>Asks again for the sessions whose fetch failed (open here, say), until each lands or no longer needs to.</summary>
     private async Task RetryFetchesAsync(CancellationToken ct)
     {
@@ -777,6 +825,11 @@ public sealed class HubSync : IAsyncDisposable
 
         foreach (var key in retry)
         {
+            if (_retryAt.TryGetValue(key, out var at) && at.Next > DateTime.UtcNow)
+            {
+                continue;
+            }
+
             var slash = key.IndexOf('/');
             var (backend, sessionId) = (key[..slash], key[(slash + 1)..]);
             var remote = _backends.ContainsKey(backend) ? await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) : null;
@@ -857,7 +910,8 @@ public sealed class HubSync : IAsyncDisposable
         List<string> known;
         lock (_state)
         {
-            known = [.. _state.Sessions.Keys.Where(k => k.StartsWith(backend + "/", StringComparison.Ordinal)).Select(k => k[(backend.Length + 1)..])];
+            known = [.. _state.Sessions.Keys.Where(k => k.StartsWith(backend + "/", StringComparison.Ordinal) && !_state.DeletedHere.Contains(k))
+                .Select(k => k[(backend.Length + 1)..])];
         }
 
         foreach (var sessionId in known.Where(id => !listed.Contains(id) && files.MainFile(id) is not null))
@@ -871,9 +925,9 @@ public sealed class HubSync : IAsyncDisposable
                     SessionPulled?.Invoke(new PulledSession(backend, sessionId, folder, remote.WorkingDirectory, true, remote.Title, remote.LastActivityUtc));
                 }
             }
-            catch (HttpRequestException)
+            catch (Exception e) when (e is not OperationCanceledException)
             {
-                return; // The hub is away: tried again when the app next starts syncing.
+                return; // The hub is away, say: tried again when the app next starts syncing.
             }
         }
     }
@@ -915,6 +969,13 @@ public sealed class HubSync : IAsyncDisposable
         if (mode == Fetch.Normal && stamp is not null && known is not null && stamp != known.Stamp)
         {
             return false; // Changed here since the last sync too: the upload sorts it out (adds to it, or forks).
+        }
+
+        // Open here: nothing can replace it now, so nothing is downloaded either; it is asked for again later.
+        if (backend.InUse(remote.SessionId))
+        {
+            NoteRetry(Key(remote.Backend, remote.SessionId), failed: false);
+            return false;
         }
 
         if (backend.Opaque && stamp is not null && (mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)))
@@ -970,19 +1031,25 @@ public sealed class HubSync : IAsyncDisposable
                 _state.Retry.Remove(Key(remote.Backend, remote.SessionId));
             }
 
+            _retryAt.Remove(Key(remote.Backend, remote.SessionId));
+
             SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null, remote.Title,
                 remote.LastActivityUtc));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException or InvalidDataException)
         {
-            // The change feed has passed it: it is asked for again on the next rounds until it lands, unless it can never land.
-            lock (_state)
+            // The change feed has passed it: it is asked for again on later rounds until it lands, unless it can never land.
+            if (ex is InvalidDataException)
             {
-                if (ex is not InvalidDataException && !_state.Retry.Contains(Key(remote.Backend, remote.SessionId)))
+                lock (_state)
                 {
-                    _state.Retry.Add(Key(remote.Backend, remote.SessionId));
+                    _state.Retry.Remove(Key(remote.Backend, remote.SessionId));
                 }
+            }
+            else
+            {
+                NoteRetry(Key(remote.Backend, remote.SessionId), failed: true);
             }
 
             Status?.Invoke($"Couldn't fetch {remote.Title}: {ex.Message}");
@@ -1136,6 +1203,9 @@ public sealed class SyncStateFile
 
     /// <summary>The backends this PC has synced from the start of the change feed; null in a state file from before.</summary>
     public List<string>? Backends { get; set; }
+
+    /// <summary>Sessions ("backend/id") deleted here while the hub couldn't be told: never listed here again.</summary>
+    public HashSet<string> DeletedHere { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]

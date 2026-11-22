@@ -596,10 +596,20 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         var brain = Path.GetFullPath(BrainOf(id));
         Directory.CreateDirectory(Path.GetDirectoryName(db)!);
 
-        // Files Nomad doesn't list (left by a terminal, say) are kept before the hub's chat takes their place, or nothing happens.
-        if (File.Exists(db) && !Known(id) && SetAside(id) is null)
+        // Files Nomad doesn't list (left by a terminal, say) are kept before the hub's chat takes their place, or nothing happens;
+        // once per state of theirs, so a write that fails after it doesn't set them aside again on every try.
+        if (File.Exists(db) && !Known(id))
         {
-            throw new InvalidOperationException($"\"{remote.Title}\" has files on this PC that couldn't be set aside, so the hub's copy wasn't put in their place.");
+            var stamp = Stamps.Of(FilesOf(id));
+            if (!(_unlistedSetAside.TryGetValue(id, out var kept) && kept == stamp))
+            {
+                if (SetAside(id) is null)
+                {
+                    throw new InvalidOperationException($"\"{remote.Title}\" has files on this PC that couldn't be set aside, so the hub's copy wasn't put in their place.");
+                }
+
+                _unlistedSetAside[id] = stamp;
+            }
         }
 
         // Where each fetched file goes: the database, the CLI's title, and the notes, never outside the chat's own folder.
@@ -665,6 +675,9 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         return Task.FromResult<string?>(StampFor(id, remote.Title));
     }
 
+    /// <summary>Unlisted chat files already set aside, by chat: their stamp then.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _unlistedSetAside = new(StringComparer.Ordinal);
+
     /// <summary>The ending of a file copied beside its place before it moves in; such files are never a chat's own.</summary>
     private const string Staging = ".nomad-hub";
 
@@ -674,7 +687,9 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
     /// </summary>
     private static string? BrainTarget(string brain, string relative)
     {
-        if (relative.Length == 0 || relative.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || relative.EndsWith(Staging, StringComparison.OrdinalIgnoreCase))
+        // Every part a file or folder name this PC takes (another PC's system may allow ':', '*' or '?').
+        if (relative.Length == 0 || relative.EndsWith(Staging, StringComparison.OrdinalIgnoreCase)
+            || relative.Split('/').Any(part => part.Length == 0 || part is "." or ".." || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0))
         {
             return null;
         }
