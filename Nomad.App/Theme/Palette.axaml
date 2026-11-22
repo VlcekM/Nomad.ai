@@ -87,6 +87,7 @@
       <Color x:Key="CodeChangeColor">#9184EE</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
+      <Color x:Key="UsageBarColor">#009868</Color>
       <Color x:Key="BarTrackColor">#262628</Color>
       <Color x:Key="RingTrackColor">#26FFFFFF</Color>
       <Color x:Key="SliderTickColor">#55FFFFFF</Color>
@@ -151,6 +152,7 @@
       <SolidColorBrush x:Key="CheckBrush" Color="#3B78C8" />
       <SolidColorBrush x:Key="RingBrush" Color="#3B78C8" />
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#263B78C8" />
+      <SolidColorBrush x:Key="UsageBarBrush" Color="#009868" />
       <SolidColorBrush x:Key="PaceBrush" Color="#44009868" />
       <SolidColorBrush x:Key="CodeFindMatchBrush" Color="#5C8A6A2A" />
       <SolidColorBrush x:Key="CodeFindMarkBrush" Color="#D7A84A" />
@@ -288,6 +290,7 @@
       <Color x:Key="CodeChangeColor">#7B6FD6</Color>
       <Color x:Key="CaptionCloseHoverColor">#C42B1C</Color>
       <!-- Bars, rings, switches and the scroll anchor -->
+      <Color x:Key="UsageBarColor">#009868</Color>
       <Color x:Key="BarTrackColor">#E3E1D8</Color>
       <Color x:Key="RingTrackColor">#1F000000</Color>
       <Color x:Key="SliderTickColor">#59000000</Color>
@@ -352,6 +355,7 @@
       <SolidColorBrush x:Key="CheckBrush" Color="#2A74CC" />
       <SolidColorBrush x:Key="RingBrush" Color="#2A78D6" />
       <SolidColorBrush x:Key="LinkSubtleBrush" Color="#262A78D6" />
+      <SolidColorBrush x:Key="UsageBarBrush" Color="#009868" />
       <SolidColorBrush x:Key="PaceBrush" Color="#44009868" />
       <SolidColorBrush x:Key="CodeFindMatchBrush" Color="#66F2C46B" />
       <SolidColorBrush x:Key="CodeFindMarkBrush" Color="#C08A1E" />

@@ -224,7 +224,7 @@
                             Value="{Binding ContextFraction}"
                             IsHitTestVisible="False"
                             TrackBrush="{DynamicResource BarTrackBrush}"
-                            FillBrush="{DynamicResource AccentBrush}" />
+                            FillBrush="{DynamicResource UsageBarBrush}" />
               <TextBlock Text="{Binding AgentMeta}"
                          IsVisible="{Binding HasRun}"
                          Classes="muted"

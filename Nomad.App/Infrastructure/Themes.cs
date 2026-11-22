@@ -7,8 +7,11 @@ using Nomad.Core.Settings;
 
 namespace Nomad.App.Infrastructure;
 
-/// <summary>A base color a theme can set ("BgMain" for BgMainBrush and BgMainColor), as the editor lists it.</summary>
-public sealed record ThemeToken(string Key, string Group, string Label);
+/// <summary>
+/// A base color a theme can set ("BgMain" for BgMainBrush and BgMainColor), as the editor lists it.
+/// When <paramref name="Fallback"/> is set, an unset token inherits that base token's color instead of Nomad's own.
+/// </summary>
+public sealed record ThemeToken(string Key, string Group, string Label, string? Fallback = null);
 
 /// <summary>
 /// Color themes. The built-in one, Nomad, is Theme/Palette.axaml itself and can be neither changed nor deleted, nor
@@ -87,7 +90,7 @@ public static class Themes
         ["LinkSubtle"] = ("Ring", "Ring"),
         ["Unread"] = ("Ring", "Ring"),
         ["Check"] = ("Ring", "Ring"),
-        ["Pace"] = ("Accent", "Accent"),
+        ["Pace"] = ("UsageBar", "UsageBar"),
         ["BarTrack"] = ("BgRaised", "TextPrimary"),
         ["SwitchOff"] = ("BgRaised", "TextPrimary"),
         ["RingTrack"] = ("TextPrimary", "TextPrimary"),
@@ -121,6 +124,7 @@ public static class Themes
         new("TextPrimary", "Lines and text", "Text"),
         new("TextMuted", "Lines and text", "Muted text"),
         new("Accent", "Accents and states", "Accent"),
+        new("UsageBar", "Accents and states", "Usage bars", Fallback: "Accent"),
         new("Ring", "Accents and states", "Focus"),
         new("Success", "Accents and states", "Success"),
         new("Waiting", "Accents and states", "Waiting"),
@@ -147,6 +151,12 @@ public static class Themes
         Palette(variant) is { } palette && palette.TryGetResource(token + "Brush", null, out var value) && value is ISolidColorBrush brush
             ? brush.Color
             : Colors.Transparent;
+
+    /// <summary>The default color of a token in a mode, following its <see cref="ThemeToken.Fallback"/> in <paramref name="colors"/> when it has one.</summary>
+    public static Color DefaultColor(ThemeToken token, ThemeVariant variant, Dictionary<string, string>? colors) =>
+        token.Fallback is { } fallback && colors is not null && TryParse(colors.GetValueOrDefault(fallback), out var color)
+            ? color
+            : DefaultColor(token.Key, variant);
 
     /// <summary>The built-in colors of every token in a mode, as a theme file writes them.</summary>
     public static Dictionary<string, string> DefaultColors(ThemeVariant variant) =>
@@ -233,11 +243,14 @@ public static class Themes
     private static ResourceDictionary Variant(Dictionary<string, string> colors, ThemeVariant variant)
     {
         var dictionary = new ResourceDictionary();
+        var resolved = new Dictionary<string, Color>();
         var moved = new Dictionary<string, (int R, int G, int B)>();
         foreach (var token in Tokens)
         {
             var @default = DefaultColor(token.Key, variant);
-            var color = TryParse(colors.GetValueOrDefault(token.Key), out var own) ? own : @default;
+            var fallback = token.Fallback is { } fb && resolved.TryGetValue(fb, out var fbColor) ? fbColor : @default;
+            var color = TryParse(colors.GetValueOrDefault(token.Key), out var own) ? own : fallback;
+            resolved[token.Key] = color;
             moved[token.Key] = (color.R - @default.R, color.G - @default.G, color.B - @default.B);
             if (color != @default)
             {

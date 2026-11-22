@@ -22,7 +22,7 @@
                       PaceBrush="{DynamicResource PaceBrush}"
                       IsHitTestVisible="False"
                       TrackBrush="{DynamicResource BarTrackBrush}"
-                      FillBrush="{DynamicResource AccentBrush}"
+                      FillBrush="{DynamicResource UsageBarBrush}"
                       Classes.high="{Binding IsHigh}" />
       </Panel>
       <TextBlock Text="{Binding ForecastText}"

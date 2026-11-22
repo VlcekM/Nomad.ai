@@ -485,7 +485,7 @@
                                 </Border>
                                 <Button Grid.Column="3" Theme="{StaticResource IconButton}" Classes="reset" Classes.changed="{Binding IsChanged}"
                                         Command="{Binding ResetCommand}" VerticalAlignment="Center" HorizontalAlignment="Right"
-                                        ToolTip.Tip="Back to Nomad's color">
+                                        ToolTip.Tip="{Binding ResetToolTip}">
                                   <c:Icon Size="12" Data="{StaticResource IconRewind}" />
                                 </Button>
                               </Grid>

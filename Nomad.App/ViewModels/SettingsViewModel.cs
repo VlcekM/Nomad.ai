@@ -1082,9 +1082,10 @@ public sealed partial class SettingsViewModel : ObservableObject
         ThemeColorsHint = light
             ? "These are the light mode's colors; set Theme to Dark for the dark ones."
             : "These are the dark mode's colors; set Theme to Light for the light ones.";
+        var allRows = new List<ThemeColorRow>();
         foreach (var group in Themes.Tokens.GroupBy(t => t.Group))
         {
-            var rows = group.Select(t => new ThemeColorRow(t, Themes.DefaultColor(t.Key, variant), colors.GetValueOrDefault(t.Key), row =>
+            var rows = group.Select(t => new ThemeColorRow(t, Themes.DefaultColor(t, variant, colors), colors.GetValueOrDefault(t.Key), row =>
             {
                 if (row.Override is null)
                 {
@@ -1095,9 +1096,15 @@ public sealed partial class SettingsViewModel : ObservableObject
                     colors[row.Key] = row.Override;
                 }
 
+                foreach (var dependent in allRows.Where(r => r.Fallback == row.Key))
+                {
+                    dependent.UpdateDefault(row.Color);
+                }
+
                 ThemeColorChanged();
-            }));
-            ThemeColorGroups.Add(new ThemeColorGroup(group.Key, rows.ToList()));
+            })).ToList();
+            allRows.AddRange(rows);
+            ThemeColorGroups.Add(new ThemeColorGroup(group.Key, rows));
         }
     }
 
@@ -1346,7 +1353,7 @@ public sealed record ThemeColorGroup(string Title, IReadOnlyList<ThemeColorRow> 
 /// <summary>One color of a custom theme in the editor: a swatch that opens a picker, and its hex value, which can be typed.</summary>
 public sealed partial class ThemeColorRow : ObservableObject
 {
-    private readonly Color _default;
+    private Color _default;
     private readonly Action<ThemeColorRow> _changed;
     private bool _quiet;
 
@@ -1354,6 +1361,8 @@ public sealed partial class ThemeColorRow : ObservableObject
     {
         Key = token.Key;
         Label = token.Label;
+        Fallback = token.Fallback;
+        ResetToolTip = token.Fallback is null ? "Back to Nomad's color" : "Same as Accent";
         _default = @default;
         _changed = changed;
         var own = Themes.TryParse(value, out var parsed);
@@ -1371,6 +1380,10 @@ public sealed partial class ThemeColorRow : ObservableObject
 
     public string Label { get; }
 
+    public string? Fallback { get; }
+
+    public string ResetToolTip { get; }
+
     /// <summary>The theme's own value; null: the built-in color.</summary>
     public string? Override { get; private set; }
 
@@ -1387,6 +1400,24 @@ public sealed partial class ThemeColorRow : ObservableObject
     [ObservableProperty]
     public partial bool IsChanged { get; set; }
 
+    public void UpdateDefault(Color @default)
+    {
+        _default = @default;
+        if (Override is null)
+        {
+            Swatch.Color = @default;
+            _quiet = true;
+            Hex = Themes.Hex(@default);
+            Color = @default;
+            _quiet = false;
+            IsChanged = false;
+        }
+        else
+        {
+            IsChanged = Color != @default;
+        }
+    }
+
     partial void OnHexChanged(string value)
     {
         if (_quiet || !Themes.TryParse(value, out var color))
@@ -1395,8 +1426,8 @@ public sealed partial class ThemeColorRow : ObservableObject
         }
 
         Swatch.Color = color;
-        Override = Themes.Hex(color);
         IsChanged = color != _default;
+        Override = IsChanged ? Themes.Hex(color) : null;
         _quiet = true;
         Color = color;
         _quiet = false;
