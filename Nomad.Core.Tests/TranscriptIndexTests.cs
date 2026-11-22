@@ -38,6 +38,33 @@ public class TranscriptIndexTests
     }
 
     [Fact]
+    public void AFileRewrittenShorterThenGrownPastItsOldSizeIsReadAgainWhole()
+    {
+        // A saved system prompt is taken out (the file shrinks and everything after it moves), then the chat writes on.
+        const string snapshot = """{"type":"attachment","attachment":{"type":"prompt_snapshot","systemPrompt":["a long saved prompt that takes up a lot of room in the file before the conversation goes on"]},"uuid":"s"}""";
+        var file = Write(snapshot, Prompt, PlainPrompt);
+        try
+        {
+            var index = new TranscriptIndex();
+            index.Update(file);
+            var before = new FileInfo(file).Length;
+
+            File.WriteAllLines(file, [Prompt, PlainPrompt, Reply, Reply.Replace("timer", "second reply")]);
+            Assert.True(new FileInfo(file).Length >= before);
+            index.Update(file);
+
+            var text = index.TextOf(file)!;
+            Assert.Equal(1, text.Split("simpler stop").Length - 1); // Once: not read twice from a stale offset.
+            Assert.Contains("second reply", text);
+            Assert.Contains("\"timer\"", text); // The first reply, which a stale offset cuts through.
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
     public void ReadsOnlyWhatWasAppended()
     {
         var file = Write(Prompt);

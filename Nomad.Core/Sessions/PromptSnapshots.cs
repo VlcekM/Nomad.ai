@@ -59,6 +59,8 @@ public static class PromptSnapshots
             return parent;
         }
 
+        var original = new FileInfo(transcript);
+        var (size, written) = (original.Length, original.LastWriteTimeUtc);
         var temp = transcript + ".prompt-refresh";
         var dropped = 0;
         using (var writer = new StreamWriter(temp, append: false, new System.Text.UTF8Encoding(false)) { NewLine = "\n" })
@@ -73,6 +75,14 @@ public static class PromptSnapshots
 
                 writer.WriteLine(Relink(Relink(line, "parentUuid", removed, Survivor), "logicalParentUuid", removed, Survivor));
             }
+        }
+
+        // Written to meanwhile (its chat started in the meantime): what it wrote would be lost, so the file stays as it is.
+        original.Refresh();
+        if (original.Length != size || original.LastWriteTimeUtc != written)
+        {
+            File.Delete(temp);
+            return false;
         }
 
         File.Move(temp, transcript, overwrite: true);
@@ -103,7 +113,8 @@ public static class PromptSnapshots
     /// </summary>
     private static string Relink(string line, string field, Dictionary<string, string?> removed, Func<string?, string?> survivor)
     {
-        if (removed.Count == 0 || Link(line, field) is not { } parent || !removed.ContainsKey(parent))
+        if (removed.Count == 0 || !removed.Keys.Any(uuid => line.Contains(uuid, StringComparison.Ordinal))
+            || Link(line, field) is not { } parent || !removed.ContainsKey(parent))
         {
             return line;
         }

@@ -16,7 +16,11 @@ public sealed class TranscriptIndex
     /// <summary>Between two messages in <see cref="Entry.Text"/>: a match never spans them.</summary>
     public const char Separator = '\u001F';
 
-    private sealed record Entry(long Size, DateTime Mtime, long Consumed, string Text);
+    /// <param name="Tail">The bytes just before <paramref name="Consumed"/> as they were read: if they differ now, the file was rewritten.</param>
+    private sealed record Entry(long Size, DateTime Mtime, long Consumed, string Text, byte[]? Tail = null);
+
+    /// <summary>How many bytes before the read offset are compared to tell an appended file from a rewritten one.</summary>
+    private const int TailBytes = 256;
 
     private readonly ConcurrentDictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
@@ -60,20 +64,40 @@ public sealed class TranscriptIndex
             return false;
         }
 
-        // Appended to: read on from the last complete line. Shorter, or the old end was mid-line: read it all again.
-        var from = old is not null && info.Length >= old.Size && old.Consumed > 0 ? old.Consumed : 0;
+        // Appended to: read on from the last complete line. Shorter, the old end was mid-line, or the bytes before it changed (the
+        // file was rewritten, say with its saved system prompts taken out, then grew past its old size): read it all again.
+        var from = old is not null && info.Length >= old.Size && old.Consumed > 0 && TailAt(file, old.Consumed) is { } tail
+            && old.Tail is { } known && tail.AsSpan().SequenceEqual(known) ? old.Consumed : 0;
         try
         {
             var (text, consumed) = Read(file, from, info.Length);
             var combined = from > 0 && old is not null
                 ? text.Length == 0 ? old.Text : old.Text.Length == 0 ? text : old.Text + Separator + text
                 : text;
-            _entries[file] = new Entry(info.Length, info.LastWriteTimeUtc, consumed, combined);
+            _entries[file] = new Entry(info.Length, info.LastWriteTimeUtc, consumed, combined, consumed > 0 ? TailAt(file, consumed) : null);
             return old is null || !ReferenceEquals(combined, old.Text);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
+        }
+    }
+
+    /// <summary>Up to <see cref="TailBytes"/> bytes ending at <paramref name="offset"/>, or null when they can't be read.</summary>
+    private static byte[]? TailAt(string file, long offset)
+    {
+        try
+        {
+            using var stream = SessionStore.OpenShared(file);
+            var start = Math.Max(0, offset - TailBytes);
+            var buffer = new byte[offset - start];
+            stream.Seek(start, SeekOrigin.Begin);
+            stream.ReadExactly(buffer);
+            return buffer;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or EndOfStreamException)
+        {
+            return null;
         }
     }
 
