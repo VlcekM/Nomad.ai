@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.0
+
+- Sort pull requests and issues by last update or by number in either direction. Nomad remembers the selected order.
+- See comment counts and assignee avatars on pull request and issue rows.
+- Enable **Assign issues to me when I click Fix** under **Settings > General** to add your GitHub account to the assignees when Fix starts a session.
+- Fixed Claude Desktop font loading when the installed app has both a packaged archive and a stub folder.
+
 ## v2.7.0
 
 - Added a setting to turn off new-chat suggestions globally or for chosen folders, refreshing resumed chats' saved prompts when Nomad's appended instructions change.
