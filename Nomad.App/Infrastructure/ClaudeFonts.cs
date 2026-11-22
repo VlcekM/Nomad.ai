@@ -8,8 +8,9 @@ namespace Nomad.App.Infrastructure;
 
 /// <summary>
 /// Anthropic Sans and Anthropic Mono, taken from a locally installed Claude desktop app. It ships
-/// them as WOFF2 only, which Skia cannot open, so DirectWrite unpacks them to TrueType once into
-/// <c>%LOCALAPPDATA%\Nomad\fonts</c>. Nothing is bundled with Nomad.ai.
+/// them as WOFF2 only, which Skia cannot open, so they are unpacked to TrueType once into the local
+/// Nomad fonts cache (via DirectWrite on Windows and <see cref="Woff2Decoder"/> elsewhere). Nothing
+/// is bundled with Nomad.ai.
 /// </summary>
 public static partial class ClaudeFonts
 {
@@ -28,11 +29,6 @@ public static partial class ClaudeFonts
     /// <summary>Finds and unpacks the fonts, and registers them with Avalonia. Never throws.</summary>
     public static void Register()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
         try
         {
             if (FindAssets() is not { } assets)
@@ -48,7 +44,9 @@ public static partial class ClaudeFonts
                 if (!File.Exists(target))
                 {
                     Directory.CreateDirectory(cache);
-                    File.WriteAllBytes(target, Woff2.Unpack(dist.Read(source)));
+                    var raw = dist.Read(source);
+                    var unpacked = OperatingSystem.IsWindows() ? Woff2.Unpack(raw) : Woff2Decoder.Decode(raw);
+                    File.WriteAllBytes(target, unpacked);
                 }
 
                 Files[family] = target;
@@ -66,34 +64,43 @@ public static partial class ClaudeFonts
     }
 
     /// <summary>
-    /// The Claude app's web bundles (<c>ion-dist</c>): the Microsoft Store (MSIX) install first, then the Squirrel
-    /// installs in <c>%LOCALAPPDATA%\AnthropicClaude</c>, newest first.
+    /// The Claude app's web bundles (<c>ion-dist</c>): on Windows the Microsoft Store (MSIX) install first, then
+    /// Squirrel installs in <c>%LOCALAPPDATA%\AnthropicClaude</c> (newest first); on Linux standard system, user,
+    /// Snap, Flatpak, and PATH-resolved installs.
     /// </summary>
     public static List<IonDist> IonDists()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return [];
-        }
-
         var resources = new List<string>();
-        if (StorePackagePath() is { } package)
+        if (OperatingSystem.IsWindows())
         {
-            resources.Add(Path.Combine(package, "app", "resources"));
+            if (StorePackagePath() is { } package)
+            {
+                resources.Add(Path.Combine(package, "app", "resources"));
+            }
+
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnthropicClaude");
+            if (Directory.Exists(root))
+            {
+                resources.AddRange(Directory.GetDirectories(root, "app-*")
+                    .Select(d => (Dir: Path.Combine(d, "resources"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
+                    .OrderByDescending(d => d.Version)
+                    .Select(d => d.Dir));
+            }
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            resources.AddRange(LinuxResourceFolders());
         }
 
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AnthropicClaude");
-        if (Directory.Exists(root))
-        {
-            resources.AddRange(Directory.GetDirectories(root, "app-*")
-                .Select(d => (Dir: Path.Combine(d, "resources"), Version: Version.TryParse(Path.GetFileName(d)[4..], out var v) ? v : new Version()))
-                .OrderByDescending(d => d.Version)
-                .Select(d => d.Dir));
-        }
-
+        var seen = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
         var dists = new List<IonDist>();
         foreach (var folder in resources)
         {
+            if (!seen.Add(folder))
+            {
+                continue;
+            }
+
             try
             {
                 if (IonDist.At(folder) is { } dist)
@@ -108,6 +115,66 @@ public static partial class ClaudeFonts
         }
 
         return dists;
+    }
+
+    private static IEnumerable<string> LinuxResourceFolders()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string[] candidates =
+        [
+            "/usr/lib/claude-desktop/resources",
+            "/usr/lib64/claude-desktop/resources",
+            "/usr/share/claude-desktop/resources",
+            "/opt/claude-desktop/resources",
+            "/opt/Claude/resources",
+            "/opt/claude/resources",
+            "/usr/local/lib/claude-desktop/resources",
+            "/usr/local/share/claude-desktop/resources",
+            "/snap/claude-desktop/current/resources",
+            "/snap/claude-desktop/current/usr/lib/claude-desktop/resources",
+            "/var/lib/flatpak/app/com.anthropic.Claude/current/active/files/lib/claude-desktop/resources",
+            Path.Combine(home, ".local", "lib", "claude-desktop", "resources"),
+            Path.Combine(home, ".local", "share", "claude-desktop", "resources"),
+            Path.Combine(home, ".local", "opt", "claude-desktop", "resources"),
+            Path.Combine(home, ".local", "share", "flatpak", "app", "com.anthropic.Claude", "current", "active", "files", "lib", "claude-desktop", "resources"),
+        ];
+
+        foreach (var path in candidates)
+        {
+            yield return path;
+        }
+
+        // Resolve claude-desktop on PATH (covers NixOS, custom /opt prefixes, and user bin symlinks).
+        var pathEnv = Environment.GetEnvironmentVariable("PATH");
+        if (string.IsNullOrEmpty(pathEnv))
+        {
+            yield break;
+        }
+
+        foreach (var dir in pathEnv.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var exe = Path.Combine(dir, "claude-desktop");
+            if (!File.Exists(exe))
+            {
+                continue;
+            }
+
+            string? resolved = null;
+            try
+            {
+                resolved = File.ResolveLinkTarget(exe, returnFinalTarget: true)?.FullName ?? exe;
+            }
+            catch (Exception)
+            {
+                resolved = exe;
+            }
+
+            if (Path.GetDirectoryName(resolved) is { } binDir)
+            {
+                yield return Path.Combine(binDir, "resources");
+                yield return Path.GetFullPath(Path.Combine(binDir, "..", "lib", "claude-desktop", "resources"));
+            }
+        }
     }
 
     /// <summary>Upright Anthropic Sans and Mono from the stylesheets of the first Claude app install that has them.</summary>
