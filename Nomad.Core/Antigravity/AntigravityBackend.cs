@@ -225,6 +225,7 @@ public sealed class AntigravityBackend : IAgentBackend
         _executionMode = ConfigOption(session, "mode");
         SessionId = options.ResumeSessionId ?? CodexJson.Str(session, "sessionId")
             ?? throw new InvalidOperationException("Antigravity did not return a session ID.");
+        _background.AttachSession(SessionId);
 
         var model = ModelOption(session);
         _modelOption = CodexJson.Str(model, "id");
@@ -484,9 +485,16 @@ public sealed class AntigravityBackend : IAgentBackend
         {
             var update = CodexJson.Obj(parameters, "update");
             var turn = Volatile.Read(ref _turn);
-            _background.Track(update, inTurn: turn is not null);
-            if (turn is not null) turn.Update(update);
-            else _background.Update(update);
+            if (turn is not null)
+            {
+                turn.Update(update);
+                _background.Track(update, inTurn: true);
+            }
+            else
+            {
+                _background.Update(update);
+                _background.Track(update, inTurn: false);
+            }
         }
         else if (method == "session/request_permission" && IsTurnRunning)
         {

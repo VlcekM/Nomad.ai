@@ -402,6 +402,198 @@ public sealed class AntigravityTests
         }
     }
 
+    /// <summary>
+    /// Multiple background tools finishing out-of-turn before their wake-up replies must each be accounted for so a
+    /// running subagent is not closed early (pure-ACP fallback without a transcript file).
+    /// </summary>
+    [Fact]
+    public async Task CountsMultiplePostTurnToolWakeupsSeparatelyFromSubagents()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+
+        work.BeginTurn();
+        Track(work, """{"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","status":"in_progress"}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"sub-1","name":"invoke_subagent","status":"completed"}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call","toolCallId":"timer-1","name":"schedule","status":"in_progress","rawInput":{"DurationSeconds":8,"Prompt":"check"}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call","toolCallId":"cmd-1","name":"run_command","kind":"execute","status":"in_progress","rawInput":{"CommandLine":"sleep 10","toolSummary":"Long check"}}""", inTurn: true);
+        work.EndTurn(promote: true);
+
+        // Both tools complete before either unprompted wake-up reply streams.
+        Feed(work, """{"sessionUpdate":"tool_call_update","toolCallId":"timer-1","name":"schedule","status":"completed"}""");
+        Feed(work, """{"sessionUpdate":"tool_call_update","toolCallId":"cmd-1","name":"run_command","status":"completed"}""");
+
+        await ReplyAsync(work, "Timer fired.");
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        await ReplyAsync(work, "Command finished.");
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        await ReplyAsync(work, "Subagent finished.");
+        lock (events)
+        {
+            var sub = Assert.Single(events.OfType<SubagentStateEvent>());
+            Assert.Equal("sub-1", sub.AgentId);
+            Assert.Equal("completed", sub.Status);
+        }
+    }
+
+    /// <summary>
+    /// When ACP omits <c>rawOutput</c> on <c>invoke_subagent</c> and <c>manage_subagents</c>, reading Antigravity's live
+    /// <c>transcript.jsonl</c> binds exact conversation IDs, prevents command wake-ups from prematurely closing subagents,
+    /// clears each subagent on its <c>SYSTEM_MESSAGE</c> or idle/empty <c>manage_subagents(list)</c>, and resumes on <c>send_message</c>.
+    /// </summary>
+    [Fact]
+    public void ReconcilesSubagentsFromLiveTranscriptWhenAcpOmitsOutputs()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("nomad-agy-test-");
+        try
+        {
+            var transcriptPath = Path.Combine(tempDir.FullName, "transcript.jsonl");
+            var events = new List<AgentEvent>();
+            using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+            work.AttachSession("a79021aa-2a69-4c8b-a2ef-5218be5224fd", transcriptPath);
+
+            work.BeginTurn();
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"cmd-1","name":"run_command","kind":"execute","status":"in_progress","rawInput":{"CommandLine":"sleep 6","toolSummary":"Slow startup check"}}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","status":"in_progress","rawInput":{"Role":"Independent Code Reviewer","TypeName":"research"}}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"sub-2","name":"invoke_subagent","status":"in_progress","rawInput":{"Role":"Doc Checker","TypeName":"research"}}""", inTurn: true);
+
+            // Real agy acp omits rawOutput and content on invoke_subagent tool_call_update.
+            Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"sub-1","name":"invoke_subagent","status":"completed"}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"sub-2","name":"invoke_subagent","status":"completed"}""", inTurn: true);
+
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":2,"source":"MODEL","type":"GENERIC","status":"RUNNING","content":"Tool is running as a background task with task id: a79021aa-2a69-4c8b-a2ef-5218be5224fd/task-2\nTask Description: sleep 6"}""",
+                """{"step_index":3,"source":"MODEL","type":"GENERIC","status":"DONE","content":"Created the following subagent:\n{\n  \"conversationId\":  \"11111111-1111-1111-1111-111111111111\"\n}"}""",
+                """{"step_index":4,"source":"MODEL","type":"GENERIC","status":"DONE","content":"Created the following subagent:\n{\n  \"conversationId\":  \"22222222-2222-2222-2222-222222222222\"\n}"}""",
+            ]);
+
+            // Command completes before usage_update, then wakes the parent in-turn (live task-48 sequence).
+            Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"cmd-1","name":"run_command","status":"completed"}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Launched both"}}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"usage_update","used":100,"size":1000}""", inTurn: true);
+
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":5,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-22T18:43:12Z sender=a79021aa-2a69-4c8b-a2ef-5218be5224fd/task-2 priority=MESSAGE_PRIORITY_HIGH content=Task id \"a79021aa-2a69-4c8b-a2ef-5218be5224fd/task-2\" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>"}""",
+            ]);
+
+            Track(work, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Command done, still waiting for subagents."}}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"usage_update","used":200,"size":1000}""", inTurn: true);
+            work.EndTurn(promote: true);
+
+            // Neither subagent was falsely closed by the command wake-up.
+            lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+            // Subagent 1 sends its report in transcript.jsonl -> closed immediately with its report.
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":7,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-22T18:43:34Z sender=11111111-1111-1111-1111-111111111111 priority=MESSAGE_PRIORITY_HIGH content=Review complete: looks good.\n</SYSTEM_MESSAGE>"}""",
+            ]);
+            work.SyncTranscript();
+
+            lock (events)
+            {
+                var done = Assert.Single(events.OfType<SubagentStateEvent>());
+                Assert.Equal("sub-1", done.AgentId);
+                Assert.Equal("completed", done.Status);
+                Assert.Equal("Review complete: looks good.", done.Message);
+            }
+
+            // Sending a follow-up message resumes sub-1, then manage_subagents(list) showing both idle clears both.
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"msg-1","name":"send_message","status":"completed","rawInput":{"Recipient":"11111111-1111-1111-1111-111111111111","Message":"Check tests too"}}""");
+            lock (events)
+            {
+                Assert.Contains(events.OfType<SubagentStateEvent>(), s => s.AgentId == "sub-1" && s.Status == "running");
+            }
+
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":9,"source":"MODEL","type":"GENERIC","status":"DONE","content":"You have 2 active subagent(s):\n[{\"role\":\"Independent Code Reviewer\",\"conversationId\":\"11111111-1111-1111-1111-111111111111\",\"state\":\"idle\"},{\"role\":\"Doc Checker\",\"conversationId\":\"22222222-2222-2222-2222-222222222222\",\"state\":\"idle\"}]"}""",
+            ]);
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"list-1","name":"manage_subagents","status":"completed","rawInput":{"Action":"list"}}""");
+
+            lock (events)
+            {
+                var completed = events.OfType<SubagentStateEvent>().Where(s => s.Status == "completed").ToList();
+                Assert.Contains(completed, s => s.AgentId == "sub-1");
+                Assert.Contains(completed, s => s.AgentId == "sub-2");
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Live transcript completion messages and empty <c>manage_task(list)</c> outputs clear background commands even when
+    /// ACP drops their <c>tool_call_update</c>, while resumed sessions ignore historical lines written before attach.
+    /// </summary>
+    [Fact]
+    public void ClearsBackgroundCommandsFromTranscriptAndSkipsHistoricalLinesOnResume()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("nomad-agy-resume-");
+        try
+        {
+            var transcriptPath = Path.Combine(tempDir.FullName, "transcript.jsonl");
+            // Pre-existing historical line before attach should be skipped.
+            File.WriteAllLines(transcriptPath,
+            [
+                """{"step_index":0,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-22T17:00:00Z sender=system priority=MESSAGE_PRIORITY_LOW content=[Notice] All your subagents and background tasks have been stopped due to server restart.\n</SYSTEM_MESSAGE>"}""",
+            ]);
+
+            var events = new List<AgentEvent>();
+            using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+            work.AttachSession("fed92dce-9d36-447c-980c-0bbd84e41646", transcriptPath);
+
+            work.BeginTurn();
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"cmd-startup","name":"run_command","kind":"execute","status":"in_progress","rawInput":{"CommandLine":"git status","toolSummary":"Session startup ledger and git checks"}}""", inTurn: true);
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"cmd-build","name":"run_command","kind":"execute","status":"in_progress","rawInput":{"CommandLine":"dotnet build","toolSummary":"Build check"}}""", inTurn: true);
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":2,"source":"MODEL","type":"GENERIC","status":"RUNNING","content":"Tool is running as a background task with task id: fed92dce-9d36-447c-980c-0bbd84e41646/task-2\nTask Description: git status"}""",
+                """{"step_index":3,"source":"MODEL","type":"GENERIC","status":"RUNNING","content":"Tool is running as a background task with task id: fed92dce-9d36-447c-980c-0bbd84e41646/task-3\nTask Description: dotnet build"}""",
+            ]);
+            work.EndTurn(promote: true);
+
+            // Historical restart notice was not replayed, so both commands promoted cleanly.
+            lock (events) Assert.Equal(2, events.OfType<TaskStartedEvent>().Count());
+
+            // Command 1 finishes in transcript.jsonl even though ACP never sent tool_call_update.
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":5,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","content":"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-22T18:46:01Z sender=fed92dce-9d36-447c-980c-0bbd84e41646/task-2 priority=MESSAGE_PRIORITY_HIGH content=Task id \"fed92dce-9d36-447c-980c-0bbd84e41646/task-2\" finished with result:\nCommand exited with code 0.\n</SYSTEM_MESSAGE>"}""",
+            ]);
+            work.SyncTranscript();
+
+            lock (events)
+            {
+                var ended = Assert.Single(events.OfType<ForegroundTaskEndedEvent>());
+                Assert.Equal("cmd-startup", ended.ToolUseId);
+                Assert.Equal("completed", ended.Status);
+            }
+
+            // manage_task(list) reports no running tasks -> clears cmd-build.
+            File.AppendAllLines(transcriptPath,
+            [
+                """{"step_index":6,"source":"MODEL","type":"GENERIC","status":"DONE","content":"No background tasks are currently running."}""",
+            ]);
+            Track(work, """{"sessionUpdate":"tool_call","toolCallId":"list-tasks","name":"manage_task","status":"completed","rawInput":{"Action":"list"}}""");
+
+            lock (events)
+            {
+                Assert.Contains(events.OfType<ForegroundTaskEndedEvent>(), e => e.ToolUseId == "cmd-build" && e.Status == "completed");
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
+
     private static void Track(AntigravityBackgroundWork work, string update, bool inTurn)
     {
         using var document = JsonDocument.Parse(update);

@@ -292,7 +292,7 @@ public sealed partial class SubagentViewModel : ObservableObject
     public void MarkBackground()
     {
         IsBackground = true;
-        if (Entries.Count == 0)
+        if (IsRunning && Entries.Count == 0)
         {
             LastStatus = "Running in the background";
         }

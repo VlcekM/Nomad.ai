@@ -4226,7 +4226,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 {
                     if (!r.IsError && (finished.IsBackground || finished.ReportsLaunchOnly || IsAsyncLaunch(r.Text)))
                     {
-                        finished.MarkBackground();
+                        if (finished.IsRunning) finished.MarkBackground();
                     }
                     else
                     {
