@@ -126,6 +126,69 @@ public sealed record UsageReport(DateTime FromUtc, DateTime ToUtc, IReadOnlyList
 /// </summary>
 public sealed record WatchResult(bool Live, string? HostName, IReadOnlyList<string> Buffer, long Next);
 
+// The phone (docs/mobile.md): each Nomad lists the chats it has open on the board, and answers for them; the hub routes.
+
+/// <summary>
+/// One chat open in Nomad on a PC. <paramref name="State"/> is <c>waiting</c> (a card waits on the user), <c>working</c>,
+/// <c>idle</c> (its process runs) or <c>stopped</c>; <paramref name="Waiting"/> says what waits, in a few words.
+/// </summary>
+public sealed record BoardChat(
+    string Backend,
+    string SessionId,
+    string Title,
+    string Agent,
+    string? Folder,
+    string State,
+    string? Waiting,
+    string LastLine,
+    DateTime LastActivityUtc,
+    int Queued);
+
+/// <summary>A PC on the board and the chats open in its Nomad; no chats when it has gone.</summary>
+public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList<BoardChat> Chats);
+
+/// <summary>
+/// A page of a chat's transcript, oldest first: the entries before the cursor asked for (the newest without one).
+/// <paramref name="Total"/> is how many entries the chat has; an entry's <see cref="ChatEntry.Index"/> is the cursor for
+/// the page before it.
+/// </summary>
+public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList<ChatEntry> Entries);
+
+/// <summary>
+/// One transcript entry as the phone shows it. <paramref name="Kind"/> is <c>user</c>, <c>assistant</c>, <c>activity</c>
+/// (a group of tool calls), <c>notice</c>, <c>error</c>, <c>permission</c> or <c>question</c>; the last two carry a card.
+/// </summary>
+public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null);
+
+/// <summary>A permission or question card. <paramref name="Id"/> names it in an answer; only a pending one takes one.</summary>
+public sealed record ChatCard(
+    string Id,
+    bool Pending,
+    string? Title,
+    string? Detail,
+    string? Description,
+    bool CanAllowForSession,
+    string? AllowText,
+    string? DenyText,
+    string? Answer,
+    IReadOnlyList<ChatQuestion>? Questions);
+
+public sealed record ChatQuestion(string Header, string Question, bool MultiSelect, IReadOnlyList<ChatOption> Options);
+
+public sealed record ChatOption(string Label, string? Description);
+
+/// <summary>
+/// Input for a chat: <c>prompt</c> (<paramref name="Text"/>, queued behind a running turn as if typed), <c>answer</c>
+/// (<paramref name="Card"/>, <paramref name="Choice"/> <c>allow</c>, <c>session</c> or <c>deny</c>, and for a question one
+/// <see cref="ChatAnswer"/> per question, in order) or <c>stop</c>.
+/// </summary>
+public sealed record ChatInput(string Kind, string? Text = null, string? Card = null, string? Choice = null, IReadOnlyList<ChatAnswer>? Answers = null);
+
+/// <summary>A question's answer: the labels picked, and/or typed text.</summary>
+public sealed record ChatAnswer(IReadOnlyList<string> Options, string? Other);
+
+public sealed record ChatInputResult(bool Ok, string Message);
+
 /// <summary>Names shared by both ends.</summary>
 public static class HubNames
 {
@@ -164,6 +227,32 @@ public static class HubNames
 
     /// <summary>Server → viewers: <c>(backend, sessionId)</c>, the host stopped streaming it.</summary>
     public const string RelayEnded = "RelayEnded";
+
+    // The phone (docs/mobile.md).
+
+    /// <summary>Client → server (a PC): <c>(IReadOnlyList&lt;BoardChat&gt;)</c>, the chats open in it now, all of them.</summary>
+    public const string BoardPublish = "BoardPublish";
+
+    /// <summary>Client → server (the phone): → <c>IReadOnlyList&lt;BoardDevice&gt;</c>, and <see cref="BoardChanged"/> from then on.</summary>
+    public const string BoardWatch = "BoardWatch";
+
+    /// <summary>Server → board watchers: <c>(BoardDevice)</c>, a PC's chats changed (none: it went).</summary>
+    public const string BoardChanged = "BoardChanged";
+
+    /// <summary>Client → server (the phone): <c>(Guid device, backend, sessionId, int? before, int limit)</c> → <see cref="ChatPage"/>.</summary>
+    public const string ChatHistory = "ChatHistory";
+
+    /// <summary>Server → the PC with the chat, a client result: <c>(backend, sessionId, int? before, int limit)</c> → <see cref="ChatPage"/>.</summary>
+    public const string ChatHistoryRequested = "ChatHistoryRequested";
+
+    /// <summary>Client → server (the phone): <c>(Guid device, backend, sessionId, ChatInput)</c> → <see cref="ChatInputResult"/>.</summary>
+    public const string ChatSend = "ChatSend";
+
+    /// <summary>Server → the PC with the chat, a client result: <c>(backend, sessionId, ChatInput, string fromName)</c> → <see cref="ChatInputResult"/>.</summary>
+    public const string ChatInputRequested = "ChatInputRequested";
+
+    /// <summary>How long the hub waits for a PC to answer for its chat.</summary>
+    public static readonly TimeSpan ChatAnswerTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>The largest SignalR message either end takes (a tool result or a diff can be large).</summary>
     public const long MaxMessageBytes = 16 * 1024 * 1024;

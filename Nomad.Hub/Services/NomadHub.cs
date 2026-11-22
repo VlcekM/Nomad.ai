@@ -8,14 +8,17 @@ namespace Nomad.Hub.Services;
 
 /// <summary>
 /// Each Nomad's one live connection: presence, lease renewals and "the change feed moved" pings
-/// (<see cref="HubNames.Changed"/>), and handoff requests to the PC holding a session.
+/// (<see cref="HubNames.Changed"/>), handoff requests to the PC holding a session, the relay, and the phone's board.
 /// </summary>
 [Authorize]
-public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, HubOptions options) : Microsoft.AspNetCore.SignalR.Hub
+public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, BoardState board, HubOptions options)
+    : Microsoft.AspNetCore.SignalR.Hub
 {
     public static string DeviceGroup(Guid device) => $"device:{device:N}";
 
     public static string RelayGroup(string key) => "relay:" + key;
+
+    public const string BoardGroup = "board";
 
     public override async Task OnConnectedAsync()
     {
@@ -31,6 +34,11 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
         foreach (var (backend, sessionId) in relay.DropHost(Context.ConnectionId))
         {
             await Clients.Group(RelayGroup(RelayState.Key(backend, sessionId))).SendAsync(HubNames.RelayEnded, backend, sessionId);
+        }
+
+        if (board.Drop(Context.ConnectionId) is { } gone)
+        {
+            await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, gone);
         }
 
         await base.OnDisconnectedAsync(exception);
@@ -78,6 +86,53 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
 
     public Task RelayUnwatch(string backend, string sessionId) =>
         Groups.RemoveFromGroupAsync(Context.ConnectionId, RelayGroup(RelayState.Key(backend, sessionId)));
+
+    // ------------------------------------------------------------------ the phone (docs/mobile.md)
+
+    /// <summary>A PC's chats, all of them: kept for the board and sent to whoever watches it.</summary>
+    public async Task BoardPublish(IReadOnlyList<BoardChat> chats)
+    {
+        RequireRelay();
+        var device = board.Publish(Context.ConnectionId, Context.User!.DeviceId(), Context.User!.DeviceName(), chats);
+        await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
+    }
+
+    /// <summary>The board as it is now; every change after it comes as <see cref="HubNames.BoardChanged"/>.</summary>
+    public async Task<IReadOnlyList<BoardDevice>> BoardWatch()
+    {
+        RequireRelay();
+        await Groups.AddToGroupAsync(Context.ConnectionId, BoardGroup);
+        return board.All();
+    }
+
+    /// <summary>A page of a chat's transcript, from the PC that has it open.</summary>
+    public Task<ChatPage> ChatHistory(Guid device, string backend, string sessionId, int? before, int limit) =>
+        AskPcAsync(device, backend, sessionId, (pc, ct) =>
+            Clients.Client(pc).InvokeAsync<ChatPage>(HubNames.ChatHistoryRequested, backend, sessionId, before, Math.Clamp(limit, 1, 200), ct));
+
+    /// <summary>A prompt, an answer or Stop for a chat, applied by the PC that has it open; it says whether it took it.</summary>
+    public Task<ChatInputResult> ChatSend(Guid device, string backend, string sessionId, ChatInput input)
+    {
+        var from = Context.User!.DeviceName();
+        return AskPcAsync(device, backend, sessionId, (pc, ct) =>
+            Clients.Client(pc).InvokeAsync<ChatInputResult>(HubNames.ChatInputRequested, backend, sessionId, input, from, ct));
+    }
+
+    private async Task<T> AskPcAsync<T>(Guid device, string backend, string sessionId, Func<string, CancellationToken, Task<T>> ask)
+    {
+        RequireRelay();
+        var pc = board.ConnectionWith(device, backend, sessionId)
+            ?? throw new HubException("That chat isn't open in Nomad on that PC any more.");
+        using var timeout = new CancellationTokenSource(HubNames.ChatAnswerTimeout);
+        try
+        {
+            return await ask(pc, timeout.Token);
+        }
+        catch (Exception e) when (e is OperationCanceledException or IOException or InvalidOperationException)
+        {
+            throw new HubException("That PC didn't answer.");
+        }
+    }
 
     /// <summary>A viewer's prompt, answer or Stop, for the host to apply as if typed there.</summary>
     public async Task RelaySendInput(string backend, string sessionId, string input)
@@ -217,5 +272,63 @@ public static class Leases
 
             return lost;
         });
+    }
+}
+
+/// <summary>
+/// The phone's board: the chats each connected PC has open, as it last published them. In memory only, like the relay; a
+/// PC's chats leave the board with its connection.
+/// </summary>
+public sealed class BoardState
+{
+    /// <summary>The most chats one PC may put on the board.</summary>
+    private const int MaxChats = 200;
+
+    private readonly Lock _lock = new();
+    private readonly Dictionary<string, BoardDevice> _byConnection = new(StringComparer.Ordinal);
+
+    /// <summary>Replaces a connection's chats; returns its board entry.</summary>
+    public BoardDevice Publish(string connection, Guid device, string deviceName, IReadOnlyList<BoardChat>? chats)
+    {
+        var entry = new BoardDevice(device, deviceName, [.. (chats ?? []).Take(MaxChats)]);
+        lock (_lock)
+        {
+            _byConnection[connection] = entry;
+        }
+
+        return entry;
+    }
+
+    /// <summary>Takes a connection's chats off the board; returns the PC with no chats, or null when it had none there.</summary>
+    public BoardDevice? Drop(string connection)
+    {
+        lock (_lock)
+        {
+            if (!_byConnection.Remove(connection, out var entry))
+            {
+                return null;
+            }
+
+            // Another connection of the same PC (a second Nomad window, say) still lists its own chats.
+            return _byConnection.Values.FirstOrDefault(d => d.DeviceId == entry.DeviceId) ?? entry with { Chats = [] };
+        }
+    }
+
+    public IReadOnlyList<BoardDevice> All()
+    {
+        lock (_lock)
+        {
+            return [.. _byConnection.Values];
+        }
+    }
+
+    /// <summary>The connection of <paramref name="device"/> that has the chat open, if any.</summary>
+    public string? ConnectionWith(Guid device, string backend, string sessionId)
+    {
+        lock (_lock)
+        {
+            return _byConnection.FirstOrDefault(kv => kv.Value.DeviceId == device
+                && kv.Value.Chats.Any(c => c.Backend == backend && c.SessionId == sessionId)).Key;
+        }
     }
 }
