@@ -478,7 +478,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Claims the issue for the signed-in user and refreshes its assignees.
+    /// Claims the issue for the signed-in user. The next page refresh picks up the updated assignees.
     /// </summary>
     private async Task AssignIssueAsync(WorkRowViewModel row, string folder)
     {
@@ -486,10 +486,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         if (error is not null)
         {
             row.Error = $"Could not assign issue {row.NumberText} to you. {error}";
-            return;
         }
-
-        await LoadAsync(refresh: false);
     }
 
     /// <summary>
