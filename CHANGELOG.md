@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.6.0
+
+- Added browser-based subscription sign-in, live account status, and sign-out for all four coding agents (**Claude Code**, **Codex**, **Antigravity**, and **OpenCode**) under **Settings > Agents**, along with a configurable path for Antigravity.
+- Made **Settings > Agents > New sessions** multi-agent with a **Default agent** picker, per-agent **Default model**, and agent-neutral **Default effort**, **Default permission mode**, and prompt suggestion settings.
+- Removed the unused **Display name** setting from **Settings > General**.
+- Show pull request and issue sidebar icons for chats started from **Pull requests & issues**.
+- Fixed pasting and copying clipboard images on Linux.
+
 ## v2.5.1
 
 - Added a separate **Usage bars** color swatch (`UsageBar`) in custom themes (under **Settings > Appearance > Colors**), defaulting to the theme's **Accent** color and driving both the usage bar fill and its pace indicator.
