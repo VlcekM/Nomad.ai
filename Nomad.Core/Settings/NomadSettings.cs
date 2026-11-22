@@ -226,6 +226,15 @@ public sealed class NomadSettings
     public int AutoArchiveHours { get; set; } = 24;
 
     /// <summary>
+    /// An open session whose process has been quiet for <see cref="SleepAfterHours"/> has its process ended (it moves to Idle).
+    /// Pinned sessions, and ones with background work running, are never ended.
+    /// </summary>
+    public bool SleepIdleSessions { get; set; } = true;
+
+    /// <summary>How long a session's process may stay quiet before it is ended (at least 1 hour).</summary>
+    public int SleepAfterHours { get; set; } = 1;
+
+    /// <summary>
     /// Session id → when it was unarchived by hand: that counts as touching it, so auto-archive waits again from
     /// then. Dropped once the session is archived again.
     /// </summary>

@@ -66,6 +66,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
+        SleepIdle = s.SleepIdleSessions;
+        SleepAfterHoursText = Math.Max(1, s.SleepAfterHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         CloseToTray = s.CloseToTray;
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
@@ -662,6 +664,35 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleAutoArchive() => AutoArchive = !AutoArchive;
+
+    /// <summary>Whether a quiet session's process is ended after <see cref="SleepAfterHoursText"/> hours.</summary>
+    [ObservableProperty]
+    public partial bool SleepIdle { get; set; } = true;
+
+    /// <summary>The idle time in whole hours, as typed: a number below 1 becomes 1, anything else waits.</summary>
+    [ObservableProperty]
+    public partial string SleepAfterHoursText { get; set; } = "1";
+
+    [RelayCommand]
+    private void ToggleSleepIdle() => SleepIdle = !SleepIdle;
+
+    partial void OnSleepIdleChanged(bool value) => Apply(s => s.SleepIdleSessions = value, appearance: false);
+
+    partial void OnSleepAfterHoursTextChanged(string value)
+    {
+        if (!int.TryParse(value.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var hours))
+        {
+            return;
+        }
+
+        if (hours < 1)
+        {
+            SleepAfterHoursText = "1";
+            return;
+        }
+
+        Apply(s => s.SleepAfterHours = hours, appearance: false);
+    }
 
     partial void OnAutoArchiveChanged(bool value)
     {
