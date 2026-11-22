@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.5.1
+
+- Added a separate **Usage bars** color swatch (`UsageBar`) in custom themes (under **Settings > Appearance > Colors**), defaulting to the theme's **Accent** color and driving both the usage bar fill and its pace indicator.
+
 ## v2.5.0
 
 - Mid-turn prompts in Claude Code now steer the running turn directly (as in the terminal), tick once taken in, and relay to watching PCs over Nomad Hub.
