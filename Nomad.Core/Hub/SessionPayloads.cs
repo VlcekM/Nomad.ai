@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.Sqlite;
 using Nomad.Core.Agents;
 using Nomad.Core.Remote;
 using Nomad.Core.Sessions;
@@ -58,6 +59,9 @@ public interface ISessionFiles
 
     /// <summary>Keeps this PC's copy of a session somewhere safe before an <see cref="Opaque"/> one is replaced; returns where.</summary>
     Task<string?> SetAsideAsync(string sessionId, CancellationToken ct) => Task.FromResult<string?>(null);
+
+    /// <summary>Whether a process has the session's files open here, so nothing may replace them (only known for some backends).</summary>
+    bool InUse(string sessionId) => false;
 }
 
 internal static class Stamps
@@ -349,21 +353,22 @@ public sealed class CodexFiles(string codexHome) : ISessionFiles
 }
 
 /// <summary>
-/// Antigravity keeps each chat as its own SQLite database, <c>conversations/&lt;id&gt;.db</c> (with a <c>-wal</c> beside it
+/// Antigravity keeps each chat as its own SQLite database, <c>conversations/&lt;id&gt;.db</c> (with a <c>-wal</c> log beside it
 /// while the CLI has it open), plus <c>brain/&lt;id&gt;/</c> (its working notes) and <c>annotations/&lt;id&gt;.pbtxt</c> (its title in the
 /// CLI). A chat copied into another PC's home is resumed by the CLI as it is: its own index (<c>conversation_summaries.db</c>)
 /// adds the chat on first use. Nomad lists Antigravity chats from its settings, so <paramref name="sessions"/> says which
 /// chats there are, with their folders and titles.
 /// </summary>
 /// <remarks>
-/// A database can't be compared with another copy or merged into it, and its id is written inside it, so it can't be kept
-/// as a new chat either (<see cref="Opaque"/>): a chat that changed here and on another PC is set aside here, whole, and the
-/// hub's version is used.
+/// A chat travels as a snapshot taken with SQLite's backup API: one file holding the database with its log folded in. The
+/// same chat always gives the same bytes, whether or not the CLI has folded its log in since (reading a chat does that), so a
+/// copy that was only read is never taken for one that changed. Copies can't be merged, and the chat's id is written inside
+/// the database, so one can't be kept as a new chat either (<see cref="Opaque"/>): a chat that changed here and on another PC
+/// is set aside here, whole, and the hub's version is used.
 /// </remarks>
 public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<SessionSummary>> sessions) : ISessionFiles
 {
     public const string Database = "conversation.db";
-    public const string Wal = "conversation.db-wal";
     public const string Annotation = "annotation.pbtxt";
     public const string Title = "title.txt";
     private const string BrainPrefix = "brain/";
@@ -396,7 +401,7 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         ? [.. Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)]
         : [];
 
-    /// <summary>The chat's files as they are on disk, the database first.</summary>
+    /// <summary>The chat's files as they are on disk, the database first: what its stamp is made of.</summary>
     private List<string> FilesOf(string id)
     {
         var db = DatabaseOf(id);
@@ -442,6 +447,9 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         return listed;
     }
 
+    /// <summary>Whether Nomad knows the chat: listed in its settings, or brought by the hub and about to be.</summary>
+    private bool Known(string id) => Summary(id) is not null || _pulledTitles.ContainsKey(id);
+
     public IReadOnlyList<LocalSession> List(CancellationToken ct)
     {
         var result = new List<LocalSession>();
@@ -468,16 +476,40 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         return result;
     }
 
+    /// <summary>
+    /// The chat's stamp; null when it isn't here, or when its files are but Nomad doesn't list it (left by a terminal, say): the
+    /// hub's version then comes in as a new chat, and those files are set aside first (<see cref="WriteAsync"/>).
+    /// </summary>
     public string? StampOf(string sessionId) =>
-        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? StampFor(sessionId, TitleOf(sessionId, Summary(sessionId)?.Title) ?? "") : null;
+        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) && Known(sessionId)
+            ? StampFor(sessionId, TitleOf(sessionId, Summary(sessionId)?.Title) ?? "")
+            : null;
 
     public string? MainFile(string sessionId) =>
         IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? DatabaseOf(sessionId) : null;
 
     /// <summary>
-    /// Copies the database and its write-ahead log together, and keeps the copy only if neither changed while it was taken,
-    /// so the pair is one consistent state (the sync never collects a chat mid-turn, but the CLI may still be closing it).
+    /// Whether a process (the CLI) has the chat's database open: nothing may replace it then. Opening it with no sharing fails
+    /// while any other handle is open, whatever sharing that one allowed.
     /// </summary>
+    public bool InUse(string sessionId)
+    {
+        if (!IsId(sessionId) || !File.Exists(DatabaseOf(sessionId)))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var _ = new FileStream(DatabaseOf(sessionId), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
     public async Task<IReadOnlyList<PayloadFile>> CollectAsync(LocalSession session, CancellationToken ct)
     {
         var id = session.SessionId;
@@ -486,81 +518,61 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
             return [];
         }
 
-        var db = DatabaseOf(id);
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            var before = Stamps.Of([db, db + "-wal"]);
-            var snapshot = new List<PayloadFile>();
-            try
-            {
-                snapshot.Add(new PayloadFile(Database, await CopyToTempAsync(db, ct).ConfigureAwait(false)));
-                if (WalOf(db) is { } wal)
-                {
-                    snapshot.Add(new PayloadFile(Wal, await CopyToTempAsync(wal, ct).ConfigureAwait(false)));
-                }
-
-                if (Stamps.Of([db, db + "-wal"]) != before)
-                {
-                    Release(snapshot);
-                    await Task.Delay(250, ct).ConfigureAwait(false);
-                    continue;
-                }
-
-                if (File.Exists(AnnotationOf(id)))
-                {
-                    snapshot.Add(new PayloadFile(Annotation, AnnotationOf(id)));
-                }
-
-                snapshot.AddRange(BrainFiles(id).Select(f => new PayloadFile(BrainPrefix + Path.GetRelativePath(BrainOf(id), f).Replace('\\', '/'), f)));
-
-                // Nomad's title for it, so a rename alone is a change to upload.
-                if (!string.IsNullOrWhiteSpace(session.Title))
-                {
-                    var title = TempPath();
-                    snapshot.Add(new PayloadFile(Title, title));
-                    await File.WriteAllTextAsync(title, session.Title, ct).ConfigureAwait(false);
-                }
-
-                return snapshot;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                Release(snapshot);
-                return [];
-            }
-            catch
-            {
-                Release(snapshot); // Cancelled (Nomad closing), say: no copy is left behind.
-                throw;
-            }
-        }
-
-        return []; // Still being written: the next round takes it.
-    }
-
-    private static string TempPath() => Path.Combine(Path.GetTempPath(), $"nomad-antigravity-{Guid.NewGuid():N}");
-
-    private static async Task<string> CopyToTempAsync(string file, CancellationToken ct)
-    {
-        var temp = TempPath();
+        var snapshot = new List<PayloadFile>();
         try
         {
-            await using var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            await using var target = File.Create(temp);
-            await source.CopyToAsync(target, ct).ConfigureAwait(false);
-            return temp;
+            var copy = TempPath();
+            snapshot.Add(new PayloadFile(Database, copy));
+            await Task.Run(() => Snapshot(DatabaseOf(id), copy), ct).ConfigureAwait(false);
+            if (File.Exists(AnnotationOf(id)))
+            {
+                snapshot.Add(new PayloadFile(Annotation, AnnotationOf(id)));
+            }
+
+            snapshot.AddRange(BrainFiles(id).Select(f => new PayloadFile(BrainPrefix + Path.GetRelativePath(BrainOf(id), f).Replace('\\', '/'), f)));
+
+            // Nomad's title for it, so a rename alone is a change to upload.
+            if (!string.IsNullOrWhiteSpace(session.Title))
+            {
+                var title = TempPath();
+                snapshot.Add(new PayloadFile(Title, title));
+                await File.WriteAllTextAsync(title, session.Title, ct).ConfigureAwait(false);
+            }
+
+            return snapshot;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or SqliteException)
+        {
+            Release(snapshot);
+            return []; // Busy or unreadable just now: the next round takes it.
         }
         catch
         {
-            File.Delete(temp);
+            Release(snapshot); // Cancelled (Nomad closing), say: no copy is left behind.
             throw;
         }
     }
 
-    /// <summary>Deletes the temporary copies (the database, its log and the title); the chat's own files stay.</summary>
+    /// <summary>
+    /// Copies a chat's database, with its log folded in, to <paramref name="target"/> as one file, through SQLite's backup API.
+    /// The chat is opened read-only, so the copy never changes it; no connection is pooled, so no file stays open.
+    /// </summary>
+    internal static void Snapshot(string database, string target)
+    {
+        SqliteSetup.Ensure();
+        using var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = database, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        using var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = target, Pooling = false }.ToString());
+        source.Open();
+        copy.Open();
+        source.BackupDatabase(copy);
+    }
+
+    private static string TempPath() => Path.Combine(Path.GetTempPath(), $"nomad-antigravity-{Guid.NewGuid():N}");
+
+    /// <summary>Deletes the temporary copies (the snapshot and the title); the chat's own files stay.</summary>
     public void Release(IReadOnlyList<PayloadFile> files)
     {
-        foreach (var f in files.Where(f => f.Path is Database or Wal or Title))
+        foreach (var f in files.Where(f => f.Path is Database or Title))
         {
             File.Delete(f.FullPath);
         }
@@ -574,20 +586,39 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
             throw new InvalidOperationException($"\"{remote.Title}\" from the hub isn't an Antigravity chat this PC can use.");
         }
 
+        if (InUse(id))
+        {
+            throw new InvalidOperationException($"\"{remote.Title}\" is open in Antigravity on this PC; it is fetched once it closes.");
+        }
+
         var db = DatabaseOf(id);
         var brain = BrainOf(id);
         Directory.CreateDirectory(Path.GetDirectoryName(db)!);
 
-        // The new database and log are copied beside the old ones first, so a failed copy changes nothing. Then the old log and
-        // index go (SQLite would replay this PC's old log into the hub's database), the database moves into place, then its log.
-        var stagedDb = Stage(database, db);
-        var stagedWal = files.TryGetValue(Wal, out var wal) ? Stage(wal, db + "-wal") : null;
-        File.Delete(db + "-wal");
-        File.Delete(db + "-shm");
-        File.Move(stagedDb, db, overwrite: true);
-        if (stagedWal is not null)
+        // Files Nomad doesn't list (left by a terminal, say) are kept before the hub's chat takes their place.
+        if (File.Exists(db) && !Known(id))
         {
-            File.Move(stagedWal, db + "-wal", overwrite: true);
+            SetAside(id);
+        }
+
+        // The new database is copied beside the old one first, so a failed copy changes nothing. Then the old log and index go
+        // (SQLite would replay this PC's old log into the hub's database), and the database moves into place.
+        var staged = db + ".nomad-hub";
+        try
+        {
+            File.Copy(database, staged, overwrite: true);
+            if (remote.LastActivityUtc > DateTime.UnixEpoch && remote.LastActivityUtc <= DateTime.UtcNow)
+            {
+                File.SetLastWriteTimeUtc(staged, remote.LastActivityUtc);
+            }
+
+            File.Delete(db + "-wal");
+            File.Delete(db + "-shm");
+            File.Move(staged, db, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(staged);
         }
 
         if (files.TryGetValue(Annotation, out var annotation))
@@ -603,7 +634,7 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         foreach (var (path, downloaded) in files.Where(f => f.Key.StartsWith(BrainPrefix, StringComparison.Ordinal)))
         {
             var target = Path.GetFullPath(Path.Combine(brain, path[BrainPrefix.Length..]));
-            if (target.StartsWith(brain + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            if (target.StartsWith(Path.GetFullPath(brain) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
                 Stamps.Copy(downloaded, target, remote.LastActivityUtc); // Never outside the chat's own folder.
                 keep.Add(target);
@@ -617,42 +648,64 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
 
         _pulledTitles[id] = (remote.Title, Summary(id)?.Title);
         return Task.FromResult<string?>(StampFor(id, remote.Title));
-
-        string Stage(string from, string to)
-        {
-            var staged = to + ".nomad-hub";
-            File.Copy(from, staged, overwrite: true);
-            if (remote.LastActivityUtc > DateTime.UnixEpoch && remote.LastActivityUtc <= DateTime.UtcNow)
-            {
-                File.SetLastWriteTimeUtc(staged, remote.LastActivityUtc);
-            }
-
-            return staged;
-        }
     }
 
     /// <summary>
     /// Keeps this PC's copy of a chat, whole, in <c>nomad-set-aside/&lt;id&gt;-&lt;time&gt;/</c> beside the CLI's folders, before
-    /// the hub's version replaces it; returns that folder. Putting its files back where they were restores it.
+    /// the hub's version replaces it; returns that folder, or null when it couldn't (nothing is left half copied). Putting its
+    /// files back where they were restores it.
     /// </summary>
-    public Task<string?> SetAsideAsync(string sessionId, CancellationToken ct)
+    public Task<string?> SetAsideAsync(string sessionId, CancellationToken ct) =>
+        Task.FromResult(IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? SetAside(sessionId) : null);
+
+    private string? SetAside(string id)
     {
-        if (!IsId(sessionId) || !File.Exists(DatabaseOf(sessionId)))
+        var target = Path.Combine(home, "nomad-set-aside", $"{id}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        try
         {
-            return Task.FromResult<string?>(null);
-        }
-
-        var target = Path.Combine(home, "nomad-set-aside", $"{sessionId}-{DateTime.Now:yyyyMMdd-HHmmss}");
-        var db = DatabaseOf(sessionId);
-        foreach (var file in new[] { db, db + "-wal", AnnotationOf(sessionId) }.Where(File.Exists).Concat(BrainFiles(sessionId)))
-        {
-            var to = Path.Combine(target, Path.GetRelativePath(home, file));
+            var db = DatabaseOf(id);
+            var to = Path.Combine(target, Path.GetRelativePath(home, db));
             Directory.CreateDirectory(Path.GetDirectoryName(to)!);
-            File.Copy(file, to, overwrite: true);
-        }
+            Snapshot(db, to); // The log folded in: one file, which the CLI opens as it is.
+            foreach (var file in new[] { AnnotationOf(id) }.Where(File.Exists).Concat(BrainFiles(id)))
+            {
+                to = Path.Combine(target, Path.GetRelativePath(home, file));
+                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+                File.Copy(file, to, overwrite: true);
+            }
 
-        return Task.FromResult<string?>(target);
+            if (Summary(id)?.Title is { Length: > 0 } title)
+            {
+                File.WriteAllText(Path.Combine(target, Title), title); // Nomad's title for it, which the CLI's files don't hold.
+            }
+
+            return target;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or SqliteException)
+        {
+            try
+            {
+                Directory.Delete(target, recursive: true);
+            }
+            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+            {
+            }
+
+            return null;
+        }
     }
+}
+
+/// <summary>SQLite's native library, set up once and explicitly (NativeAOT trims the lookup Microsoft.Data.Sqlite does by itself).</summary>
+internal static class SqliteSetup
+{
+    private static readonly Lazy<bool> Ready = new(() =>
+    {
+        SQLitePCL.Batteries_V2.Init();
+        return true;
+    });
+
+    public static void Ensure() => _ = Ready.Value;
 }
 
 /// <summary>

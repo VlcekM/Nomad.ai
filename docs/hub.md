@@ -94,13 +94,16 @@ Checked against Codex CLI 0.163.0 and OpenCode 1.19.5, in throwaway homes (`CODE
 - **Antigravity** (CLI 1.5.14; its home moves only with `USERPROFILE`, not `GEMINI_CLI_HOME`): a chat's database and
   `brain/` folder copied into another home resume as they are, from another folder too (`agy --conversation <id>`), and
   ACP `session/load` replays them without a resume first; the CLI's own index (`conversation_summaries.db`) adds the chat
-  on first use, so nothing else is written. The database is taken with its `-wal` as one snapshot (kept only if neither
-  changed while it was copied), and a fetch deletes this PC's old `-wal` and `-shm` before putting the new database in
-  place, so SQLite never replays a stale log into it (an empty `-wal`, left by merely reading a chat, isn't a change).
-  Copies of a database can't be told apart as earlier and later, and the chat's id is written inside it, so one that
-  changed on two PCs can't become a fork as a Claude Code session does: the PC whose upload is refused keeps its copy,
-  whole, in `nomad-set-aside/<id>-<time>/` beside the CLI's folders, takes the hub's version, and says where its own went.
-  From then on every PC has the same copy again.
+  on first use, so nothing else is written. A chat travels as a snapshot taken with SQLite's backup API (opened
+  read-only, so the chat isn't changed): one file with the `-wal` folded in. The same chat always gives the same bytes,
+  whether or not the CLI has folded its log in since (reading a chat does that), so a copy that was only read never counts
+  as changed. A fetch deletes this PC's old `-wal` and `-shm` before putting the database in place, so SQLite never replays a
+  stale log into it, and never replaces a chat the CLI has open here. Copies of a database can't be merged, and the chat's
+  id is written inside it, so one that changed on two PCs can't become a fork as a Claude Code session does: the PC whose
+  upload is refused keeps its copy, whole, in `nomad-set-aside/<id>-<time>/` beside the CLI's folders (with Nomad's title
+  for it), takes the hub's version, and says where its own went. When only its title or notes changed on top of a version
+  the hub has moved past, it takes the hub's version and says the change needs making again. Chat files Nomad doesn't list
+  are set aside the same way before a chat from the hub takes their place.
 
 **Nomad's per-session state**, from `NomadSettings`, syncs last-writer-wins per key with a timestamp:
 `ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `InterruptedSessions`. `MovedSessionFolders` stays local

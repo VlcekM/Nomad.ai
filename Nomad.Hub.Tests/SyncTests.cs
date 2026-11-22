@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Microsoft.Data.Sqlite;
 using Nomad.Core.Agents;
 using Nomad.Core.Hub;
 using Nomad.Core.Remote;
@@ -197,6 +198,48 @@ public sealed class SyncTests : IDisposable
         return (home, chats, sync, pulled);
     }
 
+    private static string ChatDb(string home, string chat) => Path.Combine(home, "conversations", chat + ".db");
+
+    private static SqliteConnection Open(string file)
+    {
+        SQLitePCL.Batteries_V2.Init();
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = file, Pooling = false }.ToString());
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS steps(v TEXT);";
+        command.ExecuteNonQuery();
+        return connection;
+    }
+
+    /// <summary>Adds turns to a chat's database the way the CLI does (into its log), and closes it (folding the log in).</summary>
+    private static void AddTurns(string file, params string[] turns)
+    {
+        using var connection = Open(file);
+        foreach (var turn in turns)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "INSERT INTO steps(v) VALUES ($v)";
+            command.Parameters.AddWithValue("$v", turn);
+            command.ExecuteNonQuery();
+        }
+    }
+
+    private static List<string> Turns(string file)
+    {
+        using var connection = Open(file);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT v FROM steps ORDER BY rowid";
+        using var reader = command.ExecuteReader();
+        var turns = new List<string>();
+        while (reader.Read())
+        {
+            turns.Add(reader.GetString(0));
+        }
+
+        return turns;
+    }
+
     private static void Write(string file, string text)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -204,43 +247,51 @@ public sealed class SyncTests : IDisposable
         File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddSeconds(Random.Shared.Next(1, 1000))); // Stamps must move even within a tick.
     }
 
+    private static SessionSummary AgyChat(string id, string title, string? folder = null) =>
+        new(id, "", folder, title, DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity);
+
     [Fact]
-    public async Task AntigravityChatsTravelWithTheirLogNotesAndTitle()
+    public async Task AntigravityChatsTravelWithTheirNotesAndTitle()
     {
         const string chat = "c29f4517-0eb5-499e-82dd-6e95a5447b0e";
         var a = await AntigravityPcAsync("A");
         var b = await AntigravityPcAsync("B");
-        var folder = Path.Combine(_root, "A", "work");
-        a.Chats.Add(new SessionSummary(chat, "", folder, "Pastrami", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database v1");
-        Write(Path.Combine(a.Home, "conversations", chat + ".db-wal"), "log v1");
+        a.Chats.Add(AgyChat(chat, "Pastrami", Path.Combine(_root, "A", "work")));
         Write(Path.Combine(a.Home, "brain", chat, "scratch", "notes.md"), "notes");
         Write(Path.Combine(a.Home, "annotations", chat + ".pbtxt"), "title:\"Pastrami\"");
 
-        await a.Sync.SyncNowAsync();
-        await b.Sync.SyncNowAsync();
+        // A turn still in the log while the CLI has the chat open: the snapshot carries it.
+        using (var live = Open(ChatDb(a.Home, chat)))
+        {
+            using var command = live.CreateCommand();
+            command.CommandText = "PRAGMA wal_autocheckpoint=0; INSERT INTO steps(v) VALUES ('remember PASTRAMI')";
+            command.ExecuteNonQuery();
+            Assert.True(new FileInfo(ChatDb(a.Home, chat) + "-wal").Length > 0);
+            await a.Sync.SyncNowAsync();
+        }
 
-        Assert.Equal("database v1", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
-        Assert.Equal("log v1", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db-wal")));
+        await b.Sync.SyncNowAsync(); // B has no annotations folder: a fetch without one must not need it.
+
+        Assert.Equal(["remember PASTRAMI"], Turns(ChatDb(b.Home, chat)));
         Assert.Equal("notes", File.ReadAllText(Path.Combine(b.Home, "brain", chat, "scratch", "notes.md")));
         Assert.Equal("title:\"Pastrami\"", File.ReadAllText(Path.Combine(b.Home, "annotations", chat + ".pbtxt")));
         var pulled = Assert.Single(b.Pulled);
         Assert.Equal((AgentBackends.Antigravity, chat, "Pastrami", true), (pulled.Backend, pulled.SessionId, pulled.Title, pulled.IsNew));
-        b.Chats.Add(new SessionSummary(chat, "", pulled.Folder, pulled.Title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity));
+        b.Chats.Add(AgyChat(chat, pulled.Title, pulled.Folder));
 
-        // A checkpoints (the log is folded into the database) and renames the chat: B's old log must not survive, or
-        // SQLite would replay it into the new database.
-        File.Delete(Path.Combine(a.Home, "conversations", chat + ".db-wal"));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database v2");
+        // A adds a turn and renames the chat. B only read it meanwhile, which leaves an empty log and an index: not a change
+        // here, and gone once the fetch puts A's version in place.
+        AddTurns(ChatDb(a.Home, chat), "remember RYE");
         a.Chats[0] = a.Chats[0] with { Title = "Pastrami on rye" };
-        Write(Path.Combine(b.Home, "conversations", chat + ".db-shm"), "index");
+        Write(ChatDb(b.Home, chat) + "-wal", "");
+        Write(ChatDb(b.Home, chat) + "-shm", "index");
 
         await a.Sync.SyncNowAsync();
         await b.Sync.SyncNowAsync();
 
-        Assert.Equal("database v2", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
-        Assert.False(File.Exists(Path.Combine(b.Home, "conversations", chat + ".db-wal")));
-        Assert.False(File.Exists(Path.Combine(b.Home, "conversations", chat + ".db-shm")));
+        Assert.False(File.Exists(ChatDb(b.Home, chat) + "-shm"));
+        Assert.False(File.Exists(ChatDb(b.Home, chat) + "-wal"));
+        Assert.Equal(["remember PASTRAMI", "remember RYE"], Turns(ChatDb(b.Home, chat)));
         Assert.Equal("Pastrami on rye", b.Pulled[^1].Title);
         Assert.Equal("Pastrami on rye", (await b.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Title);
 
@@ -255,40 +306,93 @@ public sealed class SyncTests : IDisposable
     }
 
     [Fact]
+    public async Task ReadingAnAntigravityChatIsNotAChange()
+    {
+        const string chat = "055bc3b1-1c70-4de8-8425-3e8dfb992206";
+        var a = await AntigravityPcAsync("A");
+        a.Chats.Add(AgyChat(chat, "Read only"));
+        using (var live = Open(ChatDb(a.Home, chat)))
+        {
+            using var command = live.CreateCommand();
+            command.CommandText = "PRAGMA wal_autocheckpoint=0; INSERT INTO steps(v) VALUES ('a turn')";
+            command.ExecuteNonQuery();
+            await a.Sync.SyncNowAsync();
+        }
+
+        // Closing it folded the log into the database, which changed the file but not the chat. The CLI leaves an empty log
+        // after reading a chat, too.
+        Write(ChatDb(a.Home, chat) + "-wal", "");
+        await a.Sync.SyncNowAsync();
+
+        Assert.Equal(1, (await a.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Version);
+    }
+
+    [Fact]
     public async Task AnAntigravityChatChangedOnBothPcsIsSetAsideNotLost()
     {
         const string chat = "0249691e-9698-4760-95a6-5b1bb6355635";
         var a = await AntigravityPcAsync("A");
         var b = await AntigravityPcAsync("B");
-        var db = (string home) => Path.Combine(home, "conversations", chat + ".db");
-        a.Chats.Add(new SessionSummary(chat, "", Path.Combine(_root, "A", "work"), "Shared", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
-        Write(db(a.Home), "database");
+        a.Chats.Add(AgyChat(chat, "Shared", Path.Combine(_root, "A", "work")));
+        AddTurns(ChatDb(a.Home, chat), "first");
         await a.Sync.SyncNowAsync();
-        await b.Sync.SyncNowAsync(); // B has no annotations folder: a fetch without one must not need it.
-        Assert.Single(b.Pulled);
-        b.Chats.Add(new SessionSummary(chat, "", b.Pulled[0].Folder, "Shared", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
+        await b.Sync.SyncNowAsync();
+        b.Chats.Add(AgyChat(chat, "Shared", b.Pulled[0].Folder));
         await b.Sync.SyncNowAsync();
 
-        // Both add turns while apart. With the CLI keeping the chat open they land in the log, and the database file itself
-        // doesn't change, so its first bytes can't tell the copies apart.
-        Write(db(a.Home) + "-wal", "A's turns");
-        Write(db(b.Home) + "-wal", "B's turns");
+        // Both add turns while apart; A comes back first.
+        AddTurns(ChatDb(a.Home, chat), "A's turn");
+        AddTurns(ChatDb(b.Home, chat), "B's turn");
         await a.Sync.SyncNowAsync();
         var statuses = new List<string>();
         b.Sync.Status += statuses.Add;
+
+        // While B's CLI has the chat open, nothing is set aside or replaced.
+        using (Open(ChatDb(b.Home, chat)))
+        {
+            await b.Sync.SyncNowAsync();
+            Assert.False(Directory.Exists(Path.Combine(b.Home, "nomad-set-aside")));
+        }
+
         await b.Sync.SyncNowAsync();
 
-        // B's upload is refused: its copy is kept whole, and A's (the hub's) is used.
-        Assert.Equal("A's turns", File.ReadAllText(db(b.Home) + "-wal"));
+        // Then B's copy is kept whole, and A's (the hub's) is used.
+        Assert.Equal(["first", "A's turn"], Turns(ChatDb(b.Home, chat)));
         var aside = Assert.Single(Directory.GetDirectories(Path.Combine(b.Home, "nomad-set-aside")));
-        Assert.Equal("B's turns", File.ReadAllText(Path.Combine(aside, "conversations", chat + ".db-wal")));
+        Assert.Equal(["first", "B's turn"], Turns(Path.Combine(aside, "conversations", chat + ".db")));
+        Assert.Equal("Shared", File.ReadAllText(Path.Combine(aside, AntigravityFiles.Title)));
         Assert.Contains(statuses, s => s.Contains(aside, StringComparison.Ordinal));
 
         // And the PCs agree from then on: nothing more is set aside, and A keeps its turns.
         await b.Sync.SyncNowAsync();
         await a.Sync.SyncNowAsync();
         Assert.Single(Directory.GetDirectories(Path.Combine(b.Home, "nomad-set-aside")));
-        Assert.Equal("A's turns", File.ReadAllText(db(a.Home) + "-wal"));
+        Assert.Equal(["first", "A's turn"], Turns(ChatDb(a.Home, chat)));
+    }
+
+    [Fact]
+    public async Task ARenameThatCrossedTheOtherPcsTurnsIsSaidNotSetAside()
+    {
+        const string chat = "07a66e40-6da8-4130-b23b-dfbd9100de96";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(AgyChat(chat, "Before"));
+        AddTurns(ChatDb(a.Home, chat), "first");
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+        b.Chats.Add(AgyChat(chat, "Before"));
+        await b.Sync.SyncNowAsync();
+
+        AddTurns(ChatDb(a.Home, chat), "A's turn");
+        b.Chats[0] = b.Chats[0] with { Title = "Renamed on B" };
+        await a.Sync.SyncNowAsync();
+        var statuses = new List<string>();
+        b.Sync.Status += statuses.Add;
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal(["first", "A's turn"], Turns(ChatDb(b.Home, chat)));
+        Assert.False(Directory.Exists(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Contains(statuses, s => s.Contains("needs making again", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -297,13 +401,10 @@ public sealed class SyncTests : IDisposable
         const string chat = "0438bf40-efae-4d22-a6d0-3231a4a2f8d9";
         var a = await AntigravityPcAsync("A");
         var b = await AntigravityPcAsync("B");
-        var summary = new SessionSummary(chat, "", Path.Combine(_root, "A", "work"), "Copied", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity);
-        a.Chats.Add(summary);
-        b.Chats.Add(summary);
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "same");
-        File.WriteAllText(Path.Combine(_root, "same.db"), "same");
-        Directory.CreateDirectory(Path.Combine(b.Home, "conversations"));
-        File.Copy(Path.Combine(a.Home, "conversations", chat + ".db"), Path.Combine(b.Home, "conversations", chat + ".db"));
+        a.Chats.Add(AgyChat(chat, "Copied"));
+        b.Chats.Add(AgyChat(chat, "Copied"));
+        AddTurns(ChatDb(a.Home, chat), "same");
+        File.Copy(ChatDb(a.Home, chat), ChatDb(b.Home, chat));
 
         await a.Sync.SyncNowAsync();
         await b.Sync.SyncNowAsync();
@@ -316,18 +417,22 @@ public sealed class SyncTests : IDisposable
     }
 
     [Fact]
-    public async Task ReadingAnAntigravityChatIsNotAChange()
+    public async Task AntigravityFilesNomadDoesNotListAreSetAsideForTheHubsChat()
     {
-        const string chat = "055bc3b1-1c70-4de8-8425-3e8dfb992206";
+        const string chat = "0455bd78-012c-4ff5-b127-6a1acec0de18";
         var a = await AntigravityPcAsync("A");
-        a.Chats.Add(new SessionSummary(chat, "", null, "Read only", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database");
-        await a.Sync.SyncNowAsync();
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(AgyChat(chat, "From A"));
+        AddTurns(ChatDb(a.Home, chat), "A's");
+        AddTurns(ChatDb(b.Home, chat), "a terminal's, unlisted"); // On B, but not in B's Nomad.
 
-        Write(Path.Combine(a.Home, "conversations", chat + ".db-wal"), ""); // What the CLI leaves after loading a chat.
         await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
 
-        Assert.Equal(1, (await a.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Version);
+        Assert.Equal(["A's"], Turns(ChatDb(b.Home, chat)));
+        Assert.Single(b.Pulled);
+        var aside = Assert.Single(Directory.GetDirectories(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Equal(["a terminal's, unlisted"], Turns(Path.Combine(aside, "conversations", chat + ".db")));
     }
 
     [Fact]
@@ -336,8 +441,8 @@ public sealed class SyncTests : IDisposable
         const string chat = "07a66e40-6da8-4130-b23b-dfbd9100de95";
         var a = await AntigravityPcAsync("A");
         var b = await AntigravityPcAsync("B");
-        a.Chats.Add(new SessionSummary(chat, "", null, "Notes", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "v1");
+        a.Chats.Add(AgyChat(chat, "Notes"));
+        AddTurns(ChatDb(a.Home, chat), "v1");
         Write(Path.Combine(a.Home, "brain", chat, "keep.md"), "keep");
         Write(Path.Combine(a.Home, "brain", chat, "drop.md"), "drop");
         Write(Path.Combine(a.Home, "annotations", chat + ".pbtxt"), "title");
@@ -348,11 +453,11 @@ public sealed class SyncTests : IDisposable
 
         File.Delete(Path.Combine(a.Home, "brain", chat, "drop.md"));
         File.Delete(Path.Combine(a.Home, "annotations", chat + ".pbtxt"));
-        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "v2");
+        AddTurns(ChatDb(a.Home, chat), "v2");
         await a.Sync.SyncNowAsync();
         await b.Sync.SyncNowAsync();
 
-        Assert.Equal("v2", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
+        Assert.Equal(["v1", "v2"], Turns(ChatDb(b.Home, chat)));
         Assert.True(File.Exists(Path.Combine(b.Home, "brain", chat, "keep.md")));
         Assert.False(File.Exists(Path.Combine(b.Home, "brain", chat, "drop.md")));
         Assert.False(File.Exists(Path.Combine(b.Home, "annotations", chat + ".pbtxt")));
@@ -363,7 +468,7 @@ public sealed class SyncTests : IDisposable
     {
         var home = Path.Combine(_root, "C", "antigravity");
         var odd = new[] { "..\\..\\evil", "{0249691E-9698-4760-95A6-5B1BB6355635}", "0249691e96984760 95a65b1bb6355635" };
-        var files = new AntigravityFiles(home, () => [.. odd.Select(id => new SessionSummary(id, "", null, "x", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity))]);
+        var files = new AntigravityFiles(home, () => [.. odd.Select(id => AgyChat(id, "x"))]);
         var download = Path.Combine(_root, "download.db");
         Write(download, "x");
 

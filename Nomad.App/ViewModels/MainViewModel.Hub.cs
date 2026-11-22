@@ -72,9 +72,6 @@ public sealed partial class MainViewModel
         {
             var known = Settings.AntigravitySessions.GetValueOrDefault(pulled.SessionId);
             var title = string.IsNullOrWhiteSpace(pulled.Title) ? known?.Title ?? "" : pulled.Title;
-            Settings.AntigravitySessions[pulled.SessionId] = new SessionSummary(pulled.SessionId, "", known?.WorkingDirectory ?? pulled.Folder,
-                title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity);
-            SaveSettings();
 
             // An open chat keeps its own title and writes it back to the settings on its next turn: it takes the new one.
             if (_open.TryGetValue(pulled.SessionId, out var open) && title.Length > 0 && open.Title != title)
@@ -82,6 +79,11 @@ public sealed partial class MainViewModel
                 open.Title = title;
                 OnSessionTitleChanged(open);
             }
+
+            // Last, as taking the title stamps the chat active now: it keeps the time it was last active on the other PC.
+            Settings.AntigravitySessions[pulled.SessionId] = new SessionSummary(pulled.SessionId, "", known?.WorkingDirectory ?? pulled.Folder,
+                title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity);
+            SaveSettings();
         }
 
         if (_open.TryGetValue(pulled.SessionId, out var session) && session.CanReloadFromStore)

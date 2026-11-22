@@ -548,8 +548,7 @@ public sealed class HubSync : IAsyncDisposable
         {
             if (backend.Opaque)
             {
-                await ResolveOpaqueAsync(backend, local, commit, current, usageSent, ct).ConfigureAwait(false);
-                return null;
+                return await ResolveOpaqueAsync(backend, local, commit, current, usageSent, ct).ConfigureAwait(false);
             }
 
             var mine = commit.Files[0];
@@ -583,34 +582,52 @@ public sealed class HubSync : IAsyncDisposable
     }
 
     /// <summary>
-    /// The hub moved on while an <see cref="ISessionFiles.Opaque"/> copy changed here too. Two copies of a database can't be
-    /// told apart as earlier and later: the same files are the same state, and anything else changed on both PCs, so this
-    /// PC's copy is set aside, whole, and the hub's version used. Nothing is lost, and the PCs agree again.
+    /// The hub moved on while an <see cref="ISessionFiles.Opaque"/> copy changed here too. Copies of a database can't be told
+    /// apart as earlier and later, so: the same files are the same state; the same database (the first file) with other side
+    /// files (a rename, notes) goes on top of the hub's version; and anything else changed on both PCs, so this PC's copy is set
+    /// aside, whole, and the hub's version used. Nothing is lost, and the PCs agree again.
     /// </summary>
-    private async Task ResolveOpaqueAsync(ISessionFiles backend, LocalSession local, SessionCommit commit, SessionDto current, int usageSent, CancellationToken ct)
+    private async Task<SessionDto?> ResolveOpaqueAsync(ISessionFiles backend, LocalSession local, SessionCommit commit, SessionDto current, int usageSent, CancellationToken ct)
     {
         if (SameFiles(commit.Files, current.Files))
         {
             Remember(backend.Backend, local.SessionId, new SyncedSession(current.Version, local.Stamp, current.Files.ToList(), usageSent));
-            return;
+            return null;
         }
 
-        if (_isBusy(backend.Backend, local.SessionId) || Holds(backend.Backend, local.SessionId))
+        if (current.Files.FirstOrDefault(f => f.Path == commit.Files[0].Path) == commit.Files[0])
         {
-            return; // In use here: sorted out once this PC lets it go.
+            return await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
+        }
+
+        if (_isBusy(backend.Backend, local.SessionId) || Holds(backend.Backend, local.SessionId) || backend.InUse(local.SessionId))
+        {
+            return null; // Open here: sorted out once this PC lets it go.
+        }
+
+        // Only side files changed here (a rename, say), on top of a database the hub has moved past: nothing here is lost by
+        // taking the hub's version, except that change, which is said.
+        if (Known(backend.Backend, local.SessionId)?.Files.FirstOrDefault(f => f.Path == commit.Files[0].Path) == commit.Files[0])
+        {
+            if (await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false))
+            {
+                Status?.Invoke($"{local.Title} changed on another PC while it was renamed or edited here: the other PC's version is used, so the change made here needs making again.");
+            }
+
+            return null;
         }
 
         var aside = await backend.SetAsideAsync(local.SessionId, ct).ConfigureAwait(false);
         if (aside is null)
         {
             Status?.Invoke($"{local.Title} changed here and on another PC; this PC's copy wasn't uploaded.");
-            return;
+            return null;
         }
 
-        if (await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false))
-        {
-            Status?.Invoke($"{local.Title} changed here and on another PC: the other PC's version is used now, and this PC's is kept in {aside}.");
-        }
+        Status?.Invoke(await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false)
+            ? $"{local.Title} changed here and on another PC: the other PC's version is used now, and this PC's is kept in {aside}."
+            : $"{local.Title} changed here and on another PC: this PC's copy is kept in {aside}, and the other PC's comes next time.");
+        return null;
     }
 
     /// <summary>A copy of a transcript under a new session id, titled "… (from &lt;this PC&gt;)".</summary>
@@ -791,7 +808,7 @@ public sealed class HubSync : IAsyncDisposable
 
             // A copy here the hub never had from this PC (from before the hub, say) is replaced only if it is the
             // hub's version or an earlier state of it; otherwise the upload adds to the hub's or keeps it as a fork.
-            if ((mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)) && backend.MainFile(remote.SessionId) is { } main && remote.Files.Count > 0
+            if (!backend.Opaque && (mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)) && backend.MainFile(remote.SessionId) is { } main && remote.Files.Count > 0
                 && downloads.TryGetValue(remote.Files[0].Path, out var fetched))
             {
                 var here = await HashAsync(main, long.MaxValue, ct).ConfigureAwait(false);
