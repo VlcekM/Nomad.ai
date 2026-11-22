@@ -3688,15 +3688,17 @@ public sealed partial class SessionViewModel : ObservableObject
             _startedPrompt = PromptStamp();
 
             // Claude Code resumes a session with the system prompt it saved when the session started, not the file it is
-            // given: when the folder's prompt is no longer the saved one, drop the saved copy so the current file applies.
-            if (backend is ClaudeCodeBackend && SessionId is { } id && _startedPrompt.Path is { } promptFile
-                && _main.Store.FindTranscript(id) is { } transcript)
+            // given and not what Nomad appends: when either is no longer the saved one, drop the saved copy so both apply.
+            var options = StartOptions();
+            if (backend is ClaudeCodeBackend && SessionId is { } id && _main.Store.FindTranscript(id) is { } transcript)
             {
+                var promptFile = _startedPrompt.Path;
                 await Task.Run(() =>
                 {
                     try
                     {
-                        Nomad.Core.Sessions.PromptSnapshots.DropIfStale(transcript, File.ReadAllText(promptFile));
+                        Nomad.Core.Sessions.PromptSnapshots.DropIfStale(transcript, promptFile is null ? null : File.ReadAllText(promptFile),
+                            ClaudeCodeBackend.AppendedSystemPrompt(options.SuggestNewChats));
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                     {
@@ -3705,7 +3707,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 });
             }
 
-            await backend.StartAsync(StartOptions());
+            await backend.StartAsync(options);
         }
         catch
         {

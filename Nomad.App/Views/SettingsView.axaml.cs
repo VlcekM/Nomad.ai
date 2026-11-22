@@ -47,7 +47,6 @@ public partial class SettingsView : UserControl
 
     private static readonly FilePickerFileType PromptFiles = new("Text") { Patterns = ["*.txt", "*.md"] };
 
-    // A folder, then the text file that becomes the system prompt there.
     private async void OnAddNoNewChatFolderClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)
@@ -67,6 +66,7 @@ public partial class SettingsView : UserControl
         }
     }
 
+    // A folder, then the text file that becomes the system prompt there.
     private async void OnAddFolderSystemPromptClick(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not SettingsViewModel vm || TopLevel.GetTopLevel(this) is not { } top)

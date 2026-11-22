@@ -42,4 +42,23 @@ public sealed class PromptSnapshotsTests : IDisposable
 
         Assert.False(PromptSnapshots.DropIfStale(_file, "New."));
     }
+
+    [Fact]
+    public void ADifferentAppendedPartIsStaleWithOrWithoutAPromptFile()
+    {
+        File.WriteAllLines(_file, [Snapshot("The CLI's own prompt."), User]);
+
+        Assert.False(PromptSnapshots.DropIfStale(_file, null, "Appended.")); // The saved copy still has it.
+        Assert.True(PromptSnapshots.DropIfStale(_file, null, "Appended, without the new-chat paragraph."));
+        Assert.Equal([User], File.ReadAllLines(_file));
+    }
+
+    [Fact]
+    public void BothPartsMustMatchToKeepTheSavedPrompt()
+    {
+        File.WriteAllLines(_file, [Snapshot("The word is APPLE."), User]);
+
+        Assert.False(PromptSnapshots.DropIfStale(_file, "The word is APPLE.", "Appended."));
+        Assert.True(PromptSnapshots.DropIfStale(_file, "The word is APPLE.", "Something else."));
+    }
 }

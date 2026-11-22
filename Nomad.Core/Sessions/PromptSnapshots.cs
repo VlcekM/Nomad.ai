@@ -12,11 +12,12 @@ public static class PromptSnapshots
     private const string Marker = "\"prompt_snapshot\"";
 
     /// <summary>
-    /// When the transcript's latest saved prompt does not begin with <paramref name="systemPrompt"/> (the file's text, which
-    /// the CLI keeps as the first part), removes every saved prompt so the next resume uses the current one. Returns whether
-    /// it removed any. Only for a session whose process is not running.
+    /// When the transcript's latest saved prompt does not begin with <paramref name="systemPrompt"/> (the prompt file's text,
+    /// which the CLI keeps as the first part; null when there is no file), or holds no part equal to <paramref name="appended"/>
+    /// (what Nomad appends to it; null to leave that unchecked), removes every saved prompt so the next resume uses the current
+    /// one. Returns whether it removed any. Only for a session whose process is not running.
     /// </summary>
-    public static bool DropIfStale(string transcript, string systemPrompt)
+    public static bool DropIfStale(string transcript, string? systemPrompt, string? appended = null)
     {
         if (!File.Exists(transcript))
         {
@@ -32,7 +33,8 @@ public static class PromptSnapshots
             }
         }
 
-        if (latest is null || FirstPart(latest) is not { } saved || Same(saved, systemPrompt))
+        if (latest is null || Parts(latest) is not { Count: > 0 } parts
+            || ((systemPrompt is null || Same(parts[0], systemPrompt)) && (appended is null || parts.Any(part => Same(part, appended)))))
         {
             return false;
         }
@@ -63,8 +65,11 @@ public static class PromptSnapshots
     private static bool Same(string saved, string current) =>
         string.Equals(saved.ReplaceLineEndings("\n").TrimEnd(), current.ReplaceLineEndings("\n").TrimEnd(), StringComparison.Ordinal);
 
-    /// <summary>The first part of a saved prompt (the prompt file's text), or null when the line is not a readable snapshot.</summary>
-    private static string? FirstPart(string line)
+    /// <summary>
+    /// The parts of a saved prompt: first the prompt file's text (or the CLI's own prompt), last what was appended to it. Null
+    /// when the line is not a readable snapshot.
+    /// </summary>
+    private static List<string>? Parts(string line)
     {
         try
         {
@@ -72,8 +77,7 @@ public static class PromptSnapshots
             return doc.RootElement.TryGetProperty("attachment", out var attachment)
                 && attachment.TryGetProperty("type", out var type) && type.GetString() == "prompt_snapshot"
                 && attachment.TryGetProperty("systemPrompt", out var parts) && parts.ValueKind == JsonValueKind.Array
-                && parts.GetArrayLength() > 0 && parts[0].ValueKind == JsonValueKind.String
-                ? parts[0].GetString() : null;
+                ? [.. parts.EnumerateArray().Where(p => p.ValueKind == JsonValueKind.String).Select(p => p.GetString()!)] : null;
         }
         catch (JsonException)
         {

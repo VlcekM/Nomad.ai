@@ -112,6 +112,12 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         _ = InitializeAsync(options);
     }
 
+    /// <summary>
+    /// What Nomad appends to Claude Code's system prompt (when to use its tools), with or without the new-chat tool: a resumed
+    /// session keeps the copy it saved, which <see cref="Sessions.PromptSnapshots"/> compares with this.
+    /// </summary>
+    public static string AppendedSystemPrompt(bool suggestNewChats) => NomadSessionServer.InstructionsFor(suggestNewChats);
+
     /// <summary>Whether this session offers suggest_new_chat, and so sends its reminder with prompts after the first.</summary>
     private bool _suggestNewChats = true;
 
