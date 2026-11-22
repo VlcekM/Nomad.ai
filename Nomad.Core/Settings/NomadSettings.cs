@@ -219,6 +219,12 @@ public sealed class NomadSettings
     /// </summary>
     public Dictionary<string, string> SuggestedChats { get; set; } = [];
 
+    /// <summary>
+    /// Session id to the GitHub pull request or issue URL it was started from on the Pull requests &amp; issues page,
+    /// so sessions whose own stores don't record prompt URLs (Codex, OpenCode, Antigravity) keep their sidebar icon.
+    /// </summary>
+    public Dictionary<string, string> SessionWorkUrls { get; set; } = [];
+
     /// <summary>Sessions untouched for <see cref="AutoArchiveHours"/> are archived (not while alive or open).</summary>
     public bool AutoArchive { get; set; } = true;
 

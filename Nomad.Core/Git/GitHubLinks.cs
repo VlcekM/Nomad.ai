@@ -30,9 +30,33 @@ public sealed class RepoLinks(string nameWithOwner, IReadOnlyList<PullRequestLin
 
     public IReadOnlyList<IssueLink> Issues { get; } = issues;
 
-    /// <summary>The newest pull request from this branch.</summary>
-    public PullRequestLink? PullRequestFor(string? branch) =>
-        string.IsNullOrEmpty(branch) || branch == "HEAD" ? null : PullRequests.FirstOrDefault(p => p.Branch == branch);
+    /// <summary>The newest pull request from this branch, else one named in <paramref name="title"/> ("PR #42").</summary>
+    public PullRequestLink? PullRequestFor(string? branch, string? title = null)
+    {
+        if (!string.IsNullOrEmpty(branch) && branch != "HEAD" && PullRequests.FirstOrDefault(p => p.Branch == branch) is { } byBranch)
+        {
+            return byBranch;
+        }
+
+        if (PullRequestNumberIn(title) is { } number)
+        {
+            return PullRequests.FirstOrDefault(p => p.Number == number);
+        }
+
+        return null;
+    }
+
+    /// <summary>A pull request number named in <paramref name="title"/> ("Review PR #42", "Merge PR #42").</summary>
+    public static int? PullRequestNumberIn(string? title) =>
+        !string.IsNullOrEmpty(title) ? Number(TitlePullRequest.Match(title)) : null;
+
+    /// <summary>An issue number explicitly named in <paramref name="title"/> ("Fix Issue #42").</summary>
+    public static int? IssueNumberIn(string? title) =>
+        !string.IsNullOrEmpty(title) ? Number(TitleExplicitIssue.Match(title)) : null;
+
+    /// <summary>The title names a pull request or issue ("PR #42", "Issue #42", "#42").</summary>
+    public static bool MentionsWork(string? title) =>
+        !string.IsNullOrEmpty(title) && (TitlePullRequest.IsMatch(title) || TitleIssue.IsMatch(title));
 
     /// <summary>
     /// The issue a session works on: the one its pull request closes, else a number in its branch ("issue-95",
@@ -81,6 +105,8 @@ public sealed class RepoLinks(string nameWithOwner, IReadOnlyList<PullRequestLin
     private static readonly Regex BranchIssue = new(@"(?i)(?:issues?|gh)[-_/#]?(\d{1,6})(?!\d)", RegexOptions.CultureInvariant);
     private static readonly Regex BranchLead = new(@"^(?:[A-Za-z]+/)?(\d{1,6})[-_]", RegexOptions.CultureInvariant);
     private static readonly Regex TitleIssue = new(@"(?i)(?:#|\bissue\s+#?)(\d{1,6})\b", RegexOptions.CultureInvariant);
+    private static readonly Regex TitleExplicitIssue = new(@"(?i)\bissue\s+#?(\d{1,6})\b", RegexOptions.CultureInvariant);
+    private static readonly Regex TitlePullRequest = new(@"(?i)\b(?:pr|pull\s+request)\s+#?(\d{1,6})\b", RegexOptions.CultureInvariant);
 }
 
 /// <summary>
@@ -171,9 +197,14 @@ public static class GitHubLinks
     {
         lock (ByUrl)
         {
-            if (ByUrl.TryGetValue(url, out var hit) && (!hit.Task.IsCompleted || DateTime.UtcNow - hit.At < Fresh))
+            if (ByUrl.TryGetValue(url, out var hit))
             {
-                return hit.Task;
+                var age = DateTime.UtcNow - hit.At;
+                var failed = hit.Task is { IsCompletedSuccessfully: true, Result: null } || hit.Task.IsFaulted;
+                if (!hit.Task.IsCompleted || age < (failed ? FreshFailure : Fresh))
+                {
+                    return hit.Task;
+                }
             }
 
             var task = Task.Run(async () =>

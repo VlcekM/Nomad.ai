@@ -316,6 +316,11 @@ public sealed partial class SessionViewModel : ObservableObject
     public string? InitialTitle { get; set; }
 
     /// <summary>
+    /// The GitHub pull request or issue this session was started for from the Pull requests &amp; issues page.
+    /// </summary>
+    public Nomad.Core.Git.WorkItem? WorkItem { get; set; }
+
+    /// <summary>
     /// The name given with Rename while this window ran the session: written again when its CLI exits, since the
     /// CLI re-appends the title it knew to the transcript then.
     /// </summary>

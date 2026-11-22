@@ -426,7 +426,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         row.IsLaunching = true;
         try
         {
-            _started[row.Url] = await _main.StartBackgroundSessionAsync(group.Folder, prompt, title, SelectedModel, worktree);
+            _started[row.Url] = await _main.StartBackgroundSessionAsync(group.Folder, prompt, title, SelectedModel, worktree, row.Item);
         }
         catch (Exception ex)
         {

@@ -80,10 +80,10 @@ public sealed partial class MainViewModel
     /// <paramref name="prompt"/>, without showing it: it joins the Alive list and runs as any other. Throws when git can't
     /// make the worktree.
     /// </summary>
-    public async Task<SessionViewModel> StartBackgroundSessionAsync(string folder, string prompt, string title, string? model, bool worktree)
+    public async Task<SessionViewModel> StartBackgroundSessionAsync(string folder, string prompt, string title, string? model, bool worktree, WorkItem? workItem = null)
     {
         var workFolder = worktree ? await GitInfo.AddWorktreeAsync(folder) : folder;
-        var session = new SessionViewModel(this, workFolder) { StartsInPlace = true, InitialTitle = title };
+        var session = new SessionViewModel(this, workFolder) { StartsInPlace = true, InitialTitle = title, WorkItem = workItem };
 
         if (!string.IsNullOrEmpty(model))
         {

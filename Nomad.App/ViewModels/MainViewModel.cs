@@ -1529,6 +1529,7 @@ public sealed partial class MainViewModel : ObservableObject
                 s.Id, "", s.Directory, s.Title.Length > 0 ? s.Title : UntitledOpenCode, s.UpdatedUtc, 0, Backend: AgentBackends.OpenCode))];
             MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
             OnPropertyChanged(nameof(RecentFolders));
+            _ = LoadGitHubLinksAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
         {
@@ -1562,6 +1563,7 @@ public sealed partial class MainViewModel : ObservableObject
                 t.Id, "", t.Directory, t.Title.Length > 0 ? t.Title : "Untitled Codex session", t.UpdatedUtc, 0, Backend: AgentBackends.Codex))];
             MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
             OnPropertyChanged(nameof(RecentFolders));
+            _ = LoadGitHubLinksAsync();
         }
         catch (Exception ex) when (ex is Nomad.Core.Codex.CodexException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
         {
@@ -1743,9 +1745,12 @@ public sealed partial class MainViewModel : ObservableObject
             vm.CurrentDirectory = s.CurrentDirectory;
             _open.TryGetValue(s.SessionId, out var live);
             var originalFolder = string.Equals(vm.WorkingDirectory, s.WorkingDirectory, StringComparison.OrdinalIgnoreCase);
-            vm.GitBranch = originalFolder ? s.GitBranch : live?.GitBranch;
-            vm.PullRequestUrl = originalFolder ? s.PullRequestUrl : null;
-            vm.IssueUrl = originalFolder ? s.IssueUrl : null;
+            vm.GitBranch = (originalFolder ? s.GitBranch : null) ?? (live is { GitBranch.Length: > 0 } ? live.GitBranch : null);
+            var savedWorkUrl = originalFolder ? Settings.SessionWorkUrls.GetValueOrDefault(s.SessionId) : null;
+            var savedPrUrl = savedWorkUrl is not null && savedWorkUrl.Contains("/pull/", StringComparison.OrdinalIgnoreCase) ? savedWorkUrl : null;
+            var savedIssueUrl = savedWorkUrl is not null && savedWorkUrl.Contains("/issues/", StringComparison.OrdinalIgnoreCase) ? savedWorkUrl : null;
+            vm.PullRequestUrl = originalFolder ? (s.PullRequestUrl ?? savedPrUrl ?? (live is not null ? vm.PullRequestUrl : null)) : null;
+            vm.IssueUrl = originalFolder ? (s.IssueUrl ?? savedIssueUrl ?? (live is not null ? vm.IssueUrl : null)) : null;
             vm.LastActivityUtc = s.LastActivityUtc > vm.LastActivityUtc ? s.LastActivityUtc : vm.LastActivityUtc;
             // An open session knows its newest title (a generated one may not be on disk yet).
             vm.Title = !string.IsNullOrEmpty(live?.Title) ? live.Title : s.Title;
@@ -1840,14 +1845,21 @@ public sealed partial class MainViewModel : ObservableObject
 
     private const int GitHubLinkSessions = 60;
 
+    private static bool HasGitBranch(string? branch) => !string.IsNullOrEmpty(branch) && branch != "HEAD";
+
+    private static bool SameUrl(string? a, string? b) =>
+        a is not null && b is not null && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
-    /// The newest sessions on a branch get their GitHub pull request and issue (gh, cached per repository for a
-    /// minute): an icon each on their rows.
+    /// The newest sessions on a branch (or linked to a pull request or issue) get their GitHub pull request and
+    /// issue (gh, cached per repository for a minute): an icon each on their rows.
     /// </summary>
     private async Task LoadGitHubLinksAsync(SessionListItemViewModel? only = null)
     {
         var rows = (only is null ? _all : [only])
-            .Where(s => s.WorkingDirectory is not null && !string.IsNullOrEmpty(s.GitBranch) && s.GitBranch != "HEAD")
+            .Where(s => s.WorkingDirectory is not null
+                && (HasGitBranch(s.GitBranch) || s.PullRequestUrl is not null || s.IssueUrl is not null
+                    || s.PullRequest is not null || s.Issue is not null || RepoLinks.MentionsWork(s.Title)))
             .Take(GitHubLinkSessions)
             .ToList();
         var lookups = rows.GroupBy(s => s.WorkingDirectory!, StringComparer.OrdinalIgnoreCase)
@@ -2605,6 +2617,7 @@ public sealed partial class MainViewModel : ObservableObject
         ForgetForks(item.SessionId);
         Settings.ArchivedSessions.Remove(item.SessionId);
         Settings.MovedSessionFolders.Remove(item.SessionId);
+        Settings.SessionWorkUrls.Remove(item.SessionId);
         SaveSettings();
     }
 
@@ -2691,7 +2704,9 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         RecordFork(session, vm);
+        ApplyWorkItem(session, vm);
         vm.Backend = session.Backend;
+        vm.GitBranch ??= session.GitBranch is { Length: > 0 } b ? b : null;
         vm.LastActivityUtc = DateTime.UtcNow;
         vm.IsRunning = session.IsTurnRunning;
         vm.IsWaiting = session.PendingPermission is not null;
@@ -2701,7 +2716,39 @@ public sealed partial class MainViewModel : ObservableObject
         vm.IsAlive = session.IsProcessRunning;
         vm.IsSelected = ReferenceEquals(session, Current);
         MoveToTop(vm);
+        if (vm.WorkingDirectory is not null && (HasGitBranch(vm.GitBranch) || vm.PullRequestUrl is not null || vm.IssueUrl is not null))
+        {
+            _ = LoadGitHubLinksAsync(vm);
+        }
+
         if (IsWorkPageOpen) WorkPage.Relink();
+    }
+
+    /// <summary>
+    /// Attaches the pull request or issue a session was started for from the Pull requests &amp; issues page so its
+    /// sidebar icon shows right away and survives restarts on backends whose stores don't keep prompt URLs.
+    /// </summary>
+    private void ApplyWorkItem(SessionViewModel session, SessionListItemViewModel row)
+    {
+        if (session.WorkItem is not { } work || session.SessionId is not { } id) return;
+
+        if (!string.Equals(Settings.SessionWorkUrls.GetValueOrDefault(id), work.Url, StringComparison.OrdinalIgnoreCase))
+        {
+            Settings.SessionWorkUrls[id] = work.Url;
+            SaveSettings();
+        }
+
+        if (work.Kind == WorkKind.PullRequest)
+        {
+            row.PullRequestUrl ??= work.Url;
+            row.PullRequest ??= new PullRequestLink(work.Number, work.Title,
+                work.IsDraft ? PullRequestState.Draft : PullRequestState.Open, work.Url, work.Branch, []);
+        }
+        else
+        {
+            row.IssueUrl ??= work.Url;
+            row.Issue ??= new IssueLink(work.Number, work.Title, IssueState.Open, work.Url);
+        }
     }
 
     /// <summary>
@@ -2774,7 +2821,11 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (_open.TryGetValue(replaced, out var open) && ReferenceEquals(open, session)) _open.Remove(replaced);
 
-        if (session.SessionId is { } id) RelinkForks(replaced, id);
+        if (session.SessionId is { } id)
+        {
+            RelinkForks(replaced, id);
+            if (Settings.SessionWorkUrls.Remove(replaced, out var workUrl)) Settings.SessionWorkUrls.TryAdd(id, workUrl);
+        }
 
         Settings.ArchivedSessions.Remove(replaced);
         Settings.ArchivedSessions.Add(replaced);
@@ -3019,7 +3070,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (session.Backend != AgentBackends.Antigravity || session.SessionId is not { } id || session.Folder is not { } folder) return;
 
-        Settings.AntigravitySessions[id] = new SessionSummary(id, "", folder, session.Title, DateTime.UtcNow, 0, Backend: session.Backend);
+        Settings.AntigravitySessions.TryGetValue(id, out var existing);
+        var workPrUrl = session.WorkItem is { Kind: WorkKind.PullRequest } prWork ? prWork.Url : null;
+        var workIssueUrl = session.WorkItem is { Kind: WorkKind.Issue } issueWork ? issueWork.Url : null;
+        Settings.AntigravitySessions[id] = new SessionSummary(
+            id, "", folder, session.Title, DateTime.UtcNow, 0,
+            GitBranch: session.GitBranch is { Length: > 0 } branch ? branch : existing?.GitBranch,
+            PullRequestUrl: workPrUrl ?? existing?.PullRequestUrl,
+            IssueUrl: workIssueUrl ?? existing?.IssueUrl,
+            Backend: session.Backend);
         SaveSettings();
     }
 
@@ -3031,6 +3090,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         Settings.MovedSessionFolders[id] = folder;
+        Settings.SessionWorkUrls.Remove(id);
         if (_all.FirstOrDefault(s => s.SessionId == id) is { } row)
         {
             row.WorkingDirectory = folder;
