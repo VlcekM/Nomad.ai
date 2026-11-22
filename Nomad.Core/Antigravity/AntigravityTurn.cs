@@ -401,19 +401,25 @@ internal sealed class AntigravityTurn(string? model, Action<AgentEvent> raise)
     }
 
     /// <summary>
+    /// Whether an ACP tool call status represents a terminal state.
+    /// </summary>
+    internal static bool IsTerminalStatus(string? status) =>
+        status is "completed" or "failed" or "cancelled" or "canceled" or "error" or "stopped" or "killed";
+
+    /// <summary>
     /// Converts a terminal <c>tool_call_update</c> into a transcript result event, or null if still running.
     /// </summary>
     internal static ToolResultEvent? CreateToolResult(JsonElement update)
     {
         var status = CodexJson.Str(update, "status");
-        if (status is not ("completed" or "failed") || CodexJson.Str(update, "toolCallId") is not { } id) return null;
+        if (!IsTerminalStatus(status) || CodexJson.Str(update, "toolCallId") is not { } id) return null;
 
         var output = CodexJson.Any(update, "rawOutput");
         var content = CodexJson.Arr(update, "content").Select(ToolContent).Where(text => text.Length > 0);
         var text = string.Join("\n", content);
         if (text.Length == 0 && output.ValueKind != JsonValueKind.Undefined) text = output.ToString();
 
-        return new ToolResultEvent(id, status == "failed", text, CodexJson.Keep(output), null);
+        return new ToolResultEvent(id, status != "completed", text, CodexJson.Keep(output), null);
     }
 
     /// <summary>

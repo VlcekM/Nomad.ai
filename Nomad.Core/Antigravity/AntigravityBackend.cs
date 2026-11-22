@@ -334,6 +334,7 @@ public sealed class AntigravityBackend : IAgentBackend
         if (Interlocked.CompareExchange(ref _turn, turn, null) is not null)
             throw new InvalidOperationException("Antigravity is already working on a prompt.");
 
+        _background.BeginTurn();
         var start = Stopwatch.GetTimestamp();
         Raise(new TurnStartedEvent(text));
         Task<JsonElement> pendingReply;
@@ -382,8 +383,7 @@ public sealed class AntigravityBackend : IAgentBackend
             }
 
             Volatile.Write(ref _turn, null);
-            if (!result.Interrupted && !result.IsError) _background.PromoteOpenWork();
-            else _background.ClearOpenWork();
+            _background.EndTurn(promote: !result.Interrupted && !result.IsError);
 
             Raise(new TurnCompletedEvent(result with { DurationMs = (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds }));
             if (_promptSuggestions && !result.Interrupted && !result.IsError && turn.Suggestion is { Length: > 0 } suggestion)
@@ -464,8 +464,9 @@ public sealed class AntigravityBackend : IAgentBackend
         if (method == "session/update")
         {
             var update = CodexJson.Obj(parameters, "update");
-            _background.Track(update);
-            if (Volatile.Read(ref _turn) is { } turn) turn.Update(update);
+            var turn = Volatile.Read(ref _turn);
+            _background.Track(update, inTurn: turn is not null);
+            if (turn is not null) turn.Update(update);
             else _background.Update(update);
         }
         else if (method == "session/request_permission" && IsTurnRunning)

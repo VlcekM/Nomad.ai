@@ -75,11 +75,15 @@ public sealed partial class BackgroundTaskViewModel : ObservableObject
     /// <summary>
     /// Promotes a running foreground command that outlived its turn to a tracked background command.
     /// </summary>
-    public void MarkBackground(string? taskId)
+    public void MarkBackground(string? taskId, bool completesOnResult = true)
     {
         if (IsForeground)
         {
             IsForeground = false;
+        }
+
+        if (completesOnResult)
+        {
             CompletesOnResult = true;
         }
 

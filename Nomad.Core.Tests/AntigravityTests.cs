@@ -274,6 +274,140 @@ public sealed class AntigravityTests
         }
     }
 
+    /// <summary>
+    /// When a subagent finishes inside the same <c>session/prompt</c> (before <c>end_turn</c>), the in-turn wake-up closes it
+    /// without leaving a stuck "Waiting for ..." banner after the prompt returns.
+    /// </summary>
+    [Fact]
+    public void EndsSubagentWhenParentWakesInsideActivePrompt()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+
+        work.BeginTurn();
+        Track(work, """{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Starting both."}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"usage_update","used":100,"size":1000}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call","toolCallId":"cmd-1","name":"run_command","kind":"execute","status":"in_progress","rawInput":{"CommandLine":"sleep 8","toolSummary":"Startup checks"}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","status":"in_progress"}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"sub-1","status":"completed"}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Started both, waiting."}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"usage_update","used":200,"size":1000}""", inTurn: true);
+
+        // Background command completes while the prompt is waiting, then the parent wakes twice (once for subagent, once for command).
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"cmd-1","name":"run_command","status":"completed"}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Subagent replied."}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"usage_update","used":300,"size":1000}""", inTurn: true);
+        lock (events) Assert.Empty(events.OfType<SubagentStateEvent>());
+
+        Track(work, """{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Command finished."}}""", inTurn: true);
+        Track(work, """{"sessionUpdate":"usage_update","used":400,"size":1000}""", inTurn: true);
+        work.EndTurn(promote: true);
+
+        lock (events)
+        {
+            Assert.Empty(events.OfType<TaskStartedEvent>());
+            var sub = Assert.Single(events.OfType<SubagentStateEvent>());
+            Assert.Equal("sub-1", sub.AgentId);
+            Assert.Equal("completed", sub.Status);
+        }
+    }
+
+    /// <summary>
+    /// Explicit <c>manage_subagents</c> kills or empty list results immediately clear tracked subagents.
+    /// </summary>
+    [Fact]
+    public void ClearsSubagentsOnManageSubagentsKillAndEmptyList()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"sub-1","name":"invoke_subagent","status":"completed",
+             "rawOutput":{"conversationId":"11111111-1111-1111-1111-111111111111"}}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"sub-2","name":"invoke_subagent","status":"completed",
+             "rawOutput":{"conversationId":"22222222-2222-2222-2222-222222222222"}}
+            """);
+
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"kill-1","name":"manage_subagents","status":"in_progress",
+             "rawInput":{"Action":"kill","ConversationIds":["11111111-1111-1111-1111-111111111111"]}}
+            """);
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"kill-1","status":"completed"}""");
+
+        lock (events)
+        {
+            var killed = Assert.Single(events.OfType<SubagentStateEvent>());
+            Assert.Equal("sub-1", killed.AgentId);
+            Assert.Equal("stopped", killed.Status);
+        }
+
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"list-1","name":"manage_subagents","status":"in_progress",
+             "rawInput":{"Action":"list"}}
+            """);
+        Track(work, """
+            {"sessionUpdate":"tool_call_update","toolCallId":"list-1","status":"completed",
+             "rawOutput":{"subagents":[]}}
+            """);
+
+        lock (events)
+        {
+            Assert.Collection(events.OfType<SubagentStateEvent>(),
+                first => Assert.Equal(("sub-1", "stopped"), (first.AgentId, first.Status)),
+                second => Assert.Equal(("sub-2", "completed"), (second.AgentId, second.Status)));
+        }
+    }
+
+    /// <summary>
+    /// Terminal tool statuses beyond <c>completed</c>/<c>failed</c> (such as <c>cancelled</c>) and <c>manage_task</c> kills clear awaited commands.
+    /// </summary>
+    [Fact]
+    public void ClearsAwaitedCommandsOnCancelledStatusOrManageTaskKill()
+    {
+        var events = new List<AgentEvent>();
+        using var work = new AntigravityBackgroundWork(e => { lock (events) events.Add(e); }, () => AntigravityBackend.DefaultModel);
+
+        work.BeginTurn();
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"cmd-1","name":"run_command","kind":"execute","status":"in_progress",
+             "rawInput":{"CommandLine":"git status","toolSummary":"Startup checks"}}
+            """, inTurn: true);
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"cmd-2","name":"run_command","kind":"execute","status":"in_progress",
+             "rawInput":{"CommandLine":"dotnet build","toolSummary":"Build"}}
+            """, inTurn: true);
+        work.EndTurn(promote: true);
+
+        Feed(work, """{"sessionUpdate":"tool_call_update","toolCallId":"cmd-1","name":"run_command","status":"cancelled"}""");
+        lock (events)
+        {
+            var result = Assert.Single(events.OfType<ToolResultEvent>());
+            Assert.Equal("cmd-1", result.ToolUseId);
+            Assert.True(result.IsError);
+        }
+
+        Track(work, """
+            {"sessionUpdate":"tool_call","toolCallId":"kill-task","name":"manage_task","status":"in_progress",
+             "rawInput":{"Action":"kill","TaskId":"task-2"}}
+            """);
+        Track(work, """{"sessionUpdate":"tool_call_update","toolCallId":"kill-task","status":"completed"}""");
+
+        lock (events)
+        {
+            var stopped = Assert.Single(events.OfType<TaskNotificationEvent>());
+            Assert.Equal("cmd-2", stopped.ToolUseId);
+            Assert.Equal("stopped", stopped.Status);
+        }
+    }
+
+    private static void Track(AntigravityBackgroundWork work, string update, bool inTurn)
+    {
+        using var document = JsonDocument.Parse(update);
+        work.Track(document.RootElement, inTurn);
+    }
+
     private static void Send(AntigravityTurn turn, string update)
     {
         using var document = JsonDocument.Parse(update);

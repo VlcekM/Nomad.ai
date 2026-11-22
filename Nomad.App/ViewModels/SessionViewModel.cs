@@ -1836,7 +1836,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             if (started.IsBackground)
             {
-                task.MarkBackground(started.TaskId);
+                task.MarkBackground(started.TaskId, completesOnResult: task.IsForeground || !IsClaudeCode);
                 if (!BackgroundTasks.Contains(task))
                 {
                     BackgroundTasks.Insert(0, task);
@@ -1849,12 +1849,13 @@ public sealed partial class SessionViewModel : ObservableObject
                 task.TaskId = started.TaskId;
             }
         }
-        else if (started.TaskType == "local_bash" && started.IsBackground && !IsClaudeCode && _calls.TryGetValue(call, out var toolCall))
+        else if (started.TaskType == "local_bash" && started.IsBackground && !IsClaudeCode
+            && _calls.TryGetValue(call, out var toolCall) && toolCall.IsRunning)
         {
             StartBackgroundTask(call, toolCall.Name, toolCall.Input, isForeground: false, taskId: started.TaskId);
             if (_backgroundTaskById.TryGetValue(call, out var created))
             {
-                created.MarkBackground(started.TaskId);
+                created.MarkBackground(started.TaskId, completesOnResult: true);
             }
         }
         else if (started.TaskType == "local_agent")
