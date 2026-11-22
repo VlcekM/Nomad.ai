@@ -147,6 +147,9 @@ public sealed partial class HubViewModel : ObservableObject
         _main.LocalTokens.HubTotals = UsageSinceAsync;
         _sync.Start();
 
+        // Antigravity chats fetched before Nomad could list them (it closed in between, say) are listed now.
+        _ = _sync.AnnounceUnlistedAsync(AgentBackends.Antigravity, [.. _main.Settings.AntigravitySessions.Keys]);
+
         // The flags as they are now are sent once, on the first sync; after that only their changes.
         _archived = _sync.IsFirstSync ? [] : [.. _main.Settings.ArchivedSessions];
         _pinned = _sync.IsFirstSync ? [] : [.. _main.Settings.PinnedSessions];

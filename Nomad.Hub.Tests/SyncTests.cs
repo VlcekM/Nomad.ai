@@ -476,10 +476,133 @@ public sealed class SyncTests : IDisposable
         foreach (var id in odd)
         {
             var remote = new SessionDto(AgentBackends.Antigravity, id, null, null, "x", null, null, DateTime.UtcNow, 1, 1, [], Guid.Empty, 1, false, null, null);
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
                 files.WriteAsync(remote, new Dictionary<string, string> { [AntigravityFiles.Database] = download }, _root, CancellationToken.None));
         }
 
         Assert.False(Directory.Exists(home));
+    }
+
+    [Fact]
+    public async Task AnAntigravityChatOpenHereIsFetchedOnceItCloses()
+    {
+        const string chat = "1a2b3c4d-0000-4000-8000-000000000001";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(AgyChat(chat, "Open on B"));
+        AddTurns(ChatDb(a.Home, chat), "first");
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+        b.Chats.Add(AgyChat(chat, "Open on B"));
+
+        AddTurns(ChatDb(a.Home, chat), "second");
+        await a.Sync.SyncNowAsync();
+        using (Open(ChatDb(b.Home, chat)))
+        {
+            await b.Sync.SyncNowAsync(); // Open here: not replaced, and not forgotten either.
+        }
+
+        Assert.Equal(["first"], Turns(ChatDb(b.Home, chat)));
+        await b.Sync.SyncNowAsync();
+        Assert.Equal(["first", "second"], Turns(ChatDb(b.Home, chat)));
+    }
+
+    [Fact]
+    public async Task UnlistedAntigravityFilesThatCantBeSetAsideAreLeftAlone()
+    {
+        const string chat = "1a2b3c4d-0000-4000-8000-000000000002";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(AgyChat(chat, "From A"));
+        AddTurns(ChatDb(a.Home, chat), "A's");
+        AddTurns(ChatDb(b.Home, chat), "a terminal's, unlisted");
+        File.WriteAllText(Path.Combine(b.Home, "nomad-set-aside"), "a file where the folder would go");
+        var statuses = new List<string>();
+        b.Sync.Status += statuses.Add;
+
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal(["a terminal's, unlisted"], Turns(ChatDb(b.Home, chat)));
+        Assert.Empty(b.Pulled);
+        Assert.Contains(statuses, s => s.Contains("couldn't be set aside", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TurnsHereWinOverARenameOnTheOtherPc()
+    {
+        const string chat = "1a2b3c4d-0000-4000-8000-000000000003";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(AgyChat(chat, "Before"));
+        AddTurns(ChatDb(a.Home, chat), "first");
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+        b.Chats.Add(AgyChat(chat, "Before"));
+        await b.Sync.SyncNowAsync();
+
+        // A only renames it; B runs a turn meanwhile.
+        a.Chats[0] = a.Chats[0] with { Title = "Renamed on A" };
+        await a.Sync.SyncNowAsync();
+        AddTurns(ChatDb(b.Home, chat), "B's turn");
+        await b.Sync.SyncNowAsync();
+        await a.Sync.SyncNowAsync();
+
+        Assert.False(Directory.Exists(Path.Combine(b.Home, "nomad-set-aside")));
+        Assert.Equal(["first", "B's turn"], Turns(ChatDb(a.Home, chat)));
+    }
+
+    [Fact]
+    public async Task APcThatStartsSyncingAntigravityLaterGetsTheChatsThatWentBy()
+    {
+        const string chat = "1a2b3c4d-0000-4000-8000-000000000004";
+        var a = await AntigravityPcAsync("A");
+        a.Chats.Add(AgyChat(chat, "Older"));
+        AddTurns(ChatDb(a.Home, chat), "first");
+        await a.Sync.SyncNowAsync();
+
+        // B syncs with a Nomad that knew no Antigravity: the chat goes by in the change feed.
+        var homeB = Path.Combine(_root, "B", "antigravity");
+        var http = await _hub.EnrollAsync("B");
+        HubClient Client() => new(_hub.Server.BaseAddress, http.DefaultRequestHeaders.Authorization!.Parameter!, _hub.Server.CreateHandler());
+        var state = Path.Combine(_root, "B", "hub-sync.json");
+        await using (var before = new HubSync(Client(), [new ClaudeCodeFiles(new SessionStore(Path.Combine(_root, "B", "projects")))], state, (_, _) => false))
+        {
+            await before.SyncNowAsync();
+        }
+
+        // Then a Nomad that does.
+        await using var after = new HubSync(Client(), [new AntigravityFiles(homeB, () => [])], state, (_, _) => false);
+        var pulled = new List<PulledSession>();
+        after.SessionPulled += pulled.Add;
+        await after.SyncNowAsync();
+
+        Assert.Equal(["first"], Turns(ChatDb(homeB, chat)));
+        Assert.Equal(chat, Assert.Single(pulled).SessionId);
+    }
+
+    [Fact]
+    public async Task ANotePathThatIsNoPathIsSkipped()
+    {
+        const string chat = "1a2b3c4d-0000-4000-8000-000000000005";
+        var home = Path.Combine(_root, "C", "antigravity");
+        var files = new AntigravityFiles(home, () => []);
+        var database = Path.Combine(_root, "snapshot.db");
+        AddTurns(database, "x");
+        var note = Path.Combine(_root, "note.md");
+        Write(note, "note");
+        var remote = new SessionDto(AgentBackends.Antigravity, chat, null, null, "x", null, null, DateTime.UtcNow, 1, 1, [], Guid.Empty, 1, false, null, null);
+
+        await files.WriteAsync(remote, new Dictionary<string, string>
+        {
+            [AntigravityFiles.Database] = database,
+            ["brain/ok.md"] = note,
+            ["brain/bad\0name.md"] = note,
+            ["brain/../escape.md"] = note,
+        }, _root, CancellationToken.None);
+
+        Assert.True(File.Exists(Path.Combine(home, "brain", chat, "ok.md")));
+        Assert.Single(Directory.GetFiles(Path.Combine(home, "brain", chat)));
+        Assert.False(File.Exists(Path.Combine(home, "brain", "escape.md")));
     }
 }

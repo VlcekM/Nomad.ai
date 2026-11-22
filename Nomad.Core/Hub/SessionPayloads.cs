@@ -398,7 +398,8 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
     private static string? WalOf(string db) => new FileInfo(db + "-wal") is { Exists: true, Length: > 0 } ? db + "-wal" : null;
 
     private List<string> BrainFiles(string id) => Directory.Exists(BrainOf(id))
-        ? [.. Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)]
+        ? [.. Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories)
+            .Where(f => !f.EndsWith(Staging, StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)]
         : [];
 
     /// <summary>The chat's files as they are on disk, the database first: what its stamp is made of.</summary>
@@ -583,7 +584,7 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         var id = remote.SessionId;
         if (!IsId(id) || !files.TryGetValue(Database, out var database))
         {
-            throw new InvalidOperationException($"\"{remote.Title}\" from the hub isn't an Antigravity chat this PC can use.");
+            throw new InvalidDataException($"\"{remote.Title}\" from the hub isn't an Antigravity chat this PC can use.");
         }
 
         if (InUse(id))
@@ -592,62 +593,101 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         }
 
         var db = DatabaseOf(id);
-        var brain = BrainOf(id);
+        var brain = Path.GetFullPath(BrainOf(id));
         Directory.CreateDirectory(Path.GetDirectoryName(db)!);
 
-        // Files Nomad doesn't list (left by a terminal, say) are kept before the hub's chat takes their place.
-        if (File.Exists(db) && !Known(id))
+        // Files Nomad doesn't list (left by a terminal, say) are kept before the hub's chat takes their place, or nothing happens.
+        if (File.Exists(db) && !Known(id) && SetAside(id) is null)
         {
-            SetAside(id);
+            throw new InvalidOperationException($"\"{remote.Title}\" has files on this PC that couldn't be set aside, so the hub's copy wasn't put in their place.");
         }
 
-        // The new database is copied beside the old one first, so a failed copy changes nothing. Then the old log and index go
-        // (SQLite would replay this PC's old log into the hub's database), and the database moves into place.
-        var staged = db + ".nomad-hub";
+        // Where each fetched file goes: the database, the CLI's title, and the notes, never outside the chat's own folder.
+        var targets = new List<(string From, string To)> { (database, db) };
+        if (files.TryGetValue(Annotation, out var annotation))
+        {
+            targets.Add((annotation, AnnotationOf(id)));
+        }
+
+        foreach (var (path, downloaded) in files.Where(f => f.Key.StartsWith(BrainPrefix, StringComparison.Ordinal)))
+        {
+            if (BrainTarget(brain, path[BrainPrefix.Length..]) is { } target)
+            {
+                targets.Add((downloaded, target));
+            }
+        }
+
+        // All of them are copied beside their places first, so a failed copy changes nothing here. Then the old log and index go
+        // (SQLite would replay this PC's old log into the hub's database), and everything moves into place.
+        var staged = new List<(string Staged, string To)>();
         try
         {
-            File.Copy(database, staged, overwrite: true);
-            if (remote.LastActivityUtc > DateTime.UnixEpoch && remote.LastActivityUtc <= DateTime.UtcNow)
+            foreach (var (from, to) in targets)
             {
-                File.SetLastWriteTimeUtc(staged, remote.LastActivityUtc);
+                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+                var temp = to + Staging;
+                staged.Add((temp, to));
+                File.Copy(from, temp, overwrite: true);
+                if (remote.LastActivityUtc > DateTime.UnixEpoch && remote.LastActivityUtc <= DateTime.UtcNow)
+                {
+                    File.SetLastWriteTimeUtc(temp, remote.LastActivityUtc);
+                }
             }
 
             File.Delete(db + "-wal");
             File.Delete(db + "-shm");
-            File.Move(staged, db, overwrite: true);
+            foreach (var (temp, to) in staged)
+            {
+                File.Move(temp, to, overwrite: true);
+            }
         }
         finally
         {
-            File.Delete(staged);
-        }
-
-        if (files.TryGetValue(Annotation, out var annotation))
-        {
-            Stamps.Copy(annotation, AnnotationOf(id), remote.LastActivityUtc);
-        }
-        else if (File.Exists(AnnotationOf(id)))
-        {
-            File.Delete(AnnotationOf(id)); // Gone on the PC it came from.
-        }
-
-        var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (path, downloaded) in files.Where(f => f.Key.StartsWith(BrainPrefix, StringComparison.Ordinal)))
-        {
-            var target = Path.GetFullPath(Path.Combine(brain, path[BrainPrefix.Length..]));
-            if (target.StartsWith(Path.GetFullPath(brain) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            foreach (var (temp, _) in staged)
             {
-                Stamps.Copy(downloaded, target, remote.LastActivityUtc); // Never outside the chat's own folder.
-                keep.Add(target);
+                File.Delete(temp);
             }
         }
 
+        // Gone on the PC it came from.
+        if (annotation is null && File.Exists(AnnotationOf(id)))
+        {
+            File.Delete(AnnotationOf(id));
+        }
+
+        var keep = targets.Select(t => t.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var stale in BrainFiles(id).Where(f => !keep.Contains(Path.GetFullPath(f))))
         {
-            File.Delete(stale); // Gone on the PC it came from.
+            File.Delete(stale);
         }
 
         _pulledTitles[id] = (remote.Title, Summary(id)?.Title);
         return Task.FromResult<string?>(StampFor(id, remote.Title));
+    }
+
+    /// <summary>The ending of a file copied beside its place before it moves in; such files are never a chat's own.</summary>
+    private const string Staging = ".nomad-hub";
+
+    /// <summary>
+    /// Where a note from the hub goes inside the chat's own folder; null for a path that would leave it or isn't a valid path
+    /// (from another PC, so never trusted).
+    /// </summary>
+    private static string? BrainTarget(string brain, string relative)
+    {
+        if (relative.Length == 0 || relative.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || relative.EndsWith(Staging, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        try
+        {
+            var target = Path.GetFullPath(Path.Combine(brain, relative));
+            return target.StartsWith(brain + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ? target : null;
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -660,7 +700,14 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
 
     private string? SetAside(string id)
     {
-        var target = Path.Combine(home, "nomad-set-aside", $"{id}-{DateTime.Now:yyyyMMdd-HHmmss}");
+        // A name of its own, never another set-aside's.
+        var name = $"{id}-{DateTime.Now:yyyyMMdd-HHmmss-fff}";
+        var target = Path.Combine(home, "nomad-set-aside", name);
+        for (var n = 2; Directory.Exists(target); n++)
+        {
+            target = Path.Combine(home, "nomad-set-aside", $"{name}-{n}");
+        }
+
         try
         {
             var db = DatabaseOf(id);
