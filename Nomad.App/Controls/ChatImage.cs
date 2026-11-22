@@ -62,9 +62,9 @@ public sealed class ChatImage : Border
         var copy = new MenuItem { Header = "Copy image" };
         copy.Click += (_, _) =>
         {
-            if (Bitmap is { } bitmap && TopLevel.GetTopLevel(this)?.TryGetPlatformHandle()?.Handle is { } owner)
+            if (Bitmap is { } bitmap)
             {
-                Infrastructure.PromptImages.CopyImage(bitmap, owner);
+                Infrastructure.PromptImages.CopyImage(bitmap, TopLevel.GetTopLevel(this));
             }
         };
         var save = new MenuItem { Header = "Save image as…" };

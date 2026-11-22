@@ -708,9 +708,9 @@ public partial class SessionView : UserControl
         menu.Items.Add(Item("Copy", "Ctrl+C", Composer.Copy));
         menu.Items.Add(Item("Paste", "Ctrl+V", () =>
         {
-            if (Infrastructure.PromptImages.FromClipboard() is { Count: > 0 } images)
+            if (Vm is { } vm)
             {
-                Vm?.AddAttachments(images);
+                _ = PasteIntoComposerAsync(vm);
             }
             else
             {
@@ -722,7 +722,22 @@ public partial class SessionView : UserControl
         return menu;
     }
 
-    private void OnComposerKeyDown(object? sender, KeyEventArgs e)
+    private async Task PasteIntoComposerAsync(SessionViewModel vm)
+    {
+        if (await Infrastructure.PromptImages.FromClipboardAsync(TopLevel.GetTopLevel(this)?.Clipboard) is { Count: > 0 } images)
+        {
+            if (Vm == vm)
+            {
+                vm.AddAttachments(images);
+            }
+        }
+        else if (Vm == vm)
+        {
+            Composer.Paste();
+        }
+    }
+
+    private async void OnComposerKeyDown(object? sender, KeyEventArgs e)
     {
         if (Vm is not { } vm)
         {
@@ -776,12 +791,8 @@ public partial class SessionView : UserControl
         // Ctrl+V with an image (or image files) on the clipboard attaches it; text pastes as usual.
         if ((e.Key == Key.V && e.KeyModifiers == KeyModifiers.Control) || (e.Key == Key.Insert && e.KeyModifiers == KeyModifiers.Shift))
         {
-            if (Infrastructure.PromptImages.FromClipboard() is { Count: > 0 } images)
-            {
-                vm.AddAttachments(images);
-                e.Handled = true;
-            }
-
+            e.Handled = true;
+            await PasteIntoComposerAsync(vm);
             return;
         }
 
@@ -1515,7 +1526,7 @@ public partial class SessionView : UserControl
     }
 
     private bool CopyImage(Avalonia.Media.Imaging.Bitmap image) =>
-        TopLevel.GetTopLevel(this)?.TryGetPlatformHandle()?.Handle is { } owner && Infrastructure.PromptImages.CopyImage(image, owner);
+        Infrastructure.PromptImages.CopyImage(image, TopLevel.GetTopLevel(this));
 
     private void ClosePreview()
     {

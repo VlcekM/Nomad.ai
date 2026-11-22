@@ -1,7 +1,13 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Nomad.Core.Protocol;
 
 namespace Nomad.App.Infrastructure;
@@ -172,16 +178,26 @@ public static class PromptImages
     private static extern IntPtr GlobalFree(IntPtr memory);
 
     /// <summary>
-    /// Puts an image on the clipboard as PNG (keeps transparency; browsers, chat apps, Office) and as a plain bitmap
-    /// (Paint and older apps). <paramref name="owner"/> must be a window: the clipboard takes no data without an owner.
+    /// Puts an image on the clipboard: PNG + DIB on Windows (for modern apps and Paint), and PNG via Avalonia elsewhere.
     /// </summary>
-    public static unsafe bool CopyImage(Bitmap bitmap, IntPtr owner)
+    public static bool CopyImage(Bitmap bitmap, TopLevel? topLevel)
     {
-        if (!OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
+        {
+            return topLevel?.TryGetPlatformHandle()?.Handle is { } owner && CopyImageWin32(bitmap, owner);
+        }
+
+        if (topLevel?.Clipboard is not { } clipboard)
         {
             return false;
         }
 
+        _ = clipboard.SetBitmapAsync(bitmap);
+        return true;
+    }
+
+    private static unsafe bool CopyImageWin32(Bitmap bitmap, IntPtr owner)
+    {
         using var png = new MemoryStream();
         bitmap.Save(png);
 
@@ -246,13 +262,250 @@ public static class PromptImages
     [DllImport("shell32.dll", EntryPoint = "DragQueryFileW")]
     private static extern unsafe uint DragQueryFile(IntPtr drop, uint index, char* file, uint length);
 
-    /// <summary>
-    /// What a paste should attach: files copied in Explorer, or a copied image (PNG, else a bitmap). Null when
-    /// the clipboard holds text: then the text box pastes it as usual.
-    /// </summary>
-    public static List<Attachment>? FromClipboard()
+    private static readonly (string ClipboardFormat, string MediaType)[] ClipboardImageFormats =
+    [
+        ("image/png", "image/png"),
+        ("image/x-png", "image/png"),
+        ("image/jpeg", "image/jpeg"),
+        ("image/jpg", "image/jpeg"),
+        ("image/webp", "image/webp"),
+        ("image/gif", "image/gif"),
+        ("image/bmp", "image/bmp"),
+        ("image/x-bmp", "image/bmp"),
+        ("image/x-win-bitmap", "image/bmp"),
+    ];
+
+    private static readonly HashSet<string> WaylandTextFormats = new(StringComparer.OrdinalIgnoreCase)
     {
-        if (!OperatingSystem.IsWindows() || !OpenClipboard(IntPtr.Zero))
+        "text/plain",
+        "text/plain;charset=utf-8",
+        "UTF8_STRING",
+        "STRING",
+        "TEXT",
+    };
+
+    /// <summary>
+    /// What a paste should attach: copied files, or a copied image. Null when the clipboard holds text (then the text
+    /// box pastes it as usual) or nothing usable.
+    /// </summary>
+    public static async Task<List<Attachment>?> FromClipboardAsync(IClipboard? clipboard)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return FromWin32Clipboard();
+        }
+
+        if (clipboard is not null)
+        {
+            try
+            {
+                using var data = await clipboard.TryGetDataAsync();
+                if (data is not null)
+                {
+                    if (data.Contains(DataFormat.File) && await data.TryGetFilesAsync() is { Length: > 0 } files)
+                    {
+                        var attachments = files
+                            .Select(f => f.TryGetLocalPath())
+                            .OfType<string>()
+                            .Select(FromPath)
+                            .ToList();
+                        if (attachments.Count > 0)
+                        {
+                            return attachments;
+                        }
+                    }
+
+                    if (data.Contains(DataFormat.Text))
+                    {
+                        return null;
+                    }
+
+                    if (await ImageFromDataTransferAsync(data) is { } image)
+                    {
+                        return [image];
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // X11/XWayland clipboard selection reads can fail or time out; fall through to Wayland if active.
+            }
+        }
+
+        if (OperatingSystem.IsLinux() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+        {
+            return await FromWaylandClipboardAsync();
+        }
+
+        return null;
+    }
+
+    private static async Task<Attachment?> ImageFromDataTransferAsync(IAsyncDataTransfer data)
+    {
+        var byteFormats = data.Formats.OfType<DataFormat<byte[]>>().ToList();
+        foreach (var (clipboardFormat, mediaType) in ClipboardImageFormats)
+        {
+            var format = byteFormats.FirstOrDefault(f => string.Equals(f.Identifier, clipboardFormat, StringComparison.OrdinalIgnoreCase));
+            if (format is null)
+            {
+                continue;
+            }
+
+            if (await data.TryGetValueAsync(format) is { Length: > 0 } bytes
+                && FromBytes(bytes, mediaType, "Pasted image") is { } attachment)
+            {
+                return attachment;
+            }
+        }
+
+        if (data.Contains(DataFormat.Bitmap) && await data.TryGetValueAsync(DataFormat.Bitmap) is { } bitmap)
+        {
+            using (bitmap)
+            using (var png = new MemoryStream())
+            {
+                bitmap.Save(png);
+                if (FromBytes(png.ToArray(), "image/png", "Pasted image") is { } attachment)
+                {
+                    return attachment;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Fallback for Linux Wayland sessions where XWayland did not bridge a screenshot or file URI from the compositor
+    /// clipboard into the X11 selection. Uses <c>wl-paste</c> when installed; returns null otherwise.
+    /// </summary>
+    private static async Task<List<Attachment>?> FromWaylandClipboardAsync()
+    {
+        var typesRaw = await RunWlPasteAsync(TimeSpan.FromSeconds(1), "--list-types");
+        if (typesRaw is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        var types = Encoding.UTF8.GetString(typesRaw)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (types.Length == 0)
+        {
+            return null;
+        }
+
+        if (types.Any(t => string.Equals(t, "text/uri-list", StringComparison.OrdinalIgnoreCase))
+            && await RunWlPasteAsync(TimeSpan.FromSeconds(2), "--no-newline", "--type", "text/uri-list") is { Length: > 0 } uriBytes)
+        {
+            var files = Encoding.UTF8.GetString(uriBytes)
+                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(line => !line.StartsWith('#') && Uri.TryCreate(line, UriKind.Absolute, out var uri) && uri.IsFile)
+                .Select(line => FromPath(new Uri(line).LocalPath))
+                .ToList();
+            if (files.Count > 0)
+            {
+                return files;
+            }
+        }
+
+        if (types.Any(WaylandTextFormats.Contains))
+        {
+            return null;
+        }
+
+        foreach (var (clipboardFormat, mediaType) in ClipboardImageFormats)
+        {
+            var matched = types.FirstOrDefault(t => string.Equals(t, clipboardFormat, StringComparison.OrdinalIgnoreCase));
+            if (matched is null)
+            {
+                continue;
+            }
+
+            if (await RunWlPasteAsync(TimeSpan.FromSeconds(3), "--no-newline", "--type", matched) is { Length: > 0 } bytes
+                && FromBytes(bytes, mediaType, "Pasted image") is { } attachment)
+            {
+                return [attachment];
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<byte[]?> RunWlPasteAsync(TimeSpan timeout, params string[] args)
+    {
+        const int maxBytes = 32 * 1024 * 1024;
+        var psi = new ProcessStartInfo("wl-paste")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        foreach (var arg in args)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        Process? process;
+        try
+        {
+            process = Process.Start(psi);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        if (process is null)
+        {
+            return null;
+        }
+
+        using (process)
+        using (var cts = new CancellationTokenSource(timeout))
+        {
+            try
+            {
+                _ = process.StandardError.ReadToEndAsync(cts.Token);
+                using var ms = new MemoryStream();
+                var buffer = new byte[8192];
+                while (true)
+                {
+                    var read = await process.StandardOutput.BaseStream.ReadAsync(buffer, cts.Token);
+                    if (read == 0)
+                    {
+                        break;
+                    }
+
+                    if (ms.Length + read > maxBytes)
+                    {
+                        return null;
+                    }
+
+                    ms.Write(buffer, 0, read);
+                }
+
+                await process.WaitForExitAsync(cts.Token);
+                return process.ExitCode == 0 ? ms.ToArray() : null;
+            }
+            catch (Exception)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (Exception)
+                {
+                    // Ignore cleanup failures for already-exited wl-paste.
+                }
+
+                return null;
+            }
+        }
+    }
+
+    private static List<Attachment>? FromWin32Clipboard()
+    {
+        if (!OpenClipboard(IntPtr.Zero))
         {
             return null;
         }
