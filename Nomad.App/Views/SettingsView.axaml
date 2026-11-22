@@ -1216,6 +1216,54 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Suggest new chats" Classes="rowlabel" />
+                  <TextBlock Text="Claude Code may offer a task that is unrelated to the chat, or that it noticed along the way, as a card you can start as a chat of its own, and stops instead of doing it there. Turn off to keep every task in the chat you asked in. Sessions take it the next time they start."
+                             Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleSuggestNewChatsCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding SuggestNewChats}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto" IsEnabled="{Binding SuggestNewChats}">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Not in these folders" Classes="rowlabel" />
+                  <TextBlock Text="No new-chat suggestions in these folders and the folders inside them." Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource LineButton}" Click="OnAddNoNewChatFolderClick" Margin="16,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <c:Icon Size="13" Data="{StaticResource IconPlus}" />
+                    <TextBlock Text="Add folder…" FontWeight="Medium" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+
+              <ItemsControl ItemsSource="{Binding NoNewChatFolders}" IsVisible="{Binding HasNoNewChatFolders}" IsEnabled="{Binding SuggestNewChats}" Margin="0,0,0,4">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,6">
+                      <TextBlock Text="{Binding}" FontFamily="{DynamicResource MonoFont}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <Button Grid.Column="1" Theme="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RemoveNoNewChatFolderCommand}"
+                              CommandParameter="{Binding}"
+                              ToolTip.Tip="Remove">
+                        <c:Icon Size="13" Data="{StaticResource IconClose}" />
+                      </Button>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
             </StackPanel>
 
             <!-- Remote Control -->

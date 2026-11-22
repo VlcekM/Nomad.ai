@@ -165,6 +165,12 @@ public sealed class NomadSettings
     /// </summary>
     public Dictionary<string, string> FolderSystemPrompts { get; set; } = [];
 
+    /// <summary>Claude may suggest a task for a chat of its own (a card to start it), with a reminder sent along with prompts.</summary>
+    public bool SuggestNewChats { get; set; } = true;
+
+    /// <summary>Folders (and the folders inside them) where Claude never suggests a new chat.</summary>
+    public List<string> NoNewChatFolders { get; set; } = [];
+
     /// <summary>
     /// The same for Codex (its base instructions). Null in settings saved before Codex had its own: Codex then follows
     /// <see cref="FolderSystemPrompts"/>, as it did.
@@ -376,6 +382,28 @@ public sealed class NomadSettings
             .Select(entry => entry.Value)
             .FirstOrDefault();
         return best is not null && File.Exists(best) ? best : null;
+    }
+
+    /// <summary>
+    /// Whether Claude may suggest a task for a chat of its own: anywhere unless turned off (<see cref="SuggestNewChats"/>), except
+    /// in a folder of <see cref="NoNewChatFolders"/> or one inside it.
+    /// </summary>
+    public bool SuggestsNewChatsIn(string? folder)
+    {
+        if (!SuggestNewChats)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return true;
+        }
+
+        string Trim(string path) => path.Replace('/', '\\').TrimEnd('\\');
+        var target = Trim(folder);
+        return !NoNewChatFolders.Select(Trim).Any(key => key.Length > 0
+            && (string.Equals(target, key, StringComparison.OrdinalIgnoreCase) || target.StartsWith(key + "\\", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Moves a folder to the front of the recent list (max 12).</summary>

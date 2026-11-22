@@ -7,7 +7,7 @@ namespace Nomad.Core.Agents;
 /// The SDK-hosted MCP server Nomad gives Claude ("nomad_session"): it speaks the protocol and hands each call to its tool, a folder
 /// move (which Nomad approves, even in bypass mode) or a suggested new chat.
 /// </summary>
-internal sealed class NomadSessionServer(string workingDirectory, string? chatKey = null)
+internal sealed class NomadSessionServer(string workingDirectory, string? chatKey = null, bool suggestNewChats = true)
 {
     /// <summary>
     /// The server's name, as the CLI's mcp_message control requests carry it.
@@ -15,10 +15,11 @@ internal sealed class NomadSessionServer(string workingDirectory, string? chatKe
     public const string ServerName = "nomad_session";
 
     /// <summary>
-    /// Appended to Claude's system prompt: when to use each tool.
+    /// Appended to Claude's system prompt: when to use each tool (the new-chat one only where it is offered).
     /// </summary>
-    public const string Instructions =
-        FolderMoveTool.Instructions + "\n\n" + NewChatTool.Instructions + "\n\n" + ChatTools.Instructions;
+    public static string InstructionsFor(bool suggestNewChats) => suggestNewChats
+        ? FolderMoveTool.Instructions + "\n\n" + NewChatTool.Instructions + "\n\n" + ChatTools.Instructions
+        : FolderMoveTool.Instructions + "\n\n" + ChatTools.Instructions;
 
     /// <summary>
     /// The folder-move tool, whose approval and cancellation the backend drives.
@@ -100,7 +101,9 @@ internal sealed class NomadSessionServer(string workingDirectory, string? chatKe
     /// <summary>
     /// Every tool this server offers, as tools/list describes them.
     /// </summary>
-    private static JsonNode[] Descriptors() => [FolderMoveTool.Descriptor(), NewChatTool.Descriptor(), .. ChatTools.Descriptors()];
+    private JsonNode[] Descriptors() => suggestNewChats
+        ? [FolderMoveTool.Descriptor(), NewChatTool.Descriptor(), .. ChatTools.Descriptors()]
+        : [FolderMoveTool.Descriptor(), .. ChatTools.Descriptors()];
 
     /// <summary>
     /// A tools/call, handed to the tool it names; subagents may only list chats.
@@ -113,6 +116,8 @@ internal sealed class NomadSessionServer(string workingDirectory, string? chatKe
             FolderMoveTool.Name when !mainAgent =>
                 ToolResult("Only the main conversation can request a folder move. Return this request to your parent agent.", error: true),
             FolderMoveTool.Name => await FolderMove.CallAsync(message).ConfigureAwait(false),
+            NewChatTool.Name when !suggestNewChats =>
+                ToolResult("Suggesting new chats is turned off here. Carry on in this conversation.", error: true),
             NewChatTool.Name when !mainAgent =>
                 ToolResult("Only the main conversation can suggest a new chat. Mention the task to your parent agent instead.", error: true),
             NewChatTool.Name => NewChatTool.Call(parameters),
