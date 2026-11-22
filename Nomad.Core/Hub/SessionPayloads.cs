@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -490,19 +492,31 @@ public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<Sessi
         IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? DatabaseOf(sessionId) : null;
 
     /// <summary>
-    /// Whether a process (the CLI) has the chat's database open: nothing may replace it then. Opening it with no sharing fails
-    /// while any other handle is open, whatever sharing that one allowed.
+    /// Whether a process (the CLI) has the chat's database open: nothing may replace it then. On Windows, opening it with no
+    /// sharing fails while any other handle is open, whatever sharing that one allowed; on Linux, SQLite's POSIX locks are
+    /// read from <c>/proc/locks</c> without opening the file.
     /// </summary>
     public bool InUse(string sessionId)
     {
-        if (!IsId(sessionId) || !File.Exists(DatabaseOf(sessionId)))
+        if (!IsId(sessionId))
         {
             return false;
         }
 
+        var db = DatabaseOf(sessionId);
+        if (!File.Exists(db))
+        {
+            return false;
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return LinuxLocks.IsLocked(db, db + "-shm");
+        }
+
         try
         {
-            using var _ = new FileStream(DatabaseOf(sessionId), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            using var _ = new FileStream(db, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             return false;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -768,6 +782,117 @@ internal static class SqliteSetup
     });
 
     public static void Ensure() => _ = Ready.Value;
+}
+
+/// <summary>
+/// Checks Linux <c>/proc/locks</c> for any process holding a POSIX or flock lock on a file (SQLite holds shared POSIX
+/// locks on the database and its <c>-shm</c> index while open; opening with <see cref="FileShare.None"/> only checks flock
+/// on Linux, and closing a handle in the same process would drop POSIX locks).
+/// </summary>
+internal static partial class LinuxLocks
+{
+    private const int AtFdcwd = -100;
+    private const uint StatxIno = 0x00000100;
+    private const uint StatxMntId = 0x00001000;
+
+    [LibraryImport("libc", EntryPoint = "statx", StringMarshalling = StringMarshalling.Utf8)]
+    private static unsafe partial int Statx(int dirfd, string pathname, int flags, uint mask, byte* buf);
+
+    public static bool IsLocked(string db, string shm)
+    {
+        HashSet<string>? keys = null;
+        Dictionary<ulong, (uint Major, uint Minor)>? mounts = null;
+        AddKeys(db, ref keys, ref mounts);
+        AddKeys(shm, ref keys, ref mounts);
+        if (keys is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/locks"))
+            {
+                // Format: "<n>: [-> ]<type> <mode> <access> <pid> <maj>:<min>:<ino> <start> <end>"
+                var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var devCol = parts.Length > 1 && parts[1] == "->" ? 6 : 5;
+                if (parts.Length > devCol && keys.Contains(parts[devCol]))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        return false;
+    }
+
+    private static unsafe void AddKeys(string path, ref HashSet<string>? keys, ref Dictionary<ulong, (uint Major, uint Minor)>? mounts)
+    {
+        Span<byte> buf = stackalloc byte[256];
+        fixed (byte* p = buf)
+        {
+            if (Statx(AtFdcwd, path, 0, StatxIno | StatxMntId, p) != 0)
+            {
+                return;
+            }
+        }
+
+        var mask = MemoryMarshal.Read<uint>(buf);
+        if ((mask & StatxIno) == 0)
+        {
+            return;
+        }
+
+        var ino = MemoryMarshal.Read<ulong>(buf[32..]);
+        var maj = MemoryMarshal.Read<uint>(buf[136..]);
+        var min = MemoryMarshal.Read<uint>(buf[140..]);
+        keys ??= new HashSet<string>(StringComparer.Ordinal);
+        keys.Add(FormattableString.Invariant($"{maj:x2}:{min:x2}:{ino}"));
+
+        // On btrfs subvolumes statx reports the subvolume's anonymous device (major 0), while /proc/locks reports the
+        // superblock's device from mountinfo (keyed by stx_mnt_id).
+        if (maj == 0 && (mask & StatxMntId) != 0)
+        {
+            var mntId = MemoryMarshal.Read<ulong>(buf[144..]);
+            mounts ??= ReadMountDevices();
+            if (mounts.TryGetValue(mntId, out var sb) && (sb.Major != maj || sb.Minor != min))
+            {
+                keys.Add(FormattableString.Invariant($"{sb.Major:x2}:{sb.Minor:x2}:{ino}"));
+            }
+        }
+    }
+
+    private static Dictionary<ulong, (uint Major, uint Minor)> ReadMountDevices()
+    {
+        var map = new Dictionary<ulong, (uint Major, uint Minor)>();
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/self/mountinfo"))
+            {
+                var parts = line.Split(' ', 4);
+                if (parts.Length < 3 || !ulong.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var mntId))
+                {
+                    continue;
+                }
+
+                var colon = parts[2].IndexOf(':');
+                if (colon > 0
+                    && uint.TryParse(parts[2].AsSpan(0, colon), NumberStyles.None, CultureInfo.InvariantCulture, out var maj)
+                    && uint.TryParse(parts[2].AsSpan(colon + 1), NumberStyles.None, CultureInfo.InvariantCulture, out var min))
+                {
+                    map[mntId] = (maj, min);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+
+        return map;
+    }
 }
 
 /// <summary>

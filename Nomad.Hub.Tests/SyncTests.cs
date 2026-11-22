@@ -603,8 +603,8 @@ public sealed class SyncTests : IDisposable
             ["brain/a:b.md"] = note,
         }, _root, CancellationToken.None);
 
-        Assert.True(File.Exists(Path.Combine(home, "brain", chat, "ok.md")));
-        Assert.Single(Directory.GetFiles(Path.Combine(home, "brain", chat)));
+        string[] expected = OperatingSystem.IsWindows() ? ["ok.md"] : ["a:b.md", "ok.md", "star*.md"];
+        Assert.Equal(expected, Directory.GetFiles(Path.Combine(home, "brain", chat)).Select(Path.GetFileName).Order(StringComparer.Ordinal));
         Assert.False(File.Exists(Path.Combine(home, "brain", "escape.md")));
     }
 }
