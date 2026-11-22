@@ -3,6 +3,15 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.5.0
+
+- Mid-turn prompts in Claude Code now steer the running turn directly (as in the terminal), tick once taken in, and relay to watching PCs over Nomad Hub.
+- Antigravity chats now sync through Nomad Hub as SQLite snapshots, keeping open chats untouched and setting aside conflicts edited on two PCs.
+- Added a setting for the idle session timeout so quiet sessions can keep their process alive longer (or stay awake).
+- Fixed Antigravity "Waiting for ..." banners staying stuck after background commands, timers, or subagents finish or are terminated.
+- Linux now discovers **Anthropic Sans** and **Anthropic Mono** (and the working mark) from a locally installed Claude Desktop app.
+- Hub action failures now report the actual reason instead of NativeAOT resource keys such as `OperationCanceled`.
+
 ## v2.4.1
 
 - Codex chats now refresh when their own folder system prompt file changes, instead of when the Claude Code file does.
