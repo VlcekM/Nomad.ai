@@ -4,6 +4,7 @@
              xmlns:inf="using:Nomad.App.Infrastructure"
              xmlns:c="using:Nomad.App.Controls"
              xmlns:agents="using:Nomad.Core.Agents"
+             xmlns:oc="using:Nomad.Core.OpenCode"
              xmlns:md="using:Nomad.App.Markdown"
              x:Class="Nomad.App.Views.SettingsView"
              x:DataType="vm:SettingsViewModel"
@@ -168,6 +169,45 @@
       <Setter Property="Padding" Value="10,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <Style Selector="Border.field.compact">
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="8,0" />
+    </Style>
+    <!-- Coding agents: sign-in badge, browser login progress box and OpenCode provider chips. -->
+    <Style Selector="Border.authpill">
+      <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.18" Easing="CubicEaseOut" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.18" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.authpill.signedin">
+      <Setter Property="Background" Value="{DynamicResource AccentSubtleBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.authpanel">
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="0,6,0,4" />
+    </Style>
+    <Style Selector="Border.providerchip">
+      <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="8,2,4,2" />
+      <Setter Property="Margin" Value="0,0,6,4" />
+    </Style>
   </UserControl.Styles>
 
   <Border Background="{DynamicResource BgSettingsBrush}"
@@ -242,22 +282,10 @@
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
           <Panel Margin="24,58,34,32">
 
-            <!-- General: who you are, the window, old sessions -->
+            <!-- General: the window, old sessions -->
             <StackPanel Classes="page" IsVisible="{Binding IsGeneralPage}">
               <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
-              <TextBlock Text="Account" Classes="pagetitle" />
-
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Display name" Classes="rowlabel" />
-                  <TextBlock Text="Shown at the bottom of the sidebar. Empty uses your Windows user name." Classes="rowhint" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="field" Width="260">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding DisplayName}" Watermark="Your name" FontSize="{DynamicResource UiFontSize}" />
-                </Border>
-              </Grid>
-
-              <TextBlock Text="Window" Classes="pagetitle" Margin="0,40,0,10" />
+              <TextBlock Text="Window" Classes="pagetitle" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -575,7 +603,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Usage ring" Classes="rowlabel" />
-                  <TextBlock Text="The ring at the end of the status row: your weekly plan usage, spinning while Claude works. Click it for the usage limits."
+                  <TextBlock Text="The ring at the end of the status row: your weekly plan usage, spinning while an agent works. Click it for the usage limits."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center" Command="{Binding ToggleShowUsageRingCommand}">
@@ -671,46 +699,315 @@
               </Grid>
             </StackPanel>
 
-            <!-- Agents: the CLIs, new sessions' defaults, models -->
+            <!-- Agents: the CLIs, subscription sign-in, new sessions' defaults, models -->
             <StackPanel Classes="page" IsVisible="{Binding IsAgentsPage}">
               <StackPanel.RenderTransform><TranslateTransform /></StackPanel.RenderTransform>
-              <TextBlock Text="Agents" Classes="pagetitle" />
+              <TextBlock Text="Coding agents" Classes="pagetitle" />
+              <TextBlock Text="Sign in to each CLI with your subscription in the browser, or point Nomad.ai at a custom executable path."
+                         Classes="rowhint" Margin="0,-4,0,14" />
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Claude Code path" Classes="rowlabel" />
-                  <TextBlock Text="The claude executable Nomad.ai starts. &quot;claude&quot; looks it up on PATH." Classes="rowhint" />
-                  <TextBlock Text="{Binding CliStatus}" Classes="rowhint" Classes.ok="{Binding CliFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="field" Width="360">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CliPath}" Watermark="claude" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
-                </Border>
-              </Grid>
-              <Border Classes="rowline" />
+              <ItemsControl ItemsSource="{Binding AgentAccounts}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AgentAccountViewModel">
+                    <StackPanel>
+                      <!-- Header: logo, name, live status pill, and sign-in / sign-out actions -->
+                      <Grid ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+                        <StackPanel VerticalAlignment="Center" Margin="0,0,16,0">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <c:AgentLogo Backend="{Binding BackendId}" Size="16" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Name}" Classes="rowlabel" VerticalAlignment="Center" />
+                            <Border Classes="authpill"
+                                    Classes.signedin="{Binding IsSignedIn}"
+                                    IsVisible="{Binding ShowStatusBadge}"
+                                    ToolTip.Tip="{Binding AuthDetail}">
+                              <StackPanel Orientation="Horizontal" Spacing="6">
+                                <c:PixelSpinner Width="10" Height="10"
+                                                Foreground="{DynamicResource TextMutedBrush}"
+                                                IsVisible="{Binding IsChecking}"
+                                                VerticalAlignment="Center" />
+                                <Ellipse Width="6" Height="6"
+                                         Fill="{DynamicResource SuccessBrush}"
+                                         IsVisible="{Binding IsSignedIn}"
+                                         VerticalAlignment="Center" />
+                                <Ellipse Width="6" Height="6"
+                                         Fill="{DynamicResource TextMutedBrush}"
+                                         IsVisible="{Binding IsSignedOutBadge}"
+                                         VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding AuthSummary}"
+                                           FontSize="{DynamicResource UiFontSizeSmall}"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           IsVisible="{Binding IsSignedIn}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding AuthSummary}"
+                                           FontSize="{DynamicResource UiFontSizeSmall}"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           IsVisible="{Binding !IsSignedIn}"
+                                           VerticalAlignment="Center" />
+                              </StackPanel>
+                            </Border>
+                            <TextBlock Text="{Binding AuthDetail}"
+                                       IsVisible="{Binding HasAuthDetail}"
+                                       FontSize="{DynamicResource UiFontSizeSmall}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="280"
+                                       VerticalAlignment="Center" />
+                          </StackPanel>
+                          <TextBlock Text="{Binding Description}" Classes="rowhint" Margin="24,3,0,0" />
+                        </StackPanel>
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="OpenCode path" Classes="rowlabel" />
-                  <TextBlock Text="The opencode executable, for sessions on OpenCode (the agent chip by the model). Its providers and models are OpenCode's own: opencode auth login." Classes="rowhint" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding OpenCodeStatus}" Classes="rowhint" Classes.ok="{Binding OpenCodeFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="field" Width="360">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding OpenCodePath}" Watermark="opencode" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
-                </Border>
-              </Grid>
-              <Border Classes="rowline" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <Button Theme="{StaticResource PrimaryButton}"
+                                  IsVisible="{Binding ShowPrimarySignIn}"
+                                  Command="{Binding SignInCommand}"
+                                  ToolTip.Tip="{Binding SignInToolTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <TextBlock Text="{Binding SignInButtonText}" VerticalAlignment="Center" />
+                              <c:Icon Size="12" Data="{StaticResource IconExternalLink}" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Button>
+                          <Button Theme="{StaticResource SecondaryButton}"
+                                  IsVisible="{Binding ShowSecondarySignIn}"
+                                  Command="{Binding SignInCommand}"
+                                  ToolTip.Tip="{Binding SignInToolTip}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                              <TextBlock Text="{Binding SignInButtonText}" VerticalAlignment="Center" />
+                              <c:Icon Size="12" Data="{StaticResource IconExternalLink}"
+                                      IsVisible="{Binding !IsProviderPickerOpen}"
+                                      VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Button>
+                          <Button Theme="{StaticResource GhostButton}"
+                                  Classes="danger"
+                                  IsVisible="{Binding ShowSignOut}"
+                                  Command="{Binding SignOutCommand}"
+                                  Content="Sign out"
+                                  ToolTip.Tip="Sign out and clear this CLI's stored credentials" />
+                          <Button Theme="{StaticResource SecondaryButton}"
+                                  IsVisible="{Binding IsSigningIn}"
+                                  Command="{Binding CancelLoginCommand}"
+                                  Content="Cancel" />
+                          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsSigningOut}" VerticalAlignment="Center" Margin="6,0">
+                            <c:PixelSpinner Width="12" Height="12" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="Signing out…" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                          </StackPanel>
+                        </StackPanel>
+                      </Grid>
 
-              <Grid Classes="row" ColumnDefinitions="*,Auto">
-                <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Codex path" Classes="rowlabel" />
-                  <TextBlock Text="The codex executable, for sessions on Codex (the agent chip by the model). It signs in with your ChatGPT plan or an API key: codex login." Classes="rowhint" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding CodexStatus}" Classes="rowhint" Classes.ok="{Binding CodexFound}" FontSize="{DynamicResource UiFontSizeSmall}" />
-                </StackPanel>
-                <Border Grid.Column="1" Classes="field" Width="360">
-                  <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding CodexPath}" Watermark="codex" FontSize="{DynamicResource UiFontSize}" FontFamily="{DynamicResource MonoFont}" />
-                </Border>
-              </Grid>
-              <Border Classes="rowline" />
+                      <!-- OpenCode connected providers (each can be disconnected individually) -->
+                      <ItemsControl ItemsSource="{Binding ConnectedProviders}"
+                                    c:Fold.IsOpen="{Binding HasConnectedProviders}"
+                                    IsVisible="False"
+                                    Margin="24,6,0,0">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="oc:OpenCodeConnectedProvider">
+                            <Border Classes="providerchip">
+                              <StackPanel Orientation="Horizontal" Spacing="5">
+                                <Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding Name}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                <Button Theme="{StaticResource IconButton}"
+                                        Width="18" Height="18"
+                                        Command="{Binding $parent[ItemsControl].((vm:AgentAccountViewModel)DataContext).DisconnectOpenCodeProviderCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="{Binding Name, StringFormat='Disconnect {0}'}">
+                                  <c:Icon Size="9" Data="{StaticResource IconClose}" />
+                                </Button>
+                              </StackPanel>
+                            </Border>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+
+                      <!-- Active browser sign-in progress panel -->
+                      <Border Classes="authpanel"
+                              Margin="24,8,0,2"
+                              c:Fold.IsOpen="{Binding ShowLoginPanel}"
+                              IsVisible="False">
+                        <StackPanel Spacing="8">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <c:PixelSpinner Width="14" Height="14"
+                                            Foreground="{DynamicResource AccentBrush}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,10,0" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding LoginMessage}"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontSize="{DynamicResource UiFontSize}"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="2"
+                                    Theme="{StaticResource LineButton}"
+                                    IsVisible="{Binding HasLoginUrl}"
+                                    Command="{Binding OpenLoginPageCommand}"
+                                    Foreground="{DynamicResource LinkBrush}"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="Open the sign-in page in your browser again">
+                              <StackPanel Orientation="Horizontal" Spacing="5">
+                                <TextBlock Text="Open page" FontSize="{DynamicResource UiFontSizeSmall}" FontWeight="Medium" VerticalAlignment="Center" />
+                                <c:Icon Size="12" Data="{StaticResource IconExternalLink}" VerticalAlignment="Center" />
+                              </StackPanel>
+                            </Button>
+                          </Grid>
+
+                          <!-- Device code banner (e.g. GitHub Copilot) -->
+                          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasDeviceCode}" Margin="24,0,0,0">
+                            <Border Background="{DynamicResource BgCodeBrush}"
+                                    BorderBrush="{DynamicResource BorderInputBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="10,4">
+                              <SelectableTextBlock Text="{Binding DeviceCode}"
+                                                   FontFamily="{DynamicResource MonoFont}"
+                                                   FontSize="{DynamicResource UiFontSizeLarge}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </Border>
+                            <Button Theme="{StaticResource SecondaryButton}"
+                                    Height="28"
+                                    Click="OnCopyDeviceCodeClick"
+                                    Content="{Binding CopyCodeText}" />
+                          </StackPanel>
+
+                          <!-- Manual authorization code entry when a provider uses OAuth "code" flow -->
+                          <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding NeedsCodeInput}" Margin="24,2,0,0">
+                            <Border Classes="field compact" Margin="0,0,8,0">
+                              <TextBox Theme="{StaticResource BareTextBox}"
+                                       Text="{Binding AuthCodeInput}"
+                                       Watermark="Paste the authorization code from your browser"
+                                       FontFamily="{DynamicResource MonoFont}"
+                                       FontSize="{DynamicResource UiFontSizeSmall}" />
+                            </Border>
+                            <Button Grid.Column="1"
+                                    Theme="{StaticResource PrimaryButton}"
+                                    Height="28"
+                                    Command="{Binding SubmitCodeCommand}"
+                                    Content="Complete" />
+                          </Grid>
+                        </StackPanel>
+                      </Border>
+
+                      <!-- OpenCode subscription OAuth provider picker -->
+                      <Border Classes="authpanel"
+                              Margin="24,8,0,2"
+                              c:Fold.IsOpen="{Binding IsProviderPickerOpen}"
+                              IsVisible="False">
+                        <StackPanel Spacing="6">
+                          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsLoadingProviders}">
+                            <c:PixelSpinner Width="13" Height="13" Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Text="Loading OpenCode subscription providers…" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+                          </StackPanel>
+
+                          <StackPanel IsVisible="{Binding !IsLoadingProviders}" Spacing="4">
+                            <StackPanel IsVisible="{Binding !IsPromptingInputs}" Spacing="2">
+                              <TextBlock Text="Choose a subscription to sign in to in your browser:"
+                                         FontSize="{DynamicResource UiFontSizeSmall}"
+                                         Foreground="{DynamicResource TextMutedBrush}"
+                                         Margin="4,0,0,4" />
+                              <ItemsControl ItemsSource="{Binding OpenCodeProviders}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:OpenCodeProviderOption">
+                                    <Button Theme="{StaticResource MenuItemButton}"
+                                            Padding="8,5"
+                                            Command="{Binding $parent[ItemsControl].((vm:AgentAccountViewModel)DataContext).ChooseOpenCodeProviderCommand}"
+                                            CommandParameter="{Binding}">
+                                      <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Text="{Binding Name}" FontWeight="Medium" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Grid.Column="1" Text="{Binding MethodLabel}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="8,0,0,0">
+                                          <c:Icon Size="12" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" IsVisible="{Binding IsConnected}" />
+                                          <c:Icon Size="12" Data="{StaticResource IconExternalLink}" Stroke="{DynamicResource TextMutedBrush}" />
+                                        </StackPanel>
+                                      </Grid>
+                                    </Button>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Extra fields for providers like GitLab / Snowflake before launching browser -->
+                            <StackPanel IsVisible="{Binding IsPromptingInputs}" Spacing="8">
+                              <TextBlock Text="{Binding PromptingTitle}" FontWeight="Medium" Foreground="{DynamicResource TextPrimaryBrush}" />
+                              <ItemsControl ItemsSource="{Binding PromptFields}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:OpenCodePromptField">
+                                    <StackPanel Spacing="3" Margin="0,0,0,4">
+                                      <TextBlock Text="{Binding Label}" FontSize="{DynamicResource UiFontSizeSmall}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                      <Border Classes="field compact">
+                                        <TextBox Theme="{StaticResource BareTextBox}"
+                                                 Text="{Binding Value}"
+                                                 Watermark="{Binding Placeholder}"
+                                                 FontSize="{DynamicResource UiFontSize}" />
+                                      </Border>
+                                    </StackPanel>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                <Button Theme="{StaticResource GhostButton}" Command="{Binding CancelOpenCodePromptCommand}" Content="Back" />
+                                <Button Theme="{StaticResource PrimaryButton}" Command="{Binding ContinueOpenCodePromptCommand}">
+                                  <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Continue in browser" VerticalAlignment="Center" />
+                                    <c:Icon Size="12" Data="{StaticResource IconExternalLink}" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                </Button>
+                              </StackPanel>
+                            </StackPanel>
+                          </StackPanel>
+                        </StackPanel>
+                      </Border>
+
+                      <!-- Brief confirmation after sign-in completes -->
+                      <StackPanel Orientation="Horizontal" Spacing="6" Margin="24,6,0,0"
+                                  c:Fold.IsOpen="{Binding HasSuccess}" IsVisible="False">
+                        <c:Icon Size="13" Data="{StaticResource IconCheck}" Stroke="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding SuccessMessage}"
+                                   FontSize="{DynamicResource UiFontSizeSmall}"
+                                   Foreground="{DynamicResource SuccessBrush}"
+                                   VerticalAlignment="Center" />
+                      </StackPanel>
+
+                      <!-- Error line when sign-in / sign-out fails -->
+                      <Grid ColumnDefinitions="*,Auto" Margin="24,6,0,0"
+                            c:Fold.IsOpen="{Binding HasError}" IsVisible="False">
+                        <TextBlock Text="{Binding ErrorMessage}"
+                                   Classes="rowhint failed"
+                                   Margin="0"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Theme="{StaticResource IconButton}" Width="22" Height="22"
+                                Command="{Binding DismissErrorCommand}" ToolTip.Tip="Dismiss">
+                          <c:Icon Size="11" Data="{StaticResource IconClose}" />
+                        </Button>
+                      </Grid>
+
+                      <!-- Executable path row -->
+                      <Grid ColumnDefinitions="*,Auto" Margin="24,8,0,14">
+                        <TextBlock Text="{Binding PathStatus}"
+                                   Classes="rowhint"
+                                   FontSize="{DynamicResource UiFontSizeSmall}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding PathStatus}"
+                                   Margin="0,0,16,0"
+                                   VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Classes="field compact" Width="280">
+                          <TextBox Theme="{StaticResource BareTextBox}"
+                                   Text="{Binding CliPath}"
+                                   Watermark="{Binding PathWatermark}"
+                                   FontSize="{DynamicResource UiFontSizeSmall}"
+                                   FontFamily="{DynamicResource MonoFont}" />
+                        </Border>
+                      </Grid>
+                      <Border Classes="rowline" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
@@ -730,10 +1027,28 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Default model" Classes="rowlabel" />
-                  <TextBlock Text="Model of new sessions; each session can switch from the status row." Classes="rowhint" />
+                  <TextBlock Text="Default agent" Classes="rowlabel" />
+                  <TextBlock Text="Agent new sessions start on; each session can switch from the status row." Classes="rowhint" />
                 </StackPanel>
-                <ComboBox Grid.Column="1" ItemsSource="{Binding Models}" SelectedItem="{Binding DefaultModel}">
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Backends}" SelectedItem="{Binding DefaultBackend}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="agents:AgentBackendInfo">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <c:AgentLogo Backend="{Binding Id}" Size="13" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Default model" Classes="rowlabel" />
+                  <TextBlock Text="{Binding DefaultModelHint}" Classes="rowhint" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding DefaultModelChoices}" SelectedItem="{Binding DefaultModel}">
                   <ComboBox.ItemTemplate>
                     <DataTemplate x:DataType="inf:ModelOption">
                       <TextBlock Text="{Binding DisplayName}" />
@@ -746,7 +1061,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Default permission mode" Classes="rowlabel" />
-                  <TextBlock Text="How new sessions ask before Claude changes things." Classes="rowhint" />
+                  <TextBlock Text="How new sessions ask before an agent makes changes." Classes="rowhint" />
                 </StackPanel>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Modes}" SelectedItem="{Binding DefaultMode}">
                   <ComboBox.ItemTemplate>
@@ -761,7 +1076,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Default effort" Classes="rowlabel" />
-                  <TextBlock Text="Opus 5.5&apos;s starting effort (passed as --effort). Each model then keeps the effort last chosen with it; the others start at High." Classes="rowhint" />
+                  <TextBlock Text="Starting reasoning effort for new sessions when the model supports it. Each model remembers the effort you last chose with it." Classes="rowhint" />
                 </StackPanel>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Efforts}" SelectedItem="{Binding DefaultEffort}">
                   <ComboBox.ItemTemplate>
@@ -776,7 +1091,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Suggest the next prompt" Classes="rowlabel" />
-                  <TextBlock Text="After a turn, Claude Code guesses what you'll ask next; it shows as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
+                  <TextBlock Text="After a turn, supported agents (Claude Code and Antigravity) suggest what you might ask next as grey text in the empty composer. Tab, → or a right-click takes it, Esc dismisses it. Applies to sessions started from now on."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1"
@@ -813,7 +1128,7 @@
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="F1–F4 switch the model" Classes="rowlabel" />
-                  <TextBlock Text="On the new session screen: F1 Fable, F2 Opus, F3 Sonnet, F4 Haiku (on Codex, its first four models; on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
+                  <TextBlock Text="On the new session screen, F1–F4 pick the current agent's first four models (on OpenCode, your first four starred models), besides Ctrl+Shift+1…4."
                              Classes="rowhint" />
                 </StackPanel>
                 <Button Grid.Column="1"
@@ -830,8 +1145,8 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
-                  <TextBlock Text="Workflow size" Classes="rowlabel" />
-                  <TextBlock Text="How many agents Claude's workflows aim to stay under: Small fewer than 5, Medium fewer than 10, Large fewer than 50. Running sessions take it at once."
+                  <TextBlock Text="Claude Code workflow size" Classes="rowlabel" />
+                  <TextBlock Text="How many agents Claude Code's workflows aim to stay under: Small fewer than 5, Medium fewer than 10, Large fewer than 50. Running sessions take it at once."
                              Classes="rowhint" />
                 </StackPanel>
                 <Border Grid.Column="1" Classes="segments">

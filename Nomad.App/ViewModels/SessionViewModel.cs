@@ -79,7 +79,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         AgentBackends.OpenCode => _main.Settings.OpenCodeModel ?? OpenCodeCatalog.DefaultModel ?? "",
         AgentBackends.Codex => _main.Settings.CodexModel ?? CodexCatalog.DefaultModel ?? "",
-        AgentBackends.Antigravity => Nomad.Core.Antigravity.AntigravityBackend.DefaultModel,
+        AgentBackends.Antigravity => _main.Settings.AntigravityModel ?? Nomad.Core.Antigravity.AntigravityBackend.DefaultModel,
         _ => _main.DefaultModel,
     };
 
@@ -3141,6 +3141,11 @@ public sealed partial class SessionViewModel : ObservableObject
         else if (IsCodex)
         {
             _main.Settings.CodexModel = id;
+            _main.SaveSettings();
+        }
+        else if (IsAntigravity)
+        {
+            _main.Settings.AntigravityModel = id;
             _main.SaveSettings();
         }
 

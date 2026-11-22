@@ -10,6 +10,7 @@
   <StreamGeometry x:Key="IconSleep">M9.6,12.9 C6.6,13.4 3.4,11.2 3.1,8 C2.9,5.6 4.2,3.5 6.2,2.5 C5.6,5.7 7.5,9.4 11.6,10.6 C11.1,11.8 10.4,12.6 9.6,12.9 Z M10,2.5 L12.25,2.5 L10,5 L12.25,5 M12.75,6 L14.5,6 L12.75,8 L14.5,8</StreamGeometry>
   <StreamGeometry x:Key="IconArrowLeft">M13.5,8 L2.75,8 M7,3.75 L2.75,8 L7,12.25</StreamGeometry>
   <StreamGeometry x:Key="IconArrowRight">M2.5,8 L13.25,8 M9,3.75 L13.25,8 L9,12.25</StreamGeometry>
+  <StreamGeometry x:Key="IconExternalLink">M9.5,2.75 L13.25,2.75 L13.25,6.5 M7.5,8.5 L13,3 M11.75,9 L11.75,12.25 C11.75,12.8 11.3,13.25 10.75,13.25 L3.75,13.25 C3.2,13.25 2.75,12.8 2.75,12.25 L2.75,5.25 C2.75,4.7 3.2,4.25 3.75,4.25 L7,4.25</StreamGeometry>
   <StreamGeometry x:Key="IconArrowDown">M8,2.5 L8,13.25 M3.75,9 L8,13.25 L12.25,9</StreamGeometry>
   <StreamGeometry x:Key="IconSearch">M11.5,7 A4.5,4.5 0 1 1 2.5,7 A4.5,4.5 0 1 1 11.5,7 Z M10.25,10.25 L13.75,13.75</StreamGeometry>
   <StreamGeometry x:Key="IconPlus">M8,2.75 L8,13.25 M2.75,8 L13.25,8</StreamGeometry>

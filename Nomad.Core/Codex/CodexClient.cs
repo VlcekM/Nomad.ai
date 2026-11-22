@@ -105,6 +105,25 @@ public static class CodexClient
         return (CodexJson.Str(account, "type"), CodexJson.Str(account, "email"), CodexJson.Str(account, "planType"));
     }
 
+    /// <summary>Starts the ChatGPT subscription browser OAuth flow; returns the login id and URL to open.</summary>
+    public static async Task<(string LoginId, string AuthUrl)> StartChatGptLoginAsync(CodexServer server, CancellationToken cancellationToken = default)
+    {
+        var result = await server.CallAsync("account/login/start", new JsonObject { ["type"] = "chatgpt" }, cancellationToken).ConfigureAwait(false);
+        var loginId = CodexJson.Str(result, "loginId")
+            ?? throw new InvalidOperationException("Codex did not return a login ID.");
+        var authUrl = CodexJson.Str(result, "authUrl")
+            ?? throw new InvalidOperationException("Codex did not return a sign-in URL.");
+        return (loginId, authUrl);
+    }
+
+    /// <summary>Cancels an in-flight browser login.</summary>
+    public static Task CancelLoginAsync(CodexServer server, string loginId, CancellationToken cancellationToken = default) =>
+        server.CallAsync("account/login/cancel", new JsonObject { ["loginId"] = loginId }, cancellationToken);
+
+    /// <summary>Signs Codex out, removing stored credentials.</summary>
+    public static Task LogoutAsync(CodexServer server, CancellationToken cancellationToken = default) =>
+        server.CallAsync("account/logout", new JsonObject(), cancellationToken);
+
     /// <summary>A <c>RateLimitSnapshot</c> (also what <c>account/rateLimits/updated</c> carries).</summary>
     public static CodexRateLimits? RateLimits(JsonElement snapshot) => snapshot.ValueKind != JsonValueKind.Object
         ? null

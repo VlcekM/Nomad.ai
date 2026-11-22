@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nomad.Core.Agents;
 using Nomad.Core.Codex;
+using Nomad.Core.Process;
 using Nomad.Core.Protocol;
 
 namespace Nomad.Core.Antigravity;
@@ -256,17 +257,35 @@ public sealed class AntigravityBackend : IAgentBackend
     /// </summary>
     private JsonObject SessionParameters() => new() { ["sessionId"] = SessionId };
 
+    /// <summary>The configured path or command name (Settings); "agy" when empty.</summary>
+    public static string? CliPath { get; set; }
+
+    /// <summary>Whether Antigravity looks installed (its executable resolves); cheap, no process started.</summary>
+    public static bool IsInstalled => ResolveExecutable(CliPath) is not null;
+
     /// <summary>
-    /// Finds the CLI at Google's default Windows installation or on PATH.
+    /// Finds the CLI at the configured path, on PATH, or at Google's default Windows installation.
     /// </summary>
-    internal static string ExecutablePath
+    public static string? ResolveExecutable(string? configured)
     {
-        get
+        var name = string.IsNullOrWhiteSpace(configured) ? "agy" : configured.Trim();
+        var resolved = CliLocator.Resolve(name);
+        if (resolved is not null) return resolved;
+
+        if ((string.IsNullOrWhiteSpace(configured) || string.Equals(name, "agy", StringComparison.OrdinalIgnoreCase))
+            && OperatingSystem.IsWindows())
         {
             var installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "agy", "bin", "agy.exe");
-            return File.Exists(installed) ? installed : "agy";
+            if (File.Exists(installed)) return installed;
         }
+
+        return null;
     }
+
+    /// <summary>
+    /// Finds the CLI at the configured path, Google's default Windows installation, or on PATH.
+    /// </summary>
+    internal static string ExecutablePath => ResolveExecutable(CliPath) ?? "agy";
 
     /// <summary>
     /// The ACP version and capabilities supported by Nomad.

@@ -111,6 +111,13 @@ public sealed class NomadSettings
     /// <summary>The Codex model last picked; null: Codex's own default.</summary>
     public string? CodexModel { get; set; }
 
+    // Antigravity
+    /// <summary>The Antigravity executable (or command name); "agy" finds it on PATH or where its installer put it.</summary>
+    public string AntigravityPath { get; set; } = "agy";
+
+    /// <summary>The Antigravity model last picked; null: Antigravity's default.</summary>
+    public string? AntigravityModel { get; set; }
+
     /// <summary>
     /// The Antigravity sessions opened in Nomad, indexed by the CLI's session ID.
     /// </summary>
@@ -175,8 +182,7 @@ public sealed class NomadSettings
     /// <summary>Offer pre-releases as updates too.</summary>
     public bool IncludePrereleases { get; set; }
 
-    // Account (shown in the sidebar footer; the plan is remembered from the CLI's initialize answer)
-    public string? DisplayName { get; set; }
+    // Account (the plan is remembered from the CLI's initialize answer)
     public string? LastPlan { get; set; }
 
     /// <summary>

@@ -20,6 +20,24 @@ public static partial class PlatformShell
         "xterm",
     ];
 
+    /// <summary>Opens <paramref name="url"/> (http/https only) in the system default web browser.</summary>
+    public static bool OpenUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
+        {
+            return false;
+        }
+
+        if (OperatingSystem.IsWindows())
+        {
+            AllowSetForegroundWindow(AsfwAny);
+            return TryStart(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+
+        return TryStart(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true })
+            || TryStart(new ProcessStartInfo("xdg-open") { ArgumentList = { uri.AbsoluteUri }, UseShellExecute = false });
+    }
+
     /// <summary>Opens <paramref name="path"/> with the OS's default handler, falling back to the file manager if none is registered.</summary>
     public static void OpenWithShell(string path)
     {

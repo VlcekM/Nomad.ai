@@ -68,10 +68,10 @@ public sealed partial class MainViewModel : ObservableObject
         IsSidebarOpen = !settings.SidebarCollapsed;
         PlanLabel = string.IsNullOrEmpty(settings.LastPlan) ? null : settings.LastPlan;
 
-        ApplyDisplayName();
         UpdateGroupingOptions();
         OpenCodeServer.CliPath = settings.OpenCodePath;
         Nomad.Core.Codex.CodexServer.CliPath = settings.CodexPath;
+        Nomad.Core.Antigravity.AntigravityBackend.CliPath = settings.AntigravityPath;
         if (dev.LogPath is { } log)
         {
             Nomad.Core.Codex.CodexServer.RawLine = (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
@@ -712,45 +712,86 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial int AliveCount { get; set; }
 
-    [ObservableProperty]
-    public partial string UserName { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string UserInitials { get; set; } = "";
-
     public string SettingsPath => _settingsPath;
 
     /// <summary>The open settings dialog's model (null while closed).</summary>
     [ObservableProperty]
     public partial SettingsViewModel? SettingsPage { get; set; }
 
-    /// <summary>Footer name: the Display name setting, else the Windows user name.</summary>
-    public void ApplyDisplayName()
+    /// <summary>Refreshes catalogs and usage limits after an agent signs in or out in Settings.</summary>
+    public void OnAgentAuthChanged(string backend)
     {
-        UserName = string.IsNullOrWhiteSpace(Settings.DisplayName) ? Format.Capitalize(Environment.UserName) : Settings.DisplayName;
-        UserInitials = Initials(UserName);
+        switch (backend)
+        {
+            case AgentBackends.ClaudeCode:
+                _ = Usage.RefreshAsync(force: true);
+                break;
+            case AgentBackends.Codex:
+                _codexCatalog = null;
+                _ = LoadCodexCatalogAsync();
+                _ = CodexUsage.RefreshAsync(force: true);
+                break;
+            case AgentBackends.Antigravity:
+                _ = AntigravityUsage.RefreshAsync(force: true);
+                break;
+            case AgentBackends.OpenCode:
+                _openCodeCatalog = null;
+                _ = LoadOpenCodeCatalogAsync();
+                break;
+        }
     }
 
     public string DefaultModel => Dev.Model ?? Settings.DefaultModel;
 
     /// <summary>
-    /// The effort a session starts with on a model: the one last chosen with it, else high, except Opus 5.5, which
-    /// starts at the Default effort setting. An OpenCode model starts at its last one while it still has that variant,
-    /// else at OpenCode's default for it; a Codex model likewise with its reasoning efforts.
+    /// The effort a session starts with on a model: the one last chosen with it, else the Default effort setting when
+    /// that model supports it (or the agent's own default).
     /// </summary>
-    public string EffortFor(string model) =>
-        Nomad.Core.OpenCode.OpenCodeBackend.IsOpenCodeModel(model)
-            ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var variant)
-                && (OpenCodeCatalog.Find(model) is not { } m || m.Variants.Contains(variant)) ? variant : ""
-        : CodexCatalog.IsCodexModel(model)
-            ? Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var level)
-                && (CodexCatalog.Find(model) is not { } c || c.Efforts.Contains(level)) ? level : ""
-        : Catalog.AntigravityModels.Any(option => option.Id == model)
-            ? Settings.EffortByModel.TryGetValue(model, out var thinking) && Catalog.AntigravityEfforts(model).Any(option => option.Id == thinking)
-                ? thinking : "high"
-        : Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort) ? effort
-        : model.StartsWith("claude-opus-5-5", StringComparison.OrdinalIgnoreCase) ? Settings.DefaultEffort
-        : "high";
+    public string EffortFor(string model)
+    {
+        var fallback = Settings.DefaultEffort;
+        if (Nomad.Core.OpenCode.OpenCodeBackend.IsOpenCodeModel(model))
+        {
+            var info = OpenCodeCatalog.Find(model);
+            if (Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var variant)
+                && (info is null || info.Variants.Contains(variant)))
+            {
+                return variant;
+            }
+
+            return info is not null && !string.IsNullOrEmpty(fallback) && info.Variants.Contains(fallback) ? fallback : "";
+        }
+
+        if (CodexCatalog.IsCodexModel(model))
+        {
+            var info = CodexCatalog.Find(model);
+            if (Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var level)
+                && (info is null || info.Efforts.Contains(level)))
+            {
+                return level;
+            }
+
+            return info is not null && !string.IsNullOrEmpty(fallback) && info.Efforts.Contains(fallback) ? fallback : "";
+        }
+
+        if (Catalog.AntigravityModels.Any(option => option.Id == model))
+        {
+            var efforts = Catalog.AntigravityEfforts(model);
+            if (Settings.EffortByModel.TryGetValue(model, out var thinking) && efforts.Any(option => option.Id == thinking))
+            {
+                return thinking;
+            }
+
+            return !string.IsNullOrEmpty(fallback) && efforts.Any(option => option.Id == fallback) ? fallback : "high";
+        }
+
+        if (Settings.EffortByModel.TryGetValue(model.ToLowerInvariant(), out var effort))
+        {
+            return effort;
+        }
+
+        return !string.IsNullOrEmpty(fallback) ? fallback : "high";
+    }
 
     public void RememberEffort(string model, string effort)
     {
@@ -1872,14 +1913,20 @@ public sealed partial class MainViewModel : ObservableObject
                 continue;
             }
 
+            var repoFolder = GitInfo.WorktreeOwner(folder.Key) ?? folder.Key;
             foreach (var row in folder)
             {
-                // The pull request from its branch, else the last one it mentions (one it opened, or was asked about).
-                var pr = links.PullRequestFor(row.GitBranch);
-                if (pr is null && row.PullRequestUrl is { } prUrl && links.Trusts(prUrl))
+                // The pull request from its branch, else the last one it mentions (or "PR #N" in its title).
+                var pr = links.PullRequestFor(row.GitBranch, row.Title);
+                var prUrl = row.PullRequestUrl is { } mentioned && links.Trusts(mentioned)
+                    ? mentioned
+                    : pr is null && RepoLinks.PullRequestNumberIn(row.Title) is { } titlePr
+                        ? $"https://github.com/{links.NameWithOwner}/pull/{titlePr}"
+                        : null;
+                if (pr is null && prUrl is not null)
                 {
                     pr = links.PullRequests.FirstOrDefault(p => string.Equals(p.Url, prUrl, StringComparison.OrdinalIgnoreCase))
-                        ?? await Nomad.Core.Git.GitHubLinks.PullRequestAsync(prUrl, folder.Key);
+                        ?? await Nomad.Core.Git.GitHubLinks.PullRequestAsync(prUrl, repoFolder);
                 }
 
                 // The issue its pull request closes, else the last one it mentions, else one in its branch or title.
@@ -1888,11 +1935,25 @@ public sealed partial class MainViewModel : ObservableObject
                 if (issue is null && row.IssueUrl is { } issueUrl && links.Trusts(issueUrl))
                 {
                     issue = links.Issues.FirstOrDefault(i => string.Equals(i.Url, issueUrl, StringComparison.OrdinalIgnoreCase))
-                        ?? await Nomad.Core.Git.GitHubLinks.IssueAsync(issueUrl, folder.Key);
+                        ?? await Nomad.Core.Git.GitHubLinks.IssueAsync(issueUrl, repoFolder);
                 }
 
-                row.PullRequest = pr;
-                row.Issue = issue ?? links.IssueFor(row.GitBranch, row.Title, null);
+                if (pr is not null || !SameUrl(row.PullRequest?.Url, row.PullRequestUrl))
+                {
+                    row.PullRequest = pr;
+                }
+
+                var titleForIssue = pr is not null && RepoLinks.PullRequestNumberIn(row.Title) == pr.Number ? null : row.Title;
+                var resolvedIssue = issue ?? links.IssueFor(row.GitBranch, titleForIssue, null);
+                if (resolvedIssue is null && RepoLinks.IssueNumberIn(titleForIssue) is { } titleIssue)
+                {
+                    resolvedIssue = await Nomad.Core.Git.GitHubLinks.IssueAsync($"https://github.com/{links.NameWithOwner}/issues/{titleIssue}", repoFolder);
+                }
+
+                if (resolvedIssue is not null || !SameUrl(row.Issue?.Url, row.IssueUrl))
+                {
+                    row.Issue = resolvedIssue;
+                }
             }
         }
 
@@ -3442,17 +3503,6 @@ public sealed partial class MainViewModel : ObservableObject
         SaveDraft();
         var sessions = _open.Values.Append(Current).Distinct().ToList();
         await Task.WhenAll(sessions.Select(s => s.ShutdownAsync()).Concat(_servers.Values.Select(s => s.StopAsync())));
-    }
-
-    private static string Initials(string name)
-    {
-        var parts = name.Split([' ', '.', '_', '-'], StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length switch
-        {
-            0 => "?",
-            1 => parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant(),
-            _ => $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}",
-        };
     }
 
     public void Post(Action action) => Dispatcher.UIThread.Post(action);

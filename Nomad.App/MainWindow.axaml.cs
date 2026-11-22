@@ -1750,6 +1750,11 @@ public partial class MainWindow : Window
                 // The release list comes from GitHub: wait for it (at most 20 s).
                 await Task.WhenAny(_vm.Updates.GetReleasesAsync(), Task.Delay(TimeSpan.FromSeconds(20)));
             }
+            else if (page == SettingsPageKind.Agents && _vm.SettingsPage is { } agentSettings)
+            {
+                // Wait for the CLI sign-in status checks to settle before the screenshot (at most 5 s).
+                await Task.WhenAny(agentSettings.WaitForAgentsAuthAsync(), Task.Delay(TimeSpan.FromSeconds(5)));
+            }
         }
 
         foreach (var row in _vm.Recents.OfType<SessionListItemViewModel>().Take(dev.Pick))

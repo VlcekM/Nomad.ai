@@ -22,6 +22,32 @@ public sealed record OpenCodeAgent(string Name, string? Description);
 /// <summary>A stored OpenCode session, for the session list.</summary>
 public sealed record OpenCodeSessionInfo(string Id, string? Directory, string Title, DateTime UpdatedUtc, string? Model);
 
+/// <summary>An input prompt an OpenCode OAuth method asks for before opening the browser (e.g. GitLab instance URL).</summary>
+public sealed record OpenCodeAuthPrompt(
+    string Key,
+    string Label,
+    string? Placeholder,
+    string? DefaultValue,
+    bool IsSelect,
+    IReadOnlyList<(string Label, string Value)>? Options,
+    string? ConditionKey = null,
+    string? ConditionValue = null);
+
+/// <summary>An OAuth subscription login method offered by an OpenCode provider.</summary>
+public sealed record OpenCodeOAuthProvider(
+    string Id,
+    string Name,
+    int MethodIndex,
+    string MethodLabel,
+    bool IsConnected,
+    IReadOnlyList<OpenCodeAuthPrompt> Prompts);
+
+/// <summary>A connected OpenCode provider (OAuth subscription or API key).</summary>
+public sealed record OpenCodeConnectedProvider(string Id, string Name, bool IsOAuth);
+
+/// <summary>What <c>POST /provider/{id}/oauth/authorize</c> returns: the browser URL, callback mode ("auto" | "code"), and instructions.</summary>
+public sealed record OpenCodeOAuthAuthorization(string Url, string Method, string Instructions);
+
 /// <summary>The calls Nomad makes to <c>opencode serve</c> (its v1 API, the one OpenCode's own TUI uses).</summary>
 public static class OpenCodeClient
 {
@@ -294,6 +320,252 @@ public static class OpenCodeClient
                     list.Add(new OpenCodeAgent(name, OpenCodeJson.Str(a, "description")));
                 }
             }
+        }
+
+        return list;
+    }
+
+    /// <summary>
+    /// All OAuth (browser/subscription) providers OpenCode knows about, plus the currently connected providers.
+    /// </summary>
+    public static async Task<(IReadOnlyList<OpenCodeOAuthProvider> OAuthProviders, IReadOnlyList<OpenCodeConnectedProvider> Connected)> GetProviderAuthAsync(
+        OpenCodeServer server, CancellationToken ct = default)
+    {
+        using var providersDoc = await SendAsync(server, HttpMethod.Get, "provider", null, ct).ConfigureAwait(false);
+        using var authDoc = await SendAsync(server, HttpMethod.Get, "provider/auth", null, ct).ConfigureAwait(false);
+
+        var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (OpenCodeJson.Arr(providersDoc.RootElement, "all") is { } all)
+        {
+            foreach (var p in all.EnumerateArray())
+            {
+                if (OpenCodeJson.Str(p, "id") is { Length: > 0 } id)
+                {
+                    names[id] = OpenCodeJson.Str(p, "name") ?? id;
+                }
+            }
+        }
+
+        var connectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (OpenCodeJson.Arr(providersDoc.RootElement, "connected") is { } conn)
+        {
+            foreach (var item in conn.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } id)
+                {
+                    connectedSet.Add(id);
+                }
+            }
+        }
+
+        var storedTypes = ReadStoredAuthTypes();
+        var oauthProviders = new List<OpenCodeOAuthProvider>();
+        if (authDoc.RootElement.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var entry in authDoc.RootElement.EnumerateObject())
+            {
+                if (entry.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                // Prefer the first browser/subscription OAuth method (skipping headless variants when a browser one exists).
+                var index = 0;
+                int? chosenIndex = null;
+                string? chosenLabel = null;
+                IReadOnlyList<OpenCodeAuthPrompt> chosenPrompts = [];
+                foreach (var method in entry.Value.EnumerateArray())
+                {
+                    if (string.Equals(OpenCodeJson.Str(method, "type"), "oauth", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var label = OpenCodeJson.Str(method, "label") ?? "Sign in";
+                        var isHeadless = label.Contains("headless", StringComparison.OrdinalIgnoreCase);
+                        if (chosenIndex is null || (!isHeadless && chosenLabel!.Contains("headless", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            chosenIndex = index;
+                            chosenLabel = label;
+                            chosenPrompts = ParseAuthPrompts(method);
+                        }
+                    }
+
+                    index++;
+                }
+
+                if (chosenIndex is { } idx && chosenLabel is not null)
+                {
+                    var name = names.GetValueOrDefault(entry.Name) ?? entry.Name;
+                    oauthProviders.Add(new OpenCodeOAuthProvider(
+                        entry.Name,
+                        name,
+                        idx,
+                        chosenLabel,
+                        connectedSet.Contains(entry.Name) || storedTypes.ContainsKey(entry.Name),
+                        chosenPrompts));
+                }
+            }
+        }
+
+        // Order familiar subscription providers first, then alphabetically.
+        static int Priority(string id) => id.ToLowerInvariant() switch
+        {
+            "openai" => 0,
+            "anthropic" => 1,
+            "github-copilot" => 2,
+            "xai" => 3,
+            "poe" => 4,
+            "gitlab" => 5,
+            "digitalocean" => 6,
+            "snowflake-cortex" => 7,
+            _ => 100,
+        };
+        oauthProviders.Sort((a, b) =>
+        {
+            var cmp = Priority(a.Id).CompareTo(Priority(b.Id));
+            return cmp != 0 ? cmp : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+
+        var connected = new List<OpenCodeConnectedProvider>();
+        foreach (var id in storedTypes.Keys.Concat(connectedSet).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            // "opencode" is always connected for free Zen models unless explicitly in auth.json.
+            if (string.Equals(id, "opencode", StringComparison.OrdinalIgnoreCase) && !storedTypes.ContainsKey(id))
+            {
+                continue;
+            }
+
+            var isOAuth = storedTypes.TryGetValue(id, out var kind) && string.Equals(kind, "oauth", StringComparison.OrdinalIgnoreCase);
+            connected.Add(new OpenCodeConnectedProvider(id, names.GetValueOrDefault(id) ?? id, isOAuth));
+        }
+
+        return (oauthProviders, connected);
+    }
+
+    /// <summary>Starts the OAuth flow for an OpenCode provider; returns the URL to open in a browser.</summary>
+    public static async Task<OpenCodeOAuthAuthorization> StartOAuthAsync(
+        OpenCodeServer server, string providerId, int methodIndex, IReadOnlyDictionary<string, string>? inputs = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["method"] = methodIndex };
+        if (inputs is { Count: > 0 })
+        {
+            var map = new JsonObject();
+            foreach (var (k, v) in inputs)
+            {
+                map[k] = v;
+            }
+
+            body["inputs"] = map;
+        }
+
+        using var doc = await SendAsync(server, HttpMethod.Post, $"provider/{Uri.EscapeDataString(providerId)}/oauth/authorize", body, ct).ConfigureAwait(false);
+        var url = OpenCodeJson.Str(doc.RootElement, "url")
+            ?? throw new InvalidOperationException("OpenCode did not return a sign-in URL.");
+        var method = OpenCodeJson.Str(doc.RootElement, "method") ?? "auto";
+        var instructions = OpenCodeJson.Str(doc.RootElement, "instructions") ?? "";
+        return new OpenCodeOAuthAuthorization(url, method, instructions);
+    }
+
+    /// <summary>Completes an OpenCode OAuth flow (blocks until browser callback or device-code approval completes for "auto").</summary>
+    public static async Task CompleteOAuthAsync(
+        OpenCodeServer server, string providerId, int methodIndex, string? code = null, CancellationToken ct = default)
+    {
+        var body = new JsonObject { ["method"] = methodIndex };
+        if (!string.IsNullOrWhiteSpace(code))
+        {
+            body["code"] = code.Trim();
+        }
+
+        using var _ = await SendAsync(server, HttpMethod.Post, $"provider/{Uri.EscapeDataString(providerId)}/oauth/callback", body, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Removes stored credentials for an OpenCode provider.</summary>
+    public static async Task RemoveAuthAsync(OpenCodeServer server, string providerId, CancellationToken ct = default)
+    {
+        using var _ = await SendAsync(server, HttpMethod.Delete, $"auth/{Uri.EscapeDataString(providerId)}", null, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Reads OpenCode's local <c>auth.json</c> (provider id to "oauth" | "api") without starting the server.</summary>
+    public static Dictionary<string, string> ReadStoredAuthTypes()
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } xdg
+                ? xdg
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
+            var path = Path.Combine(data, "opencode", "auth.json");
+            if (!File.Exists(path))
+            {
+                return result;
+            }
+
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return result;
+            }
+
+            foreach (var entry in doc.RootElement.EnumerateObject())
+            {
+                var type = OpenCodeJson.Str(entry.Value, "type") ?? "api";
+                result[entry.Name] = type;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+        }
+
+        return result;
+    }
+
+    private static IReadOnlyList<OpenCodeAuthPrompt> ParseAuthPrompts(JsonElement method)
+    {
+        if (OpenCodeJson.Arr(method, "prompts") is not { } arr)
+        {
+            return [];
+        }
+
+        var list = new List<OpenCodeAuthPrompt>();
+        foreach (var p in arr.EnumerateArray())
+        {
+            var key = OpenCodeJson.Str(p, "key");
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+
+            var type = OpenCodeJson.Str(p, "type") ?? "text";
+            var label = OpenCodeJson.Str(p, "message") ?? key;
+            var placeholder = OpenCodeJson.Str(p, "placeholder");
+            string? defaultValue = null;
+            List<(string Label, string Value)>? options = null;
+            if (string.Equals(type, "select", StringComparison.OrdinalIgnoreCase) && OpenCodeJson.Arr(p, "options") is { } opts)
+            {
+                options = [];
+                foreach (var o in opts.EnumerateArray())
+                {
+                    var val = OpenCodeJson.Str(o, "value");
+                    if (val is not null)
+                    {
+                        options.Add((OpenCodeJson.Str(o, "label") ?? val, val));
+                    }
+                }
+
+                if (options.Count > 0)
+                {
+                    defaultValue = options[0].Value;
+                }
+            }
+
+            string? condKey = null;
+            string? condVal = null;
+            var when = OpenCodeJson.Obj(p, "when");
+            if (when.ValueKind == JsonValueKind.Object && OpenCodeJson.Str(when, "op") == "eq")
+            {
+                condKey = OpenCodeJson.Str(when, "key");
+                condVal = OpenCodeJson.Str(when, "value");
+            }
+
+            list.Add(new OpenCodeAuthPrompt(key, label, placeholder, defaultValue, options is not null, options, condKey, condVal));
         }
 
         return list;

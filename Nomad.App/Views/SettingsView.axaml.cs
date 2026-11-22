@@ -16,6 +16,20 @@ public partial class SettingsView : UserControl
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 
+    private async void OnCopyDeviceCodeClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: AgentAccountViewModel agent } || string.IsNullOrEmpty(agent.DeviceCode))
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(agent.DeviceCode);
+            agent.NotifyCodeCopied();
+        }
+    }
+
     // A theme color's swatch: opens its picker.
     private void OnSwatchPressed(object? sender, PointerPressedEventArgs e)
     {

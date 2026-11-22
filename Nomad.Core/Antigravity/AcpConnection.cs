@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Nomad.Core.Codex;
+using Nomad.Core.Process;
 using AgentProcess = System.Diagnostics.Process;
 
 namespace Nomad.Core.Antigravity;
@@ -52,7 +53,7 @@ internal sealed class AcpConnection : IAsyncDisposable
     /// Starts the agent with UTF-8 stdio in the workspace.
     /// </summary>
     public AcpConnection(string executable, string cwd, Func<JsonElement, Task> receive, Action<int, bool> exited,
-        IReadOnlyList<string>? additionalDirectories = null, bool bypassPermissions = false)
+        IReadOnlyList<string>? additionalDirectories = null, bool bypassPermissions = false, Action<string>? onStderr = null)
     {
         var start = new ProcessStartInfo(executable)
         {
@@ -64,6 +65,7 @@ internal sealed class AcpConnection : IAsyncDisposable
             RedirectStandardError = true,
             StandardInputEncoding = new UTF8Encoding(false),
             StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
         };
         start.ArgumentList.Add("acp");
         if (bypassPermissions) start.ArgumentList.Add("--dangerously-skip-permissions");
@@ -75,8 +77,25 @@ internal sealed class AcpConnection : IAsyncDisposable
         }
 
         _process = AgentProcess.Start(start) ?? throw new InvalidOperationException("Could not start Antigravity CLI.");
-        _stderr = _process.StandardError.BaseStream.CopyToAsync(Stream.Null);
+        ChildProcessJob.TryAssign(_process);
+        _stderr = onStderr is null
+            ? _process.StandardError.BaseStream.CopyToAsync(Stream.Null)
+            : ReadStderrAsync(onStderr);
         _reader = Task.Run(() => ReadAsync(receive, exited));
+    }
+
+    private async Task ReadStderrAsync(Action<string> onStderr)
+    {
+        try
+        {
+            while (await _process.StandardError.ReadLineAsync().ConfigureAwait(false) is { } line)
+            {
+                if (line.Length > 0) onStderr(line);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
+        {
+        }
     }
 
     /// <summary>

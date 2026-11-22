@@ -59,11 +59,58 @@ public sealed partial class SettingsViewModel : ObservableObject
         InterfaceTextSize = s.InterfaceTextSize;
         TranscriptWidth = s.TranscriptWidth;
         Theme = s.Theme;
-        CliPath = s.CliPath;
-        OpenCodePath = s.OpenCodePath;
-        CodexPath = s.CodexPath;
+        AgentAccounts =
+        [
+            new(
+                Nomad.Core.Agents.AgentBackends.ClaudeCode,
+                "Claude Code",
+                "Anthropic's agent, on your Claude Pro or Max subscription.",
+                "claude",
+                "Install it from claude.ai/code",
+                s.CliPath,
+                path => Apply(st => st.CliPath = path, appearance: false),
+                () => _main.OnAgentAuthChanged(Nomad.Core.Agents.AgentBackends.ClaudeCode)),
+            new(
+                Nomad.Core.Agents.AgentBackends.Codex,
+                "Codex",
+                "OpenAI's agent, on your ChatGPT Plus or Pro subscription.",
+                "codex",
+                "Install it with npm i -g @openai/codex",
+                s.CodexPath,
+                path =>
+                {
+                    Apply(st => st.CodexPath = path, appearance: false);
+                    Nomad.Core.Codex.CodexServer.CliPath = path;
+                },
+                () => _main.OnAgentAuthChanged(Nomad.Core.Agents.AgentBackends.Codex)),
+            new(
+                Nomad.Core.Agents.AgentBackends.Antigravity,
+                "Antigravity",
+                "Google's coding agent, on your Google account.",
+                "agy",
+                "Install the Antigravity CLI (agy)",
+                s.AntigravityPath,
+                path =>
+                {
+                    Apply(st => st.AntigravityPath = path, appearance: false);
+                    Nomad.Core.Antigravity.AntigravityBackend.CliPath = path;
+                },
+                () => _main.OnAgentAuthChanged(Nomad.Core.Agents.AgentBackends.Antigravity)),
+            new(
+                Nomad.Core.Agents.AgentBackends.OpenCode,
+                "OpenCode",
+                "Connect subscription providers (ChatGPT, GitHub Copilot, SuperGrok, …) or use free OpenCode Zen.",
+                "opencode",
+                "Install it with npm i -g opencode-ai",
+                s.OpenCodePath,
+                path =>
+                {
+                    Apply(st => st.OpenCodePath = path, appearance: false);
+                    Nomad.Core.OpenCode.OpenCodeServer.CliPath = path;
+                },
+                () => _main.OnAgentAuthChanged(Nomad.Core.Agents.AgentBackends.OpenCode)),
+        ];
         MainBackend = MainBackends.FirstOrDefault(b => b.Id == (s.MainBackend ?? "")) ?? MainBackends[0];
-        DisplayName = s.DisplayName ?? "";
         AutoUpdate = s.AutoUpdate;
         AutoArchive = s.AutoArchive;
         SleepIdle = s.SleepIdleSessions;
@@ -79,7 +126,8 @@ public sealed partial class SettingsViewModel : ObservableObject
         CompactModelPicker = s.CompactModelPicker;
         AutoArchiveHoursText = Math.Max(1, s.AutoArchiveHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         IncludePrereleases = s.IncludePrereleases;
-        DefaultModel = Catalog.Models.FirstOrDefault(m => m.Id == s.DefaultModel) ?? Catalog.Models[0];
+        DefaultBackend = Backends.FirstOrDefault(b => b.Id == Nomad.Core.Agents.AgentBackends.Normalize(s.DefaultBackend)) ?? Backends[0];
+        RefreshDefaultModels();
         DefaultMode = Catalog.Modes.FirstOrDefault(m => m.Id == s.DefaultPermissionMode) ?? Catalog.Modes[1];
         DefaultEffort = Catalog.Efforts.FirstOrDefault(e => e.Id == s.DefaultEffort) ?? Catalog.Efforts[0];
         RemoteControlByDefault = s.RemoteControlByDefault;
@@ -90,7 +138,6 @@ public sealed partial class SettingsViewModel : ObservableObject
         RefreshPhoneFolders();
         RefreshFolderSystemPrompts();
         main.PhoneServerChanged += OnPhoneServerChanged;
-        UpdateCliStatus();
         _loaded = true;
     }
 
@@ -101,7 +148,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The code editor's sizes on offer, in points.</summary>
     public IReadOnlyList<int> EditorFontSizes { get; } = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24];
 
-    public IReadOnlyList<ModelOption> Models => Catalog.Models;
+    public IReadOnlyList<Nomad.Core.Agents.AgentBackendInfo> Backends => Nomad.Core.Agents.AgentBackends.All;
+
+    public ObservableCollection<ModelOption> DefaultModelChoices { get; } = [];
 
     public IReadOnlyList<ModeOption> Modes => Catalog.Modes;
 
@@ -140,12 +189,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ShowPage(SettingsPageKind page) => Page = page;
 
     /// <summary>
-    /// The Hub page refreshes its device list and the Updates page loads the releases each time they are shown.
+    /// The Agents page checks each CLI's sign-in status, Hub refreshes devices, and Updates loads releases when shown.
     /// </summary>
     partial void OnPageChanged(SettingsPageKind value)
     {
+        if (value == SettingsPageKind.Agents) _ = RefreshAgentsAuthAsync();
         if (value == SettingsPageKind.Hub) _ = Hub.RefreshDevicesAsync();
         if (value == SettingsPageKind.Updates) _ = LoadReleasesAsync();
+    }
+
+    private Task? _agentsAuthTask;
+
+    /// <summary>Starts or returns the background check of every coding agent's CLI sign-in status.</summary>
+    public Task WaitForAgentsAuthAsync() => RefreshAgentsAuthAsync();
+
+    private Task RefreshAgentsAuthAsync()
+    {
+        return _agentsAuthTask ??= Task.WhenAll(AgentAccounts.Select(a => a.RefreshStatusAsync()));
     }
 
     // ------------------------------------------------------------------ General › Appearance
@@ -170,9 +230,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWidthNarrow), nameof(IsWidthMedium), nameof(IsWidthWide))]
     public partial string TranscriptWidth { get; set; }
-
-    [ObservableProperty]
-    public partial string DisplayName { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsThemeDark), nameof(IsThemeLight), nameof(IsThemeSystem))]
@@ -245,28 +302,20 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     partial void OnTranscriptWidthChanged(string value) => Apply(s => s.TranscriptWidth = value, appearance: true);
 
-    partial void OnDisplayNameChanged(string value)
-    {
-        Apply(s => s.DisplayName = string.IsNullOrWhiteSpace(value) ? null : value.Trim(), appearance: false);
-        if (_loaded)
-        {
-            _main.ApplyDisplayName();
-        }
-    }
+    // ------------------------------------------------------------------ Agents
 
-    // ------------------------------------------------------------------ Claude Code
+    /// <summary>All four coding agents with their CLI path, sign-in status, and browser subscription login.</summary>
+    public IReadOnlyList<AgentAccountViewModel> AgentAccounts { get; }
 
     [ObservableProperty]
-    public partial string CliPath { get; set; }
+    [NotifyPropertyChangedFor(nameof(DefaultModelHint))]
+    public partial Nomad.Core.Agents.AgentBackendInfo DefaultBackend { get; set; }
 
     [ObservableProperty]
-    public partial string CliStatus { get; set; } = "";
+    public partial ModelOption? DefaultModel { get; set; }
 
-    [ObservableProperty]
-    public partial bool CliFound { get; set; }
-
-    [ObservableProperty]
-    public partial ModelOption DefaultModel { get; set; }
+    public string DefaultModelHint =>
+        $"Starting model for new {DefaultBackend?.Name ?? "agent"} sessions; each session can switch from the status row.";
 
     [ObservableProperty]
     public partial ModeOption DefaultMode { get; set; }
@@ -274,14 +323,93 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial EffortOption DefaultEffort { get; set; }
 
-    partial void OnCliPathChanged(string value)
+    private bool _refreshingModels;
+
+    partial void OnDefaultBackendChanged(Nomad.Core.Agents.AgentBackendInfo value)
     {
-        Apply(s => s.CliPath = string.IsNullOrWhiteSpace(value) ? "claude" : value.Trim(), appearance: false);
-        UpdateCliStatus();
+        if (value is null)
+        {
+            return;
+        }
+
+        Apply(s => s.DefaultBackend = value.Id, appearance: false);
+        RefreshDefaultModels();
+        _ = LoadDefaultBackendCatalogIfNeededAsync(value.Id);
     }
 
-    [ObservableProperty]
-    public partial string OpenCodePath { get; set; }
+    private async Task LoadDefaultBackendCatalogIfNeededAsync(string backendId)
+    {
+        if (backendId == Nomad.Core.Agents.AgentBackends.Codex && CodexCatalog.Models.Count == 0)
+        {
+            await _main.LoadCodexCatalogAsync();
+            if (DefaultBackend?.Id == backendId) RefreshDefaultModels();
+        }
+        else if (backendId == Nomad.Core.Agents.AgentBackends.OpenCode && OpenCodeCatalog.Models.Count == 0)
+        {
+            await _main.LoadOpenCodeCatalogAsync();
+            if (DefaultBackend?.Id == backendId) RefreshDefaultModels();
+        }
+    }
+
+    private void RefreshDefaultModels()
+    {
+        _refreshingModels = true;
+        try
+        {
+            DefaultModelChoices.Clear();
+            var backend = DefaultBackend?.Id ?? Nomad.Core.Agents.AgentBackends.ClaudeCode;
+            var s = _main.Settings;
+
+            if (backend == Nomad.Core.Agents.AgentBackends.Antigravity)
+            {
+                var models = Catalog.AvailableAntigravityModels(s.AntigravityModels);
+                foreach (var m in models) DefaultModelChoices.Add(m);
+                var current = s.AntigravityModel ?? Nomad.Core.Antigravity.AntigravityBackend.DefaultModel;
+                DefaultModel = DefaultModelChoices.FirstOrDefault(m => m.Id == current) ?? DefaultModelChoices.FirstOrDefault();
+            }
+            else if (backend == Nomad.Core.Agents.AgentBackends.Codex)
+            {
+                DefaultModelChoices.Add(new("", "Codex default", 0));
+                foreach (var m in CodexCatalog.Models)
+                {
+                    DefaultModelChoices.Add(new(m.Id, m.Name, 0));
+                }
+
+                var current = s.CodexModel ?? "";
+                if (current.Length > 0 && DefaultModelChoices.All(m => m.Id != current))
+                {
+                    DefaultModelChoices.Add(new(current, Catalog.ModelName(current), 0));
+                }
+
+                DefaultModel = DefaultModelChoices.FirstOrDefault(m => m.Id == current) ?? DefaultModelChoices[0];
+            }
+            else if (backend == Nomad.Core.Agents.AgentBackends.OpenCode)
+            {
+                DefaultModelChoices.Add(new("", "OpenCode default", 0));
+                foreach (var m in OpenCodeCatalog.Models)
+                {
+                    DefaultModelChoices.Add(new(m.Id, $"{m.Name} ({m.ProviderName})", 0));
+                }
+
+                var current = s.OpenCodeModel ?? "";
+                if (current.Length > 0 && DefaultModelChoices.All(m => m.Id != current))
+                {
+                    DefaultModelChoices.Add(new(current, Catalog.ModelName(current), 0));
+                }
+
+                DefaultModel = DefaultModelChoices.FirstOrDefault(m => m.Id == current) ?? DefaultModelChoices[0];
+            }
+            else
+            {
+                foreach (var m in Catalog.Models) DefaultModelChoices.Add(m);
+                DefaultModel = DefaultModelChoices.FirstOrDefault(m => m.Id == s.DefaultModel) ?? DefaultModelChoices.FirstOrDefault();
+            }
+        }
+        finally
+        {
+            _refreshingModels = false;
+        }
+    }
 
     /// <summary>"None" (every row shows its agent's logo), then each agent.</summary>
     public IReadOnlyList<Nomad.Core.Agents.AgentBackendInfo> MainBackends { get; } =
@@ -297,42 +425,33 @@ public sealed partial class SettingsViewModel : ObservableObject
         _main.ApplyMainBackend();
     }
 
-    [ObservableProperty]
-    public partial string OpenCodeStatus { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool OpenCodeFound { get; set; }
-
-    partial void OnOpenCodePathChanged(string value)
+    partial void OnDefaultModelChanged(ModelOption? value)
     {
-        var path = string.IsNullOrWhiteSpace(value) ? "opencode" : value.Trim();
-        Apply(s => s.OpenCodePath = path, appearance: false);
-        Nomad.Core.OpenCode.OpenCodeServer.CliPath = path;
-        var resolved = Nomad.Core.OpenCode.OpenCodeServer.ResolveExecutable(path);
-        OpenCodeFound = resolved is not null;
-        OpenCodeStatus = resolved is not null ? "Found: " + resolved : "Not found. Install it with npm i -g opencode-ai";
+        if (_refreshingModels || value is null)
+        {
+            return;
+        }
+
+        var backend = DefaultBackend?.Id ?? Nomad.Core.Agents.AgentBackends.ClaudeCode;
+        Apply(s =>
+        {
+            switch (backend)
+            {
+                case Nomad.Core.Agents.AgentBackends.Antigravity:
+                    s.AntigravityModel = value.Id;
+                    break;
+                case Nomad.Core.Agents.AgentBackends.Codex:
+                    s.CodexModel = string.IsNullOrEmpty(value.Id) ? null : value.Id;
+                    break;
+                case Nomad.Core.Agents.AgentBackends.OpenCode:
+                    s.OpenCodeModel = string.IsNullOrEmpty(value.Id) ? null : value.Id;
+                    break;
+                default:
+                    s.DefaultModel = value.Id;
+                    break;
+            }
+        }, appearance: false);
     }
-
-    [ObservableProperty]
-    public partial string CodexPath { get; set; }
-
-    [ObservableProperty]
-    public partial string CodexStatus { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool CodexFound { get; set; }
-
-    partial void OnCodexPathChanged(string value)
-    {
-        var path = string.IsNullOrWhiteSpace(value) ? "codex" : value.Trim();
-        Apply(s => s.CodexPath = path, appearance: false);
-        Nomad.Core.Codex.CodexServer.CliPath = path;
-        var resolved = Nomad.Core.Codex.CodexServer.ResolveExecutable(path);
-        CodexFound = resolved is not null;
-        CodexStatus = resolved is not null ? "Found: " + resolved : "Not found. Install it with npm i -g @openai/codex";
-    }
-
-    partial void OnDefaultModelChanged(ModelOption value) => Apply(s => s.DefaultModel = value.Id, appearance: false);
 
     partial void OnDefaultModeChanged(ModeOption value)
     {
@@ -346,11 +465,14 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnDefaultEffortChanged(EffortOption value) => Apply(
         s =>
         {
-            // Choosing it here also replaces the effort Opus 5.5 last had in a session.
+            // Choosing a new default effort clears the current default model's saved override so it takes effect right away.
             s.DefaultEffort = value.Id;
-            foreach (var key in s.EffortByModel.Keys.Where(k => k.StartsWith("claude-opus-5-5", StringComparison.Ordinal)).ToList())
+            if (DefaultModel is { Id.Length: > 0 } current)
             {
-                s.EffortByModel.Remove(key);
+                foreach (var key in s.EffortByModel.Keys.Where(k => string.Equals(k, current.Id, StringComparison.OrdinalIgnoreCase)).ToList())
+                {
+                    s.EffortByModel.Remove(key);
+                }
             }
         },
         appearance: false);
@@ -643,14 +765,12 @@ public sealed partial class SettingsViewModel : ObservableObject
     public void Detach()
     {
         _main.PhoneServerChanged -= OnPhoneServerChanged;
-        FlushThemeSave();
-    }
+        foreach (var agent in AgentAccounts)
+        {
+            agent.Detach();
+        }
 
-    private void UpdateCliStatus()
-    {
-        var resolved = CliLocator.Resolve(string.IsNullOrWhiteSpace(CliPath) ? "claude" : CliPath.Trim());
-        CliFound = resolved is not null;
-        CliStatus = resolved is not null ? "Found: " + resolved : "Not found on PATH or at that location";
+        FlushThemeSave();
     }
 
     // ------------------------------------------------------------------ Sessions
