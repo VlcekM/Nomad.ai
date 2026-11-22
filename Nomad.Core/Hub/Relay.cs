@@ -404,6 +404,12 @@ public sealed class RelayPublisher : IAsyncDisposable
     /// <summary>Marks where a turn ended in the queue: the hub's buffer is emptied there.</summary>
     private const string TurnEnd = "\0turn-end";
 
+    /// <summary>
+    /// A prompt sent into the running turn (no new turn starts, so <see cref="TurnStartedEvent"/> doesn't carry it): viewers see
+    /// it as they see any other, under <paramref name="from"/> or this PC's name.
+    /// </summary>
+    public void PublishPrompt(string text, string uuid, string? from = null) => Publish(new RelayPromptEvent(text, uuid, from ?? _hostName));
+
     /// <summary>The next prompt the session sends is one a viewer relayed: it goes out with the viewer's uuid and name.</summary>
     public void ExpectPrompt(string uuid, string from) => _expected = (uuid, from);
 

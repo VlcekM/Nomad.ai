@@ -134,6 +134,19 @@ public sealed partial class SessionViewModel
         {
             switch (input.Kind)
             {
+                // Into the turn running here, as one typed here would go (Claude Code takes it in at its next step).
+                case RelayInput.Prompt when input.Text is { } text && CanSteer && !text.TrimStart().StartsWith('/') && backend is ClaudeCodeBackend claude:
+                    var steeredUuid = input.Uuid ?? Guid.NewGuid().ToString();
+                    var (shown, files) = AttachedFiles.Split(text);
+                    var steered = new UserMessageItem(shown, null, DateTime.UtcNow, seen: false) { Files = files, FromDevice = from, IsSteered = true };
+                    CloseGroup();
+                    Items.Add(steered);
+                    _steered[steeredUuid] = steered;
+                    ContentChanged?.Invoke();
+                    await claude.SteerAsync(text, input.Images, steeredUuid);
+                    _relay?.PublishPrompt(text, steeredUuid, from);
+                    break;
+
                 case RelayInput.Prompt when input.Text is { } text:
                     var uuid = input.Uuid ?? Guid.NewGuid().ToString();
                     ShowRelayedPrompt(new RelayPromptEvent(text, uuid, from));

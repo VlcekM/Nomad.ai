@@ -38,6 +38,9 @@ public sealed record TurnResumedEvent : AgentEvent;
 /// <summary>A prompt typed elsewhere (Remote Control on claude.ai or the phone); a turn is now running.</summary>
 public sealed record RemotePromptEvent(string Text, string? Uuid) : AgentEvent;
 
+/// <summary>The CLI took in a prompt this app sent (its replayed copy came back), by the uuid it was sent with.</summary>
+public sealed record PromptTakenEvent(string Uuid) : AgentEvent;
+
 /// <summary>A background task (a subagent, a background command) ended: completed | failed | killed.</summary>
 public sealed record TaskNotificationEvent(string? TaskId, string? ToolUseId, string? Status, string? Summary) : AgentEvent;
 

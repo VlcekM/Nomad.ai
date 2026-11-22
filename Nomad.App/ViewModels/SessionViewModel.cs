@@ -2047,11 +2047,18 @@ public sealed partial class SessionViewModel : ObservableObject
     private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer
         && !_stopRequested && !_movingFolder && _pendingFolderMove is null;
 
+    /// <summary>Whether Enter steers or queues changed (a Stop, a folder move): the hint and the Send tooltip say it again.</summary>
+    private void RefreshSteerHints()
+    {
+        OnPropertyChanged(nameof(ComposerPlaceholder));
+        OnPropertyChanged(nameof(SendToolTip));
+    }
+
     /// <summary>Set while Ctrl+Enter queues a prompt, which is then sent with the queue (Claude stopped) rather than steered in.</summary>
     private bool _queueOnly;
 
-    /// <summary>Prompts sent into the running turn: taken in by the time it ends, so they show as seen then.</summary>
-    private readonly List<UserMessageItem> _steered = [];
+    /// <summary>Prompts sent into the running turn, by the uuid they went with: seen once the CLI says it took each in.</summary>
+    private readonly Dictionary<string, UserMessageItem> _steered = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
@@ -2878,12 +2885,15 @@ public sealed partial class SessionViewModel : ObservableObject
             IsSteered = true,
         };
         Items.Add(message);
-        _steered.Add(message);
         ContentChanged?.Invoke();
         _main.OnSessionActivity(this);
         try
         {
-            await ((ClaudeCodeBackend)_backend!).SteerAsync(AttachedFiles.AddTo(text, files.Select(f => f.Path!)), images.Select(i => i.Image!).ToList());
+            var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
+            var uuid = Guid.NewGuid().ToString();
+            _steered[uuid] = message;
+            await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
+            _relay?.PublishPrompt(sent, uuid);
         }
         catch (Exception ex)
         {
@@ -3002,6 +3012,7 @@ public sealed partial class SessionViewModel : ObservableObject
     {
         _stopRequested = true;
         _pendingFolderMove = null;
+        RefreshSteerHints();
         if (_movingFolder)
         {
             _cancelFolderMove = true;
@@ -3832,6 +3843,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             _stopRequested = true;
             _pendingFolderMove = null;
+            RefreshSteerHints();
             _cancelFolderMove = _movingFolder;
         }
 
@@ -4010,6 +4022,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case TurnStartedEvent:
                 _stopRequested = false;
+                RefreshSteerHints();
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
@@ -4017,6 +4030,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case TurnResumedEvent:
                 _stopRequested = false;
+                RefreshSteerHints();
                 IsTurnRunning = true;
                 State = AgentState.Running;
                 _turnToolCount = 0;
@@ -4025,6 +4039,10 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case RelayPromptEvent relayed:
                 ShowRelayedPrompt(relayed);
+                break;
+
+            case PromptTakenEvent taken when _steered.Remove(taken.Uuid, out var steered):
+                steered.IsSeen = true;
                 break;
 
             case RelayAnsweredEvent answered:
@@ -4234,6 +4252,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case FolderMoveApprovedEvent move when !_stopRequested:
                 _pendingFolderMove = move.Path;
+                RefreshSteerHints();
                 break;
 
             case PermissionCancelledEvent pc:
@@ -4568,12 +4587,6 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
-        foreach (var steered in _steered)
-        {
-            steered.IsSeen = true;
-        }
-
-        _steered.Clear();
         foreach (var task in _backgroundTaskById.Values.Where(task => task.IsForeground && task.IsRunning).ToList())
             task.Finish(result.IsError, null, stopped: result.Interrupted);
 
@@ -4677,6 +4690,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private async Task ContinueInFolderAsync(string destination)
     {
         _movingFolder = true;
+        RefreshSteerHints();
         _cancelFolderMove = false;
         IsTurnRunning = true; // Prompts typed during the move join the queue.
         State = AgentState.Running;
@@ -4736,6 +4750,7 @@ public sealed partial class SessionViewModel : ObservableObject
         finally
         {
             _movingFolder = false;
+            RefreshSteerHints();
             if (_cancelFolderMove)
             {
                 IsTurnRunning = false;

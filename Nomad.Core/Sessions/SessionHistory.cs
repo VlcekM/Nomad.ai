@@ -144,7 +144,7 @@ public sealed class SessionHistory
             else if (items[i] is HistoryToolResult { IsError: false } result && calls.Contains(result.ToolUseId))
             {
                 var next = i + 1;
-                while (next < items.Count && items[next] is not HistoryUserMessage)
+                while (next < items.Count && items[next] is not HistoryUserMessage { IsQueued: false })
                 {
                     next++;
                 }
@@ -210,7 +210,7 @@ public sealed class SessionHistory
                 items.Add(new HistoryNotice(summary));
                 return;
             case "attachment" when QueuedPrompt(record.Attachment) is { } queued:
-                items.Add(queued);
+                items.Add(queued with { TimestampUtc = DateTime.TryParse(record.Timestamp, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var queuedAt) ? queuedAt : null });
                 return;
             case "attachment" when WorktreeMove(record.Attachment) is { } move:
                 items.Add(new HistoryNotice(move));
@@ -231,31 +231,46 @@ public sealed class SessionHistory
     }
 
     /// <summary>
-    /// A prompt sent while a turn ran, which the CLI took in mid-turn and stored as a <c>queued_command</c> attachment whose
-    /// prompt is content blocks: its text (without the reminders added to it) and images.
+    /// A prompt sent while a turn ran, which the CLI took in mid-turn and stored as a <c>queued_command</c> attachment: from
+    /// Nomad, content blocks (its text without the reminder Nomad adds, and images); typed in a terminal, plain text. A task
+    /// notification queued between turns is not a prompt (it shows as a notice).
     /// </summary>
     private static HistoryUserMessage? QueuedPrompt(JsonElement attachment)
     {
         if (attachment.ValueKind != JsonValueKind.Object || Str(attachment, "type") != "queued_command"
-            || !attachment.TryGetProperty("prompt", out var prompt) || prompt.ValueKind != JsonValueKind.Array)
+            || !attachment.TryGetProperty("prompt", out var prompt))
         {
             return null;
         }
 
         var texts = new List<string>();
         var images = new List<HistoryImage>();
-        foreach (var block in prompt.EnumerateArray())
+        if (prompt.ValueKind == JsonValueKind.String && prompt.GetString() is { } typed)
         {
-            if (Str(block, "type") == "text" && Str(block, "text") is { } text && !text.TrimStart().StartsWith('<') && !string.IsNullOrWhiteSpace(text))
+            if (TaskNotification.TryParse(typed, out _) || typed.TrimStart().StartsWith("<system-reminder>", StringComparison.Ordinal))
             {
-                texts.Add(text.Trim());
+                return null;
             }
-            else if (Str(block, "type") == "image" && block.TryGetProperty("source", out var source) && Str(source, "data") is { } data)
+
+            texts.Add(typed.Trim());
+        }
+        else if (prompt.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var block in prompt.EnumerateArray())
             {
-                images.Add(new HistoryImage(Str(source, "media_type") ?? "image/png", data));
+                if (Str(block, "type") == "text" && Str(block, "text") is { } text && !string.IsNullOrWhiteSpace(text)
+                    && !text.TrimStart().StartsWith("<system-reminder>", StringComparison.Ordinal))
+                {
+                    texts.Add(text.Trim());
+                }
+                else if (Str(block, "type") == "image" && block.TryGetProperty("source", out var source) && Str(source, "data") is { } data)
+                {
+                    images.Add(new HistoryImage(Str(source, "media_type") ?? "image/png", data));
+                }
             }
         }
 
+        texts.RemoveAll(t => t.Length == 0);
         return texts.Count == 0 && images.Count == 0 ? null : new HistoryUserMessage(string.Join("\n\n", texts)) { Images = images, IsQueued = true };
     }
 
