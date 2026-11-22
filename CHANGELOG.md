@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.7.0
+
+- Added a setting to turn off new-chat suggestions globally or for chosen folders, refreshing resumed chats' saved prompts when Nomad's appended instructions change.
+- Enabled automatic updates for Linux AppImages.
+- Reconciled Antigravity background tasks and subagents from the session's live transcript so "Waiting for ..." banners clear reliably when commands, timers, or subagents finish or are terminated.
+- Fixed Antigravity `InUse` lock detection on Linux for Nomad Hub sync.
+
 ## v2.6.0
 
 - Added browser-based subscription sign-in, live account status, and sign-out for all four coding agents (**Claude Code**, **Codex**, **Antigravity**, and **OpenCode**) under **Settings > Agents**, along with a configurable path for Antigravity.
