@@ -14,13 +14,11 @@ public abstract class IonDist
     public static IonDist? At(string resources)
     {
         var folder = Path.Combine(resources, "ion-dist");
-        if (Directory.Exists(folder))
-        {
-            return new Folder(folder);
-        }
-
+        // Packaged Claude Desktop builds can leave an index.html stub in the folder beside the full archive.
         var archive = folder + ".asar";
-        return File.Exists(archive) ? Asar.Open(archive) : null;
+        if (File.Exists(archive)) return Asar.Open(archive);
+
+        return Directory.Exists(folder) ? new Folder(folder) : null;
     }
 
     /// <summary>The files under <paramref name="directory"/> ending in <paramref name="extension"/>, with their sizes.</summary>
