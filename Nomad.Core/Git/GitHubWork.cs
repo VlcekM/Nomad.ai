@@ -9,6 +9,17 @@ namespace Nomad.Core.Git;
 public enum WorkKind { PullRequest, Issue }
 
 /// <summary>
+/// An issue or pull request assignee and their GitHub avatar.
+/// </summary>
+public sealed record WorkAssignee(string Login, string AvatarUrl)
+{
+    /// <summary>
+    /// The letter shown while the avatar is unavailable.
+    /// </summary>
+    public string Initial => Login.Length == 0 ? "" : char.ToUpperInvariant(Login[0]).ToString();
+}
+
+/// <summary>
 /// An open pull request or issue on GitHub, as the pull requests and issues page lists it.
 /// </summary>
 /// <param name="Branch">A pull request's head branch; empty for an issue.</param>
@@ -23,7 +34,9 @@ public sealed record WorkItem(
     IReadOnlyList<string> Labels,
     bool IsDraft = false,
     string Branch = "",
-    string ReviewDecision = "");
+    string ReviewDecision = "",
+    int CommentCount = 0,
+    IReadOnlyList<WorkAssignee>? Assignees = null);
 
 /// <summary>
 /// A repository's open pull requests and issues, read in <see cref="Folder"/> (the first local checkout of it).
@@ -37,7 +50,7 @@ public sealed record RepoWork(string NameWithOwner, string Folder, IReadOnlyList
 }
 
 /// <summary>
-/// The open pull requests and issues of a repository, read with <c>gh pr list</c> and <c>gh issue list</c> (the user's own
+/// The open pull requests and issues of a repository, read with <c>gh</c> (the user's own
 /// GitHub sign-in) and cached for a minute. Best effort: no gh, not signed in or not a GitHub repository gives null.
 /// </summary>
 public static class GitHubWork
@@ -60,9 +73,32 @@ public static class GitHubWork
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// How many open pull requests and issues are listed per repository.
+    /// The newest 50 open items of each kind, with comment totals and small assignee avatars.
     /// </summary>
-    private const string Limit = "50";
+    private const string WorkQuery = """
+        query($owner: String!, $name: String!) {
+          repository(owner: $owner, name: $name) {
+            nameWithOwner
+            pullRequests(first: 50, states: OPEN, orderBy: {field: CREATED_AT, direction: DESC}) {
+              nodes { ...PullRequestRow }
+            }
+            issues(first: 50, states: OPEN, orderBy: {field: CREATED_AT, direction: DESC}) {
+              nodes { ...IssueRow }
+            }
+          }
+        }
+        fragment PullRequestRow on PullRequest {
+          number title url author { login } updatedAt labels(first: 100) { nodes { name } }
+          isDraft headRefName reviewDecision
+          comments { totalCount }
+          assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
+        }
+        fragment IssueRow on Issue {
+          number title url author { login } updatedAt labels(first: 100) { nodes { name } }
+          comments { totalCount }
+          assignees(first: 10) { nodes { login avatarUrl(size: 48) } }
+        }
+        """;
 
     /// <summary>
     /// The latest read per repository folder.
@@ -75,7 +111,7 @@ public static class GitHubWork
     /// </summary>
     public static Task<RepoWork?> GetAsync(string folder, bool refresh = false)
     {
-        var key = (GitInfo.WorktreeOwner(folder) ?? folder).TrimEnd('\\', '/');
+        var key = CacheKey(folder);
         lock (Cache)
         {
             if (Cache.TryGetValue(key, out var hit) && (!hit.Task.IsCompleted || (!refresh && IsFresh(hit.At, hit.Task))))
@@ -90,6 +126,11 @@ public static class GitHubWork
     }
 
     /// <summary>
+    /// Shares a cached result with worktrees of the same checkout.
+    /// </summary>
+    private static string CacheKey(string folder) => (GitInfo.WorktreeOwner(folder) ?? folder).TrimEnd('\\', '/');
+
+    /// <summary>
     /// A finished read young enough to give again (a failure stays longer).
     /// </summary>
     private static bool IsFresh(DateTime at, Task<RepoWork?> task)
@@ -99,29 +140,54 @@ public static class GitHubWork
     }
 
     /// <summary>
-    /// Asks gh for the repository's name and its open pull requests and issues, all at once.
+    /// Resolves the checkout with gh and reads the open work from the same GitHub host.
     /// </summary>
     private static async Task<RepoWork?> ReadAsync(string folder)
     {
         if (!Directory.Exists(folder)) return null;
 
-        var repo = Gh(folder, "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner");
-        var prs = Gh(folder, "pr", "list", "--state", "open", "--limit", Limit, "--json",
-            "number,title,url,author,updatedAt,labels,isDraft,headRefName,reviewDecision");
-        var issues = Gh(folder, "issue", "list", "--state", "open", "--limit", Limit, "--json", "number,title,url,author,updatedAt,labels");
-        var name = (await repo)?.Trim();
-        var prText = await prs;
-        var issueText = await issues;
-        if (string.IsNullOrEmpty(name) || (prText is null && issueText is null)) return null;
+        var repo = await Gh(folder, "repo", "view", "--json", "nameWithOwner,url");
+        if (repo is null) return null;
 
         try
         {
-            return new RepoWork(name, folder, Parse(prText ?? "[]", WorkKind.PullRequest), Parse(issueText ?? "[]", WorkKind.Issue));
+            using var identity = JsonDocument.Parse(repo);
+            var name = Str(identity.RootElement, "nameWithOwner");
+            if (name.Split('/') is not [var owner, var repository]) return null;
+            if (!Uri.TryCreate(Str(identity.RootElement, "url"), UriKind.Absolute, out var url)) return null;
+
+            var json = await Gh(folder, "api", "graphql", "--hostname", url.Host,
+                "-f", $"query={WorkQuery}", "-f", $"owner={owner}", "-f", $"name={repository}");
+            if (json is null) return null;
+
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object) return null;
+            if (!data.TryGetProperty("repository", out var work) || work.ValueKind != JsonValueKind.Object) return null;
+
+            return new RepoWork(Str(work, "nameWithOwner"), folder,
+                ParseItems(Nodes(work, "pullRequests"), WorkKind.PullRequest), ParseItems(Nodes(work, "issues"), WorkKind.Issue));
         }
         catch (JsonException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Adds the signed-in GitHub user to the issue's assignees and returns any error to display.
+    /// </summary>
+    public static async Task<string?> AssignToSelfAsync(string folder, string issueUrl)
+    {
+        var (ok, _, error) = await GitInfo.RunToolAsync("gh", ["issue", "edit", issueUrl, "--add-assignee", "@me"], folder, Timeout);
+        if (!ok) return string.IsNullOrWhiteSpace(error) ? "GitHub CLI could not update the assignees." : error.Trim();
+
+        var key = CacheKey(folder);
+        lock (Cache)
+        {
+            Cache.Remove(key);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -143,14 +209,14 @@ public static class GitHubWork
     public static IReadOnlyList<WorkItem> Parse(string json, WorkKind kind)
     {
         using var doc = JsonDocument.Parse(json);
-        var list = new List<WorkItem>();
-        foreach (var e in doc.RootElement.EnumerateArray())
-        {
-            list.Add(ParseItem(e, kind));
-        }
-
-        return [.. list.OrderByDescending(i => i.Updated)];
+        return ParseItems(doc.RootElement.EnumerateArray(), kind);
     }
+
+    /// <summary>
+    /// Parses rows in most recently updated order.
+    /// </summary>
+    private static IReadOnlyList<WorkItem> ParseItems(IEnumerable<JsonElement> items, WorkKind kind) =>
+        [.. items.Select(e => ParseItem(e, kind)).OrderByDescending(i => i.Updated)];
 
     /// <summary>
     /// One element of gh's list.
@@ -163,18 +229,24 @@ public static class GitHubWork
             : DateTimeOffset.MinValue;
         var draft = e.TryGetProperty("isDraft", out var d) && d.ValueKind == JsonValueKind.True;
 
-        return new WorkItem(kind, Int(e, "number"), Str(e, "title"), Str(e, "url"), author, updated, Labels(e), draft,
-            Str(e, "headRefName"), Str(e, "reviewDecision"));
+        var comments = e.TryGetProperty("comments", out var c) && c.ValueKind == JsonValueKind.Object ? Int(c, "totalCount") : 0;
+        var labels = Nodes(e, "labels").Select(l => Str(l, "name")).Where(n => n.Length > 0).ToArray();
+        var assignees = Nodes(e, "assignees").Select(a => new WorkAssignee(Str(a, "login"), Str(a, "avatarUrl")))
+            .Where(a => a.Login.Length > 0).ToArray();
+
+        return new WorkItem(kind, Int(e, "number"), Str(e, "title"), Str(e, "url"), author, updated, labels, draft,
+            Str(e, "headRefName"), Str(e, "reviewDecision"), comments, assignees);
     }
 
     /// <summary>
-    /// The names of an item's labels.
+    /// The entries of a GraphQL connection or a flat gh CLI array.
     /// </summary>
-    private static IReadOnlyList<string> Labels(JsonElement e)
+    private static IEnumerable<JsonElement> Nodes(JsonElement item, string name)
     {
-        if (!e.TryGetProperty("labels", out var labels) || labels.ValueKind != JsonValueKind.Array) return [];
+        if (!item.TryGetProperty(name, out var nodes)) return [];
+        if (nodes.ValueKind == JsonValueKind.Object && !nodes.TryGetProperty("nodes", out nodes)) return [];
 
-        return [.. labels.EnumerateArray().Select(l => Str(l, "name")).Where(n => n.Length > 0)];
+        return nodes.ValueKind == JsonValueKind.Array ? nodes.EnumerateArray() : [];
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.App.ViewModels"
              xmlns:c="using:Nomad.App.Controls"
+             xmlns:git="using:Nomad.Core.Git"
              x:Class="Nomad.App.Views.WorkPageView"
              x:DataType="vm:WorkPageViewModel">
 
@@ -141,6 +142,36 @@
                   </Style>
                 </TextBlock.Styles>
               </TextBlock>
+              <StackPanel Orientation="Horizontal" Spacing="3" c:Crossfade.IsShown="{Binding HasComments}" VerticalAlignment="Center"
+                          ToolTip.Tip="Comments" AutomationProperties.Name="Comments">
+                <c:Icon Size="13" Data="{StaticResource IconChat}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding CommentCount}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" VerticalAlignment="Center" />
+              </StackPanel>
+              <ItemsControl ItemsSource="{Binding Assignees}" IsVisible="{Binding HasAssignees}" VerticalAlignment="Center">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="3" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="git:WorkAssignee">
+                    <Panel Width="16" Height="16" ToolTip.Tip="{Binding Login}" AutomationProperties.Name="{Binding Login}">
+                      <Ellipse Fill="{DynamicResource BgChipBrush}" />
+                      <TextBlock Text="{Binding Initial}" Classes="muted" FontSize="10" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                      <c:AssigneeAvatar Url="{Binding AvatarUrl}" Stretch="UniformToFill" Opacity="0">
+                        <c:AssigneeAvatar.Clip>
+                          <EllipseGeometry Rect="0,0,16,16" />
+                        </c:AssigneeAvatar.Clip>
+                        <c:AssigneeAvatar.Transitions>
+                          <Transitions>
+                            <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+                          </Transitions>
+                        </c:AssigneeAvatar.Transitions>
+                      </c:AssigneeAvatar>
+                    </Panel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <ItemsControl ItemsSource="{Binding Labels}" IsVisible="{Binding HasLabels}" VerticalAlignment="Center">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate>
@@ -206,7 +237,7 @@
     <StackPanel Margin="24,20,24,28" Spacing="14" MaxWidth="{DynamicResource ColumnMaxWidth}">
 
       <!-- The header: which agent and model the buttons start sessions on, how to start in a worktree, and refresh. -->
-      <Grid ColumnDefinitions="*,Auto,Auto">
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="4">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="{Binding AgentText}" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
           <ItemsControl ItemsSource="{Binding Models}" VerticalAlignment="Center">
@@ -225,12 +256,17 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,0,10,0" VerticalAlignment="Center">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="Sort by" Classes="muted" FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
+          <ComboBox ItemsSource="{Binding SortOptions}" SelectedIndex="{Binding SortIndex, Mode=TwoWay}"
+                    SelectionChanged="OnSortChanged" AutomationProperties.Name="Sort issues and pull requests" FontSize="{DynamicResource UiFontSizeSmall}" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
           <c:Icon Size="12" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
           <TextBlock Classes="muted hint" Classes.on="{Binding IsCtrlHeld}" Text="{Binding WorktreeHint}"
                      FontSize="{DynamicResource UiFontSizeSmall}" VerticalAlignment="Center" />
         </StackPanel>
-        <Button Grid.Column="2" Theme="{StaticResource IconButton}" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh from GitHub">
+        <Button Grid.Column="1" HorizontalAlignment="Right" Theme="{StaticResource IconButton}" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh from GitHub">
           <Panel>
             <c:Ring Width="14" Height="14" StrokeWidth="1.5" IsSpinning="{Binding IsLoading}" IsVisible="{Binding IsLoading}"
                     TrackBrush="{DynamicResource RingTrackBrush}" SpinBrush="{DynamicResource TextMutedBrush}" />
@@ -246,7 +282,7 @@
       <TextBlock Text="No project here is a GitHub repository gh can read. Sign in with gh auth login, or open a project first."
                  IsVisible="{Binding ShowNothing}" Classes="muted" TextWrapping="Wrap" />
 
-      <ItemsControl ItemsSource="{Binding Groups}" ContainerPrepared="OnContainerPrepared">
+      <ItemsControl x:Name="WorkGroups" ItemsSource="{Binding Groups}" ContainerPrepared="OnContainerPrepared">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Spacing="12" />

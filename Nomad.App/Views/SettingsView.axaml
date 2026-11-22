@@ -331,6 +331,21 @@
                 </Button>
               </Grid>
 
+              <TextBlock Text="Pull requests &amp; issues" Classes="pagetitle" Margin="0,40,0,10" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Assign issues to me when I click Fix" Classes="rowlabel" />
+                  <TextBlock Text="Adds your signed-in GitHub account as an assignee when Fix starts a session." Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1" Theme="{StaticResource FlatButton}" Padding="6" VerticalAlignment="Center"
+                        AutomationProperties.Name="Assign issues to me when I click Fix" Command="{Binding ToggleAutoAssignIssuesOnFixCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding AutoAssignIssuesOnFix}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+
               <TextBlock Text="Sessions" Classes="pagetitle" Margin="0,40,0,10" />
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">

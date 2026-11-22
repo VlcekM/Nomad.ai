@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Git;
+using Nomad.Core.Settings;
 
 namespace Nomad.App.ViewModels;
 
@@ -27,6 +28,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         _main = main;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _timer.Tick += (_, _) => _ = LoadAsync(refresh: false);
+        SortIndex = Enum.IsDefined(main.Settings.WorkPageSortOrder) ? (int)main.Settings.WorkPageSortOrder : 0;
     }
 
     #region Loading
@@ -188,7 +190,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         var group = Groups.FirstOrDefault(g => string.Equals(g.NameWithOwner, repo.NameWithOwner, StringComparison.OrdinalIgnoreCase))
             ?? new WorkGroupViewModel(repo.NameWithOwner, repo.Folder);
         group.IsPinned = IsPinned(repo);
-        group.Update(repo);
+        group.Update(repo, _main.Settings.WorkPageSortOrder);
         return group;
     }
 
@@ -224,14 +226,46 @@ public sealed partial class WorkPageViewModel : ObservableObject
 
         yield return new RepoWork("sample/Demo.App", Path.GetTempPath(),
         [
-            Pr(42, "Add a dark theme to the settings page", "ann", 2, ["enhancement", "ui"], review: "APPROVED"),
+            Pr(42, "Add a dark theme to the settings page", "ann", 2, ["enhancement", "ui"], review: "APPROVED") with { CommentCount = 2 },
             Pr(41, "Rewrite the sync engine", "bob", 26, [], draft: true),
             Pr(39, "Fix a crash when the project folder is removed", "cyril", 75, ["bug"], review: "CHANGES_REQUESTED"),
         ],
         [
-            Issue(40, "Sign-in loops forever on Safari", "dana", 5, ["bug"]),
+            Issue(40, "Sign-in loops forever on Safari", "dana", 5, ["bug"]) with
+            {
+                CommentCount = 12,
+                Assignees = [new("octocat", "https://github.com/octocat.png?size=48")],
+            },
             Issue(37, "Export the report as CSV", "ann", 200, ["enhancement"]),
         ]);
+    }
+
+    #endregion
+
+    #region Sorting
+
+    /// <summary>
+    /// The order choices, in <see cref="WorkSortOrder"/> order.
+    /// </summary>
+    public IReadOnlyList<string> SortOptions { get; } = ["Recently updated", "Number: high to low", "Number: low to high"];
+
+    /// <summary>
+    /// The selected order in the sort picker.
+    /// </summary>
+    [ObservableProperty]
+    public partial int SortIndex { get; set; }
+
+    /// <summary>
+    /// Saves the order and rearranges the existing rows.
+    /// </summary>
+    partial void OnSortIndexChanged(int value)
+    {
+        var order = (WorkSortOrder)value;
+        if (!Enum.IsDefined(order) || _main.Settings.WorkPageSortOrder == order) return;
+
+        _main.Settings.WorkPageSortOrder = order;
+        _main.SaveSettings();
+        Apply();
     }
 
     #endregion
@@ -365,9 +399,10 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// <summary>
     /// Fixes an issue, in the project's checkout (Ctrl+click: a new worktree).
     /// </summary>
-    [RelayCommand]
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private Task FixAsync(WorkRowViewModel row) =>
-        StartAsync(row, $"Fix this issue: {row.Url}", $"Fix Issue {row.NumberText}", worktree: CtrlClick);
+        StartAsync(row, $"Fix this issue: {row.Url}", $"Fix Issue {row.NumberText}",
+            worktree: CtrlClick, assign: _main.Settings.AutoAssignIssuesOnFix);
 
     /// <summary>
     /// Reviews a pull request, in the project's checkout (Ctrl+click: a new worktree, the checkout left alone).
@@ -418,7 +453,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
     /// <summary>
     /// Starts the session in the background; why it couldn't (git failed to make the worktree) shows under the row.
     /// </summary>
-    private async Task StartAsync(WorkRowViewModel row, string prompt, string title, bool worktree)
+    private async Task StartAsync(WorkRowViewModel row, string prompt, string title, bool worktree, bool assign = false)
     {
         if (row.HasSession || Groups.FirstOrDefault(g => g.PullRequests.Contains(row) || g.Issues.Contains(row)) is not { } group) return;
 
@@ -431,6 +466,7 @@ public sealed partial class WorkPageViewModel : ObservableObject
         catch (Exception ex)
         {
             row.Error = ex.Message;
+            return;
         }
         finally
         {
@@ -438,6 +474,22 @@ public sealed partial class WorkPageViewModel : ObservableObject
         }
 
         Link(row);
+        if (assign) await AssignIssueAsync(row, group.Folder);
+    }
+
+    /// <summary>
+    /// Claims the issue for the signed-in user and refreshes its assignees.
+    /// </summary>
+    private async Task AssignIssueAsync(WorkRowViewModel row, string folder)
+    {
+        var error = await GitHubWork.AssignToSelfAsync(folder, row.Url);
+        if (error is not null)
+        {
+            row.Error = $"Could not assign issue {row.NumberText} to you. {error}";
+            return;
+        }
+
+        await LoadAsync(refresh: false);
     }
 
     /// <summary>

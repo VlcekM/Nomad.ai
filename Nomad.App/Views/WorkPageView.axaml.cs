@@ -28,6 +28,14 @@ public partial class WorkPageView : UserControl
     }
 
     /// <summary>
+    /// Eases the reordered list into place while keeping it interactive.
+    /// </summary>
+    private void OnSortChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is ViewModels.WorkPageViewModel { HasGroups: true }) Glide.Play(WorkGroups, new Avalonia.Vector(0, 5), 180);
+    }
+
+    /// <summary>
     /// A repository's card or a row that comes in fades in and rises into place.
     /// </summary>
     private void OnContainerPrepared(object? sender, ContainerPreparedEventArgs e) => Entrance.Play(e.Container);

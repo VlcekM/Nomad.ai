@@ -116,6 +116,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         SleepIdle = s.SleepIdleSessions;
         SleepAfterHoursText = Math.Clamp(s.SleepAfterHours, 1, NomadSettings.MaxSleepAfterHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
         CloseToTray = s.CloseToTray;
+        AutoAssignIssuesOnFix = s.AutoAssignIssuesOnFix;
         NotifyWhenDone = s.NotifyWhenDone;
         FlashTaskbar = s.FlashTaskbar;
         ShowUsageRing = s.ShowUsageRing;
@@ -568,6 +569,23 @@ public sealed partial class SettingsViewModel : ObservableObject
             _main.OnCloseToTrayChanged();
         }
     }
+
+    /// <summary>
+    /// Whether the Fix button assigns the issue to the signed-in GitHub user.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool AutoAssignIssuesOnFix { get; set; }
+
+    /// <summary>
+    /// Switches automatic assignment on or off.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleAutoAssignIssuesOnFix() => AutoAssignIssuesOnFix = !AutoAssignIssuesOnFix;
+
+    /// <summary>
+    /// Persists the new automatic assignment preference.
+    /// </summary>
+    partial void OnAutoAssignIssuesOnFixChanged(bool value) => Apply(s => s.AutoAssignIssuesOnFix = value, appearance: false);
 
     [ObservableProperty]
     public partial bool NotifyWhenDone { get; set; }

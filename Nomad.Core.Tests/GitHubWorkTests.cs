@@ -32,6 +32,38 @@ public class GitHubWorkTests
 
         Assert.Equal((2, "Crash", "", false, ""), (item.Number, item.Title, item.Author, item.IsDraft, item.Branch));
         Assert.Empty(item.Labels);
+        Assert.Equal(0, item.CommentCount);
+        Assert.Empty(item.Assignees!);
+    }
+
+    /// <summary>
+    /// Work rows show GitHub's total and all returned avatars for either kind of item.
+    /// </summary>
+    [Theory]
+    [InlineData(WorkKind.PullRequest)]
+    [InlineData(WorkKind.Issue)]
+    public void GraphQlRowsGetCommentTotalAndAssigneeAvatars(WorkKind kind)
+    {
+        const string json = """
+            [{
+              "number":42,
+              "comments":{"totalCount":102},
+              "assignees":{"nodes":[
+                {"login":"ann","avatarUrl":"https://avatars.githubusercontent.com/u/1?s=48"},
+                {"login":"bob","avatarUrl":"https://avatars.githubusercontent.com/u/2?s=48"}
+              ]},
+              "labels":{"nodes":[{"name":"bug"}]}
+            }]
+            """;
+
+        var item = Assert.Single(GitHubWork.Parse(json, kind));
+
+        Assert.Equal(102, item.CommentCount);
+        Assert.Equal(["bug"], item.Labels);
+        Assert.Equal([
+            new WorkAssignee("ann", "https://avatars.githubusercontent.com/u/1?s=48"),
+            new WorkAssignee("bob", "https://avatars.githubusercontent.com/u/2?s=48")
+        ], item.Assignees);
     }
 
     [Fact]

@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Git;
+using Nomad.Core.Settings;
 
 namespace Nomad.App.ViewModels;
 
@@ -19,6 +20,7 @@ public sealed partial class WorkRowViewModel(WorkItem item) : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Title), nameof(MetaText), nameof(Labels), nameof(HasLabels), nameof(IsDraft), nameof(IsReadyPullRequest))]
     [NotifyPropertyChangedFor(nameof(ReviewText), nameof(HasReview), nameof(IsApproved))]
+    [NotifyPropertyChangedFor(nameof(CommentCount), nameof(HasComments))]
     public partial WorkItem Item { get; set; } = item;
 
     /// <summary>
@@ -55,6 +57,37 @@ public sealed partial class WorkRowViewModel(WorkItem item) : ObservableObject
     /// It has labels to show.
     /// </summary>
     public bool HasLabels => Item.Labels.Count > 0;
+
+    /// <summary>
+    /// The number of conversation comments on GitHub.
+    /// </summary>
+    public int CommentCount => Item.CommentCount;
+
+    /// <summary>
+    /// The row has a comment count to show.
+    /// </summary>
+    public bool HasComments => CommentCount > 0;
+
+    /// <summary>
+    /// The GitHub users assigned to the item.
+    /// </summary>
+    public IReadOnlyList<WorkAssignee> Assignees => Item.Assignees ?? [];
+
+    /// <summary>
+    /// The row has assignees to show.
+    /// </summary>
+    public bool HasAssignees => Assignees.Count > 0;
+
+    /// <summary>
+    /// Keeps the avatar controls in place when refresh returns the same assignees.
+    /// </summary>
+    partial void OnItemChanged(WorkItem oldValue, WorkItem newValue)
+    {
+        if ((oldValue.Assignees ?? []).SequenceEqual(newValue.Assignees ?? [])) return;
+
+        OnPropertyChanged(nameof(Assignees));
+        OnPropertyChanged(nameof(HasAssignees));
+    }
 
     /// <summary>
     /// A draft pull request: its icon is grey.
@@ -180,6 +213,11 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
     private static readonly TimeSpan FoldTime = TimeSpan.FromMilliseconds(220);
 
     /// <summary>
+    /// A delayed removal applies only while its update is still the latest.
+    /// </summary>
+    private int _updateVersion;
+
+    /// <summary>
     /// "VlcekM/Nomad.ai".
     /// </summary>
     public string NameWithOwner { get; } = nameWithOwner;
@@ -218,12 +256,12 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
     public string Url => $"https://github.com/{NameWithOwner}";
 
     /// <summary>
-    /// Its open pull requests, the most recently updated first.
+    /// Its open pull requests in the chosen order.
     /// </summary>
     public ObservableCollection<WorkRowViewModel> PullRequests { get; } = [];
 
     /// <summary>
-    /// Its open issues, the most recently updated first.
+    /// Its open issues in the chosen order.
     /// </summary>
     public ObservableCollection<WorkRowViewModel> Issues { get; } = [];
 
@@ -268,13 +306,14 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
     /// Takes GitHub's latest lists: rows stay for items still open (their text updated), new ones come in, and closed ones
     /// fold away first.
     /// </summary>
-    public void Update(RepoWork work)
+    public void Update(RepoWork work, WorkSortOrder order)
     {
         Folder = work.Folder;
+        var version = ++_updateVersion;
         var gone = Gone(PullRequests, work.PullRequests).Concat(Gone(Issues, work.Issues)).ToList();
         if (gone.Count == 0)
         {
-            Apply(work);
+            Apply(work, order);
             return;
         }
 
@@ -283,27 +322,52 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
             row.IsLeaving = true;
         }
 
-        DispatcherTimer.RunOnce(() => Apply(work), FoldTime);
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (version == _updateVersion) Apply(work, order);
+        }, FoldTime);
     }
 
-    private void Apply(RepoWork work)
+    /// <summary>
+    /// Updates each list in the selected order and refreshes the heading counts.
+    /// </summary>
+    private void Apply(RepoWork work, WorkSortOrder order)
     {
-        Sync(PullRequests, work.PullRequests);
-        Sync(Issues, work.Issues);
+        Sync(PullRequests, Ordered(work.PullRequests, order));
+        Sync(Issues, Ordered(work.Issues, order));
         Revision++;
         OnPropertyChanged(nameof(CountText));
     }
 
-    private static IEnumerable<WorkRowViewModel> Gone(IEnumerable<WorkRowViewModel> rows, IReadOnlyList<WorkItem> items) =>
-        rows.Where(r => !r.IsLeaving && !items.Any(i => string.Equals(i.Url, r.Url, StringComparison.OrdinalIgnoreCase)));
+    /// <summary>
+    /// Orders the items independently of their position in GitHub's response.
+    /// </summary>
+    private static IEnumerable<WorkItem> Ordered(IReadOnlyList<WorkItem> items, WorkSortOrder order) => order switch
+    {
+        WorkSortOrder.NumberAscending => items.OrderBy(i => i.Number),
+        WorkSortOrder.NumberDescending => items.OrderByDescending(i => i.Number),
+        _ => items.OrderByDescending(i => i.Updated),
+    };
 
-    private static void Sync(ObservableCollection<WorkRowViewModel> rows, IReadOnlyList<WorkItem> items)
+    /// <summary>
+    /// Rows missing from the latest response.
+    /// </summary>
+    private static IEnumerable<WorkRowViewModel> Gone(IEnumerable<WorkRowViewModel> rows, IReadOnlyList<WorkItem> items) =>
+        rows.Where(r => !items.Any(i => string.Equals(i.Url, r.Url, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>
+    /// Reuses row state when its item moves or changes.
+    /// </summary>
+    private static void Sync(ObservableCollection<WorkRowViewModel> rows, IEnumerable<WorkItem> items)
     {
         var byUrl = rows.ToDictionary(r => r.Url, StringComparer.OrdinalIgnoreCase);
         var wanted = items.Select(i => Row(byUrl, i)).ToList();
         MainViewModel.SyncList(rows, wanted);
     }
 
+    /// <summary>
+    /// Updates a matching row or creates one for a new item.
+    /// </summary>
     private static WorkRowViewModel Row(Dictionary<string, WorkRowViewModel> byUrl, WorkItem item)
     {
         if (!byUrl.TryGetValue(item.Url, out var row)) return new WorkRowViewModel(item);
@@ -313,5 +377,8 @@ public sealed partial class WorkGroupViewModel(string nameWithOwner, string fold
         return row;
     }
 
+    /// <summary>
+    /// Formats the count with its noun.
+    /// </summary>
     private static string Count(int n, string noun) => n == 1 ? $"1 {noun}" : $"{n} {noun}s";
 }

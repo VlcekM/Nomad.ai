@@ -326,6 +326,16 @@ public sealed class NomadSettings
     public string? WorkPageModel { get; set; }
 
     /// <summary>
+    /// The last ordering selected for each repository's pull requests and issues.
+    /// </summary>
+    public WorkSortOrder WorkPageSortOrder { get; set; }
+
+    /// <summary>
+    /// Adds the signed-in GitHub user to an issue when its Fix button starts a session.
+    /// </summary>
+    public bool AutoAssignIssuesOnFix { get; set; }
+
+    /// <summary>
     /// Repositories pinned on the pull requests and issues page ("VlcekM/Nomad.ai" → the checkout it was pinned from): always
     /// listed first, by name, even with nothing open.
     /// </summary>
@@ -477,3 +487,24 @@ public sealed class KnownModel
 [JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(NomadSettings))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;
+
+/// <summary>
+/// The ordering of pull requests and issues within their repository.
+/// </summary>
+public enum WorkSortOrder
+{
+    /// <summary>
+    /// Most recently updated first.
+    /// </summary>
+    RecentlyUpdated,
+
+    /// <summary>
+    /// Highest issue or pull request number first.
+    /// </summary>
+    NumberDescending,
+
+    /// <summary>
+    /// Lowest issue or pull request number first.
+    /// </summary>
+    NumberAscending,
+}
