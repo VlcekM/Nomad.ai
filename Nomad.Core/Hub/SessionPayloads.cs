@@ -340,6 +340,248 @@ public sealed class CodexFiles(string codexHome) : ISessionFiles
 }
 
 /// <summary>
+/// Antigravity keeps each chat as its own SQLite database, <c>conversations/&lt;id&gt;.db</c> (with a <c>-wal</c> beside it
+/// while the CLI has it open), plus <c>brain/&lt;id&gt;/</c> (its working notes) and <c>annotations/&lt;id&gt;.pbtxt</c> (its title in the
+/// CLI). A chat copied into another PC's home is resumed by the CLI as it is: its own index (<c>conversation_summaries.db</c>)
+/// adds the chat on first use. Nomad lists Antigravity chats from its settings, so <paramref name="sessions"/> says which
+/// chats there are, with their folders and titles.
+/// </summary>
+/// <remarks>
+/// A database is not append-only, so a copy here that differs from the hub's is never replaced by it (<see cref="MainFile"/>
+/// is the database, and no other copy is a prefix of it): two PCs that both changed a chat while offline keep their own.
+/// </remarks>
+public sealed class AntigravityFiles(string home, Func<IReadOnlyCollection<SessionSummary>> sessions) : ISessionFiles
+{
+    public const string Database = "conversation.db";
+    public const string Wal = "conversation.db-wal";
+    public const string Annotation = "annotation.pbtxt";
+    public const string Title = "title.txt";
+    private const string BrainPrefix = "brain/";
+
+    /// <summary>The CLI's data folder on this PC.</summary>
+    public static string DefaultHome =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "antigravity-cli");
+
+    public static bool HasData => Directory.Exists(Path.Combine(DefaultHome, "conversations"));
+
+    public string Backend => AgentBackends.Antigravity;
+
+    /// <summary>Chat ids are GUIDs; anything else (from the settings or the hub) never becomes a path.</summary>
+    private static bool IsId(string sessionId) => Guid.TryParse(sessionId, out _);
+
+    private string DatabaseOf(string id) => Path.Combine(home, "conversations", id + ".db");
+
+    private string BrainOf(string id) => Path.Combine(home, "brain", id);
+
+    private string AnnotationOf(string id) => Path.Combine(home, "annotations", id + ".pbtxt");
+
+    /// <summary>The chat's files as they are on disk, the database first.</summary>
+    private List<string> FilesOf(string id)
+    {
+        var files = new List<string> { DatabaseOf(id) };
+        foreach (var extra in new[] { DatabaseOf(id) + "-wal", AnnotationOf(id) })
+        {
+            if (File.Exists(extra))
+            {
+                files.Add(extra);
+            }
+        }
+
+        if (Directory.Exists(BrainOf(id)))
+        {
+            files.AddRange(Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal));
+        }
+
+        return files;
+    }
+
+    private SessionSummary? Summary(string id) => sessions().FirstOrDefault(s => s.SessionId == id);
+
+    private string StampFor(string id, string? title) => Stamps.Of(FilesOf(id)) + (title ?? "");
+
+    /// <summary>
+    /// Titles the hub brought, with the title the list had when they came. The list (Nomad's settings) takes the new title
+    /// a moment later, on the UI thread; until it changes, the hub's title stands, so the old one is never sent back as a rename.
+    /// </summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Pulled, string? ListedBefore)> _pulledTitles = new(StringComparer.Ordinal);
+
+    /// <summary>The chat's title: the list's, unless the list hasn't caught up with a title the hub brought.</summary>
+    private string? TitleOf(string id, string? listed)
+    {
+        if (!_pulledTitles.TryGetValue(id, out var pulled))
+        {
+            return listed;
+        }
+
+        if (listed == pulled.ListedBefore)
+        {
+            return pulled.Pulled;
+        }
+
+        _pulledTitles.TryRemove(id, out _); // The list caught up, or the chat was renamed here since: the list's title from now on.
+        return listed;
+    }
+
+    public IReadOnlyList<LocalSession> List(CancellationToken ct)
+    {
+        var result = new List<LocalSession>();
+        foreach (var s in sessions())
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!IsId(s.SessionId) || !File.Exists(DatabaseOf(s.SessionId)))
+            {
+                continue;
+            }
+
+            var db = DatabaseOf(s.SessionId);
+            var wal = db + "-wal";
+            var written = File.GetLastWriteTimeUtc(db);
+            if (File.Exists(wal) && File.GetLastWriteTimeUtc(wal) > written)
+            {
+                written = File.GetLastWriteTimeUtc(wal);
+            }
+
+            var title = TitleOf(s.SessionId, s.Title);
+            result.Add(new LocalSession(Backend, s.SessionId, string.IsNullOrWhiteSpace(title) ? "Antigravity chat" : title, s.WorkingDirectory,
+                null, written, StampFor(s.SessionId, title)));
+        }
+
+        return result;
+    }
+
+    public string? StampOf(string sessionId) =>
+        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? StampFor(sessionId, TitleOf(sessionId, Summary(sessionId)?.Title)) : null;
+
+    public string? MainFile(string sessionId) =>
+        IsId(sessionId) && File.Exists(DatabaseOf(sessionId)) ? DatabaseOf(sessionId) : null;
+
+    /// <summary>
+    /// Copies the database and its write-ahead log together, and keeps the copy only if neither changed while it was taken,
+    /// so the pair is one consistent state (the sync never collects a chat mid-turn, but the CLI may still be closing it).
+    /// </summary>
+    public async Task<IReadOnlyList<PayloadFile>> CollectAsync(LocalSession session, CancellationToken ct)
+    {
+        var id = session.SessionId;
+        if (!IsId(id) || !File.Exists(DatabaseOf(id)))
+        {
+            return [];
+        }
+
+        var db = DatabaseOf(id);
+        var wal = db + "-wal";
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var before = Stamps.Of([db, wal]);
+            var snapshot = new List<PayloadFile>();
+            try
+            {
+                snapshot.Add(new PayloadFile(Database, await CopyToTempAsync(db, ct).ConfigureAwait(false)));
+                if (File.Exists(wal))
+                {
+                    snapshot.Add(new PayloadFile(Wal, await CopyToTempAsync(wal, ct).ConfigureAwait(false)));
+                }
+            }
+            catch (IOException)
+            {
+                Release(snapshot);
+                return [];
+            }
+
+            if (Stamps.Of([db, wal]) != before)
+            {
+                Release(snapshot);
+                await Task.Delay(250, ct).ConfigureAwait(false);
+                continue;
+            }
+
+            if (File.Exists(AnnotationOf(id)))
+            {
+                snapshot.Add(new PayloadFile(Annotation, AnnotationOf(id)));
+            }
+
+            if (Directory.Exists(BrainOf(id)))
+            {
+                snapshot.AddRange(Directory.EnumerateFiles(BrainOf(id), "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal)
+                    .Select(f => new PayloadFile(BrainPrefix + Path.GetRelativePath(BrainOf(id), f).Replace('\\', '/'), f)));
+            }
+
+            // Nomad's title for it, so a rename alone is a change to upload.
+            if (!string.IsNullOrWhiteSpace(session.Title))
+            {
+                var title = TempPath();
+                await File.WriteAllTextAsync(title, session.Title, ct).ConfigureAwait(false);
+                snapshot.Add(new PayloadFile(Title, title));
+            }
+
+            return snapshot;
+        }
+
+        return []; // Still being written: the next round takes it.
+    }
+
+    private static string TempPath() => Path.Combine(Path.GetTempPath(), $"nomad-antigravity-{Guid.NewGuid():N}");
+
+    private static async Task<string> CopyToTempAsync(string file, CancellationToken ct)
+    {
+        var temp = TempPath();
+        await using var source = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        await using var target = File.Create(temp);
+        await source.CopyToAsync(target, ct).ConfigureAwait(false);
+        return temp;
+    }
+
+    /// <summary>Deletes the temporary copies (the database, its log and the title); the chat's own files stay.</summary>
+    public void Release(IReadOnlyList<PayloadFile> files)
+    {
+        foreach (var f in files.Where(f => f.Path is Database or Wal or Title))
+        {
+            File.Delete(f.FullPath);
+        }
+    }
+
+    public Task<string?> WriteAsync(SessionDto remote, IReadOnlyDictionary<string, string> files, string folder, CancellationToken ct)
+    {
+        var id = remote.SessionId;
+        if (!IsId(id) || !files.TryGetValue(Database, out var database))
+        {
+            return Task.FromResult<string?>(null);
+        }
+
+        var db = DatabaseOf(id);
+        var brain = BrainOf(id);
+
+        // The log and index of the copy being replaced go first (SQLite would replay this PC's old log into the hub's
+        // database), then the database, then its log: stopped half way, what is left is a whole database.
+        File.Delete(db + "-wal");
+        File.Delete(db + "-shm");
+        Stamps.Copy(database, db, remote.LastActivityUtc);
+        if (files.TryGetValue(Wal, out var wal))
+        {
+            Stamps.Copy(wal, db + "-wal", remote.LastActivityUtc);
+        }
+
+        foreach (var (path, downloaded) in files)
+        {
+            if (path == Annotation)
+            {
+                Stamps.Copy(downloaded, AnnotationOf(id), remote.LastActivityUtc);
+            }
+            else if (path.StartsWith(BrainPrefix, StringComparison.Ordinal))
+            {
+                var target = Path.GetFullPath(Path.Combine(brain, path[BrainPrefix.Length..]));
+                if (target.StartsWith(brain + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    Stamps.Copy(downloaded, target, remote.LastActivityUtc); // Never outside the chat's own folder.
+                }
+            }
+        }
+
+        _pulledTitles[id] = (remote.Title, Summary(id)?.Title);
+        return Task.FromResult<string?>(StampFor(id, remote.Title));
+    }
+}
+
+/// <summary>
 /// OpenCode keeps sessions in its database, so they travel as <c>opencode export</c> JSON and come back with
 /// <c>opencode import</c>, run in the session's folder here (the import files it under the folder it runs in).
 /// </summary>

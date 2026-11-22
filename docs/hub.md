@@ -78,6 +78,7 @@ or not; they leave it only when deleted in Nomad (which deletes them on every PC
 | Claude Code | `<project>/<session>.jsonl`, `<project>/<session>/subagents/**` (subagent and workflow transcripts) | Rename's `custom-title` records come along in the file |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*-<id>.jsonl` (and `archived_sessions`), plus the thread's lines in `session_index.jsonl` (its name) | Files only: Codex's `state_5.sqlite` indexes rollouts on its own |
 | OpenCode | Sessions live in `opencode.db`, not files | Moved as `opencode export <id>` JSON, applied with `opencode import <file>` |
+| Antigravity | `~/.gemini/antigravity-cli/conversations/<id>.db` (SQLite, with its `-wal`), `brain/<id>/**`, `annotations/<id>.pbtxt` (its title in the CLI) | Listed from Nomad's `AntigravitySessions`; Nomad's title travels as `title.txt` |
 
 Checked against Codex CLI 0.163.0 and OpenCode 1.19.5, in throwaway homes (`CODEX_HOME`, `XDG_DATA_HOME`):
 
@@ -90,6 +91,13 @@ Checked against Codex CLI 0.163.0 and OpenCode 1.19.5, in throwaway homes (`CODE
   id and never removes any: a newer export brings a session up to date, an older one can't roll it back. So a
   Rewind on one PC (which deletes messages) doesn't carry over by import alone; the receiving Nomad has to cut the
   session back itself through OpenCode's server API (not yet checked).
+- **Antigravity** (CLI 1.5.14; its home moves only with `USERPROFILE`, not `GEMINI_CLI_HOME`): a chat's database and
+  `brain/` folder copied into another home resume as they are, from another folder too (`agy --conversation <id>`), and
+  ACP `session/load` replays them without a resume first; the CLI's own index (`conversation_summaries.db`) adds the chat
+  on first use, so nothing else is written. The database is taken with its `-wal` as one snapshot (kept only if neither
+  changed while it was copied), and a fetch deletes this PC's old `-wal` and `-shm` before putting the new database in
+  place, so SQLite never replays a stale log into it. A database is not append-only, so a copy that went its own way on
+  two PCs is never replaced: each keeps its own and Nomad says so.
 
 **Nomad's per-session state**, from `NomadSettings`, syncs last-writer-wins per key with a timestamp:
 `ArchivedSessions`, `PinnedSessions`, `UnarchivedUtc`, `InterruptedSessions`. `MovedSessionFolders` stays local

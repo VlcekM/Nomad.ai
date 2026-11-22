@@ -8,8 +8,11 @@ using Nomad.Hub.Contracts;
 
 namespace Nomad.Core.Hub;
 
-/// <summary>A session the hub brought to this PC (new, or a newer version), and the folder it belongs to here.</summary>
-public sealed record PulledSession(string Backend, string SessionId, string Folder, string? OriginalFolder, bool IsNew);
+/// <summary>
+/// A session the hub brought to this PC (new, or a newer version), and the folder it belongs to here. <see cref="Title"/> and
+/// <see cref="LastActivityUtc"/> list it where the backend keeps no list of its own (Antigravity).
+/// </summary>
+public sealed record PulledSession(string Backend, string SessionId, string Folder, string? OriginalFolder, bool IsNew, string Title, DateTime LastActivityUtc);
 
 /// <summary>
 /// Keeps this PC's sessions and the hub's in step (docs/hub.md): uploads what changed here, fetches what changed
@@ -756,7 +759,8 @@ public sealed class HubSync : IAsyncDisposable
 
             var newStamp = await backend.WriteAsync(remote, downloads, folder, ct).ConfigureAwait(false);
             Remember(remote.Backend, remote.SessionId, new SyncedSession(remote.Version, newStamp ?? "", remote.Files.ToList(), known?.UsageSent ?? 0));
-            SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null));
+            SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null, remote.Title,
+                remote.LastActivityUtc));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException)

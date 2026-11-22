@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Nomad.Core.Agents;
 using Nomad.Core.Hub;
 using Nomad.Core.Remote;
 using Nomad.Core.Sessions;
@@ -180,5 +181,112 @@ public sealed class SyncTests : IDisposable
         await syncs[1].SyncNowAsync();
         await syncs[0].SyncNowAsync();
         Assert.Equal(version, (await syncs[1].Client.SessionAsync("codex", thread))!.Version);
+    }
+
+    /// <summary>Two PCs' Antigravity homes, each with the chat list Nomad's settings would give it.</summary>
+    private async Task<(string Home, List<SessionSummary> Chats, HubSync Sync, List<PulledSession> Pulled)> AntigravityPcAsync(string name)
+    {
+        var home = Path.Combine(_root, name, "antigravity");
+        Directory.CreateDirectory(Path.Combine(home, "conversations"));
+        var chats = new List<SessionSummary>();
+        var http = await _hub.EnrollAsync(name);
+        var client = new HubClient(_hub.Server.BaseAddress, http.DefaultRequestHeaders.Authorization!.Parameter!, _hub.Server.CreateHandler());
+        var sync = new HubSync(client, [new AntigravityFiles(home, () => chats.ToList())], Path.Combine(_root, name, "hub-sync-agy.json"), (_, _) => false);
+        var pulled = new List<PulledSession>();
+        sync.SessionPulled += pulled.Add;
+        return (home, chats, sync, pulled);
+    }
+
+    private static void Write(string file, string text)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, text);
+        File.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddSeconds(Random.Shared.Next(1, 1000))); // Stamps must move even within a tick.
+    }
+
+    [Fact]
+    public async Task AntigravityChatsTravelWithTheirLogNotesAndTitle()
+    {
+        const string chat = "c29f4517-0eb5-499e-82dd-6e95a5447b0e";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        var folder = Path.Combine(_root, "A", "work");
+        a.Chats.Add(new SessionSummary(chat, "", folder, "Pastrami", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database v1");
+        Write(Path.Combine(a.Home, "conversations", chat + ".db-wal"), "log v1");
+        Write(Path.Combine(a.Home, "brain", chat, "scratch", "notes.md"), "notes");
+        Write(Path.Combine(a.Home, "annotations", chat + ".pbtxt"), "title:\"Pastrami\"");
+
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal("database v1", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
+        Assert.Equal("log v1", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db-wal")));
+        Assert.Equal("notes", File.ReadAllText(Path.Combine(b.Home, "brain", chat, "scratch", "notes.md")));
+        Assert.Equal("title:\"Pastrami\"", File.ReadAllText(Path.Combine(b.Home, "annotations", chat + ".pbtxt")));
+        var pulled = Assert.Single(b.Pulled);
+        Assert.Equal((AgentBackends.Antigravity, chat, "Pastrami", true), (pulled.Backend, pulled.SessionId, pulled.Title, pulled.IsNew));
+        b.Chats.Add(new SessionSummary(chat, "", pulled.Folder, pulled.Title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity));
+
+        // A checkpoints (the log is folded into the database) and renames the chat: B's old log must not survive, or
+        // SQLite would replay it into the new database.
+        File.Delete(Path.Combine(a.Home, "conversations", chat + ".db-wal"));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "database v2");
+        a.Chats[0] = a.Chats[0] with { Title = "Pastrami on rye" };
+        Write(Path.Combine(b.Home, "conversations", chat + ".db-shm"), "index");
+
+        await a.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal("database v2", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
+        Assert.False(File.Exists(Path.Combine(b.Home, "conversations", chat + ".db-wal")));
+        Assert.False(File.Exists(Path.Combine(b.Home, "conversations", chat + ".db-shm")));
+        Assert.Equal("Pastrami on rye", b.Pulled[^1].Title);
+        Assert.Equal("Pastrami on rye", (await b.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Title);
+
+        // B's list catches up, then B renames it: a rename alone travels.
+        b.Chats[0] = b.Chats[0] with { Title = "Pastrami on rye" };
+        await b.Sync.SyncNowAsync();
+        b.Chats[0] = b.Chats[0] with { Title = "Reuben" };
+        await b.Sync.SyncNowAsync();
+        await a.Sync.SyncNowAsync();
+        Assert.Equal("Reuben", (await a.Sync.Client.SessionAsync(AgentBackends.Antigravity, chat))!.Title);
+        Assert.Equal("Reuben", a.Pulled[^1].Title);
+    }
+
+    [Fact]
+    public async Task AnAntigravityChatChangedOnBothPcsIsNeverOverwritten()
+    {
+        const string chat = "0249691e-9698-4760-95a6-5b1bb6355635";
+        var a = await AntigravityPcAsync("A");
+        var b = await AntigravityPcAsync("B");
+        a.Chats.Add(new SessionSummary(chat, "", Path.Combine(_root, "A", "work"), "Shared", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity));
+        Write(Path.Combine(a.Home, "conversations", chat + ".db"), "hub copy");
+        await a.Sync.SyncNowAsync();
+
+        // B had its own copy from before the hub, which went its own way: a database can't be compared, so it stays.
+        b.Chats.Add(a.Chats[0]);
+        Write(Path.Combine(b.Home, "conversations", chat + ".db"), "B's own copy");
+        await b.Sync.SyncNowAsync();
+        await b.Sync.SyncNowAsync();
+
+        Assert.Equal("B's own copy", File.ReadAllText(Path.Combine(b.Home, "conversations", chat + ".db")));
+        Assert.Empty(b.Pulled);
+        await a.Sync.SyncNowAsync();
+        Assert.Equal("hub copy", File.ReadAllText(Path.Combine(a.Home, "conversations", chat + ".db")));
+    }
+
+    [Fact]
+    public async Task AnAntigravityChatIdIsNeverAPath()
+    {
+        var home = Path.Combine(_root, "C", "antigravity");
+        var files = new AntigravityFiles(home, () => [new SessionSummary("..\\..\\evil", "", null, "x", DateTime.UtcNow, 0, Backend: AgentBackends.Antigravity)]);
+        var download = Path.Combine(_root, "download.db");
+        Write(download, "x");
+        var remote = new SessionDto(AgentBackends.Antigravity, "..\\..\\evil", null, null, "x", null, null, DateTime.UtcNow, 1, 1, [], Guid.Empty, 1, false, null, null);
+
+        Assert.Empty(files.List(CancellationToken.None));
+        Assert.Null(await files.WriteAsync(remote, new Dictionary<string, string> { [AntigravityFiles.Database] = download }, _root, CancellationToken.None));
+        Assert.False(Directory.Exists(home));
     }
 }

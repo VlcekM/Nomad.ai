@@ -1,5 +1,6 @@
 using Nomad.Core.Agents;
 using Nomad.Core.Hub;
+using Nomad.Core.Sessions;
 using Nomad.Hub.Contracts;
 
 namespace Nomad.App.ViewModels;
@@ -63,6 +64,16 @@ public sealed partial class MainViewModel
             && Directory.Exists(pulled.Folder))
         {
             Settings.MovedSessionFolders[pulled.SessionId] = pulled.Folder;
+            SaveSettings();
+        }
+
+        // Antigravity keeps no list Nomad can read: its chats are listed from the settings, so a fetched one is added there.
+        if (pulled.Backend == AgentBackends.Antigravity)
+        {
+            var known = Settings.AntigravitySessions.GetValueOrDefault(pulled.SessionId);
+            var title = string.IsNullOrWhiteSpace(pulled.Title) ? known?.Title ?? "" : pulled.Title;
+            Settings.AntigravitySessions[pulled.SessionId] = new SessionSummary(pulled.SessionId, "", known?.WorkingDirectory ?? pulled.Folder,
+                title, pulled.LastActivityUtc, 0, Backend: AgentBackends.Antigravity);
             SaveSettings();
         }
 
