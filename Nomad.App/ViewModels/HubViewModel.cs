@@ -7,6 +7,7 @@ using Nomad.Core.Agents;
 using Nomad.Core.Codex;
 using Nomad.Core.Hub;
 using Nomad.Core.OpenCode;
+using Nomad.Core.Sessions;
 using Nomad.Hub.Contracts;
 
 namespace Nomad.App.ViewModels;
@@ -120,6 +121,11 @@ public sealed partial class HubViewModel : ObservableObject
             backends.Add(new OpenCodeFiles(() => OpenCodeServer.ResolveExecutable(OpenCodeServer.CliPath)));
         }
 
+        // Always, not only once this PC has Antigravity chats: the change feed passes each chat once, so a PC that skipped
+        // them would never get them. Nothing is written here until another PC sends one.
+        _antigravitySessions = [.. _main.Settings.AntigravitySessions.Values];
+        backends.Add(new AntigravityFiles(AntigravityFiles.DefaultHome, () => _antigravitySessions));
+
         var statePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_main.SettingsPath))!, "hub-sync.json");
         _sync = new HubSync(new HubClient(url, secret), backends, statePath, (_, id) => _busy.ContainsKey(id));
         _sync.Status += s => Dispatcher.UIThread.Post(() => Status = s);
@@ -140,6 +146,9 @@ public sealed partial class HubViewModel : ObservableObject
         _sync.HandoffRequested += r => Dispatcher.UIThread.Post(() => _ = _main.OnHubHandoffRequestedAsync(r));
         _main.LocalTokens.HubTotals = UsageSinceAsync;
         _sync.Start();
+
+        // Antigravity chats fetched before Nomad could list them (it closed in between, say) are listed now.
+        _ = _sync.AnnounceUnlistedAsync(AgentBackends.Antigravity, [.. _main.Settings.AntigravitySessions.Keys]);
 
         // The flags as they are now are sent once, on the first sync; after that only their changes.
         _archived = _sync.IsFirstSync ? [] : [.. _main.Settings.ArchivedSessions];
@@ -183,6 +192,12 @@ public sealed partial class HubViewModel : ObservableObject
 
     public void Wake() => _sync?.Wake();
 
+    /// <summary>
+    /// The Antigravity chats Nomad knows (its settings are their only list), as of the last save: the sync reads them off the
+    /// UI thread, so it gets a copy.
+    /// </summary>
+    private volatile IReadOnlyCollection<SessionSummary> _antigravitySessions = [];
+
     /// <summary>The settings were saved: sends the archived and pinned flags that changed since the last time.</summary>
     public void OnSettingsSaved()
     {
@@ -191,6 +206,7 @@ public sealed partial class HubViewModel : ObservableObject
             return;
         }
 
+        _antigravitySessions = [.. _main.Settings.AntigravitySessions.Values];
         Send(_archived, _main.Settings.ArchivedSessions, HubNames.StateArchived);
         Send(_pinned, _main.Settings.PinnedSessions, HubNames.StatePinned);
 

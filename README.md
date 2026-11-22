@@ -182,7 +182,8 @@ generated notes since the previous tag.
   `%LOCALAPPDATA%\Nomad\fonts` and never shipped with Nomad.ai. The Updates page is described under
   Install and update.
 - **Nomad Hub** (Settings › Hub, optional): a server you host keeps several PCs' sessions in step
-  (Claude Code, Codex and OpenCode) and adds up every PC's token use for the usage cards. See
+  (Claude Code, Codex, OpenCode and Antigravity) and adds up every PC's token use (Claude Code, Codex and OpenCode)
+  for the usage cards. See
   [Nomad Hub](#nomad-hub) below and `docs/hub.md`.
 
 ### Nomad Hub

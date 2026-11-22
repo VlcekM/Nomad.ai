@@ -13,6 +13,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="11.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
+    <!-- Antigravity chats are SQLite databases: they travel through the hub as snapshots taken with its backup API. -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
   </ItemGroup>
 
   <ItemGroup>

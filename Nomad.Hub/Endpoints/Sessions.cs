@@ -8,7 +8,7 @@ namespace Nomad.Hub;
 
 public static class Sessions
 {
-    public static readonly string[] Backends = ["claude-code", "codex", "opencode"];
+    public static readonly string[] Backends = ["claude-code", "codex", "opencode", "antigravity"];
 
     public static async Task<Session> FindOrCreateAsync(HubDb db, string backend, string sessionId)
     {

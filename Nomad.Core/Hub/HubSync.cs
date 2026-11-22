@@ -8,8 +8,11 @@ using Nomad.Hub.Contracts;
 
 namespace Nomad.Core.Hub;
 
-/// <summary>A session the hub brought to this PC (new, or a newer version), and the folder it belongs to here.</summary>
-public sealed record PulledSession(string Backend, string SessionId, string Folder, string? OriginalFolder, bool IsNew);
+/// <summary>
+/// A session the hub brought to this PC (new, or a newer version), and the folder it belongs to here. <see cref="Title"/> and
+/// <see cref="LastActivityUtc"/> list it where the backend keeps no list of its own (Antigravity).
+/// </summary>
+public sealed record PulledSession(string Backend, string SessionId, string Folder, string? OriginalFolder, bool IsNew, string Title, DateTime LastActivityUtc);
 
 /// <summary>
 /// Keeps this PC's sessions and the hub's in step (docs/hub.md): uploads what changed here, fetches what changed
@@ -263,6 +266,12 @@ public sealed class HubSync : IAsyncDisposable
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
+            lock (_state)
+            {
+                _state.DeletedHere.Add(Key(backend, sessionId)); // Not listed again here, though the hub still has it.
+            }
+
+            Save();
             Status?.Invoke("Couldn't delete the session on the hub: " + ex.Message);
         }
     }
@@ -543,6 +552,11 @@ public sealed class HubSync : IAsyncDisposable
         }
         catch (CommitRefusedException refused) when (refused.Rejection is { Reason: "version", Current: { } current })
         {
+            if (backend.Opaque)
+            {
+                return await ResolveOpaqueAsync(backend, local, commit, current, usageSent, ct).ConfigureAwait(false);
+            }
+
             var mine = commit.Files[0];
             var theirs = current.Files.FirstOrDefault(f => f.Path == mine.Path);
             if (theirs is null || (theirs.Length <= mine.Length && (await HashAsync(payload[0].FullPath, theirs.Length, ct).ConfigureAwait(false)).Hash == theirs.Hash))
@@ -572,6 +586,96 @@ public sealed class HubSync : IAsyncDisposable
             return null;
         }
     }
+
+    /// <summary>
+    /// The hub moved on while an <see cref="ISessionFiles.Opaque"/> copy changed here too. Copies of a database can't be told
+    /// apart as earlier and later, so: the same files are the same state; the same database (the first file) with other side
+    /// files (a rename, notes) goes on top of the hub's version; and anything else changed on both PCs, so this PC's copy is set
+    /// aside, whole, and the hub's version used. Nothing is lost, and the PCs agree again.
+    /// </summary>
+    private async Task<SessionDto?> ResolveOpaqueAsync(ISessionFiles backend, LocalSession local, SessionCommit commit, SessionDto current, int usageSent, CancellationToken ct)
+    {
+        if (SameFiles(commit.Files, current.Files))
+        {
+            Remember(backend.Backend, local.SessionId, new SyncedSession(current.Version, local.Stamp, current.Files.ToList(), usageSent));
+            return null;
+        }
+
+        var mine = commit.Files[0];
+        var theirs = current.Files.FirstOrDefault(f => f.Path == mine.Path);
+        var synced = Known(backend.Backend, local.SessionId)?.Files.FirstOrDefault(f => f.Path == mine.Path);
+
+        // The same database: only side files differ. Changed here (a rename, notes) on top of the database this PC synced, they
+        // go on top; with a database this PC never synced itself (a fetch that stopped half way), the hub's version is put
+        // in place whole.
+        if (theirs == mine)
+        {
+            // With no record of it (the sync state was reset), this PC's side files go on top as they always did.
+            if (synced is null || synced == mine)
+            {
+                return await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
+            }
+
+            if (!_isBusy(backend.Backend, local.SessionId) && !Holds(backend.Backend, local.SessionId) && !backend.InUse(local.SessionId))
+            {
+                await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false);
+            }
+
+            return null;
+        }
+
+        // The hub's database is the one this PC last had: the other PC changed only side files, and this PC's newer chat goes on
+        // top (its side files with it, which is said).
+        if (synced is not null && theirs == synced)
+        {
+            var committed = await _client.CommitAsync(backend.Backend, local.SessionId, commit with { BaseVersion = current.Version }, ct).ConfigureAwait(false);
+            Status?.Invoke($"{local.Title} was renamed or edited on another PC while it went on here: this PC's version is used, so that change needs making again.");
+            return committed;
+        }
+
+        if (_isBusy(backend.Backend, local.SessionId) || Holds(backend.Backend, local.SessionId) || backend.InUse(local.SessionId))
+        {
+            return null; // Open here: sorted out once this PC lets it go.
+        }
+
+        // Only side files changed here (a rename, say), on top of a database the hub has moved past: nothing here is lost by
+        // taking the hub's version, except that change, which is said.
+        if (synced == mine)
+        {
+            if (await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false))
+            {
+                Status?.Invoke($"{local.Title} changed on another PC while it was renamed or edited here: the other PC's version is used, so the change made here needs making again.");
+            }
+
+            return null;
+        }
+
+        // Set aside once per version of the hub's: if putting that version in place fails, the next rounds only try that again.
+        var key = Key(backend.Backend, local.SessionId);
+        if (!_setAside.TryGetValue(key, out var earlier) || earlier.Version != current.Version || earlier.Stamp != local.Stamp)
+        {
+            if (await backend.SetAsideAsync(local.SessionId, ct).ConfigureAwait(false) is not { } folder)
+            {
+                Status?.Invoke($"{local.Title} changed here and on another PC; this PC's copy wasn't uploaded.");
+                return null;
+            }
+
+            _setAside[key] = earlier = (current.Version, local.Stamp, folder);
+        }
+
+        var aside = earlier.Folder;
+
+        Status?.Invoke(await ApplyAsync(current, Fetch.Replace, ct).ConfigureAwait(false)
+            ? $"{local.Title} changed here and on another PC: the other PC's version is used now, and this PC's is kept in {aside}."
+            : $"{local.Title} changed here and on another PC: this PC's copy is kept in {aside}, and the other PC's comes next time.");
+        return null;
+    }
+
+    /// <summary>
+    /// The copies <see cref="ResolveOpaqueAsync"/> set aside, by session: for which version of the hub's, this PC's copy as it was
+    /// (its stamp), and where. Set aside again only when either has changed.
+    /// </summary>
+    private readonly Dictionary<string, (int Version, string Stamp, string Folder)> _setAside = new(StringComparer.Ordinal);
 
     /// <summary>A copy of a transcript under a new session id, titled "… (from &lt;this PC&gt;)".</summary>
     private static async Task<string> ForkAsync(string transcript, LocalSession local, CancellationToken ct)
@@ -674,12 +778,162 @@ public sealed class HubSync : IAsyncDisposable
             _state.Seq = changes.Seq;
         }
 
+        await RetryFetchesAsync(ct).ConfigureAwait(false);
+        await CatchUpNewBackendsAsync(since, ct).ConfigureAwait(false);
+
         _projects = null;
         Save();
         await RefreshRemoteHostsAsync(ct).ConfigureAwait(false); // A lease taken or given back is a change too.
     }
 
     private List<ProjectDto>? _projects;
+
+    /// <summary>When each failed fetch is next tried, and how many times it failed.</summary>
+    private readonly Dictionary<string, (DateTime Next, int Failures)> _retryAt = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Asks for a session again on later rounds: every round while it is only open here (that costs no download), and after a
+    /// failed fetch the next round, then 2 minutes doubling to an hour between tries.
+    /// </summary>
+    private void NoteRetry(string key, bool failed)
+    {
+        lock (_state)
+        {
+            if (!_state.Retry.Contains(key))
+            {
+                _state.Retry.Add(key);
+            }
+        }
+
+        if (!failed)
+        {
+            return;
+        }
+
+        var failures = _retryAt.TryGetValue(key, out var earlier) ? earlier.Failures + 1 : 1;
+        var wait = failures == 1 ? TimeSpan.Zero : TimeSpan.FromMinutes(Math.Min(60, 2 << Math.Min(failures - 2, 5)));
+        _retryAt[key] = (DateTime.UtcNow + wait, failures);
+    }
+
+    /// <summary>Asks again for the sessions whose fetch failed (open here, say), until each lands or no longer needs to.</summary>
+    private async Task RetryFetchesAsync(CancellationToken ct)
+    {
+        List<string> retry;
+        lock (_state)
+        {
+            retry = [.. _state.Retry];
+        }
+
+        foreach (var key in retry)
+        {
+            if (_retryAt.TryGetValue(key, out var at) && at.Next > DateTime.UtcNow)
+            {
+                continue;
+            }
+
+            var slash = key.IndexOf('/');
+            var (backend, sessionId) = (key[..slash], key[(slash + 1)..]);
+            var remote = _backends.ContainsKey(backend) ? await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) : null;
+            if (remote is null || remote.Deleted || Known(backend, sessionId)?.Version >= remote.Version)
+            {
+                lock (_state)
+                {
+                    _state.Retry.Remove(key);
+                }
+
+                _retryAt.Remove(key);
+
+                continue;
+            }
+
+            await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// The change feed passes each session once, so a backend this PC didn't sync before (a newer Nomad, say) would never get
+    /// the sessions that went by: they are fetched from the start of the feed, once.
+    /// </summary>
+    private async Task CatchUpNewBackendsAsync(long since, CancellationToken ct)
+    {
+        List<string> fresh;
+        lock (_state)
+        {
+            _state.Backends ??= [.. SyncStateFile.FirstBackends.Where(_backends.ContainsKey)];
+            fresh = [.. _backends.Keys.Where(b => !_state.Backends.Contains(b))];
+        }
+
+        if (fresh.Count == 0)
+        {
+            return;
+        }
+
+        // On a first sync the feed already started at the beginning.
+        if (since > 0)
+        {
+            var all = await _client.ChangesAsync(0, ct).ConfigureAwait(false);
+            foreach (var remote in all.Sessions.Where(r => fresh.Contains(r.Backend)))
+            {
+                ct.ThrowIfCancellationRequested();
+                await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
+            }
+        }
+
+        lock (_state)
+        {
+            _state.Backends.AddRange(fresh);
+        }
+    }
+
+    /// <summary>
+    /// Raises <see cref="SessionPulled"/> again for the sessions of <paramref name="backend"/> this PC fetched before but doesn't
+    /// list (Nomad closed before it could note one, say), so the app lists them. Only for backends listed from Nomad's own
+    /// settings (Antigravity).
+    /// </summary>
+    public async Task AnnounceUnlistedAsync(string backend, IReadOnlyCollection<string> listed, CancellationToken ct = default)
+    {
+        if (!_backends.TryGetValue(backend, out var files))
+        {
+            return;
+        }
+
+        await _work.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await AnnounceUnlistedCoreAsync(backend, files, listed, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _work.Release();
+        }
+    }
+
+    private async Task AnnounceUnlistedCoreAsync(string backend, ISessionFiles files, IReadOnlyCollection<string> listed, CancellationToken ct)
+    {
+        List<string> known;
+        lock (_state)
+        {
+            known = [.. _state.Sessions.Keys.Where(k => k.StartsWith(backend + "/", StringComparison.Ordinal) && !_state.DeletedHere.Contains(k))
+                .Select(k => k[(backend.Length + 1)..])];
+        }
+
+        foreach (var sessionId in known.Where(id => !listed.Contains(id) && files.MainFile(id) is not null))
+        {
+            try
+            {
+                if (await _client.SessionAsync(backend, sessionId, ct).ConfigureAwait(false) is { Deleted: false } remote)
+                {
+                    _projects ??= await _client.ProjectsAsync(ct).ConfigureAwait(false);
+                    var folder = await FolderForAsync(remote, _projects, ct).ConfigureAwait(false);
+                    SessionPulled?.Invoke(new PulledSession(backend, sessionId, folder, remote.WorkingDirectory, true, remote.Title, remote.LastActivityUtc));
+                }
+            }
+            catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
+            {
+                return; // The hub is away or slow, say: tried again when the app next starts syncing.
+            }
+        }
+    }
 
     /// <summary>
     /// Brings one session from the hub to this PC, unless this PC is writing it (mid-turn, or holding its lease) or it
@@ -720,6 +974,25 @@ public sealed class HubSync : IAsyncDisposable
             return false; // Changed here since the last sync too: the upload sorts it out (adds to it, or forks).
         }
 
+        // Open here: nothing can replace it now, so nothing is downloaded either; it is asked for again later.
+        if (backend.InUse(remote.SessionId))
+        {
+            NoteRetry(Key(remote.Backend, remote.SessionId), failed: false);
+            return false;
+        }
+
+        if (backend.Opaque && stamp is not null && (mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)))
+        {
+            // A copy here the hub never had from this PC can't be compared by its first bytes: the upload compares the whole
+            // copies, and sets this one aside if they differ.
+            if (mode == Fetch.Normal)
+            {
+                _pushWanted = true;
+            }
+
+            return false;
+        }
+
         _projects ??= await _client.ProjectsAsync(ct).ConfigureAwait(false);
         var folder = await FolderForAsync(remote, _projects, ct).ConfigureAwait(false);
         var downloads = new Dictionary<string, string>();
@@ -739,7 +1012,7 @@ public sealed class HubSync : IAsyncDisposable
 
             // A copy here the hub never had from this PC (from before the hub, say) is replaced only if it is the
             // hub's version or an earlier state of it; otherwise the upload adds to the hub's or keeps it as a fork.
-            if ((mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)) && backend.MainFile(remote.SessionId) is { } main && remote.Files.Count > 0
+            if (!backend.Opaque && (mode == Fetch.IfBehind || (mode == Fetch.Normal && known is null)) && backend.MainFile(remote.SessionId) is { } main && remote.Files.Count > 0
                 && downloads.TryGetValue(remote.Files[0].Path, out var fetched))
             {
                 var here = await HashAsync(main, long.MaxValue, ct).ConfigureAwait(false);
@@ -756,11 +1029,38 @@ public sealed class HubSync : IAsyncDisposable
 
             var newStamp = await backend.WriteAsync(remote, downloads, folder, ct).ConfigureAwait(false);
             Remember(remote.Backend, remote.SessionId, new SyncedSession(remote.Version, newStamp ?? "", remote.Files.ToList(), known?.UsageSent ?? 0));
-            SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null));
+            lock (_state)
+            {
+                _state.Retry.Remove(Key(remote.Backend, remote.SessionId));
+            }
+
+            _retryAt.Remove(Key(remote.Backend, remote.SessionId));
+            lock (_state)
+            {
+                _state.DeletedHere.Remove(Key(remote.Backend, remote.SessionId)); // Back from another PC: listed again.
+            }
+
+            SessionPulled?.Invoke(new PulledSession(remote.Backend, remote.SessionId, folder, remote.WorkingDirectory, stamp is null, remote.Title,
+                remote.LastActivityUtc));
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or HttpRequestException or InvalidDataException)
         {
+            // The change feed has passed it: it is asked for again on later rounds until it lands, unless it can never land.
+            if (ex is InvalidDataException)
+            {
+                lock (_state)
+                {
+                    _state.Retry.Remove(Key(remote.Backend, remote.SessionId));
+                }
+
+                _retryAt.Remove(Key(remote.Backend, remote.SessionId));
+            }
+            else
+            {
+                NoteRetry(Key(remote.Backend, remote.SessionId), failed: true);
+            }
+
             Status?.Invoke($"Couldn't fetch {remote.Title}: {ex.Message}");
             return false;
         }
@@ -900,9 +1200,21 @@ public sealed record SyncedSession(int Version, string Stamp, List<SessionFileDt
 
 public sealed class SyncStateFile
 {
+    /// <summary>The backends a state file from before <see cref="Backends"/> was kept had synced.</summary>
+    public static readonly string[] FirstBackends = ["claude-code", "codex", "opencode"];
+
     public string Hub { get; set; } = "";
     public long Seq { get; set; }
     public Dictionary<string, SyncedSession> Sessions { get; set; } = [];
+
+    /// <summary>Sessions ("backend/id") whose fetch failed, asked for again on every round until they land.</summary>
+    public List<string> Retry { get; set; } = [];
+
+    /// <summary>The backends this PC has synced from the start of the change feed; null in a state file from before.</summary>
+    public List<string>? Backends { get; set; }
+
+    /// <summary>Sessions ("backend/id") deleted here while the hub couldn't be told: never listed here again.</summary>
+    public HashSet<string> DeletedHere { get; set; } = [];
 }
 
 [JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
