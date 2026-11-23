@@ -187,8 +187,19 @@ public sealed class MarkdownView : StackPanel
         public double Progress => Math.Clamp((DateTime.UtcNow - Born) / FadeTime, 0, 1);
     }
 
+    /// <summary>
+    /// How often the fallback steps the fades when render frames don't come.
+    /// </summary>
+    private static readonly TimeSpan FadeFallbackTime = TimeSpan.FromMilliseconds(250);
+
     private readonly List<Fade> _fades = [];
     private FrameLoop? _fadeFrames;
+
+    /// <summary>
+    /// Steps the fades a few times a second beside the frames. New text starts transparent, so a frame callback that never
+    /// arrives (seen on Linux until the window is switched away and back) would otherwise leave it invisible.
+    /// </summary>
+    private DispatcherTimer? _fadeFallback;
 
     /// <summary>
     /// The rebuilt block replaces <paramref name="old"/>: the text past the old one's length is new
@@ -213,6 +224,7 @@ public sealed class MarkdownView : StackPanel
         if (_fades.Count > 0)
         {
             (_fadeFrames ??= new FrameLoop(this, _ => StepFades())).Update(true);
+            (_fadeFallback ??= new DispatcherTimer(FadeFallbackTime, DispatcherPriority.Background, (_, _) => StepFades())).Start();
         }
     }
 
@@ -231,6 +243,7 @@ public sealed class MarkdownView : StackPanel
         if (_fades.Count == 0)
         {
             _fadeFrames?.Stop();
+            _fadeFallback?.Stop();
         }
     }
 
