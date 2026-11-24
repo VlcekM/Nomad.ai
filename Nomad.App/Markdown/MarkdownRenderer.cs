@@ -843,7 +843,9 @@ public static partial class LinkSupport
     // What a link opens: a web address, an existing file or folder (with optional line), or a name declared in the session's code.
     private readonly record struct LinkTarget(string? Url, string? Path, string? Symbol, int? Line = null, bool PreferFilesView = false);
 
-    // Null: nothing (a path that isn't there, a name the code doesn't declare).
+    /// <summary>
+    /// Resolves a link to its URL, existing path, or declared symbol. Returns null for a missing path or symbol.
+    /// </summary>
     private static LinkTarget? Resolve(SelectableTextBlock block, LinkRange link)
     {
         if (link.Url.StartsWith(SymbolPrefix, StringComparison.Ordinal))
@@ -861,23 +863,23 @@ public static partial class LinkSupport
 
         if (Uri.TryCreate(link.Url, UriKind.Absolute, out var uri))
         {
-            if (uri.IsFile)
+            if (!uri.IsFile) return new LinkTarget(link.Url, null, null);
+
+            if (link.Url.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
             {
                 var line = FragmentLine(uri.Fragment);
                 return ResolvePath(block, PathPrefix + uri.LocalPath) is { } filePath
                     ? new LinkTarget(null, filePath, null, line, PreferFilesView: true)
                     : null;
             }
-
-            return new LinkTarget(link.Url, null, null);
         }
 
-        // Relative markdown file links like [notes.md](docs/notes.md#L10).
+        // Implicit file URIs treat the fragment as part of the filename. Split it for raw Markdown paths.
         var hash = link.Url.IndexOf('#');
         var rawPath = hash >= 0 ? link.Url[..hash] : link.Url;
         var fragmentLine = hash >= 0 ? FragmentLine(link.Url[hash..]) : null;
-        return ResolvePath(block, PathPrefix + rawPath) is { } relativePath
-            ? new LinkTarget(null, relativePath, null, fragmentLine, PreferFilesView: true)
+        return ResolvePath(block, PathPrefix + Uri.UnescapeDataString(rawPath)) is { } markdownPath
+            ? new LinkTarget(null, markdownPath, null, fragmentLine, PreferFilesView: true)
             : null;
     }
 
@@ -1012,10 +1014,16 @@ public static partial class LinkSupport
         }
     }
 
+    /// <summary>
+    /// Whether the file is under the session's folder, using the platform's path separators.
+    /// </summary>
     private static bool IsInsideFolder(string path, string folder)
     {
-        var root = Path.GetFullPath(folder).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
-        return Path.GetFullPath(path).StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        var root = Path.GetFullPath(folder);
+        if (!Path.EndsInDirectorySeparator(root)) root += Path.DirectorySeparatorChar;
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return Path.GetFullPath(path).StartsWith(root, comparison);
     }
 
     private static MenuItem Item(string header, Action action)
@@ -1026,8 +1034,8 @@ public static partial class LinkSupport
     }
 
     /// <summary>
-    /// Whether inline code looks like something to open: a web URL, an absolute path (<c>R:\x</c>, <c>\\server\x</c>,
-    /// <c>~/x</c>, <c>%APPDATA%\x</c>), or a relative path with a folder or an extension (<c>src/App.cs</c>). Paths
+    /// Whether inline code looks like something to open: a web URL, an absolute path (<c>/home/user/x</c>, <c>R:\x</c>,
+    /// <c>\\server\x</c>, <c>~/x</c>, <c>%APPDATA%\x</c>), or a relative path with a folder or an extension (<c>src/App.cs</c>). Paths
     /// are only opened once they turn out to exist.
     /// </summary>
     public static CodeLinkKind? CodeTarget(string code)
@@ -1044,7 +1052,8 @@ public static partial class LinkSupport
         }
 
         if ((char.IsAsciiLetter(text[0]) && text[1] == ':' && text[2] is '\\' or '/') || text.StartsWith(@"\\", StringComparison.Ordinal)
-            || text.StartsWith("~/", StringComparison.Ordinal) || text.StartsWith(@"~\", StringComparison.Ordinal) || text.StartsWith('%'))
+            || (!OperatingSystem.IsWindows() && text.StartsWith('/')) || text.StartsWith("~/", StringComparison.Ordinal)
+            || text.StartsWith(@"~\", StringComparison.Ordinal) || text.StartsWith('%'))
         {
             return CodeLinkKind.AbsolutePath;
         }
@@ -1076,7 +1085,9 @@ public static partial class LinkSupport
             text = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + text[1..];
         }
 
-        text = LineSuffix().Replace(text, "").Replace('/', '\\');
+        text = LineSuffix().Replace(text, "");
+        if (OperatingSystem.IsWindows()) text = text.Replace('/', '\\');
+
         try
         {
             if (!Path.IsPathRooted(text))
@@ -1091,7 +1102,7 @@ public static partial class LinkSupport
             }
 
             var full = Path.GetFullPath(text);
-            return File.Exists(full) || Directory.Exists(full) ? full.TrimEnd('\\') is { Length: > 2 } trimmed ? trimmed : full : null;
+            return File.Exists(full) || Directory.Exists(full) ? Path.TrimEndingDirectorySeparator(full) : null;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
         {
