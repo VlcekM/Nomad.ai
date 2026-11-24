@@ -60,6 +60,11 @@ public sealed class NomadSettings
     /// <summary>On the new-session screen, F1…F4 pick the model: Fable to Haiku, or OpenCode's first four favorites.</summary>
     public bool ModelFunctionKeys { get; set; }
 
+    /// <summary>
+    /// Reuse the window's size, position and maximized state at startup.
+    /// </summary>
+    public bool RememberWindowPlacement { get; set; } = true;
+
     /// <summary>Closing the window hides it to the notification area instead; the tray icon's menu (or the app menu) exits.</summary>
     public bool CloseToTray { get; set; }
 
@@ -348,6 +353,16 @@ public sealed class NomadSettings
     public double WindowWidth { get; set; } = 1400;
     public double WindowHeight { get; set; } = 900;
     public bool WindowMaximized { get; set; }
+
+    /// <summary>
+    /// Horizontal window position in screen pixels, when saved.
+    /// </summary>
+    public int? WindowX { get; set; }
+
+    /// <summary>
+    /// Vertical window position in screen pixels, when saved.
+    /// </summary>
+    public int? WindowY { get; set; }
 
     public NomadSettings Clone() =>
         JsonSerializer.Deserialize(JsonSerializer.Serialize(this, SettingsJsonContext.Default.NomadSettings), SettingsJsonContext.Default.NomadSettings)!;

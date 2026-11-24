@@ -115,6 +115,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         AutoArchive = s.AutoArchive;
         SleepIdle = s.SleepIdleSessions;
         SleepAfterHoursText = Math.Clamp(s.SleepAfterHours, 1, NomadSettings.MaxSleepAfterHours).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        RememberWindowPlacement = s.RememberWindowPlacement;
         CloseToTray = s.CloseToTray;
         AutoAssignIssuesOnFix = s.AutoAssignIssuesOnFix;
         NotifyWhenDone = s.NotifyWhenDone;
@@ -554,6 +555,23 @@ public sealed partial class SettingsViewModel : ObservableObject
     private void ToggleModelFunctionKeys() => ModelFunctionKeys = !ModelFunctionKeys;
 
     partial void OnModelFunctionKeysChanged(bool value) => Apply(s => s.ModelFunctionKeys = value, appearance: false);
+
+    /// <summary>
+    /// Whether the window opens with its saved placement.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool RememberWindowPlacement { get; set; }
+
+    /// <summary>
+    /// Switches window placement persistence on or off.
+    /// </summary>
+    [RelayCommand]
+    private void ToggleRememberWindowPlacement() => RememberWindowPlacement = !RememberWindowPlacement;
+
+    /// <summary>
+    /// Saves the window placement preference.
+    /// </summary>
+    partial void OnRememberWindowPlacementChanged(bool value) => Apply(s => s.RememberWindowPlacement = value, appearance: false);
 
     [ObservableProperty]
     public partial bool CloseToTray { get; set; }

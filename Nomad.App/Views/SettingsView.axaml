@@ -289,6 +289,24 @@
 
               <Grid Classes="row" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center" Margin="0,12">
+                  <TextBlock Text="Remember window size and position" Classes="rowlabel" />
+                  <TextBlock Text="Restore the window's size and position when Nomad.ai starts." Classes="rowhint" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Theme="{StaticResource FlatButton}"
+                        Padding="6"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="Remember window size and position"
+                        Command="{Binding ToggleRememberWindowPlacementCommand}">
+                  <Border Classes="switch large" Classes.on="{Binding RememberWindowPlacement}">
+                    <Ellipse />
+                  </Border>
+                </Button>
+              </Grid>
+              <Border Classes="rowline" />
+
+              <Grid Classes="row" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center" Margin="0,12">
                   <TextBlock Text="Close to the tray" Classes="rowlabel" />
                   <TextBlock Text="Closing the window keeps Nomad.ai running in the notification area, sessions and all. Click its icon to bring it back; Exit (in the menu or the icon's) quits."
                              Classes="rowhint" />

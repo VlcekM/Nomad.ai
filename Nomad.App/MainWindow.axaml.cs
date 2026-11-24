@@ -372,26 +372,12 @@ public partial class MainWindow : Window
         AddHandler(PointerReleasedEvent, OnRowDragReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         Sidebar.PointerCaptureLost += (_, _) => EndRowDrag(drop: false);
 
-        var settings = vm.Settings;
         if (vm.Dev.Overlays.Count > 0)
         {
             RendererDiagnostics.DebugOverlays = DevOverlays(vm.Dev.Overlays);
         }
 
-        if (vm.Dev.Size is { } size)
-        {
-            Width = size.Width;
-            Height = size.Height;
-        }
-        else
-        {
-            Width = Math.Max(MinWidth, settings.WindowWidth);
-            Height = Math.Max(MinHeight, settings.WindowHeight);
-            if (settings.WindowMaximized)
-            {
-                WindowState = WindowState.Maximized;
-            }
-        }
+        RestorePlacement();
 
         // A screenshot run renders the window to a bitmap, so the window itself stays invisible: DWM
         // cloaks it before it is first shown (Windows moves off-screen windows back), and it never
@@ -408,7 +394,13 @@ public partial class MainWindow : Window
             }
         }
 
-        Opened += (_, _) => _ = StartAsync();
+        Opened += (_, _) =>
+        {
+            CaptureNormalPlacement();
+            _ = StartAsync();
+        };
+        PositionChanged += (_, _) => Dispatcher.UIThread.Post(CaptureNormalPlacement);
+        Resized += (_, _) => Dispatcher.UIThread.Post(CaptureNormalPlacement);
         Closing += OnClosing;
 
         // While the unsaved-edits question is open, typing doesn't reach the files behind it.
@@ -530,6 +522,9 @@ public partial class MainWindow : Window
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == WindowStateProperty && WindowState is WindowState.Normal or WindowState.Maximized)
+            _lastWindowState = WindowState;
+
         if (change.Property == WindowStateProperty || change.Property == OffScreenMarginProperty)
         {
             // A maximised window with an extended client area hangs over the screen edges.
@@ -1350,7 +1345,7 @@ public partial class MainWindow : Window
         Show();
         if (WindowState == WindowState.Minimized)
         {
-            WindowState = _vm.Settings.WindowMaximized ? WindowState.Maximized : WindowState.Normal;
+            WindowState = _lastWindowState;
         }
 
         Activate();
@@ -1419,20 +1414,80 @@ public partial class MainWindow : Window
         }
     }
 
+    #region Window placement
+
+    /// <summary>
+    /// The last bounds observed while the window was visible and in its normal state.
+    /// </summary>
+    private (Size Size, PixelPoint Position)? _normalPlacement;
+
+    /// <summary>
+    /// The last normal or maximized state, used when restoring a minimized window.
+    /// </summary>
+    private WindowState _lastWindowState = WindowState.Normal;
+
+    /// <summary>
+    /// Applies the developer size override or the user's saved startup placement.
+    /// </summary>
+    private void RestorePlacement()
+    {
+        if (_vm.Dev.Size is { } size)
+        {
+            Width = size.Width;
+            Height = size.Height;
+            return;
+        }
+
+        var settings = _vm.Settings;
+        if (!settings.RememberWindowPlacement) return;
+
+        Width = Math.Max(MinWidth, settings.WindowWidth);
+        Height = Math.Max(MinHeight, settings.WindowHeight);
+        if (_vm.Dev.ScreenshotPath is not null) return;
+
+        if (settings.WindowX is { } x && settings.WindowY is { } y)
+        {
+            var position = new PixelPoint(x, y);
+            if (Screens.All.Any(screen => screen.WorkingArea.ContainsExclusive(position)))
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Position = position;
+            }
+        }
+
+        if (settings.WindowMaximized) WindowState = WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Copies the current normal bounds for use even if the window is later maximized or minimized.
+    /// </summary>
+    private void CaptureNormalPlacement()
+    {
+        if (IsVisible && WindowState == WindowState.Normal && ClientSize.Width > 0 && ClientSize.Height > 0)
+            _normalPlacement = (ClientSize, Position);
+    }
+
+    /// <summary>
+    /// Updates the persisted placement on close or when hiding to the tray.
+    /// </summary>
     private void SavePlacement()
     {
         var settings = _vm.Settings;
-        if (_vm.Dev.Size is null && _vm.Dev.ScreenshotPath is null)
-        {
-            // A --dev-size or --dev-screenshot run is a test: it leaves the remembered window placement alone.
-            settings.WindowMaximized = WindowState == WindowState.Maximized;
-            if (WindowState == WindowState.Normal)
-            {
-                settings.WindowWidth = Width;
-                settings.WindowHeight = Height;
-            }
-        }
+
+        // A --dev-size or --dev-screenshot run is a test: it leaves the remembered window placement alone.
+        if (!settings.RememberWindowPlacement || _vm.Dev.Size is not null || _vm.Dev.ScreenshotPath is not null) return;
+
+        CaptureNormalPlacement();
+        settings.WindowMaximized = _lastWindowState == WindowState.Maximized;
+        if (_normalPlacement is not { } placement) return;
+
+        settings.WindowWidth = placement.Size.Width;
+        settings.WindowHeight = placement.Size.Height;
+        settings.WindowX = placement.Position.X;
+        settings.WindowY = placement.Position.Y;
     }
+
+    #endregion
 
     private bool _shutDown;
 
