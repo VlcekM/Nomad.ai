@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.4
+
+- Added **Remember window size and position** under **Settings > General > Window**. It's on by default and also restores the maximized state.
+
 ## v2.8.3
 
 - Local file links in chat now show a hand cursor and open on Linux. Markdown links can jump to a specific line in the Files view.
