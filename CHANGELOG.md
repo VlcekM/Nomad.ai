@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.3
+
+- Local file links in chat now show a hand cursor and open on Linux. Markdown links can jump to a specific line in the Files view.
+
 ## v2.8.2
 
 - Streamed replies no longer stay invisible on Linux until you switch to another window and back.
