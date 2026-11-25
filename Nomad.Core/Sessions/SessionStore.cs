@@ -36,7 +36,7 @@ public sealed class SessionStore
     public const long DefaultHistoryBytes = 4 * 1024 * 1024;
 
     // Bump when ReadSummary learns something new: summaries saved by an older version are then read again.
-    private const int CacheVersion = 2;
+    private const int CacheVersion = 3;
 
     private readonly ConcurrentDictionary<string, (long Size, DateTime Mtime, SessionSummary? Summary)> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _saveLock = new();
@@ -257,8 +257,34 @@ public sealed class SessionStore
             return null;
         }
 
-        return new SessionSummary(sessionId, file, builder.Cwd, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl,
+        return new SessionSummary(sessionId, file, HomeFolder(file, builder.Cwd) ?? builder.Cwd, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl,
             CurrentDirectory: builder.CurrentCwd);
+    }
+
+    /// <summary>
+    /// The folder a session was started in, from a folder one of its records was made in: Claude Code files the
+    /// transcript under the start folder's name, so it is that folder or the nearest of its parents named so. A
+    /// record's folder can be a subfolder the shell had moved into, and a trimmed transcript may have lost the
+    /// records made at the start. Null when none matches (a name the CLI shortened, a file kept elsewhere).
+    /// </summary>
+    public static string? HomeFolder(string file, string? cwd)
+    {
+        if (string.IsNullOrEmpty(cwd) || Path.GetFileName(Path.GetDirectoryName(Path.GetFullPath(file))) is not { Length: > 0 } project)
+        {
+            return null;
+        }
+
+        for (var folder = cwd; !string.IsNullOrEmpty(folder); folder = Path.GetDirectoryName(folder))
+        {
+            // Windows folders ignore case, so the CLI can file a later run under an earlier run's spelling.
+            if (string.Equals(Remote.RemoteSessionScanner.ProjectDirectoryName(folder), project,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+            {
+                return folder;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
