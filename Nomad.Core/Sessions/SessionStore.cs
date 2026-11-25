@@ -5,7 +5,11 @@ using System.Text.Json.Serialization;
 
 namespace Nomad.Core.Sessions;
 
-/// <summary>A session as listed in the sidebar.</summary>
+/// <summary>
+/// A session as listed in the sidebar. <see cref="CustomTitle"/> is the newest name given with a rename, unshortened:
+/// for Claude Code the transcript's last <c>custom-title</c>; for a Gemini chat kept in Nomad's settings, the title
+/// Antigravity held when Nomad last synced with it.
+/// </summary>
 public sealed record SessionSummary(
     string SessionId,
     string FilePath,
@@ -17,7 +21,8 @@ public sealed record SessionSummary(
     string? PullRequestUrl = null,
     string? IssueUrl = null,
     string Backend = Agents.AgentBackends.ClaudeCode,
-    string? CurrentDirectory = null)
+    string? CurrentDirectory = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? CustomTitle = null)
 {
     /// <summary>Where it works now: the newest record's folder (Claude may have moved, into a worktree say), else where it started.</summary>
     [JsonIgnore]
@@ -36,7 +41,7 @@ public sealed class SessionStore
     public const long DefaultHistoryBytes = 4 * 1024 * 1024;
 
     // Bump when ReadSummary learns something new: summaries saved by an older version are then read again.
-    private const int CacheVersion = 3;
+    private const int CacheVersion = 4;
 
     private readonly ConcurrentDictionary<string, (long Size, DateTime Mtime, SessionSummary? Summary)> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _saveLock = new();
@@ -259,7 +264,7 @@ public sealed class SessionStore
 
         var folder = HomeFolder(file, builder.Cwd) ?? builder.Cwd;
         return new SessionSummary(sessionId, file, folder, title, mtimeUtc, size, builder.GitBranch, builder.PullRequestUrl, builder.IssueUrl,
-            CurrentDirectory: builder.CurrentCwd);
+            CurrentDirectory: builder.CurrentCwd, CustomTitle: builder.CustomTitle);
     }
 
     /// <summary>
@@ -439,6 +444,11 @@ public sealed class SessionStore
         public string? SessionId { get; private set; }
 
         public string? Cwd { get; private set; }
+
+        /// <summary>
+        /// The newest name given with a rename (Nomad's, or the CLI's own <c>/rename</c>), unshortened.
+        /// </summary>
+        public string? CustomTitle => string.IsNullOrWhiteSpace(_customTitle) ? null : _customTitle;
 
         public string? Title =>
             !string.IsNullOrWhiteSpace(_customTitle) ? SessionTitles.Shorten(_customTitle) :

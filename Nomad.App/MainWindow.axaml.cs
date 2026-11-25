@@ -360,6 +360,7 @@ public partial class MainWindow : Window
             }
         }, RoutingStrategies.Tunnel);
         Deactivated += (_, _) => HideShortcutHints();
+        Activated += (_, _) => _vm.OnWindowActivated();
 
         // A row's Click carries no modifiers: Ctrl or Shift held at the press (or key) picks rows instead of opening one.
         AddHandler(PointerPressedEvent, (_, e) => _clickModifiers = e.KeyModifiers, RoutingStrategies.Tunnel, handledEventsToo: true);

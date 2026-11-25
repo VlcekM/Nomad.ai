@@ -326,6 +326,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     public string? RenamedTitle { get; set; }
 
+    /// <summary>
+    /// Names this window renamed the session away from: a CLI that never took a rename writes its old name back, and
+    /// a scan can still find an earlier rename of Nomad's own on disk. Neither is a rename made elsewhere.
+    /// </summary>
+    public HashSet<string> SupersededTitles { get; } = new(StringComparer.Ordinal);
+
     /// <summary>No prompt sent and no history: the new-session view.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ComposerPlaceholder))]
