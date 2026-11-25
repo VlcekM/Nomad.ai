@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.App.Updates;
 using Nomad.Core.Agents;
+using Nomad.Core.Antigravity;
 using Nomad.Core.Git;
 using Nomad.Core.OpenCode;
 using Nomad.Core.Remote;
@@ -1514,15 +1515,29 @@ public sealed partial class MainViewModel : ObservableObject
         _scanCts?.Cancel();
         var cts = new CancellationTokenSource();
         _scanCts = cts;
+        _lastRefreshUtc = DateTime.UtcNow;
         IReadOnlyList<SessionSummary> summaries;
+        Dictionary<string, string> antigravityTitles;
+
+        // What was last synced with Antigravity, as the scan starts: a rename in Nomad meanwhile is not undone by it.
+        var antigravitySynced = Settings.AntigravitySessions.ToDictionary(e => e.Key, e => e.Value.CustomTitle, StringComparer.Ordinal);
         try
         {
-            (summaries, _elsewhere) = await Task.Run(
+            (summaries, _elsewhere, antigravityTitles) = await Task.Run(
                 () =>
                 {
                     var scanned = Store.Scan(cts.Token);
                     Store.SaveCache();
-                    return (scanned, RemoteSessionScanner.RunningSessionIds());
+                    var titles = new Dictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var id in antigravitySynced.Keys)
+                    {
+                        if (AntigravityTitles.Read(id) is { } title)
+                        {
+                            titles[id] = title;
+                        }
+                    }
+
+                    return (scanned, RemoteSessionScanner.RunningSessionIds(), titles);
                 },
                 cts.Token);
         }
@@ -1531,8 +1546,15 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
+        // A newer scan started while this one finished its work: its older names must not land after that one's.
+        if (cts.IsCancellationRequested)
+        {
+            return;
+        }
+
         IsLoadingSessions = false;
         _claudeSummaries = summaries;
+        AdoptAntigravityTitles(antigravityTitles, antigravitySynced);
         MergeSummaries([.. summaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
         _ = RefreshOpenCodeSessionsAsync();
         _ = RefreshCodexSessionsAsync();
@@ -1759,6 +1781,87 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowSessionsSkeleton { get; set; }
 
+    /// <summary>The custom title each Claude Code transcript held at the last scan, to tell a new rename from an old one.</summary>
+    private readonly Dictionary<string, string?> _seenCustomTitles = new(StringComparer.Ordinal);
+
+    private DateTime _lastRefreshUtc;
+
+    /// <summary>The window came to the front: names changed meanwhile (from the Claude app, say) show without waiting for a turn.</summary>
+    public void OnWindowActivated()
+    {
+        // Before the start's own scan, a second one would cancel it.
+        if (_lastRefreshUtc != default && DateTime.UtcNow - _lastRefreshUtc > TimeSpan.FromSeconds(30))
+        {
+            _ = RefreshSessionsAsync();
+        }
+    }
+
+    /// <summary>
+    /// An open Claude Code chat was renamed outside Nomad (<c>/rename</c> from the Claude app or a terminal): it takes
+    /// the name, rather than its own older one winning. Nomad's own renames reach the transcript too, and are passed by.
+    /// </summary>
+    private void AdoptOutsideRename(SessionViewModel live, string renamed)
+    {
+        if (renamed == live.RenamedTitle || (live.RenamedTitle is null && renamed == live.InitialTitle)
+            || (live.RenamedTitle is not null && live.SupersededTitles.Contains(renamed)))
+        {
+            return;
+        }
+
+        live.SupersededTitles.Clear();
+
+        // Nothing of Nomad's is to be written back over it when the CLI exits or the first turn ends.
+        live.RenamedTitle = null;
+        live.InitialTitle = null;
+        live.Title = SessionTitles.Shorten(renamed);
+
+        // The running CLI re-appends the name it knows on every turn: if something else wrote this one, it must learn
+        // it, or its next turn would put the old name back. Telling it the name it already has changes nothing.
+        if (live is { IsClaudeCode: true, IsProcessRunning: true })
+        {
+            _ = live.RenameProcessAsync(renamed);
+        }
+    }
+
+    /// <summary>
+    /// Gemini chats renamed in Antigravity (its CLI, its app, or antigravity.google.com) take that name: a title that
+    /// differs from the one Antigravity held at the last sync. The first sync only notes Antigravity's title, keeping
+    /// Nomad's: nothing on disk says which of two older names is the newer (the record's write time also moves when a
+    /// chat is only viewed or archived there).
+    /// </summary>
+    private void AdoptAntigravityTitles(IReadOnlyDictionary<string, string> titles, IReadOnlyDictionary<string, string?> synced)
+    {
+        var changed = false;
+        foreach (var (id, title) in titles)
+        {
+            if (!Settings.AntigravitySessions.TryGetValue(id, out var entry) || entry.CustomTitle == title
+                || entry.CustomTitle != synced.GetValueOrDefault(id))
+            {
+                continue; // Unchanged, gone, or renamed in Nomad while the scan read the file.
+            }
+
+            var renamedThere = entry.CustomTitle is not null;
+            var shortTitle = SessionTitles.Shorten(title);
+            Settings.AntigravitySessions[id] = entry with
+            {
+                CustomTitle = title,
+                Title = renamedThere ? shortTitle : entry.Title,
+            };
+            changed = true;
+            if (renamedThere && _open.TryGetValue(id, out var live) && live.Title != shortTitle)
+            {
+                live.RenamedTitle = null;
+                live.InitialTitle = null;
+                live.Title = shortTitle;
+            }
+        }
+
+        if (changed)
+        {
+            SaveSettings();
+        }
+    }
+
     /// <summary>Brings the list's rows in line with these summaries (keeping the rows of sessions still there).</summary>
     private void MergeSummaries(IReadOnlyList<SessionSummary> summaries)
     {
@@ -1785,6 +1888,16 @@ public sealed partial class MainViewModel : ObservableObject
             vm.WorkingDirectory = Settings.MovedSessionFolders.GetValueOrDefault(s.SessionId) ?? s.WorkingDirectory;
             vm.CurrentDirectory = s.CurrentDirectory;
             _open.TryGetValue(s.SessionId, out var live);
+            if (s.Backend == AgentBackends.ClaudeCode)
+            {
+                var known = _seenCustomTitles.TryGetValue(s.SessionId, out var before);
+                _seenCustomTitles[s.SessionId] = s.CustomTitle;
+                if (live is not null && known && s.CustomTitle is { } renamed && renamed != before)
+                {
+                    AdoptOutsideRename(live, renamed);
+                }
+            }
+
             var originalFolder = string.Equals(vm.WorkingDirectory, s.WorkingDirectory, StringComparison.OrdinalIgnoreCase);
             vm.GitBranch = (originalFolder ? s.GitBranch : null) ?? (live is { GitBranch.Length: > 0 } ? live.GitBranch : null);
             var savedWorkUrl = originalFolder ? Settings.SessionWorkUrls.GetValueOrDefault(s.SessionId) : null;
@@ -2940,6 +3053,17 @@ public sealed partial class MainViewModel : ObservableObject
         item.Title = SessionTitles.Shorten(title);
         if (_open.Values.Append(Current).FirstOrDefault(s => s.SessionId == item.SessionId) is { } session)
         {
+            if (session.RenamedTitle is { } previous)
+            {
+                session.SupersededTitles.Add(previous);
+            }
+
+            if (_seenCustomTitles.GetValueOrDefault(item.SessionId) is { } onDisk)
+            {
+                session.SupersededTitles.Add(onDisk);
+            }
+
+            session.SupersededTitles.Remove(title);
             session.Title = item.Title;
             session.RenamedTitle = title;
             session.InitialTitle = null;
@@ -2961,7 +3085,14 @@ public sealed partial class MainViewModel : ObservableObject
         }
         else if (Settings.AntigravitySessions.TryGetValue(item.SessionId, out var antigravity))
         {
-            Settings.AntigravitySessions[item.SessionId] = antigravity with { Title = SessionTitles.Shorten(title) };
+            // Antigravity keeps its own name for the chat: it gets the new one too, and what it now holds is noted,
+            // so the next scan does not take it for a rename made there.
+            var named = AntigravityTitles.Write(item.SessionId, title);
+            Settings.AntigravitySessions[item.SessionId] = antigravity with
+            {
+                Title = SessionTitles.Shorten(title),
+                CustomTitle = named ? title : antigravity.CustomTitle,
+            };
             SaveSettings();
         }
         else
@@ -3139,7 +3270,8 @@ public sealed partial class MainViewModel : ObservableObject
             GitBranch: session.GitBranch is { Length: > 0 } branch ? branch : existing?.GitBranch,
             PullRequestUrl: workPrUrl ?? existing?.PullRequestUrl,
             IssueUrl: workIssueUrl ?? existing?.IssueUrl,
-            Backend: session.Backend);
+            Backend: session.Backend,
+            CustomTitle: existing?.CustomTitle);
         SaveSettings();
     }
 
