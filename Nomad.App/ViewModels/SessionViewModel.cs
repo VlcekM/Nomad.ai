@@ -3451,7 +3451,9 @@ public sealed partial class SessionViewModel : ObservableObject
         LoadAdditionalFolders(history.SessionId);
         Title = summary.Title;
         IsNew = false;
-        Folder = _main.Settings.MovedSessionFolders.GetValueOrDefault(SessionId) ?? history.WorkingDirectory ?? summary.WorkingDirectory;
+        // The summary's folder is where the chat was started. The history's is only the first one in what was read,
+        // which for a long transcript is its end: wherever the shell had moved by then.
+        Folder = _main.Settings.MovedSessionFolders.GetValueOrDefault(SessionId) ?? summary.WorkingDirectory ?? history.WorkingDirectory;
         if (!string.IsNullOrEmpty(history.Model))
         {
             Model = history.Model;
