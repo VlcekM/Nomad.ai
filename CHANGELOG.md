@@ -3,6 +3,11 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.5
+
+- Chat names stay in sync with renames made outside Nomad: a `/rename` in Claude Code or the Claude app, or a rename in Antigravity, now shows up in Nomad, and renaming a Gemini chat in Nomad also renames it in Antigravity.
+- A long chat now reopens in the folder it was started in, not in the last folder its shell moved to.
+
 ## v2.8.4
 
 - Added **Remember window size and position** under **Settings > General > Window**. It's on by default and also restores the maximized state.
