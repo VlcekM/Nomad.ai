@@ -40,6 +40,27 @@ public class QueuedPromptTests
     }
 
     [Fact]
+    public void WhatHooksAddForANotificationFollowsItsNoticeNotThePrompt()
+    {
+        // Claude Code runs the prompt hooks for a task notification too; its hook context comes after the notification.
+        var hook = """{"parentUuid":"u1","isSidechain":false,"attachment":{"type":"hook_additional_context","content":["Message sent: 10:00"],"hookName":"UserPromptSubmit"},"type":"attachment","uuid":"h1","timestamp":"2026-11-21T10:00:00.500Z","sessionId":"s"}""";
+        var notification = """{"parentUuid":"r1","isSidechain":false,"attachment":{"type":"queued_command","prompt":"<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>t9</tool-use-id>\n<status>completed</status>\n<summary>Background command \"build\" completed</summary>\n</task-notification>"},"type":"attachment","uuid":"q2","timestamp":"2026-11-21T10:01:00.000Z","sessionId":"s"}""";
+        var notificationHook = hook.Replace("\"uuid\":\"h1\"", "\"uuid\":\"h2\"").Replace("\"parentUuid\":\"u1\"", "\"parentUuid\":\"q2\"")
+            .Replace("Message sent: 10:00", "Background notice at: 10:01").Replace("10:00:00.500Z", "10:01:00.500Z");
+
+        // One chain, as the CLI writes it: prompt, its hook context, the tool round, the notification, its hook context, the reply.
+        string[] lines = [Lines[0], hook, Lines[1].Replace("\"parentUuid\":\"u1\"", "\"parentUuid\":\"h1\""), Lines[2], notification, notificationHook,
+            """{"type":"assistant","uuid":"a4","parentUuid":"h2","sessionId":"s","timestamp":"2026-11-21T10:01:05.000Z","message":{"id":"ma4","role":"assistant","content":[{"type":"text","text":"The build finished."}]}}"""];
+        var history = SessionHistory.FromRecords([.. lines.Select(l => TranscriptRecord.Parse(l)!)], truncated: false, "s");
+
+        var order = history.Items.Where(i => i is HistoryUserMessage or HistoryHookContext or HistoryNotice).ToList();
+        Assert.IsType<HistoryUserMessage>(order[0]);
+        Assert.Equal("Message sent: 10:00", Assert.IsType<HistoryHookContext>(order[1]).Text);
+        Assert.True(Assert.IsType<HistoryNotice>(order[2]).IsTaskNotification); // So the view keeps the next one off the prompt.
+        Assert.Equal("Background notice at: 10:01", Assert.IsType<HistoryHookContext>(order[3]).Text);
+    }
+
+    [Fact]
     public void APromptTypedMidTurnInATerminalShowsToo()
     {
         var typed = """{"parentUuid":"r1","isSidechain":false,"attachment":{"type":"queued_command","prompt":"<div> isn't centred, fix it"},"type":"attachment","uuid":"q3","timestamp":"2026-11-21T10:02:00.000Z","sessionId":"s"}""";

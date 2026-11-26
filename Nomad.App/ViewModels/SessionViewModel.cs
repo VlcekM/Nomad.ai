@@ -2266,10 +2266,24 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Hook text belongs to the prompt it was added to: the latest one.</summary>
     private void AddHookContext(string text)
     {
-        if (Items.OfType<UserMessageItem>().LastOrDefault() is { } prompt)
+        var prompt = Items.OfType<UserMessageItem>().LastOrDefault();
+        if (_taskNotified && ReferenceEquals(prompt, _promptBeforeNotification))
         {
-            prompt.AddHookContext(text);
+            return; // A task notification's: it shows as a notice, with nothing to fold this under, and it isn't that prompt's.
         }
+
+        prompt?.AddHookContext(text);
+    }
+
+    // A background task's end was handed to Claude after this prompt: the CLI runs the prompt hooks for it too, and what they
+    // add belongs to it until a new prompt comes.
+    private bool _taskNotified;
+    private UserMessageItem? _promptBeforeNotification;
+
+    private void NoteTaskNotified()
+    {
+        _taskNotified = true;
+        _promptBeforeNotification = Items.OfType<UserMessageItem>().LastOrDefault();
     }
 
     // ------------------------------------------------------------------ attachments
@@ -3524,8 +3538,18 @@ public sealed partial class SessionViewModel : ObservableObject
                     CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                     break;
                 case HistoryNotice n when n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal) && Workflows.Count > 0:
+                    if (n.IsTaskNotification)
+                    {
+                        NoteTaskNotified();
+                    }
+
                     break; // Its card says it ended.
                 case HistoryNotice n:
+                    if (n.IsTaskNotification)
+                    {
+                        NoteTaskNotified();
+                    }
+
                     CloseGroup();
                     Items.Add(new NoticeItem(n.Text));
                     break;
@@ -4162,6 +4186,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case TaskNotificationEvent ended:
+                NoteTaskNotified();
                 CloseGroup();
                 FinishNotifiedTask(ended);
                 ContentChanged?.Invoke();
