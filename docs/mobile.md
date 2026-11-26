@@ -125,16 +125,15 @@ After these: notifications (they need either a foreground service or Firebase Cl
 
 ## 10. The phone view
 
-The phone view (Settings › Remote Control) is a page Nomad serves itself. The app replaces it, and it is removed in the app's pull request. Its checks carry over to the PC side in §4: refusing an answer to a card that is no longer showing, checking a question's answers whole, and skipping unchanged polls.
+The phone view was a page Nomad would serve itself, proposed in a fork and never merged here, so there is nothing to remove: the app takes its place. Its checks carry over to the PC side in §4: refusing an answer to a card that is no longer showing, checking a question's answers whole, and skipping unchanged polls.
 
 ## 11. Settled with the maintainer
 
 - The hub is the only way in. The app never connects to a PC directly.
-- The app replaces the phone view.
+- The app replaces the phone view that was proposed for the PC.
 - The first version is Android only.
 - Antigravity chats sync through the hub, as part of this work.
-
-Still open:
-
-1. What package name and signing key should the app use, and should it go on Google Play?
-2. What is the minimum Android version? This plan proposes Android 10 (API level 29).
+- The package name is `ai.nomad.mobile`.
+- The app ships as an APK on each GitHub release, not on Google Play.
+- The maintainer makes the signing key once the release workflow's pull request is up; the workflow reads it from repository secrets.
+- The minimum is Android 10 (API level 29).
