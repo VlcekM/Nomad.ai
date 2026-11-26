@@ -264,6 +264,44 @@ public sealed class ScreenTests
         Find<TextBlock>(window, t => t.Text == "Desk PC");
         Save(window, "6-settings", theme);
     }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task New_chat_screen(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, _) = await SignedInAsync();
+        main.Chats.NewChatCommand.Execute(null);
+        var page = (NewChatViewModel)main.Page;
+        await page.LoadAsync();
+        page.Model.ToggleCommand.Execute(null);
+        page.Prompt = "Look at the parser.";
+        var window = Show(page, main, theme);
+
+        Find<TextBlock>(window, t => t.Text == "New chat");
+        Find<TextBlock>(window, t => t.Text == "Sonnet"); // The model's list, open.
+        Save(window, "7-new-chat", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task Chat_settings_screen(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page();
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        chat.OpenSettingsCommand.Execute(null);
+        await chat.SettingsPanel!.LoadAsync();
+        chat.SettingsPanel.Mode.ToggleCommand.Execute(null);
+        var window = Show(chat, main, theme);
+
+        Find<TextBlock>(window, t => t.Text == "Chat settings");
+        Find<TextBlock>(window, t => t.Text == "Plan");
+        Save(window, "8-chat-settings", theme);
+    }
 }
 
 [CollectionDefinition("app services", DisableParallelization = true)]

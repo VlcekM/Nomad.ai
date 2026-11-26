@@ -1,33 +1,38 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:c="using:Nomad.App.Controls"
              x:Class="Nomad.Mobile.Views.SettingRowView"
              x:DataType="vm:SettingViewModel"
              IsVisible="{Binding HasChoices}">
-  <!-- One setting: its name and value on a row that opens to its choices, like a menu on the PC. -->
+  <!-- One setting, as a row of the desktop's settings pages: its name, its value and a chevron; tapped, its choices fold open
+       below it, as the desktop's menu lists them. -->
   <StackPanel>
-    <Button Classes="flat" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-            MinHeight="48" Padding="16,8">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding ValueText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+    <Button Theme="{StaticResource PhoneRowButton}" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+            Margin="-12,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Classes="rowlabel" Text="{Binding Label}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Classes="rowhint" Text="{Binding ValueText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="210" />
+        <c:Icon Grid.Column="2" Classes="chev" Classes.open="{Binding IsOpen}" Size="14" Data="{StaticResource IconChevronRight}"
+                Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
       </Grid>
     </Button>
-    <ItemsControl ItemsSource="{Binding Choices}" IsVisible="{Binding IsOpen}" Margin="8,0,8,6">
+    <ItemsControl ItemsSource="{Binding Choices}" IsVisible="False" c:Fold.IsOpen="{Binding IsOpen}" Margin="0,0,0,6">
       <ItemsControl.ItemTemplate>
         <DataTemplate DataType="vm:ChoiceViewModel">
-          <Button Classes="flat" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}"
-                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" MinHeight="44" Padding="16,6">
+          <ToggleButton Theme="{StaticResource OptionToggle}" IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding PickCommand}">
             <Grid ColumnDefinitions="*,Auto">
-              <StackPanel VerticalAlignment="Center">
+              <StackPanel VerticalAlignment="Center" Spacing="1">
                 <TextBlock Text="{Binding Name}" TextWrapping="Wrap" />
-                <TextBlock Classes="muted" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+                <TextBlock Classes="muted small" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
               </StackPanel>
-              <TextBlock Grid.Column="1" Text="✓" IsVisible="{Binding IsSelected}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="10,0,0,0" />
+              <c:Icon Grid.Column="1" Size="14" Data="{StaticResource IconCheck}" IsVisible="{Binding IsSelected}"
+                      Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="10,0,2,0" />
             </Grid>
-          </Button>
+          </ToggleButton>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+    <Border Classes="rowline" />
   </StackPanel>
 </UserControl>
