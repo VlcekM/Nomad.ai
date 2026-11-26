@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Nomad.Mobile.Markdown;
 using Nomad.Mobile.ViewModels;
 
 namespace Nomad.Mobile.Views;
@@ -49,6 +50,41 @@ public partial class ChatView : UserControl
         if (sender is Control { DataContext: EntryViewModel entry } && TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
         {
             await clipboard.SetTextAsync(entry.IsCard ? entry.CardText : entry.Text);
+        }
+    }
+
+    /// <summary>Hold a message: below Copy text, an Open item for each web or mail link in it, the same as tapping the link.</summary>
+    private void OnEntryMenuOpening(object? sender, EventArgs e)
+    {
+        if (sender is not MenuFlyout { Target.DataContext: EntryViewModel entry } menu)
+        {
+            return;
+        }
+
+        foreach (var old in menu.Items.OfType<MenuItem>().Where(i => i.Tag is string).ToList())
+        {
+            menu.Items.Remove(old);
+        }
+
+        foreach (var url in MarkdownBlock.LinksIn(entry.IsCard ? entry.CardText : entry.Text).Take(5))
+        {
+            var item = new MenuItem { Header = "Open " + Shortened(url), Tag = url };
+            item.Click += async (_, _) => await OpenLinkAsync(url);
+            menu.Items.Add(item);
+        }
+    }
+
+    private static string Shortened(string url)
+    {
+        var shown = url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? url[7..] : url.Replace("https://", "").Replace("http://", "");
+        return shown.Length > 40 ? shown[..39] + "…" : shown;
+    }
+
+    private async Task OpenLinkAsync(string url)
+    {
+        if (!await MarkdownBlock.OpenAsync(this, url))
+        {
+            _chat?.ShowProblem("Couldn't open " + url);
         }
     }
 }

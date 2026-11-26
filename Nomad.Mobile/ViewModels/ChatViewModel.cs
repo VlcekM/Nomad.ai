@@ -522,6 +522,9 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
         return at >= 0 ? message[(at + "HubException: ".Length)..] : message;
     }
 
+    /// <summary>A problem the view ran into (a link the phone wouldn't open), shown where the chat's own problems show.</summary>
+    public void ShowProblem(string text) => ShowStatus(text, problem: true);
+
     private void ShowStatus(string text, bool problem)
     {
         _statusClear?.Cancel();

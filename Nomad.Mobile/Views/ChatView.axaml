@@ -159,7 +159,7 @@
                 <!-- Plain text, so a finger's drag always scrolls; hold a message to copy it. -->
                 <StackPanel Background="Transparent">
                   <StackPanel.ContextFlyout>
-                    <MenuFlyout>
+                    <MenuFlyout Opening="OnEntryMenuOpening">
                       <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
                     </MenuFlyout>
                   </StackPanel.ContextFlyout>

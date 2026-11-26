@@ -621,5 +621,13 @@ public sealed class ViewModelTests
     public void Hub_addresses_must_be_https(string address, string? url) =>
         Assert.Equal(url, EnrollLink.CheckAddress(address).Url?.ToString());
 
+    [Fact]
+    public void A_message_lists_its_web_and_mail_links_once_each_in_order() =>
+        Assert.Equal(
+            ["http://example.com/a/", "https://b.example/x?y=1", "mailto:me@example.com"],
+            Nomad.Mobile.Markdown.MarkdownBlock.LinksIn(
+                "Open http://example.com/a/ then [this one](https://b.example/x?y=1), again http://example.com/a/, "
+                + "mail <me@example.com>, a file [here](file:///C:/x.txt), `http://in.code/` and ![pic](https://img.example/p.png)."));
+
     private static string Encode(AgentEvent e) => RelayCodec.Encode(e) ?? throw new InvalidOperationException($"{e.GetType().Name} isn't relayed.");
 }

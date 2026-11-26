@@ -386,7 +386,51 @@ public sealed class MarkdownBlock : ContentControl
         }
 
         e.Handled = true;
-        await launcher.LaunchUriAsync(uri);
+        if (!await OpenAsync(this, uri.AbsoluteUri)
+            && this.GetVisualAncestors().Select(v => (v as StyledElement)?.DataContext).OfType<Nomad.Mobile.ViewModels.ChatViewModel>().FirstOrDefault() is { } chat)
+        {
+            chat.ShowProblem("Couldn't open " + url);
+        }
+    }
+
+    /// <summary>Opens a web or mail link in the phone's own app for it; false when it can't (no launcher, or the phone refused).</summary>
+    public static async Task<bool> OpenAsync(Visual from, string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto")
+            || TopLevel.GetTopLevel(from)?.Launcher is not { } launcher)
+        {
+            return false;
+        }
+
+        try
+        {
+            return await launcher.LaunchUriAsync(uri);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The web and mail links a message's text holds, in order, each once: what tapping them would open.</summary>
+    public static IReadOnlyList<string> LinksIn(string markdown)
+    {
+        var found = new List<string>();
+        foreach (var inline in Markdig.Markdown.Parse(markdown, Pipeline).Descendants<MdInline>())
+        {
+            var url = inline switch
+            {
+                LinkInline { IsImage: false } link => link.Url,
+                AutolinkInline auto => auto.IsEmail && !auto.Url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? "mailto:" + auto.Url : auto.Url,
+                _ => null,
+            };
+            if (url is not null && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" or "mailto" && !found.Contains(url))
+            {
+                found.Add(url);
+            }
+        }
+
+        return found;
     }
 
     /// <summary>The link under a point of a text block: the character there, found among its runs in order.</summary>
