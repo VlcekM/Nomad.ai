@@ -121,6 +121,14 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
     [RelayCommand]
     private void OpenSettings() => main.OpenSettings();
 
+    /// <summary>A new chat on one of the PCs, as their new-session page starts one.</summary>
+    [RelayCommand]
+    private void NewChat() => main.OpenNewChat();
+
+    /// <summary>A chat's row, when it is on the board.</summary>
+    public ChatRowViewModel? Find(Guid device, string backend, string sessionId) =>
+        Groups.FirstOrDefault(g => g.DeviceId == device)?.Chats.FirstOrDefault(c => c.Backend == backend && c.SessionId == sessionId);
+
     /// <summary>The order chats show in: waiting on you, then working, then the rest, newest activity first within each.</summary>
     public static int Rank(string state) => state switch
     {

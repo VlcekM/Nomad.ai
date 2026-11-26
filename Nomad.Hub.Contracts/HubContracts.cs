@@ -195,7 +195,8 @@ public sealed record ChatOption(string Label, string? Description);
 /// <summary>
 /// Input for a chat: <c>prompt</c> (<paramref name="Text"/>, queued behind a running turn as if typed), <c>answer</c>
 /// (<paramref name="Card"/>, <paramref name="Choice"/> <c>allow</c>, <c>session</c> or <c>deny</c>, and for a question one
-/// <see cref="ChatAnswer"/> per question, in order) or <c>stop</c>.
+/// <see cref="ChatAnswer"/> per question, in order), <c>stop</c>, or a setting changed as in the chat's own menus on the PC:
+/// <c>model</c>, <c>effort</c> or <c>mode</c>, <paramref name="Choice"/> the id of one of its <see cref="ChatSettings"/> choices.
 /// </summary>
 /// <remarks>
 /// <paramref name="Id"/>, when given, makes a retry safe: the PC applies an input with an id it has just applied only once, and
@@ -207,6 +208,38 @@ public sealed record ChatInput(string Kind, string? Text = null, string? Card = 
 public sealed record ChatAnswer(IReadOnlyList<string> Options, string? Other);
 
 public sealed record ChatInputResult(bool Ok, string Message);
+
+/// <summary>One choice in a chat setting's list (a model, an effort, a mode, an agent): its id and what the PC calls it.</summary>
+public sealed record ChatChoice(string Id, string Name, string? Description = null);
+
+/// <summary>
+/// A chat's settings as its menus on the PC show them: the model, effort and permission mode now, and what each can be
+/// changed to (a list with one choice or none: nothing to change).
+/// </summary>
+public sealed record ChatSettings(
+    string? Model,
+    IReadOnlyList<ChatChoice> Models,
+    string? Effort,
+    IReadOnlyList<ChatChoice> Efforts,
+    string? Mode,
+    IReadOnlyList<ChatChoice> Modes);
+
+/// <summary>
+/// What a new chat on a PC can start as: each agent with its settings as a new chat there starts with them (the defaults
+/// chosen), the agent picked last, and the folders used lately (the first the one picked last).
+/// </summary>
+public sealed record NewChatOptions(IReadOnlyList<NewChatAgent> Agents, string DefaultAgent, IReadOnlyList<string> Folders);
+
+public sealed record NewChatAgent(string Id, string Name, ChatSettings Settings);
+
+/// <summary>
+/// A chat to start on a PC with its first prompt: <paramref name="Folder"/> null for none; a null setting takes the PC's default.
+/// <paramref name="Id"/>, when given, makes a retry safe, as for <see cref="ChatInput"/>.
+/// </summary>
+public sealed record NewChat(string Backend, string? Folder, string? Model, string? Effort, string? Mode, string Prompt, string? Id = null);
+
+/// <summary>Whether the chat started, and its session id once it has one (the PC waits a little for it).</summary>
+public sealed record NewChatResult(bool Ok, string Message, string? SessionId = null);
 
 /// <summary>Names shared by both ends.</summary>
 public static class HubNames
@@ -269,6 +302,24 @@ public static class HubNames
 
     /// <summary>Server → the PC with the chat, a client result: <c>(backend, sessionId, ChatInput, string fromName)</c> → <see cref="ChatInputResult"/>.</summary>
     public const string ChatInputRequested = "ChatInputRequested";
+
+    /// <summary>Client → server (the phone): <c>(Guid device, backend, sessionId)</c> → <see cref="ChatSettings"/>.</summary>
+    public const string ChatSettingsGet = "ChatSettingsGet";
+
+    /// <summary>Server → the PC with the chat, a client result: <c>(backend, sessionId)</c> → <see cref="ChatSettings"/>.</summary>
+    public const string ChatSettingsRequested = "ChatSettingsRequested";
+
+    /// <summary>Client → server (the phone): <c>(Guid device)</c> → <see cref="NewChatOptions"/>, what a new chat there can be.</summary>
+    public const string NewChatOptionsGet = "NewChatOptionsGet";
+
+    /// <summary>Server → the PC, a client result: <c>()</c> → <see cref="NewChatOptions"/>.</summary>
+    public const string NewChatOptionsRequested = "NewChatOptionsRequested";
+
+    /// <summary>Client → server (the phone): <c>(Guid device, NewChat)</c> → <see cref="NewChatResult"/>.</summary>
+    public const string ChatStart = "ChatStart";
+
+    /// <summary>Server → the PC, a client result: <c>(NewChat, string fromName)</c> → <see cref="NewChatResult"/>.</summary>
+    public const string ChatStartRequested = "ChatStartRequested";
 
     /// <summary>How long the hub waits for a PC to answer for its chat.</summary>
     public static readonly TimeSpan ChatAnswerTimeout = TimeSpan.FromSeconds(15);

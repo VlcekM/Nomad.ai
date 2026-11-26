@@ -11,8 +11,10 @@ Nomad Mobile is a phone app that shows every chat open in Nomad, on every one of
 - Sends a message, handled as one typed on the PC: during a running Claude Code turn it goes in and is read at the agent's next step, with other agents it queues behind the turn, and to a chat whose process has stopped it starts the chat again on its PC.
 - Answers permission and question cards. The first answer from anywhere wins and the card closes everywhere, as the relay already does between PCs.
 - Stops a running turn.
+- Changes a chat's model, effort and permission mode, from the same choices its menus on the PC offer.
+- Starts a new chat on a PC, as that PC's new-session page would: its agent, folder, model, effort and mode, with the PC's own choices and defaults, and a first message.
 
-Left for later: notifications while the app is closed, starting new chats, browsing closed and archived sessions, changing model or mode, sending images and files (received ones show as placeholders), and iOS.
+Left for later: notifications while the app is closed, browsing closed and archived sessions, the rest of a chat's menus (fast mode, Ultracode, Remote Control, rename, fork, rewind), sending images and files (received ones show as placeholders), and iOS.
 
 ## 2. Why the hub, and what it is missing
 
@@ -44,6 +46,12 @@ The hub keeps the board in memory, as it keeps relay buffers. When a PC disconne
 
 `ChatSend(device, backend, sessionId, ChatInput)` delivers a prompt, an answer or Stop to the PC that has the chat open. That PC replies whether it took it, with a sentence saying what happened. An input may carry an id: a retry with the same id (after a timeout, say) is answered with the first result and applied once. Stop is answered at once, as the turn stops. The phone sends every input this way, whether or not the chat is streaming, so a stopped chat works the same as a live one. The relay is used only for what it does best: live events, through the existing `RelayWatch`.
 
+A setting changed on the phone travels the same way: `ChatInput` kinds `model`, `effort` and `mode`, whose choice must be one the chat offers. `ChatSettingsGet(device, backend, sessionId)` asks the PC for the chat's model, effort and mode now and the choices for each.
+
+### New chats
+
+`NewChatOptionsGet(device)` asks a PC what a new chat there can be: each agent with its models, efforts and modes and the PC's defaults for a new chat, the agent picked last, and the folders used lately. `ChatStart(device, NewChat)` starts one with its first message. Both go to the PC's newest connection on the board, so a PC sharing its chats can be reached even with none open; one that isn't sharing refuses. A start may carry an id, as an input may, so a retry never starts a second chat. The PC answers with the new session id when it has one within the hub's 15 seconds; otherwise the phone opens the first new chat of that agent to appear on that PC's board.
+
 All new wire types go in `Nomad.Hub.Contracts`, with source-generated JSON, so the desktop app stays NativeAOT.
 
 ## 4. The PC side
@@ -52,6 +60,7 @@ A `MobileHost` class in `Nomad.App`, beside `HubViewModel`, answers for the chat
 
 - The board is built from `MainViewModel.ReachableChats`: open chats that have a session id and were not started from the Claude app. It is the same set the chat tools (`list_chats`, `send_to_chat`) reach.
 - History is mapped from the transcript items the chat window already shows: user messages, assistant text, tool groups, cards, notices and errors. The window has already turned every backend into those items, so Antigravity needs no extra work and nothing is read from disk again.
+- A setting from the phone is applied as if picked in the chat's menu, through the same methods; a model switch skips the "switch this conversation?" card, since picking it on the phone is the choice. A new chat is made as the new-session page makes one, but in the background, as the chat tools' side tasks are: the PC's window stays where it is, and the chat joins the Alive list with its first message marked as from the phone. It starts in its folder, not a new worktree.
 - Every input is applied on the UI thread under the same checks the desktop uses. An answer must name the pending card's `RequestId`, or it is refused. A question's answers are all checked before any of them is applied. "Allow for this session" is accepted only where the PC itself offers it. A prompt is handled as one typed on the PC: into a running Claude Code turn, otherwise through the chat's own queue, which starts the process if it has stopped.
 - Live events already stream for every chat this PC starts while the hub relay is on (`AttachRelay` runs at every process start). Whether Antigravity's events stream correctly gets confirmed during the build.
 - Settings › Hub gains **Add phone**. It makes an enrollment token and shows a QR code of `nomad://enroll?hub=<address>&token=<token>`, with the link as text beside it.
@@ -87,7 +96,7 @@ The hub speaks plain HTTP, and Android refuses plain HTTP by default, so the app
 
 ## 6. Security
 
-- A phone holds a device secret, as a PC does. A viewer can do what a watching PC can (prompt, answer, stop) and nothing more: no files, no new chats, no commands.
+- A phone holds a device secret, as a PC does. It can do what a watching PC can (prompt, answer, stop), change a chat's model, effort and mode, and start a chat in a folder on a PC that shares its chats. It reads no files and runs no commands of its own: everything goes through the agent, under the chat's permission mode.
 - The PC checks every input as if it were typed there (§4).
 - The secret is stored at rest under the Android Keystore.
 - A lost phone is revoked from Settings › Hub on any PC; the hub ends its open connections at once, and its secret no longer signs in.

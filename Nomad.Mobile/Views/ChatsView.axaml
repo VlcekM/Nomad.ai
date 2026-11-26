@@ -6,9 +6,10 @@
              x:Name="Root">
   <DockPanel>
     <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="16,10,6,10">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto">
         <TextBlock Classes="title" Text="Chats" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Classes="flat" Content="Settings" Command="{Binding OpenSettingsCommand}" />
+        <Button Grid.Column="1" Classes="flat" Content="New chat" Command="{Binding NewChatCommand}" />
+        <Button Grid.Column="2" Classes="flat" Content="Settings" Command="{Binding OpenSettingsCommand}" />
       </Grid>
     </Border>
 

@@ -42,6 +42,13 @@ public sealed class HubConnection : IHubConnection
     public Task<ChatInputResult> ChatSendAsync(Guid device, string backend, string sessionId, ChatInput input, CancellationToken ct = default) =>
         _client.ChatSendAsync(device, backend, sessionId, input, ct);
 
+    public Task<ChatSettings> ChatSettingsAsync(Guid device, string backend, string sessionId, CancellationToken ct = default) =>
+        _client.ChatSettingsAsync(device, backend, sessionId, ct);
+
+    public Task<NewChatOptions> NewChatOptionsAsync(Guid device, CancellationToken ct = default) => _client.NewChatOptionsAsync(device, ct);
+
+    public Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default) => _client.ChatStartAsync(device, chat, ct);
+
     public Task<WatchResult> WatchAsync(string backend, string sessionId, CancellationToken ct = default) => _client.WatchAsync(backend, sessionId, ct);
 
     public Task UnwatchAsync(string backend, string sessionId, CancellationToken ct = default) => _client.UnwatchAsync(backend, sessionId, ct);

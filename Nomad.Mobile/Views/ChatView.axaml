@@ -2,18 +2,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.Mobile.ViewModels"
              xmlns:md="using:Nomad.Mobile.Markdown"
+             xmlns:v="using:Nomad.Mobile.Views"
              x:Class="Nomad.Mobile.Views.ChatView"
              x:DataType="vm:ChatViewModel">
+  <Panel>
   <DockPanel>
     <!-- Header: back, title, where it runs, and its state. -->
     <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="4,6,12,8">
-      <Grid ColumnDefinitions="Auto,*,Auto">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
         <Button Classes="flat" Content="‹ Chats" Command="{Binding BackCommand}" VerticalAlignment="Top" />
         <StackPanel Grid.Column="1" Margin="6,4,0,0" Spacing="2">
           <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
           <TextBlock Classes="muted" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
         </StackPanel>
         <TextBlock Grid.Column="2" Classes="muted" Text="{Binding StateText}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <!-- The chat's model, effort and mode. -->
+        <Button Grid.Column="3" Classes="flat" Content="⚙" FontSize="18" Command="{Binding OpenSettingsCommand}" VerticalAlignment="Center" Margin="4,0,0,0" />
       </Grid>
     </Border>
 
@@ -183,4 +187,12 @@
       <TextBlock Classes="muted" Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Grid>
   </DockPanel>
+
+  <!-- The chat's settings, over it while open. -->
+  <ContentControl Content="{Binding SettingsPanel}" IsVisible="{Binding SettingsPanel, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <ContentControl.ContentTemplate>
+      <DataTemplate DataType="vm:ChatSettingsViewModel"><v:ChatSettingsView /></DataTemplate>
+    </ContentControl.ContentTemplate>
+  </ContentControl>
+  </Panel>
 </UserControl>

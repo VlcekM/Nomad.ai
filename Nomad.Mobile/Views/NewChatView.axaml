@@ -1,0 +1,49 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             x:Class="Nomad.Mobile.Views.NewChatView"
+             x:DataType="vm:NewChatViewModel">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="4,6,12,8">
+      <Grid ColumnDefinitions="Auto,*">
+        <Button Classes="flat" Content="‹ Chats" Command="{Binding BackCommand}" />
+        <TextBlock Grid.Column="1" Classes="title" Text="New chat" VerticalAlignment="Center" Margin="6,0,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- The first message and Start, above the keyboard. -->
+    <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="10,8">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Classes="muted" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0">
+          <TextBlock.Styles>
+            <Style Selector="TextBlock.problem">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </TextBlock.Styles>
+        </TextBlock>
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding Prompt}" Watermark="First message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+                   TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+          <Button Grid.Column="1" Classes="accent" Content="Start" Command="{Binding StartCommand}" Focusable="False" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <ScrollViewer>
+      <StackPanel Margin="0,8,0,16">
+        <TextBlock Classes="muted" Text="Asking the PC…" IsVisible="{Binding IsLoading}" Margin="16,8" />
+        <ItemsControl ItemsSource="{Binding Settings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:SettingViewModel">
+              <v:SettingRowView />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="muted" TextWrapping="Wrap" Margin="16,8"
+                   Text="It starts on the PC as its new-session page would start it, and opens here once it has begun." />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

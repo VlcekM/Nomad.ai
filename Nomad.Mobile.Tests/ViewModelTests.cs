@@ -70,6 +70,87 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task Chat_settings_show_the_PCs_choices_and_send_a_pick()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+
+        chat.OpenSettingsCommand.Execute(null);
+        var panel = Assert.IsType<ChatSettingsViewModel>(chat.SettingsPanel);
+        await panel.LoadAsync();
+        Assert.Equal("opus", panel.Model.Selected?.Id);
+        Assert.Equal("High", panel.Effort.ValueText);
+        Assert.Equal(["Manual", "Plan"], panel.Mode.Choices.Select(c => c.Name));
+
+        // A pick goes to the PC as that chat's input, and what shows after is what the PC then says.
+        panel.Model.ToggleCommand.Execute(null);
+        Assert.True(panel.Model.IsOpen);
+        hub.Settings = hub.Settings with { Model = "sonnet" };
+        panel.Model.Choices.Single(c => c.Id == "sonnet").PickCommand.Execute(null);
+        await Task.Yield();
+        var sent = hub.Sent.Last();
+        Assert.Equal(("d1", "model", "sonnet"), (sent.Session, sent.Input.Kind, sent.Input.Choice));
+        Assert.False(panel.Model.IsOpen);
+        Assert.Equal("sonnet", panel.Model.Selected?.Id);
+
+        // Back closes the settings first, then the chat.
+        Assert.True(main.GoBack());
+        Assert.Null(chat.SettingsPanel);
+        Assert.Same(chat, main.Page);
+    }
+
+    [Fact]
+    public async Task New_chat_offers_the_PCs_agents_and_folders_and_starts_with_the_picks()
+    {
+        var (main, hub, _) = await SignedInAsync();
+
+        main.Chats.NewChatCommand.Execute(null);
+        var page = Assert.IsType<NewChatViewModel>(main.Page);
+        await page.LoadAsync();
+        Assert.Equal("Desk PC", page.Pc.Selected?.Name); // PCs by name.
+        Assert.Equal("Claude Code", page.Agent.Selected?.Name); // The PC's default agent.
+        Assert.Equal(["Nomad.ai", "Other", "No folder"], page.Folder.Choices.Select(c => c.Name));
+        Assert.Equal("Nomad.ai", page.Folder.Selected?.Name);
+        Assert.Equal("opus", page.Model.Selected?.Id);
+        Assert.False(page.StartCommand.CanExecute(null)); // No first message yet.
+
+        // Another agent brings its own models and modes; Codex here has a single model, so its row hides.
+        page.Agent.Choices.Single(c => c.Id == "codex").PickCommand.Execute(null);
+        Assert.Equal(["GPT"], page.Model.Choices.Select(c => c.Name));
+        Assert.False(page.Model.HasChoices);
+        page.Agent.Choices.Single(c => c.Id == "claude-code").PickCommand.Execute(null);
+        page.Model.Choices.Single(c => c.Id == "sonnet").PickCommand.Execute(null);
+        page.Folder.Choices.Single(c => c.Name == "No folder").PickCommand.Execute(null);
+
+        // Started, it opens once the PC has put it on the board.
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("new-1", "A new chat", "working", 0)], 20));
+        page.Prompt = "Look at the parser.";
+        await page.StartCommand.ExecuteAsync(null);
+        var (device, started) = Assert.Single(hub.Started);
+        Assert.Equal(Samples.Desk, device);
+        Assert.Equal(("claude-code", null, "sonnet", "high", "default", "Look at the parser."),
+            (started.Backend, started.Folder, started.Model, started.Effort, started.Mode, started.Prompt));
+        Assert.Equal("new-1", Assert.IsType<ChatViewModel>(main.Page).SessionId);
+    }
+
+    [Fact]
+    public async Task A_new_chat_the_PC_refuses_stays_with_its_reason()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.StartAnswer = _ => new NewChatResult(false, "That folder isn't on this PC.");
+
+        main.Chats.NewChatCommand.Execute(null);
+        var page = Assert.IsType<NewChatViewModel>(main.Page);
+        await page.LoadAsync();
+        page.Prompt = "Hello";
+        await page.StartCommand.ExecuteAsync(null);
+
+        Assert.Same(page, main.Page);
+        Assert.Equal("That folder isn't on this PC.", page.Status);
+        Assert.True(page.StatusIsProblem);
+    }
+
+    [Fact]
     public async Task Board_keeps_the_newest_update_and_drops_a_PC_that_left()
     {
         var (main, hub, _) = await SignedInAsync();

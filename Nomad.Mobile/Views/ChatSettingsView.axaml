@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             x:Class="Nomad.Mobile.Views.ChatSettingsView"
+             x:DataType="vm:ChatSettingsViewModel">
+  <!-- A chat's model, effort and mode over its transcript; back (or Done) closes it. -->
+  <DockPanel Background="{DynamicResource BgMainBrush}">
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="16,10,6,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="title" Text="Chat settings" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="flat" Content="Done" Command="{Binding CloseCommand}" />
+      </Grid>
+    </Border>
+    <ScrollViewer>
+      <StackPanel Margin="0,8,0,16">
+        <TextBlock Classes="muted" Text="Loading…" IsVisible="{Binding IsLoading}" Margin="16,8" />
+        <ItemsControl ItemsSource="{Binding Settings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:SettingViewModel">
+              <v:SettingRowView />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Classes="muted" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="16,8">
+          <TextBlock.Styles>
+            <Style Selector="TextBlock.problem">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </TextBlock.Styles>
+        </TextBlock>
+        <TextBlock Classes="muted" TextWrapping="Wrap" Margin="16,8"
+                   Text="A change applies on the PC as if picked in the chat's own menus there." />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

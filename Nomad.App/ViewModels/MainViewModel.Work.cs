@@ -119,6 +119,17 @@ public sealed partial class MainViewModel
     }
 
     /// <summary>
+    /// A chat a phone starts: as the new-session page would start one on <paramref name="backend"/> in <paramref name="folder"/>,
+    /// with this PC's defaults, but in the background, so the window stays where it is. Counted as open until it has its id.
+    /// </summary>
+    public SessionViewModel StartPhoneChat(string backend, string? folder)
+    {
+        var session = new SessionViewModel(this, folder, backend) { StartsInPlace = true };
+        _starting.Add(session);
+        return session;
+    }
+
+    /// <summary>
     /// Opens the listed session <paramref name="sessionId"/>; false when it isn't listed (deleted, say).
     /// </summary>
     public bool OpenListedSession(string sessionId)

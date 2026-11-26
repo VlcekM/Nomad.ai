@@ -36,6 +36,15 @@ public interface IHubConnection : IAsyncDisposable
 
     Task<ChatInputResult> ChatSendAsync(Guid device, string backend, string sessionId, ChatInput input, CancellationToken ct = default);
 
+    /// <summary>A chat's model, effort and mode, and their choices, from the PC that has it open.</summary>
+    Task<ChatSettings> ChatSettingsAsync(Guid device, string backend, string sessionId, CancellationToken ct = default);
+
+    /// <summary>What a new chat on a PC can start as.</summary>
+    Task<NewChatOptions> NewChatOptionsAsync(Guid device, CancellationToken ct = default);
+
+    /// <summary>Starts a chat on a PC with its first message.</summary>
+    Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default);
+
     Task<WatchResult> WatchAsync(string backend, string sessionId, CancellationToken ct = default);
 
     Task UnwatchAsync(string backend, string sessionId, CancellationToken ct = default);

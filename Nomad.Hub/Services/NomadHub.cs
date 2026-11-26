@@ -139,11 +139,39 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
             Clients.Client(pc).InvokeAsync<ChatInputResult>(HubNames.ChatInputRequested, backend, sessionId, input, from, ct));
     }
 
-    private async Task<T> AskPcAsync<T>(Guid device, string backend, string sessionId, Func<string, CancellationToken, Task<T>> ask)
+    /// <summary>A chat's model, effort and mode, and what each can be changed to, from the PC that has it open.</summary>
+    public Task<ChatSettings> ChatSettingsGet(Guid device, string backend, string sessionId) =>
+        AskPcAsync(device, backend, sessionId, (pc, ct) =>
+            Clients.Client(pc).InvokeAsync<ChatSettings>(HubNames.ChatSettingsRequested, backend, sessionId, ct));
+
+    /// <summary>What a new chat on a PC can start as.</summary>
+    public Task<NewChatOptions> NewChatOptionsGet(Guid device) =>
+        AskDeviceAsync(device, (pc, ct) => Clients.Client(pc).InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsRequested, ct));
+
+    /// <summary>Starts a chat on a PC with its first prompt; the PC says whether it did, and the session id once it has one.</summary>
+    public Task<NewChatResult> ChatStart(Guid device, NewChat chat)
+    {
+        var from = Context.User!.DeviceName();
+        return AskDeviceAsync(device, (pc, ct) => Clients.Client(pc).InvokeAsync<NewChatResult>(HubNames.ChatStartRequested, chat, from, ct));
+    }
+
+    private Task<T> AskPcAsync<T>(Guid device, string backend, string sessionId, Func<string, CancellationToken, Task<T>> ask)
     {
         RequireRelay();
         var pc = board.ConnectionWith(device, backend, sessionId)
             ?? throw new HubException("That chat isn't open in Nomad on that PC any more.");
+        return AskAsync(pc, ask);
+    }
+
+    private Task<T> AskDeviceAsync<T>(Guid device, Func<string, CancellationToken, Task<T>> ask)
+    {
+        RequireRelay();
+        var pc = board.ConnectionOf(device) ?? throw new HubException("That PC isn't sharing its chats now.");
+        return AskAsync(pc, ask);
+    }
+
+    private static async Task<T> AskAsync<T>(string pc, Func<string, CancellationToken, Task<T>> ask)
+    {
         using var timeout = new CancellationTokenSource(HubNames.ChatAnswerTimeout);
         try
         {
@@ -351,6 +379,15 @@ public sealed class BoardState
         {
             return _byConnection.Where(kv => kv.Value.Device == device && kv.Value.Chats.Any(c => c.Backend == backend && c.SessionId == sessionId))
                 .OrderByDescending(kv => kv.Value.Seq).Select(kv => kv.Key).FirstOrDefault();
+        }
+    }
+
+    /// <summary>The connection of <paramref name="device"/> that published to the board most recently.</summary>
+    public string? ConnectionOf(Guid device)
+    {
+        lock (_lock)
+        {
+            return _byConnection.Where(kv => kv.Value.Device == device).OrderByDescending(kv => kv.Value.Seq).Select(kv => kv.Key).FirstOrDefault();
         }
     }
 

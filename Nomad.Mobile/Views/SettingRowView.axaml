@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             x:Class="Nomad.Mobile.Views.SettingRowView"
+             x:DataType="vm:SettingViewModel"
+             IsVisible="{Binding HasChoices}">
+  <!-- One setting: its name and value on a row that opens to its choices, like a menu on the PC. -->
+  <StackPanel>
+    <Button Classes="flat" Command="{Binding ToggleCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+            MinHeight="48" Padding="16,8">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding Label}" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding ValueText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+      </Grid>
+    </Button>
+    <ItemsControl ItemsSource="{Binding Choices}" IsVisible="{Binding IsOpen}" Margin="8,0,8,6">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="vm:ChoiceViewModel">
+          <Button Classes="flat" Classes.selected="{Binding IsSelected}" Command="{Binding PickCommand}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" MinHeight="44" Padding="16,6">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" TextWrapping="Wrap" />
+                <TextBlock Classes="muted" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="1" Text="✓" IsVisible="{Binding IsSelected}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="10,0,0,0" />
+            </Grid>
+          </Button>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

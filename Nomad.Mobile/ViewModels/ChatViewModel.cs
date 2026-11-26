@@ -546,6 +546,22 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
     [RelayCommand]
     private void Back() => _main.GoBack();
 
+    internal Hub.IHubConnection? Connection => _main.Connection;
+
+    /// <summary>The chat's settings (model, effort, mode), open over the transcript; null when closed.</summary>
+    [ObservableProperty]
+    public partial ChatSettingsViewModel? SettingsPanel { get; set; }
+
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        var panel = new ChatSettingsViewModel(this);
+        SettingsPanel = panel;
+        _ = panel.LoadAsync();
+    }
+
+    public void CloseSettings() => SettingsPanel = null;
+
     /// <summary>The chat screen closed: stop watching it.</summary>
     public void Close()
     {

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia.Threading;
+using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Hub;
 using Nomad.Hub.Contracts;
@@ -42,6 +43,9 @@ internal sealed class MobileHost : IDisposable
         _timer = new DispatcherTimer(BoardInterval, DispatcherPriority.Background, (_, _) => _ = PublishAsync());
         client.HistoryRequested = (backend, id, before, limit) => OnUiAsync(() => Page(backend, id, before, limit));
         client.InputRequested = (backend, id, input, from) => Dispatcher.UIThread.InvokeAsync<ChatInputResult>(() => ApplyAsync(backend, id, input, from));
+        client.SettingsRequested = (backend, id) => OnUiAsync(() => SettingsOf(backend, id));
+        client.NewChatOptionsRequested = () => Dispatcher.UIThread.InvokeAsync<NewChatOptions>(NewChatOptionsAsync);
+        client.StartRequested = (chat, from) => Dispatcher.UIThread.InvokeAsync<NewChatResult>(() => StartAsync(chat, from));
         client.ConnectionChanged += OnConnectionChanged;
         _timer.Start();
     }
@@ -52,6 +56,9 @@ internal sealed class MobileHost : IDisposable
         _client.ConnectionChanged -= OnConnectionChanged;
         _client.HistoryRequested = null;
         _client.InputRequested = null;
+        _client.SettingsRequested = null;
+        _client.NewChatOptionsRequested = null;
+        _client.StartRequested = null;
     }
 
     /// <summary>A new connection starts with nothing on the board: the next tick sends it all again.</summary>
@@ -313,9 +320,189 @@ internal sealed class MobileHost : IDisposable
             case "answer":
                 return await AnswerAsync(s, input, from);
 
+            case "model" or "effort" or "mode":
+                return await ChangeSettingAsync(s, input.Kind, input.Choice);
+
             default:
                 return new ChatInputResult(false, "Nomad doesn't know that kind of input.");
         }
+    }
+
+    // ------------------------------------------------------------------ settings and new chats
+
+    /// <summary>A chat's model, effort and mode, with the choices its menus on the PC offer.</summary>
+    private ChatSettings SettingsOf(string backend, string id)
+    {
+        if (!_enabled())
+        {
+            throw new InvalidOperationException("This PC isn't sharing its chats right now.");
+        }
+
+        return Find(backend, id) is { } s ? SettingsOf(s) : throw new InvalidOperationException("That chat is no longer open in Nomad.");
+    }
+
+    private static ChatSettings SettingsOf(SessionViewModel s)
+    {
+        var models = s.ModelOptions.Concat(s.OtherModelOptions).DistinctBy(o => o.Id)
+            .Select(o => new ChatChoice(o.Id, o.Label, o.Description)).ToList();
+        if (!string.IsNullOrEmpty(s.Model) && models.All(m => m.Id != s.Model))
+        {
+            models.Insert(0, new ChatChoice(s.Model, Catalog.ModelName(s.Model)));
+        }
+
+        return new ChatSettings(
+            s.Model, models,
+            s.Effort, s.HasEffortLevels ? [.. s.EffortStops.Select(e => new ChatChoice(e.Id, e.DisplayName))] : [],
+            s.PermissionMode, [.. s.ModeOptions.Select(o => new ChatChoice(o.Id, o.Label, o.Description))]);
+    }
+
+    /// <summary>
+    /// A model, effort or mode picked on the phone, applied as if picked in the chat's menu here. A model switch asks no second
+    /// time: picking it on the phone is the choice.
+    /// </summary>
+    private static async Task<ChatInputResult> ChangeSettingAsync(SessionViewModel s, string kind, string? choice)
+    {
+        var settings = SettingsOf(s);
+        var (choices, name) = kind switch
+        {
+            "model" => (settings.Models, "model"),
+            "effort" => (settings.Efforts, "effort"),
+            _ => (settings.Modes, "mode"),
+        };
+        if (choice is null || choices.FirstOrDefault(c => c.Id == choice) is not { } picked)
+        {
+            return new ChatInputResult(false, $"That {name} isn't one this chat offers.");
+        }
+
+        switch (kind)
+        {
+            case "model":
+                await s.SelectModelAsync(picked.Id);
+                if (s.PendingModel is not null)
+                {
+                    await s.ConfirmModelSwitchCommand.ExecuteAsync("once");
+                }
+
+                return s.Model == picked.Id
+                    ? new ChatInputResult(true, $"Model: {picked.Name}.")
+                    : new ChatInputResult(false, "The model didn't change. Look at the chat on the PC.");
+
+            case "effort":
+                await s.SelectEffortAsync(picked.Id);
+                return new ChatInputResult(true, $"Effort: {picked.Name}.");
+
+            default:
+                await s.SelectModeAsync(picked.Id);
+                return s.PermissionMode == picked.Id
+                    ? new ChatInputResult(true, $"Mode: {picked.Name}.")
+                    : new ChatInputResult(false, "The mode didn't change. Look at the chat on the PC.");
+        }
+    }
+
+    /// <summary>
+    /// Each agent as a new chat here starts on it, and the folders used lately. Codex's and OpenCode's models come from their
+    /// own servers: asked for first, as picking that agent here would, for a few seconds at most.
+    /// </summary>
+    private async Task<NewChatOptions> NewChatOptionsAsync()
+    {
+        if (!_enabled())
+        {
+            throw new InvalidOperationException("This PC isn't sharing its chats right now.");
+        }
+
+        await Task.WhenAny(Task.WhenAll(_main.LoadCodexCatalogAsync(), _main.LoadOpenCodeCatalogAsync()), Task.Delay(TimeSpan.FromSeconds(6)));
+
+        var agents = AgentBackends.All
+            .Select(b => new NewChatAgent(b.Id, b.Name, SettingsOf(new SessionViewModel(_main, null, b.Id))))
+            .ToList();
+        return new NewChatOptions(agents, AgentBackends.Normalize(_main.Settings.DefaultBackend), _main.RecentFolders);
+    }
+
+    // Chats started for a phone's request id, so a retry doesn't start a second one.
+    private readonly Dictionary<string, Task<NewChatResult>> _started = [];
+
+    private Task<NewChatResult> StartAsync(NewChat chat, string from)
+    {
+        if (chat.Id is not { } key)
+        {
+            return StartOnceAsync(chat, from);
+        }
+
+        if (!_started.TryGetValue(key, out var started))
+        {
+            if (_started.Count > 50)
+            {
+                _started.Clear();
+            }
+
+            _started[key] = started = StartOnceAsync(chat, from);
+        }
+
+        return started;
+    }
+
+    /// <summary>How long a start waits for the new chat's session id: within the hub's 15 seconds (an agent's start, with its
+    /// hooks, can take most of that).</summary>
+    private static readonly TimeSpan StartWait = TimeSpan.FromSeconds(12);
+
+    /// <summary>
+    /// Starts a chat as the new-session page here would, but in the background (the PC's window stays where it is), and sends it
+    /// the phone's first message. Answered once it has a session id, or after <see cref="StartWait"/> without one (the phone then
+    /// finds it on the board).
+    /// </summary>
+    private async Task<NewChatResult> StartOnceAsync(NewChat chat, string from)
+    {
+        if (!_enabled())
+        {
+            return new NewChatResult(false, "This PC isn't sharing its chats right now.");
+        }
+
+        var prompt = chat.Prompt.Trim();
+        if (prompt.Length == 0)
+        {
+            return new NewChatResult(false, "A new chat needs a first message.");
+        }
+
+        if (AgentBackends.All.All(b => b.Id != chat.Backend))
+        {
+            return new NewChatResult(false, "Nomad doesn't know that agent.");
+        }
+
+        if (chat.Folder is { } folder && !Directory.Exists(folder))
+        {
+            return new NewChatResult(false, "That folder isn't on this PC.");
+        }
+
+        var session = _main.StartPhoneChat(chat.Backend, chat.Folder);
+        if (chat.Model is { } model && SettingsOf(session).Models.Any(m => m.Id == model))
+        {
+            await session.SelectModelAsync(model);
+        }
+
+        if (chat.Effort is { } effort && SettingsOf(session).Efforts.Any(e => e.Id == effort))
+        {
+            await session.SelectEffortAsync(effort);
+        }
+
+        if (chat.Mode is { } mode && SettingsOf(session).Modes.Any(m => m.Id == mode))
+        {
+            await session.SelectModeAsync(mode);
+        }
+
+        var delivery = session.ReceivePromptAsync(prompt, from);
+        var waitUntil = DateTime.UtcNow + StartWait;
+        while (string.IsNullOrEmpty(session.SessionId) && DateTime.UtcNow < waitUntil)
+        {
+            if (delivery.IsCompleted && delivery.Result == MessageDelivery.Failed)
+            {
+                return new NewChatResult(false,
+                    session.Items.LastOrDefault() is ErrorItem error ? "It couldn't start: " + error.Message : "It couldn't start. Look at Nomad on the PC.");
+            }
+
+            await Task.Delay(250);
+        }
+
+        return new NewChatResult(true, "Started.", string.IsNullOrEmpty(session.SessionId) ? null : session.SessionId);
     }
 
     /// <summary>

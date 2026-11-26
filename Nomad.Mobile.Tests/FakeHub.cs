@@ -94,6 +94,40 @@ public sealed class FakeHub : IHubConnection, IHubFactory
         return Task.FromResult(Answer(input));
     }
 
+    /// <summary>What the PC says a chat's settings are; a Claude Code chat on Opus by default.</summary>
+    public ChatSettings Settings { get; set; } = new("opus", [new("opus", "Opus"), new("sonnet", "Sonnet")], "high",
+        [new("low", "Low"), new("high", "High")], "default", [new("default", "Manual"), new("plan", "Plan")]);
+
+    /// <summary>What a new chat on a PC can be: Claude Code and Codex, two folders.</summary>
+    public NewChatOptions NewChatOptions { get; set; } = new(
+        [new("claude-code", "Claude Code", new("opus", [new("opus", "Opus"), new("sonnet", "Sonnet")], "high", [new("low", "Low"), new("high", "High")],
+            "default", [new("default", "Manual"), new("plan", "Plan")])),
+         new("codex", "Codex", new("gpt", [new("gpt", "GPT")], "", [], "default", [new("default", "Manual")]))],
+        "claude-code", [@"E:\Projects\Nomad.ai", @"E:\Projects\Other"]);
+
+    public List<(Guid Device, NewChat Chat)> Started { get; } = [];
+
+    /// <summary>What the PC answers to a new chat; started, with a session id, by default.</summary>
+    public Func<NewChat, NewChatResult> StartAnswer { get; set; } = _ => new NewChatResult(true, "Started.", "new-1");
+
+    public Task<ChatSettings> ChatSettingsAsync(Guid device, string backend, string sessionId, CancellationToken ct = default)
+    {
+        Calls.Add($"Settings {sessionId}");
+        return Task.FromResult(Settings);
+    }
+
+    public Task<NewChatOptions> NewChatOptionsAsync(Guid device, CancellationToken ct = default)
+    {
+        Calls.Add("NewChatOptions");
+        return Task.FromResult(NewChatOptions);
+    }
+
+    public Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default)
+    {
+        Started.Add((device, chat));
+        return Task.FromResult(StartAnswer(chat));
+    }
+
     public Task<WatchResult> WatchAsync(string backend, string sessionId, CancellationToken ct = default)
     {
         Calls.Add($"Watch {sessionId}");

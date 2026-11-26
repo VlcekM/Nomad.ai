@@ -115,6 +115,12 @@ public sealed class HubClient : IAsyncDisposable
             HistoryRequested is { } history ? history(b, s, before, limit) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.On<string, string, ChatInput, string, ChatInputResult>(HubNames.ChatInputRequested, (b, s, input, from) =>
             InputRequested is { } apply ? apply(b, s, input, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<string, string, ChatSettings>(HubNames.ChatSettingsRequested, (b, s) =>
+            SettingsRequested is { } settings ? settings(b, s) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<NewChatOptions>(HubNames.NewChatOptionsRequested, () =>
+            NewChatOptionsRequested is { } options ? options() : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<NewChat, string, NewChatResult>(HubNames.ChatStartRequested, (chat, from) =>
+            StartRequested is { } start ? start(chat, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
@@ -276,6 +282,15 @@ public sealed class HubClient : IAsyncDisposable
     /// <summary>Applies a phone's input to a chat this PC has open: (backend, session id, input, the phone's name).</summary>
     public Func<string, string, ChatInput, string, Task<ChatInputResult>>? InputRequested { get; set; }
 
+    /// <summary>A chat's settings and their choices, for a phone: (backend, session id).</summary>
+    public Func<string, string, Task<ChatSettings>>? SettingsRequested { get; set; }
+
+    /// <summary>What a new chat here can start as, for a phone.</summary>
+    public Func<Task<NewChatOptions>>? NewChatOptionsRequested { get; set; }
+
+    /// <summary>Starts a chat a phone asked for: (the chat, the phone's name).</summary>
+    public Func<NewChat, string, Task<NewChatResult>>? StartRequested { get; set; }
+
     /// <summary>Puts this PC's open chats on the board, replacing what it listed before.</summary>
     public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
         Live.InvokeAsync(HubNames.BoardPublish, chats, ct);
@@ -289,6 +304,15 @@ public sealed class HubClient : IAsyncDisposable
 
     public Task<ChatInputResult> ChatSendAsync(Guid device, string backend, string sessionId, ChatInput input, CancellationToken ct = default) =>
         Live.InvokeAsync<ChatInputResult>(HubNames.ChatSend, device, backend, sessionId, input, ct);
+
+    public Task<ChatSettings> ChatSettingsAsync(Guid device, string backend, string sessionId, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatSettings>(HubNames.ChatSettingsGet, device, backend, sessionId, ct);
+
+    public Task<NewChatOptions> NewChatOptionsAsync(Guid device, CancellationToken ct = default) =>
+        Live.InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsGet, device, ct);
+
+    public Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default) =>
+        Live.InvokeAsync<NewChatResult>(HubNames.ChatStart, device, chat, ct);
 
     private sealed class ForeverRetry : IRetryPolicy
     {

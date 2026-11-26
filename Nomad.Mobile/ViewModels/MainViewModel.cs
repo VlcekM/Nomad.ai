@@ -196,16 +196,37 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void OpenSettings() => ShowPage(new SettingsViewModel(this));
 
+    public void OpenNewChat()
+    {
+        if (Connection is null)
+        {
+            return;
+        }
+
+        var page = new NewChatViewModel(this);
+        ShowPage(page);
+        _ = page.LoadAsync();
+    }
+
     public void ShowConnect()
     {
         Connect.Reset();
         ShowPage(Connect);
     }
 
-    /// <summary>The back button: a chat or Settings goes back to the chats. False when there is nowhere to go back to.</summary>
+    /// <summary>
+    /// The back button: a chat's settings close; a chat, a new chat or Settings goes back to the chats. False when there is
+    /// nowhere to go back to.
+    /// </summary>
     public bool GoBack()
     {
-        if (Page is ChatViewModel or SettingsViewModel || (Page is ConnectViewModel && Connection is not null))
+        if (OpenChat is { SettingsPanel: not null } chat)
+        {
+            chat.CloseSettings();
+            return true;
+        }
+
+        if (Page is ChatViewModel or SettingsViewModel or NewChatViewModel || (Page is ConnectViewModel && Connection is not null))
         {
             ShowPage(Chats);
             return true;
