@@ -5,7 +5,8 @@ namespace Nomad.App.ViewModels;
 
 /// <summary>
 /// The chats open in this window, for the chat tools: what <c>list_chats</c> shows and where <c>send_to_chat</c> delivers. A message
-/// goes through the target chat's own queue, so it never cuts into a running turn.
+/// goes into a Claude Code chat's running turn (read at its next step, as one typed there would be), else through the target
+/// chat's own queue.
 /// </summary>
 internal sealed class ChatDirectory(MainViewModel main) : IChatDirectory
 {
@@ -32,7 +33,7 @@ internal sealed class ChatDirectory(MainViewModel main) : IChatDirectory
         .ToList();
 
     /// <summary>
-    /// Finds the target, counts the send against the caller's limit and queues the message there; returns what to tell the sender.
+    /// Finds the target, counts the send against the caller's limit and delivers the message there; returns what to tell the sender.
     /// </summary>
     private async Task<string> SendOnUiAsync(string? callerKey, string target, string message)
     {
@@ -45,12 +46,16 @@ internal sealed class ChatDirectory(MainViewModel main) : IChatDirectory
                 "Stop and tell the user, in case the chats are answering each other in a loop.");
         }
 
-        var busy = chat.IsTurnRunning;
-        await chat.ReceiveMessageAsync(ChatTools.Envelope(sender is null ? null : Info(sender), message));
-
-        return busy
-            ? $"Queued for \"{chat.Title}\": it is in a turn and gets the message when that ends."
-            : $"Delivered to \"{chat.Title}\", which is working on it now.";
+        return await chat.ReceiveMessageAsync(ChatTools.Envelope(sender is null ? null : Info(sender), message)) switch
+        {
+            MessageDelivery.IntoTurn => $"Delivered into \"{chat.Title}\"'s running turn: it reads it at its next step.",
+            MessageDelivery.Queued => $"Queued for \"{chat.Title}\": it is in a turn and gets the message when that ends.",
+            MessageDelivery.RunningElsewhere => throw new ChatMessageException(
+                $"\"{chat.Title}\" is running in another Nomad window or a terminal, which keeps it. Nothing was sent."),
+            MessageDelivery.Failed => throw new ChatMessageException(
+                $"\"{chat.Title}\" could not be sent the message: {(chat.Items.LastOrDefault() is ErrorItem error ? error.Message : "its agent did not start")}."),
+            _ => $"Delivered to \"{chat.Title}\", which is working on it now.",
+        };
     }
 
     /// <summary>

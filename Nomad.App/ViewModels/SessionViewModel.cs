@@ -2342,14 +2342,11 @@ public sealed partial class SessionViewModel : ObservableObject
     public string ChatKey { get; } = Guid.NewGuid().ToString("N");
 
     /// <summary>
-    /// A message from another chat: sent now when this one is idle (starting its agent if it stopped), queued behind the running
-    /// turn otherwise, like a prompt typed meanwhile.
+    /// A message from another chat (send_to_chat), handled as one typed here: sent now when this chat is idle (starting its
+    /// agent if it stopped), into a running Claude Code turn at its next step, and with other agents queued behind the turn.
+    /// Returns where it went.
     /// </summary>
-    public async Task ReceiveMessageAsync(string text)
-    {
-        Queue(text, []);
-        if (!IsTurnRunning) await SendQueuedAsync();
-    }
+    public Task<MessageDelivery> ReceiveMessageAsync(string text) => DeliverAsync(text, null);
 
     /// <summary>
     /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
