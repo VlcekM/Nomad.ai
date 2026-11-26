@@ -17,6 +17,12 @@ internal sealed class MobileHost : IDisposable
     /// <summary>How often the board is checked for changes (it is sent only when it changed).</summary>
     private static readonly TimeSpan BoardInterval = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// How long an answer waits for the agent to take it before the phone is told it went in (the hub waits 15 s). The hub's
+    /// other calls to this PC wait behind it, as SignalR runs them one at a time; the agent normally takes it in milliseconds.
+    /// </summary>
+    private static readonly TimeSpan AnswerWait = TimeSpan.FromSeconds(5);
+
     /// <summary>How much of one entry's text is sent at most.</summary>
     private const int MaxText = 12_000;
 
@@ -35,7 +41,7 @@ internal sealed class MobileHost : IDisposable
         _enabled = enabled;
         _timer = new DispatcherTimer(BoardInterval, DispatcherPriority.Background, (_, _) => _ = PublishAsync());
         client.HistoryRequested = (backend, id, before, limit) => OnUiAsync(() => Page(backend, id, before, limit));
-        client.InputRequested = (backend, id, input, from) => OnUiAsync(() => Apply(backend, id, input, from));
+        client.InputRequested = (backend, id, input, from) => Dispatcher.UIThread.InvokeAsync<ChatInputResult>(() => ApplyAsync(backend, id, input, from));
         client.ConnectionChanged += OnConnectionChanged;
         _timer.Start();
     }
@@ -179,7 +185,7 @@ internal sealed class MobileHost : IDisposable
 
     private static ChatEntry? Entry(int index, TranscriptItem item, bool pending) => item switch
     {
-        UserMessageItem u => new ChatEntry(index, "user", Clip(u.DisplayText), u.IsFromChat ? u.FromChatName : null),
+        UserMessageItem u => new ChatEntry(index, "user", Clip(u.DisplayText), u.IsFromChat ? u.FromChatName : u.FromDevice),
         AssistantTextItem a => new ChatEntry(index, "assistant", Clip(a.Text)),
         ToolGroupItem g => new ChatEntry(index, "activity", g.Summary.Length > 0 ? Clip(g.Summary) : $"{g.Calls.Count} tool call{(g.Calls.Count == 1 ? "" : "s")}"),
         QuestionItem q => new ChatEntry(index, "question", "", Card: new ChatCard(q.Request.RequestId, pending && !q.IsAnswered, null, null, null,
@@ -198,32 +204,61 @@ internal sealed class MobileHost : IDisposable
 
     // ------------------------------------------------------------------ input
 
-    /// <summary>The latest inputs by their id, with what they were answered: a retry gets the same answer, applied once.</summary>
-    private readonly Dictionary<string, ChatInputResult> _applied = new(StringComparer.Ordinal);
+    /// <summary>
+    /// The latest inputs by their id, with how they were answered: a retry gets the same answer and is applied once, even while
+    /// the first is still going (an answer waits for the agent). A refused input is forgotten once refused, so it can be tried again.
+    /// </summary>
+    private readonly Dictionary<string, Task<ChatInputResult>> _applied = new(StringComparer.Ordinal);
     private readonly Queue<string> _appliedOrder = new();
 
-    private ChatInputResult Apply(string backend, string id, ChatInput input, string from)
+    private Task<ChatInputResult> ApplyAsync(string backend, string id, ChatInput input, string from)
     {
-        if (input.Id is { Length: > 0 } inputId && _applied.TryGetValue(inputId, out var earlier))
+        if (input.Id is not { Length: > 0 } key)
+        {
+            return ApplyOnceAsync(backend, id, input, from);
+        }
+
+        if (_applied.TryGetValue(key, out var earlier))
         {
             return earlier;
         }
 
-        var result = ApplyOnce(backend, id, input, from);
-        if (input.Id is { Length: > 0 } key && result.Ok)
+        var result = ApplyOnceAsync(backend, id, input, from);
+        _applied[key] = result;
+        _appliedOrder.Enqueue(key);
+        while (_appliedOrder.Count > 200)
         {
-            _applied[key] = result;
-            _appliedOrder.Enqueue(key);
-            while (_appliedOrder.Count > 200)
-            {
-                _applied.Remove(_appliedOrder.Dequeue());
-            }
+            _applied.Remove(_appliedOrder.Dequeue());
         }
 
+        _ = ForgetIfRefusedAsync(key, result);
         return result;
     }
 
-    private ChatInputResult ApplyOnce(string backend, string id, ChatInput input, string from)
+    private async Task ForgetIfRefusedAsync(string key, Task<ChatInputResult> result)
+    {
+        try
+        {
+            await result;
+        }
+        catch
+        {
+            // A failure is the caller's to report; here it only means the input wasn't applied.
+        }
+
+        if ((result.IsFaulted || result.IsCanceled || !result.Result.Ok) && _applied.TryGetValue(key, out var kept) && ReferenceEquals(kept, result))
+        {
+            _applied.Remove(key);
+            var rest = _appliedOrder.Where(k => k != key).ToList();
+            _appliedOrder.Clear();
+            foreach (var k in rest)
+            {
+                _appliedOrder.Enqueue(k);
+            }
+        }
+    }
+
+    private async Task<ChatInputResult> ApplyOnceAsync(string backend, string id, ChatInput input, string from)
     {
         if (!_enabled())
         {
@@ -246,7 +281,7 @@ internal sealed class MobileHost : IDisposable
 
                 // Answered once queued, not once the agent has started (that can take a while), so a slow start never looks failed.
                 var busy = s.IsTurnRunning;
-                _ = s.ReceiveMessageAsync(text);
+                _ = s.ReceiveMessageAsync(text, from);
                 return new ChatInputResult(true, busy ? "Queued: it is working, and gets this when the turn ends." : "Sent.");
 
             case "stop":
@@ -260,7 +295,7 @@ internal sealed class MobileHost : IDisposable
                 return new ChatInputResult(true, "Stopping.");
 
             case "answer":
-                return Answer(s, input, from);
+                return await AnswerAsync(s, input, from);
 
             default:
                 return new ChatInputResult(false, "Nomad doesn't know that kind of input.");
@@ -269,9 +304,10 @@ internal sealed class MobileHost : IDisposable
 
     /// <summary>
     /// Answers the waiting card: only the one the phone names, only with a choice it offers, and for a question only when every
-    /// question gets a valid answer (nothing on the card changes otherwise).
+    /// question gets a valid answer (nothing on the card changes otherwise). "Answered." waits until the agent has it, so a
+    /// failure to deliver it reaches the phone rather than only the PC's chat.
     /// </summary>
-    private static ChatInputResult Answer(SessionViewModel s, ChatInput input, string from)
+    private static async Task<ChatInputResult> AnswerAsync(SessionViewModel s, ChatInput input, string from)
     {
         if (s.PendingPermission is not { IsAnswered: false } pending || input.Card is null || pending.Request.RequestId != input.Card)
         {
@@ -300,15 +336,25 @@ internal sealed class MobileHost : IDisposable
             ApplyAnswers(question, answers);
         }
 
-        s.AnswerPending(picked);
-        if (pending.IsAnswered)
+        // The card is marked answered (or refused) before this awaits anything.
+        var sent = s.AnswerPendingAsync(picked);
+        if (!pending.IsAnswered)
         {
-            pending.MarkAnswered($"{pending.AnswerText} (on {from})"); // The card says where it was answered, as a relayed answer does.
+            return new ChatInputResult(false, await sent ?? "Nomad didn't take that answer. Look at the chat on the PC.");
         }
 
-        return pending.IsAnswered
-            ? new ChatInputResult(true, "Answered.")
-            : new ChatInputResult(false, s.Items.LastOrDefault() is ErrorItem error ? error.Message : "Nomad didn't take that answer. Look at the chat on the PC.");
+        pending.MarkAnswered($"{pending.AnswerText} (on {from})"); // The card says where it was answered, as a relayed answer does.
+        try
+        {
+            return await sent.WaitAsync(AnswerWait) is { } failed
+                ? new ChatInputResult(false, failed)
+                : new ChatInputResult(true, "Answered.");
+        }
+        catch (TimeoutException)
+        {
+            // Still on its way: if it fails after all, the error shows in the chat, which the phone reads.
+            return new ChatInputResult(true, "Answered. The agent hasn't confirmed it yet, so watch the chat.");
+        }
     }
 
     /// <summary>The chosen options and typed text for each question, or null unless every question gets a valid answer.</summary>

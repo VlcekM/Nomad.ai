@@ -2328,15 +2328,16 @@ public sealed partial class SessionViewModel : ObservableObject
     /// A message from another chat: sent now when this one is idle (starting its agent if it stopped), queued behind the running
     /// turn otherwise, like a prompt typed meanwhile.
     /// </summary>
-    public async Task ReceiveMessageAsync(string text)
+    /// <param name="from">The device that sent it (a phone, through Nomad Hub), shown on the prompt; null for this PC.</param>
+    public async Task ReceiveMessageAsync(string text, string? from = null)
     {
-        Queue(text, []);
+        Queue(text, [], from);
         if (!IsTurnRunning) await SendQueuedAsync();
     }
 
-    public void Queue(string text, IReadOnlyList<Attachment> attachments)
+    public void Queue(string text, IReadOnlyList<Attachment> attachments, string? from = null)
     {
-        Queued.Add(new QueuedPrompt(text, attachments));
+        Queued.Add(new QueuedPrompt(text, attachments) { From = from });
         OnPropertyChanged(nameof(HasQueued));
     }
 
@@ -2433,9 +2434,14 @@ public sealed partial class SessionViewModel : ObservableObject
 
         var text = string.Join("\n\n", Queued.Select(q => q.Text).Where(t => t.Length > 0));
         var attachments = Queued.SelectMany(q => q.Attachments).ToList();
+
+        // Any of them from another device: the prompt names where each part came from ("Pixel 8, Desk PC").
+        var from = Queued.Any(q => q.From is not null)
+            ? string.Join(", ", Queued.Select(q => q.From ?? _main.Hub.ThisPcName).Distinct())
+            : null;
         Queued.Clear();
         OnPropertyChanged(nameof(HasQueued));
-        await SendPromptAsync(text, attachments);
+        await SendPromptAsync(text, attachments, from);
     }
 
     // ------------------------------------------------------------------ slash commands
@@ -2914,7 +2920,8 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
+    /// <param name="from">The device the prompt came from, shown on it here and to watching PCs; null for this PC.</param>
+    public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null, string? from = null)
     {
         attachments ??= [];
         var images = attachments.Where(a => a.IsImage).ToList();
@@ -2934,6 +2941,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
+            FromDevice = from,
 
             // Codex keeps the id with the prompt, so it can rewind or fork to just before it.
             ParentUuid = IsCodex ? uuid : null,
@@ -2957,6 +2965,11 @@ public sealed partial class SessionViewModel : ObservableObject
             }
 
             await EnsureBackendAsync();
+            if (from is not null)
+            {
+                _relay?.ExpectPrompt(message.Uuid, from); // Watching PCs see it as sent from that device too.
+            }
+
             await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image!).ToList());
 
             // The process now holds the rewind / fork point and the transcript will record it.
@@ -2975,6 +2988,11 @@ public sealed partial class SessionViewModel : ObservableObject
             if (Title == UntitledTitle)
             {
                 Title = firstTitle; // No CLI to name it.
+            }
+
+            if (from is not null)
+            {
+                _relay?.ForgetExpectedPrompt();
             }
 
             IsTurnRunning = false;
@@ -3421,17 +3439,22 @@ public sealed partial class SessionViewModel : ObservableObject
     /// Enter / Esc on a pending permission or question card. <paramref name="pickDefaults"/> (dev hook)
     /// answers a question with its first options instead of waiting for a choice.
     /// </summary>
-    public void AnswerPending(PermissionChoice choice, bool pickDefaults = false)
-    {
-        if (PendingPermission is { IsAnswered: false } pending)
-        {
-            if (pickDefaults && pending is QuestionItem question && choice != PermissionChoice.Deny)
-            {
-                question.PickDefaults();
-            }
+    public void AnswerPending(PermissionChoice choice, bool pickDefaults = false) => _ = AnswerPendingAsync(choice, pickDefaults);
 
-            Answer(pending, choice);
+    /// <summary>As <see cref="AnswerPending"/>, and says how it went: null once the agent has the answer.</summary>
+    public Task<string?> AnswerPendingAsync(PermissionChoice choice, bool pickDefaults = false)
+    {
+        if (PendingPermission is not { IsAnswered: false } pending)
+        {
+            return Task.FromResult<string?>("That request is no longer the one waiting.");
         }
+
+        if (pickDefaults && pending is QuestionItem question && choice != PermissionChoice.Deny)
+        {
+            question.PickDefaults();
+        }
+
+        return AnswerAsync(pending, choice);
     }
 
     /// <summary>Expands every tool group (dev hook for screenshots).</summary>
@@ -4791,18 +4814,26 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    private async void Answer(PermissionItem item, PermissionChoice choice)
+    /// <summary>A card's own buttons answer it here.</summary>
+    private void Answer(PermissionItem item, PermissionChoice choice) => _ = AnswerAsync(item, choice);
+
+    /// <summary>
+    /// Answers a card. Null once the agent has the answer; otherwise what went wrong (also shown in the chat). The card is
+    /// marked answered before this awaits anything, so a caller can read <see cref="PermissionItem.IsAnswered"/> right away.
+    /// </summary>
+    private async Task<string?> AnswerAsync(PermissionItem item, PermissionChoice choice)
     {
         if (item.IsAnswered)
         {
-            return;
+            return "That request was already answered.";
         }
 
         if (item.Request.ToolName == "MoveFolder" && choice != PermissionChoice.Deny && HasBackgroundWork)
         {
-            Items.Add(new ErrorItem("Stop background tasks before moving this conversation."));
+            const string busy = "Stop background tasks before moving this conversation.";
+            Items.Add(new ErrorItem(busy));
             ContentChanged?.Invoke();
-            return;
+            return busy;
         }
 
         PermissionDecision decision;
@@ -4820,7 +4851,7 @@ public sealed partial class SessionViewModel : ObservableObject
             }
             else
             {
-                return; // Enter before anything was chosen.
+                return "Nothing is chosen yet."; // Enter before anything was chosen.
             }
         }
         else
@@ -4841,17 +4872,21 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (_backend is null)
         {
-            return;
+            return null;
         }
 
         try
         {
             await _backend.RespondAsync(item.Request, decision);
             PublishAnswered(item);
+            return null;
         }
         catch (Exception ex)
         {
-            Items.Add(new ErrorItem("Could not send the answer: " + ex.Message));
+            var failed = "Could not send the answer: " + ex.Message;
+            Items.Add(new ErrorItem(failed));
+            ContentChanged?.Invoke();
+            return failed;
         }
     }
 }
