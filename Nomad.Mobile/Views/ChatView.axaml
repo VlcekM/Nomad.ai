@@ -45,7 +45,7 @@
               <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
               <TextBlock Classes="secondary" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
               <Border Background="{DynamicResource BgCodeBrush}" CornerRadius="8" Padding="8,6" IsVisible="{Binding HasDetail}">
-                <SelectableTextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="13" MaxLines="8"
+                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="13" MaxLines="8"
                                      FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
               </Border>
 
@@ -101,12 +101,18 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="vm:EntryViewModel">
-                <StackPanel>
+                <!-- Plain text, so a finger's drag always scrolls; hold a message to copy it. -->
+                <StackPanel Background="Transparent">
+                  <StackPanel.ContextFlyout>
+                    <MenuFlyout>
+                      <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                    </MenuFlyout>
+                  </StackPanel.ContextFlyout>
                 <Panel>
                   <!-- A prompt: a bubble on the right, saying where it came from when not the PC itself. -->
                   <StackPanel IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="340" Spacing="2">
                     <Border Background="{DynamicResource UserBubbleBrush}" CornerRadius="14" Padding="12,8">
-                      <SelectableTextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
                     </Border>
                     <TextBlock Classes="muted" Text="{Binding FromText}" IsVisible="{Binding HasFrom}" HorizontalAlignment="Right" FontSize="12" />
                   </StackPanel>
@@ -133,11 +139,11 @@
                                     <Style Selector="TextBlock.failed"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></Style>
                                   </TextBlock.Styles>
                                 </TextBlock>
-                                <SelectableTextBlock Text="{Binding Detail}" IsVisible="{Binding HasDetail}" FontSize="12.5" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding Detail}" IsVisible="{Binding HasDetail}" FontSize="12.5" TextWrapping="Wrap"
                                                      Foreground="{DynamicResource TextSecondaryBrush}"
                                                      FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
                               </StackPanel>
-                              <SelectableTextBlock IsVisible="{Binding IsThought}" Text="{Binding Detail}" FontSize="13" FontStyle="Italic"
+                              <TextBlock IsVisible="{Binding IsThought}" Text="{Binding Detail}" FontSize="13" FontStyle="Italic"
                                                    TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
                             </Panel>
                           </Border>
@@ -154,7 +160,7 @@
                   <TextBlock IsVisible="{Binding IsNotice}" Classes="muted" Text="{Binding ShownText}" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
 
                   <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" CornerRadius="8" Padding="10,6">
-                    <SelectableTextBlock Text="{Binding ShownText}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ShownText}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
                   </Border>
 
                   <Border IsVisible="{Binding IsCard}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10,6" HorizontalAlignment="Left">

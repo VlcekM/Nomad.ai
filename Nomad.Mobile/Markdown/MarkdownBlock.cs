@@ -125,7 +125,7 @@ public sealed class MarkdownBlock : ContentControl
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Content = new SelectableTextBlock
+            Content = new TextBlock
             {
                 Text = code.TrimEnd('\n'),
                 FontFamily = MonoFont,
@@ -151,7 +151,7 @@ public sealed class MarkdownBlock : ContentControl
             var c = 0;
             foreach (var cell in row.OfType<TableCell>())
             {
-                var text = new SelectableTextBlock { Margin = new Thickness(0, 2, 14, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 260, FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal };
+                var text = new TextBlock { Margin = new Thickness(0, 2, 14, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 260, FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal };
                 foreach (var paragraph in cell.OfType<ParagraphBlock>())
                 {
                     if (paragraph.Inline is { } inline)
@@ -176,9 +176,9 @@ public sealed class MarkdownBlock : ContentControl
         };
     }
 
-    private SelectableTextBlock Text(ContainerInline? inlines, double scale = 1, FontWeight? weight = null)
+    private TextBlock Text(ContainerInline? inlines, double scale = 1, FontWeight? weight = null)
     {
-        var block = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextPrimaryBrush") };
+        var block = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextPrimaryBrush") };
         if (scale != 1)
         {
             block.FontSize = 15 * scale;

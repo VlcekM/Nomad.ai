@@ -5,7 +5,7 @@
              x:Class="Nomad.Mobile.Views.MainView"
              x:DataType="vm:MainViewModel"
              Background="{DynamicResource BgMainBrush}">
-  <ContentControl Classes="page" Content="{Binding Page}">
+  <ContentControl x:Name="Pages" Classes="page" Content="{Binding Page}">
     <ContentControl.DataTemplates>
       <DataTemplate DataType="vm:ConnectViewModel"><v:ConnectView /></DataTemplate>
       <DataTemplate DataType="vm:ChatsViewModel"><v:ChatsView /></DataTemplate>

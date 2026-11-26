@@ -167,7 +167,7 @@ public sealed class ScreenTests
         chat.Entries[1].IsOpen = true;
         var window = Show(chat, main, theme);
 
-        Find<SelectableTextBlock>(window, t => t.Text == "dotnet test Parser.Tests --filter Quote");
+        Find<TextBlock>(window, t => t.Text == "dotnet test Parser.Tests --filter Quote");
         Save(window, "3c-chat-activity-open", theme);
     }
 
