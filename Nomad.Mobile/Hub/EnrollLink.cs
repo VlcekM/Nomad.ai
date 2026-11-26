@@ -58,6 +58,7 @@ public static class EnrollLink
             return (null, "The phone needs the hub over HTTPS. Put it behind a reverse proxy, or use Tailscale's \"tailscale serve --https\".");
         }
 
-        return (url, null);
+        // "https://example.com/nomad" is the hub at /nomad/: its API and connection paths go under it.
+        return (url.AbsolutePath.EndsWith('/') ? url : new Uri(url.GetLeftPart(UriPartial.Path) + "/"), null);
     }
 }

@@ -156,6 +156,11 @@ public sealed partial class HubViewModel : ObservableObject
         _sync.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
             IsConnected = up;
+            if (!up)
+            {
+                ClearPhoneLink(); // Folded away with the connection; a code from before isn't brought back with it.
+            }
+
             if (up && !_hubAsked)
             {
                 _ = AskHubAsync();
@@ -567,6 +572,10 @@ public sealed partial class HubViewModel : ObservableObject
         {
             Status = Describe(ex);
         }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NullReferenceException)
+        {
+            Status = "The hub's answer wasn't what Nomad expected. Is something in front of it, such as a login page?";
+        }
         finally
         {
             IsWorking = false;
@@ -587,16 +596,22 @@ public sealed partial class HubViewModel : ObservableObject
         IsWorking = true;
         try
         {
-            var token = await sync.Client.NewEnrollTokenAsync();
+            // A phone's token: the hub enrolls it as a phone, which may only read and answer chats (docs/mobile.md §6).
+            var token = await sync.Client.NewEnrollTokenAsync(phone: true);
             var link = PhoneEnrollLink.Make(hubUrl, token.Token);
             PhoneCode = QrCode.Encode(link);
             PhoneExpiry = $"Scan it before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
             PhoneLink = link;
             CopyLinkText = "Copy link";
+            ClearPhoneLinkAt(token.ExpiresUtc);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             Status = Describe(ex);
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NullReferenceException)
+        {
+            Status = "The hub's answer wasn't what Nomad expected. Is something in front of it, such as a login page?";
         }
         catch (ArgumentException)
         {
@@ -610,9 +625,21 @@ public sealed partial class HubViewModel : ObservableObject
 
     private void ClearPhoneLink()
     {
+        _phoneExpiryTimer?.Stop();
         PhoneLink = null;
         PhoneCode = null;
         PhoneExpiry = null;
+    }
+
+    private DispatcherTimer? _phoneExpiryTimer;
+
+    /// <summary>An expired code can't enroll anything, so it leaves the page when its token expires.</summary>
+    private void ClearPhoneLinkAt(DateTime expiresUtc)
+    {
+        _phoneExpiryTimer?.Stop();
+        var left = expiresUtc - DateTime.UtcNow;
+        _phoneExpiryTimer = new DispatcherTimer(left > TimeSpan.Zero ? left : TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => ClearPhoneLink());
+        _phoneExpiryTimer.Start();
     }
 
     /// <summary>The view copied the phone's link: the button says so for two seconds.</summary>

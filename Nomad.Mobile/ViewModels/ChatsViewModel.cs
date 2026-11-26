@@ -13,7 +13,13 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
 {
     private readonly Dictionary<Guid, BoardDevice> _devices = [];
 
+    // The newest sequence seen for each PC, including PCs that have left: an older snapshot never brings one back.
+    private readonly Dictionary<Guid, long> _seen = [];
+
     public ObservableCollection<PcGroupViewModel> Groups { get; } = [];
+
+    /// <summary>The board changed (Settings lists the PCs).</summary>
+    public event Action? BoardChanged;
 
     /// <summary>What the list is waiting for, or why it is empty; null when it shows chats.</summary>
     [ObservableProperty]
@@ -42,13 +48,17 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
                 return;
             }
 
-            _devices.Clear();
+            // Updates that arrived while it was asked for are newer than the snapshot and stay: a PC is taken from it only when
+            // the snapshot's entry is at least as new, and one missing from it goes only if nothing newer came since.
+            var newest = board.Count > 0 ? board.Max(d => d.Seq) : 0;
+            foreach (var id in _devices.Keys.Where(id => board.All(d => d.DeviceId != id) && _seen.GetValueOrDefault(id) <= newest).ToList())
+            {
+                _devices.Remove(id);
+            }
+
             foreach (var device in board)
             {
-                if (device.Chats.Count > 0)
-                {
-                    _devices[device.DeviceId] = device;
-                }
+                Take(device);
             }
 
             Rebuild();
@@ -70,11 +80,21 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
     /// <summary>One PC's entry changed. An older update than the one held is ignored; a PC with no chats leaves the list.</summary>
     public void Apply(BoardDevice device)
     {
-        if (_devices.TryGetValue(device.DeviceId, out var known) && device.Seq != 0 && device.Seq < known.Seq)
+        if (Take(device))
         {
-            return;
+            Rebuild();
+        }
+    }
+
+    /// <summary>Takes a PC's entry unless a newer one was seen; false when it was older.</summary>
+    private bool Take(BoardDevice device)
+    {
+        if (device.Seq != 0 && device.Seq < _seen.GetValueOrDefault(device.DeviceId))
+        {
+            return false;
         }
 
+        _seen[device.DeviceId] = device.Seq;
         if (device.Chats.Count == 0)
         {
             _devices.Remove(device.DeviceId);
@@ -84,11 +104,12 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
             _devices[device.DeviceId] = device;
         }
 
-        Rebuild();
+        return true;
     }
 
     public void Clear()
     {
+        _seen.Clear();
         _devices.Clear();
         Groups.Clear();
         Status = "Connecting to the hub…";
@@ -122,6 +143,7 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
                 ? "No chats are shared right now. On a PC, open Nomad's Settings › Hub and turn on Stream live sessions; its open chats show here."
                 : "Connecting to the hub…"
             : null;
+        BoardChanged?.Invoke();
     }
 
     /// <summary>Makes <paramref name="target"/> match <paramref name="source"/> in order, keeping and updating items with the same key.</summary>

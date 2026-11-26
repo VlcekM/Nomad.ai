@@ -128,6 +128,18 @@ public sealed partial class QuestionViewModel : ObservableObject
 
     public bool HasAnswer => Options.Any(o => o.IsSelected) || Other.Trim().Length > 0;
 
+    /// <summary>A single-choice question takes one answer: typing one clears the option picked.</summary>
+    partial void OnOtherChanged(string value)
+    {
+        if (!MultiSelect && value.Trim().Length > 0)
+        {
+            foreach (var option in Options.Where(o => o.IsSelected))
+            {
+                option.IsSelected = false;
+            }
+        }
+    }
+
     internal void OnPicked(OptionViewModel picked)
     {
         if (!MultiSelect && picked.IsSelected)
@@ -136,6 +148,8 @@ public sealed partial class QuestionViewModel : ObservableObject
             {
                 option.IsSelected = false;
             }
+
+            Other = ""; // An option picked replaces a typed answer.
         }
 
         OnPropertyChanged(nameof(HasAnswer));

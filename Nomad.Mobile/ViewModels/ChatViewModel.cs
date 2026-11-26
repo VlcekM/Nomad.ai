@@ -12,7 +12,7 @@ namespace Nomad.Mobile.ViewModels;
 /// any card waiting on an answer, and the message box. Every input goes to the PC through the hub (docs/mobile.md §3), which applies
 /// it as if typed there; the PC's history is the truth, and is fetched again after anything changes.
 /// </summary>
-public sealed partial class ChatViewModel : ObservableObject
+public sealed partial class ChatViewModel : ObservableObject, IClosable
 {
     public const int PageSize = 40;
     private static readonly TimeSpan RefreshDelay = TimeSpan.FromMilliseconds(350);
@@ -26,7 +26,13 @@ public sealed partial class ChatViewModel : ObservableObject
     private bool _refreshAgain;
     private bool _refreshScheduled;
     private bool _newMessage = true;
+    private bool _attaching;
+    private DateTime _lastActivity;
     private CancellationTokenSource? _statusClear;
+
+    // A message whose sending failed without an answer (it may have reached the PC): sent again, it keeps its id, so the PC
+    // applies it once.
+    private (string Text, string Id)? _unconfirmed;
 
     public ChatViewModel(MainViewModel main, ChatRowViewModel row)
     {
@@ -34,6 +40,7 @@ public sealed partial class ChatViewModel : ObservableObject
         _row = row;
         Title = row.Title;
         State = row.State;
+        _lastActivity = row.LastActivityUtc;
     }
 
     public Guid DeviceId => _row.DeviceId;
@@ -111,7 +118,7 @@ public sealed partial class ChatViewModel : ObservableObject
     public async Task AttachAsync()
     {
         await WatchAsync();
-        await LoadNewestAsync();
+        await RefreshAsync();
     }
 
     /// <summary>The connection came back: watch again (the turn so far comes with it) and fetch the newest page.</summary>
@@ -124,12 +131,15 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
+        // Numbering starts again with each stream. Events that arrive while the watch is asked for are shown as they come; the
+        // buffer then fills in only what they didn't cover.
+        _attaching = true;
+        _nextEvent = 0;
         try
         {
             var watch = await connection.WatchAsync(Backend, SessionId);
             IsLive = watch.Live;
-            _nextEvent = watch.Next - watch.Buffer.Count;
-            OnRelayEvents(Backend, SessionId, [.. watch.Buffer], _nextEvent, refresh: false);
+            ApplyEvents([.. watch.Buffer], watch.Next - watch.Buffer.Count);
             _nextEvent = Math.Max(_nextEvent, watch.Next);
         }
         catch
@@ -137,10 +147,14 @@ public sealed partial class ChatViewModel : ObservableObject
             // Not streamed live (the hub's relay is off, say): the board's updates still say when to fetch.
             IsLive = false;
         }
+        finally
+        {
+            _attaching = false;
+        }
     }
 
-    /// <summary>The newest page, replacing what shows (the PC's transcript is the truth).</summary>
-    public async Task LoadNewestAsync()
+    /// <summary>The newest page, replacing what shows (the PC's transcript is the truth). Only through <see cref="RefreshAsync"/>.</summary>
+    private async Task LoadNewestAsync()
     {
         if (_main.Connection is not { } connection || _closed)
         {
@@ -198,7 +212,7 @@ public sealed partial class ChatViewModel : ObservableObject
             if (page.Generation != _generation)
             {
                 Entries.Clear();
-                await LoadNewestAsync();
+                await RefreshAsync();
                 return;
             }
 
@@ -278,7 +292,8 @@ public sealed partial class ChatViewModel : ObservableObject
             return;
         }
 
-        var changed = chat.State != State || chat.Queued != Queued || chat.Title != Title || chat.LastActivityUtc != _row.LastActivityUtc;
+        var changed = chat.State != State || chat.Queued != Queued || chat.Title != Title || chat.LastActivityUtc != _lastActivity;
+        _lastActivity = chat.LastActivityUtc;
         Title = chat.Title.Length > 0 ? chat.Title : Title;
         State = chat.State;
         Queued = chat.Queued;
@@ -288,16 +303,29 @@ public sealed partial class ChatViewModel : ObservableObject
         }
     }
 
-    public void OnRelayEvents(string backend, string sessionId, string[] events, long first) => OnRelayEvents(backend, sessionId, events, first, refresh: true);
-
-    private void OnRelayEvents(string backend, string sessionId, string[] events, long first, bool refresh)
+    public void OnRelayEvents(string backend, string sessionId, string[] events, long first)
     {
-        if (_closed || backend != Backend || sessionId != SessionId)
+        if (_closed || backend != Backend || sessionId != SessionId || events.Length == 0)
         {
             return;
         }
 
+        // A stream that starts again (the chat's process restarted, or its PC reconnected) numbers from 0.
+        if (first == 0 && _nextEvent > 0 && !_attaching)
+        {
+            _nextEvent = 0;
+        }
+
         IsLive = true;
+        if (ApplyEvents(events, first))
+        {
+            ScheduleRefresh();
+        }
+    }
+
+    /// <summary>Shows the events not seen yet; true when one changed the transcript in a way only a new page shows properly.</summary>
+    private bool ApplyEvents(string[] events, long first)
+    {
         var needsPage = false;
         for (var i = 0; i < events.Length; i++)
         {
@@ -311,10 +339,7 @@ public sealed partial class ChatViewModel : ObservableObject
             needsPage |= Apply(RelayCodec.Decode(events[i]));
         }
 
-        if (needsPage && refresh)
-        {
-            ScheduleRefresh();
-        }
+        return needsPage;
     }
 
     public void OnRelayEnded(string backend, string sessionId)
@@ -322,6 +347,7 @@ public sealed partial class ChatViewModel : ObservableObject
         if (backend == Backend && sessionId == SessionId)
         {
             IsLive = false;
+            _nextEvent = 0; // The next stream numbers from 0.
             Activity = null;
             ScheduleRefresh();
         }
@@ -394,12 +420,17 @@ public sealed partial class ChatViewModel : ObservableObject
     private async Task SendAsync()
     {
         var text = Draft.Trim();
-        if (await SendInputAsync(new ChatInput("prompt", text, Id: NewId())) is { Ok: true })
+        var id = _unconfirmed is { } earlier && earlier.Text == text ? earlier.Id : NewId();
+        _unconfirmed = (text, id);
+        var result = await SendInputAsync(new ChatInput("prompt", text, Id: id));
+        if (result is not null)
         {
-            if (Draft.Trim() == text)
-            {
-                Draft = "";
-            }
+            _unconfirmed = null; // The PC answered: a new send is a new message.
+        }
+
+        if (result is { Ok: true } && Draft.Trim() == text)
+        {
+            Draft = "";
         }
     }
 
@@ -427,8 +458,9 @@ public sealed partial class ChatViewModel : ObservableObject
             {
                 result = await connection.ChatSendAsync(DeviceId, Backend, SessionId, input);
             }
-            catch (Exception first) when (IsRetryable(first))
+            catch (Exception first) when (IsRetryable(first) && connection.IsConnected)
             {
+                // Once more with the same id: if the first did reach the PC, it answers this with the first's result.
                 result = await connection.ChatSendAsync(DeviceId, Backend, SessionId, input);
             }
 
@@ -438,7 +470,7 @@ public sealed partial class ChatViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            ShowStatus("Couldn't reach the PC: " + Problem(ex), problem: true);
+            ShowStatus("Couldn't reach the PC: " + Problem(ex) + (input.Kind == "prompt" ? " Send again to retry; it won't arrive twice." : ""), problem: true);
             return null;
         }
         finally
@@ -451,7 +483,8 @@ public sealed partial class ChatViewModel : ObservableObject
         Card is { } shown && shown.Id == card.Id ? shown : new CardViewModel(card, SendInputAsync);
 
     private static bool IsRetryable(Exception ex) => ex is TimeoutException or TaskCanceledException
-        || ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase);
+        || ex.Message.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("didn't answer", StringComparison.Ordinal);
 
     private static string NewId() => Guid.NewGuid().ToString("N");
 

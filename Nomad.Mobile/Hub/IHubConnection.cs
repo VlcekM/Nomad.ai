@@ -22,7 +22,13 @@ public interface IHubConnection : IAsyncDisposable
     /// <summary>A watched chat's host stopped streaming it. Raised on any thread.</summary>
     event Action<string, string>? RelayEnded;
 
+    /// <summary>A connection attempt failed (the hub refused this phone, say); it is tried again. Raised on any thread.</summary>
+    event Action<Exception>? ConnectFailed;
+
     Task ConnectAsync(CancellationToken ct = default);
+
+    /// <summary>Connects again now if the connection is down or waiting to retry (back from the background).</summary>
+    Task ReconnectNowAsync(CancellationToken ct = default);
 
     Task<IReadOnlyList<BoardDevice>> BoardWatchAsync(CancellationToken ct = default);
 

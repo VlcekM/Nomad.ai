@@ -1823,7 +1823,14 @@ public partial class MainWindow : Window
                 await Task.Delay(100);
             }
 
-            await _vm.Hub.AddPhoneCommand.ExecuteAsync(null);
+            if (_vm.Hub.AddPhoneCommand.CanExecute(null))
+            {
+                await _vm.Hub.AddPhoneCommand.ExecuteAsync(null);
+            }
+            else
+            {
+                AnomalyLog.Write("--dev-add-phone: the hub didn't connect within 15 s, so Add phone wasn't pressed");
+            }
         }
 
         foreach (var row in _vm.Recents.OfType<SessionListItemViewModel>().Take(dev.Pick))

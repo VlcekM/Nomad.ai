@@ -120,7 +120,11 @@ public sealed class HubClient : IAsyncDisposable
         connection.Closed += _ =>
         {
             ConnectionChanged?.Invoke(false);
-            StartReconnecting(); // A close the hub chose (a restart, say) isn't retried by SignalR itself.
+            if (!_restarting)
+            {
+                StartReconnecting(); // A close the hub chose (a restart, say) isn't retried by SignalR itself.
+            }
+
             return Task.CompletedTask;
         };
         _connection = connection;
@@ -130,9 +134,54 @@ public sealed class HubClient : IAsyncDisposable
             await connection.StartAsync(ct).ConfigureAwait(false);
             ConnectionChanged?.Invoke(true);
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
+            ConnectFailed?.Invoke(ex);
             StartReconnecting();
+        }
+    }
+
+    /// <summary>A connection attempt failed (the hub refused this device, say); it is tried again. Raised on any thread.</summary>
+    public event Action<Exception>? ConnectFailed;
+
+    private volatile bool _restarting;
+
+    /// <summary>
+    /// Connects again now if the connection is down or waiting to retry, instead of after the retry's wait (up to a minute): a phone
+    /// back from the background, whose connection Android closed meanwhile.
+    /// </summary>
+    public async Task ReconnectNowAsync(CancellationToken ct = default)
+    {
+        if (_connection is not { } connection)
+        {
+            await ConnectAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (connection.State is HubConnectionState.Connected or HubConnectionState.Connecting)
+        {
+            return;
+        }
+
+        _restarting = true;
+        try
+        {
+            if (connection.State == HubConnectionState.Reconnecting)
+            {
+                await connection.StopAsync(ct).ConfigureAwait(false);
+            }
+
+            await connection.StartAsync(ct).ConfigureAwait(false);
+            ConnectionChanged?.Invoke(true);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            ConnectFailed?.Invoke(ex);
+            StartReconnecting();
+        }
+        finally
+        {
+            _restarting = false;
         }
     }
 
@@ -159,8 +208,13 @@ public sealed class HubClient : IAsyncDisposable
                 {
                     return;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    if (connection.State == HubConnectionState.Disconnected)
+                    {
+                        ConnectFailed?.Invoke(ex);
+                    }
+
                     delay = TimeSpan.FromSeconds(Math.Min(60, delay.TotalSeconds * 2));
                 }
             }

@@ -15,6 +15,7 @@ public sealed class HubConnection : IHubConnection
         _client.BoardChanged += d => BoardChanged?.Invoke(d);
         _client.RelayEvents += (b, s, e, first) => RelayEvents?.Invoke(b, s, e, first);
         _client.RelayEnded += (b, s) => RelayEnded?.Invoke(b, s);
+        _client.ConnectFailed += ex => ConnectFailed?.Invoke(ex);
     }
 
     public bool IsConnected => _client.IsConnected;
@@ -27,7 +28,11 @@ public sealed class HubConnection : IHubConnection
 
     public event Action<string, string>? RelayEnded;
 
+    public event Action<Exception>? ConnectFailed;
+
     public Task ConnectAsync(CancellationToken ct = default) => _client.ConnectAsync(ct);
+
+    public Task ReconnectNowAsync(CancellationToken ct = default) => _client.ReconnectNowAsync(ct);
 
     public Task<IReadOnlyList<BoardDevice>> BoardWatchAsync(CancellationToken ct = default) => _client.BoardWatchAsync(ct);
 

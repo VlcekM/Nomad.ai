@@ -108,14 +108,19 @@ public sealed class ViewModelTests
         question.Options[1].IsSelected = true; // One choice only: picking another clears the first.
         Assert.False(question.Options[0].IsSelected);
         Assert.True(card.SubmitCommand.CanExecute(null));
-        question.Other = "  and add a test  ";
+
+        // Typing an answer of one's own replaces the option, and picking one again clears what was typed: the PC takes one.
+        question.Other = "Both, with a test";
+        Assert.False(question.Options[1].IsSelected);
+        question.Options[1].IsSelected = true;
+        Assert.Equal("", question.Other);
         await card.SubmitCommand.ExecuteAsync(null);
 
         var input = Assert.Single(hub.Sent).Input;
         Assert.Equal(("answer", "q-1", "allow"), (input.Kind, input.Card, input.Choice));
         var answer = Assert.Single(input.Answers!);
         Assert.Equal(["Parser"], answer.Options);
-        Assert.Equal("and add a test", answer.Other);
+        Assert.Null(answer.Other);
     }
 
     [Fact]
@@ -189,7 +194,7 @@ public sealed class ViewModelTests
         main.OnResumed();
         await Task.Yield();
 
-        Assert.Contains("Connect", hub.Calls);
+        Assert.Contains("ReconnectNow", hub.Calls); // At once, not after the retry's wait.
         Assert.Contains("BoardWatch", hub.Calls);
         Assert.True(main.IsConnected);
     }
@@ -216,6 +221,114 @@ public sealed class ViewModelTests
 
         hub.RaiseRelay("claude-code", "d1", 5, Encode(new ToolCallEvent("t1", "Bash", JsonDocument.Parse("{}").RootElement.Clone(), null)));
         Assert.Equal("Using Bash", chat.Activity);
+    }
+
+    [Fact]
+    public async Task A_stream_that_ends_and_starts_again_is_followed_from_its_first_event()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page(state: "working");
+        var chat = await OpenAsync(main, "d1");
+        hub.RaiseRelay("claude-code", "d1", 0, Encode(new TurnStartedEvent("One")), Encode(new TextDeltaEvent("m1", 0, "First turn", null)));
+        Assert.Equal("First turn", chat.Entries[^1].Text);
+
+        // The chat's process exits, and a new one starts streaming, numbered from 0 again.
+        hub.RaiseRelayEnded("claude-code", "d1");
+        Assert.False(chat.IsLive);
+        hub.RaiseRelay("claude-code", "d1", 0, Encode(new AssistantMessageStartedEvent("m2", null, null)), Encode(new TextDeltaEvent("m2", 0, "Second", null)));
+        Assert.True(chat.IsLive);
+        Assert.Equal("Second", chat.Entries[^1].Text);
+
+        // Even without the end being seen (the phone was reconnecting), a stream starting from 0 is a new one.
+        hub.RaiseRelay("claude-code", "d1", 0, Encode(new AssistantMessageStartedEvent("m3", null, null)), Encode(new TextDeltaEvent("m3", 0, "Third", null)));
+        Assert.Equal("Third", chat.Entries[^1].Text);
+    }
+
+    [Fact]
+    public async Task A_chat_that_isnt_streamed_fetches_its_page_when_the_board_says_it_changed()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.Watch = new WatchResult(false, null, [], 0);
+        hub.Pages["d1"] = Samples.Page();
+        var chat = await OpenAsync(main, "d1");
+        Assert.False(chat.IsLive); // An empty buffer doesn't make it live.
+        hub.Calls.Clear();
+
+        // Only its last activity changed: a whole turn happened between two board checks.
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("d1", "Fix the parser bug", "idle", -1)], 50));
+        await Task.Delay(ChatViewModel.PageSize * 25); // The refresh waits a moment so close changes share one fetch.
+
+        Assert.Contains("History d1 newest", hub.Calls);
+    }
+
+    [Fact]
+    public async Task A_message_whose_sending_failed_keeps_its_id_when_sent_again()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+        var fail = true;
+        hub.Answer = _ => fail ? throw new InvalidOperationException("Not connected.") : new ChatInputResult(true, "Sent.");
+
+        chat.Draft = "Run the tests";
+        await chat.SendCommand.ExecuteAsync(null);
+        Assert.True(chat.StatusIsProblem);
+        Assert.Contains("won't arrive twice", chat.Status);
+        Assert.Equal("Run the tests", chat.Draft);
+
+        fail = false;
+        await chat.SendCommand.ExecuteAsync(null);
+        Assert.Equal("", chat.Draft);
+        Assert.Equal(hub.Sent[0].Input.Id, hub.Sent[1].Input.Id); // The PC applies it once, whichever reached it.
+
+        chat.Draft = "Run the tests";
+        await chat.SendCommand.ExecuteAsync(null);
+        Assert.NotEqual(hub.Sent[1].Input.Id, hub.Sent[2].Input.Id); // Answered before: this is a new message.
+    }
+
+    [Fact]
+    public async Task A_refused_phone_says_so_instead_of_connecting_forever()
+    {
+        var hub = new FakeHub { Refusal = new HttpRequestException("Unauthorized", null, System.Net.HttpStatusCode.Unauthorized) };
+        var store = new MemorySecretStore();
+        new Enrollment(new Uri("https://hub.example.ts.net/"), Guid.NewGuid(), "Test phone", "secret").Save(store);
+        var main = new MainViewModel(store, hub);
+        main.Start();
+        await Task.Yield();
+
+        Assert.False(main.IsConnected);
+        Assert.Contains("refused this phone", main.Chats.Status);
+    }
+
+    [Fact]
+    public async Task A_board_snapshot_never_undoes_a_newer_update()
+    {
+        var (main, hub, _) = await SignedInAsync();
+
+        // Newer updates arrive (the laptop leaves, the desk changes) while the snapshot below is older than both.
+        hub.RaiseBoard(new BoardDevice(Samples.Laptop, "Laptop", [], 20));
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("d1", "Fix the parser bug", "working", 0)], 21));
+        await main.Chats.RefreshAsync(); // hub.Board still holds the sequence 3 and 7 entries.
+
+        Assert.Equal(["Desk PC"], main.Chats.Groups.Select(g => g.Name));
+        Assert.Equal("working", Assert.Single(main.Chats.Groups[0].Chats).State);
+    }
+
+    [Fact]
+    public async Task Settings_follows_the_connection_and_the_board_while_it_shows()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        main.OpenSettings();
+        var settings = Assert.IsType<SettingsViewModel>(main.Page);
+        var changed = new List<string?>();
+        settings.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        hub.SetConnected(false);
+        hub.RaiseBoard(new BoardDevice(Samples.Laptop, "Laptop", [], 30));
+
+        Assert.Equal("Not connected", settings.ConnectionText);
+        Assert.Contains(nameof(SettingsViewModel.ConnectionText), changed);
+        Assert.Contains(nameof(SettingsViewModel.Pcs), changed);
+        Assert.Equal(["Desk PC"], settings.Pcs.Select(p => p.Name));
     }
 
     [Fact]
@@ -335,6 +448,7 @@ public sealed class ViewModelTests
     [Theory]
     [InlineData("desk.example.ts.net", "https://desk.example.ts.net/")]
     [InlineData("https://desk.example.ts.net:8443/", "https://desk.example.ts.net:8443/")]
+    [InlineData("https://example.com/nomad", "https://example.com/nomad/")]
     [InlineData("http://desk.example.ts.net", null)]
     [InlineData("", null)]
     public void Hub_addresses_must_be_https(string address, string? url) =>

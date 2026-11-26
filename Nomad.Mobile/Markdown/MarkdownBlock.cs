@@ -28,6 +28,13 @@ public sealed class MarkdownBlock : ContentControl
         MarkdownProperty.Changed.AddClassHandler<MarkdownBlock>((block, _) => block.Render());
     }
 
+    /// <summary>The phone switched between light and dark: the colors are looked up again.</summary>
+    public MarkdownBlock() => ActualThemeVariantChanged += (_, _) =>
+    {
+        _shown = null;
+        Render();
+    };
+
     public string? Markdown
     {
         get => GetValue(MarkdownProperty);

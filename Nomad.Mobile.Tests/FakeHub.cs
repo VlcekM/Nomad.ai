@@ -31,10 +31,34 @@ public sealed class FakeHub : IHubConnection, IHubFactory
 
     public event Action<string, string>? RelayEnded;
 
+    public event Action<Exception>? ConnectFailed;
+
+    /// <summary>The hub refuses this phone (revoked, say): connecting fails with this, as the real client reports it.</summary>
+    public Exception? Refusal { get; set; }
+
     public Task ConnectAsync(CancellationToken ct = default)
     {
         Calls.Add("Connect");
-        SetConnected(true);
+        return TryConnect();
+    }
+
+    public Task ReconnectNowAsync(CancellationToken ct = default)
+    {
+        Calls.Add("ReconnectNow");
+        return TryConnect();
+    }
+
+    private Task TryConnect()
+    {
+        if (Refusal is { } refusal)
+        {
+            ConnectFailed?.Invoke(refusal);
+        }
+        else if (!IsConnected)
+        {
+            SetConnected(true);
+        }
+
         return Task.CompletedTask;
     }
 

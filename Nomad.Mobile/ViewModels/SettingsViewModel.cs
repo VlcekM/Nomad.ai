@@ -4,8 +4,38 @@ using CommunityToolkit.Mvvm.Input;
 namespace Nomad.Mobile.ViewModels;
 
 /// <summary>Settings: the hub, the PCs on the board, and Sign out, which also revokes this phone on the hub.</summary>
-public sealed partial class SettingsViewModel(MainViewModel main) : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject, IClosable
 {
+    private readonly MainViewModel main;
+
+    /// <summary>Follows the connection and the board while it shows.</summary>
+    public SettingsViewModel(MainViewModel main)
+    {
+        this.main = main;
+        main.PropertyChanged += OnMainChanged;
+        main.Chats.BoardChanged += OnBoardChanged;
+    }
+
+    public void Close()
+    {
+        main.PropertyChanged -= OnMainChanged;
+        main.Chats.BoardChanged -= OnBoardChanged;
+    }
+
+    private void OnMainChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsConnected))
+        {
+            OnPropertyChanged(nameof(ConnectionText));
+        }
+    }
+
+    private void OnBoardChanged()
+    {
+        OnPropertyChanged(nameof(Pcs));
+        OnPropertyChanged(nameof(HasPcs));
+    }
+
     public string HubAddress => main.Enrollment?.Hub.ToString().TrimEnd('/') ?? "";
 
     public string DeviceName => main.Enrollment?.DeviceName ?? "";

@@ -3,6 +3,12 @@ using Nomad.Mobile.Hub;
 
 namespace Nomad.Mobile;
 
+/// <summary>A screen with something to let go of when it stops showing (a watched chat, subscriptions).</summary>
+public interface IClosable
+{
+    void Close();
+}
+
 /// <summary>What the platform head (Android) gives the app; the tests set their own.</summary>
 public static class AppServices
 {

@@ -104,6 +104,13 @@ public sealed partial class MainViewModel : ObservableObject
                 OpenChat?.OnRelayEnded(backend, id);
             }
         });
+        connection.ConnectFailed += ex => AppServices.Post(() =>
+        {
+            if (ReferenceEquals(Connection, connection) && !IsConnected)
+            {
+                Chats.Status = ConnectProblem(ex);
+            }
+        });
 
         ShowPage(Chats);
         await ConnectNowAsync();
@@ -134,6 +141,11 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Why the hub can't be reached, in a sentence; it keeps being tried meanwhile.</summary>
+    internal static string ConnectProblem(Exception ex) => ex is HttpRequestException { StatusCode: System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden }
+        ? "The hub refused this phone: it may have been revoked on a PC. Sign out in Settings and connect it again."
+        : "Can't reach the hub (" + ChatViewModel.Problem(ex) + "). Trying again…";
+
     private void OnConnectionChanged(IHubConnection connection, bool up)
     {
         if (!ReferenceEquals(Connection, connection) || IsConnected == up)
@@ -157,13 +169,16 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>The app came back from the background. A connection Android closed meanwhile is opened again.</summary>
+    /// <summary>
+    /// The app came back from the background. A connection Android closed meanwhile is opened again now, not after the retry's
+    /// wait, and its coming back fetches everything again.
+    /// </summary>
     public void OnResumed()
     {
-        if (Connection is { IsConnected: false })
+        if (Connection is { IsConnected: false } connection)
         {
-            IsConnected = false;
-            _ = ConnectNowAsync();
+            Chats.Status = "Reconnecting to the hub…";
+            _ = connection.ReconnectNowAsync().ContinueWith(_ => { }, TaskScheduler.Default);
         }
     }
 
@@ -206,7 +221,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        (Page as ChatViewModel)?.Close();
+        (Page as IClosable)?.Close();
         Page = page;
         OnPropertyChanged(nameof(OpenChat));
     }
