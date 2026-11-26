@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:md="using:Nomad.Mobile.Markdown"
+             x:Class="Nomad.Mobile.Views.ChatView"
+             x:DataType="vm:ChatViewModel">
+  <DockPanel>
+    <!-- Header: back, title, where it runs, and its state. -->
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="4,6,12,8">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Button Classes="flat" Content="‹ Chats" Command="{Binding BackCommand}" VerticalAlignment="Top" />
+        <StackPanel Grid.Column="1" Margin="6,4,0,0" Spacing="2">
+          <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+          <TextBlock Classes="muted" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding StateText}" VerticalAlignment="Center" Margin="8,0,0,0" />
+      </Grid>
+    </Border>
+
+    <!-- Message box: stays above the keyboard (the activity resizes for it). -->
+    <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="10,8">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Classes="muted" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0">
+          <TextBlock.Styles>
+            <Style Selector="TextBlock.problem">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </TextBlock.Styles>
+        </TextBlock>
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBox x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160" />
+          <Button Grid.Column="1" Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+          <Button Grid.Column="2" Classes="accent" Content="Send" Command="{Binding SendCommand}" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <!-- A card waiting on an answer sits just above the message box. -->
+    <ContentControl DockPanel.Dock="Bottom" Content="{Binding Card}" IsVisible="{Binding Card, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <ContentControl.ContentTemplate>
+        <DataTemplate DataType="vm:CardViewModel">
+          <Border Classes="card" Margin="10,6" BorderBrush="{DynamicResource WaitingBrush}" Background="{DynamicResource WaitingSubtleBrush}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Classes="secondary" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+              <Border Background="{DynamicResource BgCodeBrush}" CornerRadius="8" Padding="8,6" IsVisible="{Binding HasDetail}">
+                <SelectableTextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="13" MaxLines="8"
+                                     FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
+              </Border>
+
+              <!-- A question card: each question with its options, and a box for an answer of one's own. -->
+              <ItemsControl ItemsSource="{Binding Questions}" IsVisible="{Binding IsQuestion}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="vm:QuestionViewModel">
+                    <StackPanel Spacing="4" Margin="0,4">
+                      <TextBlock Classes="section" Text="{Binding Header}" />
+                      <TextBlock Text="{Binding Question}" TextWrapping="Wrap" />
+                      <ItemsControl ItemsSource="{Binding Options}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="vm:OptionViewModel">
+                            <ToggleButton IsChecked="{Binding IsSelected}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                          Margin="0,3,0,0" Padding="12,8" CornerRadius="10" MinHeight="44">
+                              <StackPanel>
+                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                <TextBlock Classes="muted" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+                              </StackPanel>
+                            </ToggleButton>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <TextBox Text="{Binding Other}" Watermark="Or type an answer" Margin="0,3,0,0" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <WrapPanel IsVisible="{Binding IsPermission}">
+                <Button Classes="accent" Content="{Binding AllowText}" Command="{Binding AllowCommand}" Margin="0,0,6,6" />
+                <Button Content="Allow for this session" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}" Margin="0,0,6,6" />
+                <Button Content="{Binding DenyText}" Command="{Binding DenyCommand}" Margin="0,0,6,6" />
+              </WrapPanel>
+              <WrapPanel IsVisible="{Binding IsQuestion}">
+                <Button Classes="accent" Content="Send answers" Command="{Binding SubmitCommand}" Margin="0,0,6,6" />
+                <Button Content="{Binding DenyText}" Command="{Binding DenyCommand}" Margin="0,0,6,6" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.ContentTemplate>
+    </ContentControl>
+
+    <!-- The transcript, newest at the bottom; the turn streaming now grows its last entry. -->
+    <Grid>
+      <ScrollViewer x:Name="Scroller">
+        <StackPanel Margin="12,8,12,12" Spacing="10">
+          <Button Classes="flat" Content="Show earlier messages" Command="{Binding LoadOlderCommand}" IsVisible="{Binding HasOlder}" HorizontalAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding Entries}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:EntryViewModel">
+                <StackPanel>
+                <Panel>
+                  <!-- A prompt: a bubble on the right, saying where it came from when not the PC itself. -->
+                  <StackPanel IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="340" Spacing="2">
+                    <Border Background="{DynamicResource UserBubbleBrush}" CornerRadius="14" Padding="12,8">
+                      <SelectableTextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
+                    </Border>
+                    <TextBlock Classes="muted" Text="{Binding FromText}" IsVisible="{Binding HasFrom}" HorizontalAlignment="Right" FontSize="12" />
+                  </StackPanel>
+
+                  <md:MarkdownBlock IsVisible="{Binding IsAssistant}" Markdown="{Binding ShownText}" />
+
+                  <!-- Tool calls: folded to one line. -->
+                  <Border IsVisible="{Binding IsActivity}" Background="{DynamicResource BgChipBrush}" CornerRadius="8" Padding="10,6" HorizontalAlignment="Left">
+                    <TextBlock Classes="muted" Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" />
+                  </Border>
+
+                  <TextBlock IsVisible="{Binding IsNotice}" Classes="muted" Text="{Binding ShownText}" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
+
+                  <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" CornerRadius="8" Padding="10,6">
+                    <SelectableTextBlock Text="{Binding ShownText}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
+                  </Border>
+
+                  <Border IsVisible="{Binding IsCard}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10,6" HorizontalAlignment="Left">
+                    <TextBlock Classes="muted" Text="{Binding CardText}" TextWrapping="Wrap" />
+                  </Border>
+
+                </Panel>
+                <Button Classes="flat" Content="Show more" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" HorizontalAlignment="Left" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="muted" Text="{Binding Activity}" IsVisible="{Binding Activity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+      </ScrollViewer>
+      <TextBlock Classes="muted" Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Grid>
+  </DockPanel>
+</UserControl>

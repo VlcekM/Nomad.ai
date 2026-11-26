@@ -1,0 +1,59 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             x:Class="Nomad.Mobile.Views.ChatsView"
+             x:DataType="vm:ChatsViewModel"
+             x:Name="Root">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="16,10,6,10">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="title" Text="Chats" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="flat" Content="Settings" Command="{Binding OpenSettingsCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- Pulling down fetches the board again. -->
+    <RefreshContainer x:Name="Refresher" RefreshRequested="OnRefreshRequested">
+      <ScrollViewer>
+        <StackPanel Margin="0,4,0,16">
+          <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                     Classes="secondary" TextWrapping="Wrap" Margin="20,24" />
+          <ItemsControl ItemsSource="{Binding Groups}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:PcGroupViewModel">
+                <StackPanel Margin="0,10,0,0">
+                  <Grid ColumnDefinitions="*,Auto" Margin="16,6,16,4">
+                    <TextBlock Classes="section" Text="{Binding Name}" />
+                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Summary}" />
+                  </Grid>
+                  <ItemsControl ItemsSource="{Binding Chats}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="vm:ChatRowViewModel">
+                        <Button Classes="row" Command="{Binding #Root.((vm:ChatsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
+                          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+                            <Ellipse Classes="state" Classes.working="{Binding IsWorking}" Classes.waiting="{Binding IsWaiting}"
+                                     VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="muted" TextTrimming="CharacterEllipsis" Margin="0,2,0,0">
+                              <Run Text="{Binding StateText, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <Run Text=" · " />
+                              <Run Text="{Binding Agent, Mode=OneWay}" />
+                              <Run Text="{Binding Folder, Mode=OneWay, StringFormat=' · {0}'}" />
+                            </TextBlock>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="secondary" Text="{Binding LastLine}" FontSize="14"
+                                       MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
+                                       IsVisible="{Binding LastLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </RefreshContainer>
+  </DockPanel>
+</UserControl>

@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             x:Class="Nomad.Mobile.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="4,6,12,8">
+      <Grid ColumnDefinitions="Auto,*">
+        <Button Classes="flat" Content="‹ Chats" Command="{Binding BackCommand}" />
+        <TextBlock Grid.Column="1" Classes="title" Text="Settings" VerticalAlignment="Center" Margin="6,0,0,0" />
+      </Grid>
+    </Border>
+    <ScrollViewer>
+      <StackPanel Margin="16" Spacing="16">
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="section" Text="Hub" />
+            <TextBlock Text="{Binding HubAddress}" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" Text="{Binding ConnectionText}" />
+            <TextBlock Classes="section" Text="This phone" Margin="0,8,0,0" />
+            <TextBlock Text="{Binding DeviceName}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="card">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="section" Text="PCs sharing chats" />
+            <TextBlock Classes="muted" Text="None right now." IsVisible="{Binding !HasPcs}" />
+            <ItemsControl ItemsSource="{Binding Pcs}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="vm:PcLine">
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Detail}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <StackPanel Spacing="8">
+          <Button Content="Connect to another hub" Command="{Binding ConnectElsewhereCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          <Button Classes="danger" Content="{Binding SignOutText}" Command="{Binding SignOutCommand}" IsEnabled="{Binding !IsBusy}"
+                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+          <TextBlock Classes="muted" TextWrapping="Wrap"
+                     Text="Signing out revokes this phone on the hub, so its saved sign-in no longer works. A lost phone can be revoked in Settings › Hub on any PC." />
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

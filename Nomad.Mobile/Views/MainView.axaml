@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             x:Class="Nomad.Mobile.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{DynamicResource BgMainBrush}">
+  <ContentControl Classes="page" Content="{Binding Page}">
+    <ContentControl.DataTemplates>
+      <DataTemplate DataType="vm:ConnectViewModel"><v:ConnectView /></DataTemplate>
+      <DataTemplate DataType="vm:ChatsViewModel"><v:ChatsView /></DataTemplate>
+      <DataTemplate DataType="vm:ChatViewModel"><v:ChatView /></DataTemplate>
+      <DataTemplate DataType="vm:SettingsViewModel"><v:SettingsView /></DataTemplate>
+    </ContentControl.DataTemplates>
+  </ContentControl>
+</UserControl>

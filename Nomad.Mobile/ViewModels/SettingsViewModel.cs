@@ -1,0 +1,51 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace Nomad.Mobile.ViewModels;
+
+/// <summary>Settings: the hub, the PCs on the board, and Sign out, which also revokes this phone on the hub.</summary>
+public sealed partial class SettingsViewModel(MainViewModel main) : ObservableObject
+{
+    public string HubAddress => main.Enrollment?.Hub.ToString().TrimEnd('/') ?? "";
+
+    public string DeviceName => main.Enrollment?.DeviceName ?? "";
+
+    public string ConnectionText => main.IsConnected ? "Connected" : "Not connected";
+
+    public IReadOnlyList<PcLine> Pcs => [.. main.Devices.Select(d => new PcLine(d.DeviceName, d.Chats.Count == 1 ? "1 open chat" : $"{d.Chats.Count} open chats"))];
+
+    public bool HasPcs => main.Devices.Count > 0;
+
+    /// <summary>Sign out asks once more before it acts.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SignOutText))]
+    public partial bool ConfirmingSignOut { get; set; }
+
+    public string SignOutText => ConfirmingSignOut ? "Tap again to sign out and revoke this phone" : "Sign out";
+
+    [ObservableProperty]
+    public partial bool IsBusy { get; set; }
+
+    [RelayCommand]
+    private async Task SignOutAsync()
+    {
+        if (!ConfirmingSignOut)
+        {
+            ConfirmingSignOut = true;
+            return;
+        }
+
+        IsBusy = true;
+        await main.SignOutAsync();
+        IsBusy = false;
+    }
+
+    /// <summary>Connect to another hub (or the same one again, with a new token).</summary>
+    [RelayCommand]
+    private void ConnectElsewhere() => main.ShowConnect();
+
+    [RelayCommand]
+    private void Back() => main.GoBack();
+}
+
+public sealed record PcLine(string Name, string Detail);

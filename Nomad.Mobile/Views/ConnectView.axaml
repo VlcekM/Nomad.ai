@@ -1,0 +1,38 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             x:Class="Nomad.Mobile.Views.ConnectView"
+             x:DataType="vm:ConnectViewModel">
+  <ScrollViewer>
+    <StackPanel Margin="20,28,20,20" Spacing="14">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Image Source="avares://Nomad.Mobile/Assets/nomad.png" Width="40" Height="40" />
+        <TextBlock Classes="title" Text="Connect to Nomad Hub" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="secondary" TextWrapping="Wrap"
+                 Text="On a PC, open Nomad's Settings › Hub and choose Add phone. Scan its code with this phone's camera, or paste the link or the address and token here." />
+
+      <StackPanel Spacing="6">
+        <TextBlock Classes="section" Text="Hub address" />
+        <TextBox Text="{Binding Address}" Watermark="https://hub.example.ts.net" AcceptsReturn="False" />
+      </StackPanel>
+      <StackPanel Spacing="6">
+        <TextBlock Classes="section" Text="Enrollment token" />
+        <TextBox Text="{Binding Token}" Watermark="From Add phone on a PC" AcceptsReturn="False" />
+      </StackPanel>
+      <StackPanel Spacing="6">
+        <TextBlock Classes="section" Text="This phone's name" />
+        <TextBox Text="{Binding DeviceName}" AcceptsReturn="False" />
+        <TextBlock Classes="muted" TextWrapping="Wrap" Text="Shown on prompts you send and in the PCs' device list." />
+      </StackPanel>
+
+      <TextBlock Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
+
+      <Button Classes="accent" Content="Connect this phone" Command="{Binding ConnectCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      <Button Classes="flat" Content="Back to chats" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" TextWrapping="Wrap"
+                 Text="The phone needs the hub over HTTPS: put it behind a reverse proxy, or use Tailscale's &quot;tailscale serve --https&quot; and its private network." />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

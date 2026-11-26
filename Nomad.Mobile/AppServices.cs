@@ -1,0 +1,21 @@
+using Avalonia.Threading;
+using Nomad.Mobile.Hub;
+
+namespace Nomad.Mobile;
+
+/// <summary>What the platform head (Android) gives the app; the tests set their own.</summary>
+public static class AppServices
+{
+    public static ISecretStore Store { get; set; } = new MemorySecretStore();
+
+    public static IHubFactory Hubs { get; set; } = new HubFactory();
+
+    /// <summary>The name a new enrollment suggests for this phone (its model, on Android).</summary>
+    public static string DefaultDeviceName { get; set; } = "Phone";
+
+    /// <summary>Runs work on the UI thread. Hub events arrive on any thread; the tests run it at once.</summary>
+    public static Action<Action> Post { get; set; } = work => Dispatcher.UIThread.Post(work);
+
+    /// <summary>Copies text to the clipboard, where the platform has one.</summary>
+    public static Func<string, Task>? CopyText { get; set; }
+}

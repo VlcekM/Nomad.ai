@@ -1,0 +1,58 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Nomad's palette (the desktop's Theme/Palette.axaml), the roles the phone uses, in the phone's light or dark setting. -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="BgMainBrush" Color="#0F0F10" />
+      <SolidColorBrush x:Key="BgCardBrush" Color="#151516" />
+      <SolidColorBrush x:Key="BgRaisedBrush" Color="#1B1B1D" />
+      <SolidColorBrush x:Key="BgInputBrush" Color="#161617" />
+      <SolidColorBrush x:Key="BgCodeBrush" Color="#131314" />
+      <SolidColorBrush x:Key="BgChipBrush" Color="#1F1F21" />
+      <SolidColorBrush x:Key="BgButtonBrush" Color="#2A2A2C" />
+      <SolidColorBrush x:Key="BorderBrush" Color="#262628" />
+      <SolidColorBrush x:Key="BorderInputBrush" Color="#333336" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F0F0EE" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A9A9A5" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="#8B8B88" />
+      <SolidColorBrush x:Key="TextOnAccentBrush" Color="#111112" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#009868" />
+      <SolidColorBrush x:Key="AccentSubtleBrush" Color="#24009868" />
+      <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#008259" />
+      <SolidColorBrush x:Key="DangerBrush" Color="#E5645E" />
+      <SolidColorBrush x:Key="DangerSubtleBrush" Color="#1FE5645E" />
+      <SolidColorBrush x:Key="WaitingBrush" Color="#E5B54A" />
+      <SolidColorBrush x:Key="WaitingSubtleBrush" Color="#24E5B54A" />
+      <SolidColorBrush x:Key="LinkBrush" Color="#6FA2EA" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="#3FB950" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#84B8A3" />
+      <SolidColorBrush x:Key="UserBubbleBrush" Color="#222224" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="BgMainBrush" Color="#F3F2EC" />
+      <SolidColorBrush x:Key="BgCardBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgRaisedBrush" Color="#F0EEE6" />
+      <SolidColorBrush x:Key="BgInputBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="BgCodeBrush" Color="#F2F0E9" />
+      <SolidColorBrush x:Key="BgChipBrush" Color="#EAE8E0" />
+      <SolidColorBrush x:Key="BgButtonBrush" Color="#E8E6DE" />
+      <SolidColorBrush x:Key="BorderBrush" Color="#DEDCD3" />
+      <SolidColorBrush x:Key="BorderInputBrush" Color="#C9C7BE" />
+      <SolidColorBrush x:Key="TextPrimaryBrush" Color="#141413" />
+      <SolidColorBrush x:Key="TextSecondaryBrush" Color="#484743" />
+      <SolidColorBrush x:Key="TextMutedBrush" Color="#62615B" />
+      <SolidColorBrush x:Key="TextOnAccentBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#009868" />
+      <SolidColorBrush x:Key="AccentSubtleBrush" Color="#1F009868" />
+      <SolidColorBrush x:Key="AccentEmphasisBrush" Color="#008259" />
+      <SolidColorBrush x:Key="DangerBrush" Color="#C9433D" />
+      <SolidColorBrush x:Key="DangerSubtleBrush" Color="#1FC9433D" />
+      <SolidColorBrush x:Key="WaitingBrush" Color="#B7871C" />
+      <SolidColorBrush x:Key="WaitingSubtleBrush" Color="#24B7871C" />
+      <SolidColorBrush x:Key="LinkBrush" Color="#2F6FC7" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="#2E8B3A" />
+      <SolidColorBrush x:Key="InlineCodeBrush" Color="#2A6950" />
+      <SolidColorBrush x:Key="UserBubbleBrush" Color="#E8E6DE" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

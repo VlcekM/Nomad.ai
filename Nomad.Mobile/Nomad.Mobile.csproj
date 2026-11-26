@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The phone app's views, view models and transcript model (docs/mobile.md §5), with no Android types: the Android head and the
+       headless tests both build on it. -->
+  <PropertyGroup>
+    <RootNamespace>Nomad.Mobile</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nomad.Mobile.Tests" />
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Markdig" Version="1.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The hub client, the wire types and the relay codec. Only platform-neutral parts are reached on a phone. -->
+    <ProjectReference Include="..\Nomad.Core\Nomad.Core.csproj" />
+  </ItemGroup>
+
+</Project>
