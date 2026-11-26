@@ -141,10 +141,38 @@ public sealed partial class SessionViewModel
                     var steered = new UserMessageItem(shown, null, DateTime.UtcNow, seen: false) { Files = files, FromDevice = from, IsSteered = true };
                     CloseGroup();
                     Items.Add(steered);
+                    var decoded = (input.Images ?? []).Select((i, n) => PromptImages.FromBytes(i.Data, i.MediaType, $"image {n + 1}")).ToList();
+                    List<Attachment> attachments = [.. files, .. decoded.OfType<Attachment>()];
                     _steered[steeredUuid] = steered;
+                    _steeredInput[steeredUuid] = (shown, attachments, from);
                     ContentChanged?.Invoke();
                     _main.OnSessionActivity(this);
-                    await claude.SteerAsync(text, input.Images, steeredUuid);
+                    try
+                    {
+                        await claude.SteerAsync(text, input.Images, steeredUuid);
+                    }
+                    catch (Exception)
+                    {
+                        // Not lost: it waits in the queue, as one typed here would, and goes out with the next prompt.
+                        _steered.Remove(steeredUuid);
+                        _steeredInput.Remove(steeredUuid);
+                        Items.Remove(steered);
+                        if (attachments.Count < files.Count + decoded.Count)
+                        {
+                            var left = files.Count + decoded.Count - attachments.Count;
+                            Items.Add(new ErrorItem($"{(left == 1 ? "An image" : $"{left} images")} sent from {from} could not be read, so the queued prompt goes without {(left == 1 ? "it" : "them")}."));
+                        }
+
+                        Queue(shown, attachments, from);
+                        if (!IsTurnRunning)
+                        {
+                            await SendQueuedAsync();
+                        }
+
+                        ContentChanged?.Invoke();
+                        break;
+                    }
+
                     _relay?.PublishPrompt(text, steeredUuid, from);
                     break;
 
