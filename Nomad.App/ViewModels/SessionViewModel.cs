@@ -16,6 +16,12 @@ public enum MessageDelivery
     IntoTurn,
     Queued,
     Sent,
+
+    /// <summary>It couldn't be sent (the chat shows why); nothing waits.</summary>
+    Failed,
+
+    /// <summary>The session runs in another Nomad window or a terminal, which keeps it.</summary>
+    RunningElsewhere,
 }
 
 public enum AgentState
@@ -2080,6 +2086,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Prompts sent into the running turn, by the uuid they went with: seen once the CLI says it took each in.</summary>
     private readonly Dictionary<string, UserMessageItem> _steered = new(StringComparer.Ordinal);
 
+    /// <summary>What each steered prompt was (text, attachments, sender), to queue again if the process ends before taking it in.</summary>
+    private readonly Dictionary<string, (string Text, IReadOnlyList<Attachment> Attachments, string? From)> _steeredInput = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
     /// (Claude is stopped), as "Send now" does. False when there is nothing to send, or no turn running (then it is a plain send).
@@ -2346,29 +2355,45 @@ public sealed partial class SessionViewModel : ObservableObject
     /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
     /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
     /// </summary>
-    public async Task<MessageDelivery> ReceivePromptAsync(string text, string from)
+    public Task<MessageDelivery> ReceivePromptAsync(string text, string from) => DeliverAsync(text, from);
+
+    private async Task<MessageDelivery> DeliverAsync(string text, string? from)
     {
+        // Two processes on one transcript would interleave it: the window or terminal running it keeps it, as for one typed here.
+        if (!IsProcessRunning && SessionId is { } id && _main.IsRunningElsewhere(id))
+        {
+            return MessageDelivery.RunningElsewhere;
+        }
+
+        QueuedPrompt waiting;
         if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
         {
-            // One that couldn't be written was queued by SteerAsync (and sent, if the turn ended meanwhile).
-            if (await SteerAsync(text, [], from))
+            if (await SteerAsync(text, [], from) is not { } back)
             {
                 return MessageDelivery.IntoTurn;
             }
+
+            waiting = back; // It couldn't be written, so it waits in the queue instead.
         }
         else
         {
-            Queue(text, [], from);
-            if (!IsTurnRunning) await SendQueuedAsync();
+            waiting = Queue(text, [], from);
         }
 
-        return HasQueued ? MessageDelivery.Queued : MessageDelivery.Sent;
+        if (!IsTurnRunning && !await SendQueuedAsync())
+        {
+            return MessageDelivery.Failed;
+        }
+
+        return Queued.Contains(waiting) ? MessageDelivery.Queued : MessageDelivery.Sent;
     }
 
-    public void Queue(string text, IReadOnlyList<Attachment> attachments, string? from = null)
+    public QueuedPrompt Queue(string text, IReadOnlyList<Attachment> attachments, string? from = null)
     {
-        Queued.Add(new QueuedPrompt(text, attachments) { From = from });
+        var prompt = new QueuedPrompt(text, attachments) { From = from };
+        Queued.Add(prompt);
         OnPropertyChanged(nameof(HasQueued));
+        return prompt;
     }
 
     [RelayCommand]
@@ -2446,20 +2471,20 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    /// <summary>Everything queued, as one prompt (as Claude Code merges queued messages).</summary>
-    private async Task SendQueuedAsync()
+    /// <summary>Everything queued, as one prompt (as Claude Code merges queued messages). False when sending it failed.</summary>
+    private async Task<bool> SendQueuedAsync()
     {
         _sendQueuedOnStop = false;
         if (Queued.Count == 0 || IsTurnRunning || IsPhoneSession)
         {
-            return;
+            return true;
         }
 
         // Not half-way through an edit: it goes out once that is saved or dropped.
         if (Queued.Any(q => q.IsEditing))
         {
             _sendAfterEdit = true;
-            return;
+            return true;
         }
 
         var text = string.Join("\n\n", Queued.Select(q => q.Text).Where(t => t.Length > 0));
@@ -2471,7 +2496,7 @@ public sealed partial class SessionViewModel : ObservableObject
             : null;
         Queued.Clear();
         OnPropertyChanged(nameof(HasQueued));
-        await SendPromptAsync(text, attachments, from);
+        return await SendPromptAsync(text, attachments, from);
     }
 
     // ------------------------------------------------------------------ slash commands
@@ -2870,7 +2895,10 @@ public sealed partial class SessionViewModel : ObservableObject
             // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
             if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
             {
-                _ = await SteerAsync(text, images);
+                if (await SteerAsync(text, images) is not null && !IsTurnRunning)
+                {
+                    await SendQueuedAsync();
+                }
             }
             else
             {
@@ -2922,8 +2950,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// its next step and carries on, so the turn and its state stay as they are.
     /// </summary>
     /// <param name="from">The device it came from (a phone, through Nomad Hub), shown on it here and to watching PCs; null for this PC.</param>
-    /// <returns>Whether it went in; when it couldn't be written (the process ended just then), it waits in the queue instead.</returns>
-    private async Task<bool> SteerAsync(string text, IReadOnlyList<Attachment> attachments, string? from = null)
+    /// <returns>
+    /// Null once it went in. When it couldn't be written (the process ended just then) it waits in the queue instead, and that
+    /// queued prompt is returned: the caller sends the queue if no turn runs.
+    /// </returns>
+    private async Task<QueuedPrompt?> SteerAsync(string text, IReadOnlyList<Attachment> attachments, string? from = null)
     {
         var images = attachments.Where(a => a.IsImage).ToList();
         var files = attachments.Where(a => a.IsFile).ToList();
@@ -2943,6 +2974,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
             _steered[uuid] = message;
+            _steeredInput[uuid] = (text, attachments, from);
             await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
             try
             {
@@ -2953,26 +2985,23 @@ public sealed partial class SessionViewModel : ObservableObject
                 // Watching PCs miss it; the turn already has it, so it must not be queued a second time.
             }
 
-            return true;
+            return null;
         }
         catch (Exception)
         {
             // Not lost: it waits in the queue, as it would have before, and goes out with the next prompt.
             _steered.Remove(uuid);
+            _steeredInput.Remove(uuid);
             Items.Remove(message);
-            Queue(text, attachments, from);
-            if (!IsTurnRunning)
-            {
-                await SendQueuedAsync();
-            }
-
+            var queued = Queue(text, attachments, from);
             ContentChanged?.Invoke();
-            return false;
+            return queued;
         }
     }
 
     /// <param name="from">The device the prompt came from, shown on it here and to watching PCs; null for this PC.</param>
-    public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null, string? from = null)
+    /// <returns>False when it couldn't be sent (the chat shows the error).</returns>
+    public async Task<bool> SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null, string? from = null)
     {
         attachments ??= [];
         var images = attachments.Where(a => a.IsImage).ToList();
@@ -3051,7 +3080,10 @@ public sealed partial class SessionViewModel : ObservableObject
             Items.Add(new ErrorItem(ex.Message));
             ContentChanged?.Invoke();
             _main.OnSessionActivity(this);
+            return false;
         }
+
+        return true;
     }
 
     /// <summary>
@@ -4143,6 +4175,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case PromptTakenEvent taken when _steered.Remove(taken.Uuid, out var steered):
+                _steeredInput.Remove(taken.Uuid);
                 steered.IsSeen = true;
                 break;
 
@@ -4380,7 +4413,24 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ProcessExitedEvent x:
-                _steered.Clear(); // Never taken in: their bubbles stay unticked.
+                // Sent into the turn but never taken in: not lost, they wait in the queue (in the order they were sent).
+                var untaken = _steered.Where(s => _steeredInput.ContainsKey(s.Key)).OrderBy(s => Items.IndexOf(s.Value)).ToList();
+                foreach (var (steeredUuid, steeredMessage) in untaken)
+                {
+                    var input = _steeredInput[steeredUuid];
+                    Items.Remove(steeredMessage);
+                    Queue(input.Text, input.Attachments, input.From);
+                }
+
+                _steered.Clear();
+                _steeredInput.Clear();
+
+                // After a Stop they wait for Send now, as queued prompts do.
+                if (untaken.Count > 0 && !x.Expected)
+                {
+                    Dispatcher.UIThread.Post(() => _ = SendQueuedAsync());
+                }
+
                 if (!x.Expected && x.ExitCode != 0 && !IsTurnRunning)
                 {
                     var message = string.IsNullOrWhiteSpace(x.StderrTail)

@@ -289,12 +289,16 @@ internal sealed class MobileHost : IDisposable
                     return new ChatInputResult(true, "Sent.");
                 }
 
-                return new ChatInputResult(true, await delivery switch
+                return await delivery switch
                 {
-                    MessageDelivery.IntoTurn => "Sent into the running turn: it reads it at its next step.",
-                    MessageDelivery.Queued => "Queued: it is working, and gets this when the turn ends.",
-                    _ => "Sent.",
-                });
+                    MessageDelivery.IntoTurn => new ChatInputResult(true, "Sent into the running turn: it reads it at its next step."),
+                    MessageDelivery.Queued => new ChatInputResult(true, "Queued: it is working, and gets this when the turn ends."),
+                    MessageDelivery.RunningElsewhere => new ChatInputResult(false,
+                        "This session is running in another Nomad window or a terminal on that PC. End it there first."),
+                    MessageDelivery.Failed => new ChatInputResult(false,
+                        s.Items.LastOrDefault() is ErrorItem error ? "It couldn't be sent: " + error.Message : "It couldn't be sent. Look at the chat on the PC."),
+                    _ => new ChatInputResult(true, "Sent."),
+                };
 
             case "stop":
                 if (!s.IsTurnRunning)
