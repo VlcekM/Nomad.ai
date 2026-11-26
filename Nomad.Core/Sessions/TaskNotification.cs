@@ -40,7 +40,8 @@ public static partial class TaskNotification
     [GeneratedRegex(@"<status>(.*?)</status>", RegexOptions.Singleline)]
     private static partial Regex StatusTag();
 
-    [GeneratedRegex(@"in background with ID:\s*([\w-]+)", RegexOptions.IgnoreCase)]
+    // "Command running in background with ID: …", or "Command was manually backgrounded by user with ID: …" for one moved there.
+    [GeneratedRegex(@"(?:in background|backgrounded by user) with ID:\s*([\w-]+)", RegexOptions.IgnoreCase)]
     private static partial Regex LaunchedId();
 
     [GeneratedRegex(@"<summary>(.*?)</summary>", RegexOptions.Singleline)]

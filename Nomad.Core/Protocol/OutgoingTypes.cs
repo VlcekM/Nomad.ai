@@ -62,6 +62,9 @@ public sealed class OutgoingControlPayload
     /// <summary><c>stop_task</c>: the background task to stop (a workflow run's, say).</summary>
     [JsonPropertyName("task_id")] public string? TaskId { get; set; }
 
+    /// <summary><c>background_tasks</c>: the running foreground command (its tool call) to move to the background.</summary>
+    [JsonPropertyName("tool_use_id")] public string? ToolUseId { get; set; }
+
     /// <summary><c>rename_session</c>: the session's new name.</summary>
     [JsonPropertyName("title")] public string? Title { get; set; }
 

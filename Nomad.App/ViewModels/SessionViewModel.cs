@@ -1846,6 +1846,12 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
+        if (IsClaudeCode && started.TaskType == "local_bash" && !started.IsBackground && _calls.TryGetValue(call, out var running) && running.IsRunning)
+        {
+            _foregroundShells.Add(call);
+            _ = BackgroundForWaitingPromptAsync();
+        }
+
         if (started.TaskType == "timer")
         {
             _activeTimers[call] = started.Description is { Length: > 0 } d ? d : "timer";
@@ -2085,6 +2091,41 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>Prompts sent into the running turn, by the uuid they went with: seen once the CLI says it took each in.</summary>
     private readonly Dictionary<string, UserMessageItem> _steered = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Claude Code's commands running in the foreground that it tracks as tasks (long ones, some seconds in), by their call:
+    /// what can be moved to the background so a prompt sent meanwhile is read now.
+    /// </summary>
+    private readonly HashSet<string> _foregroundShells = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A prompt sent into the turn waits to be read while a command runs in the foreground (Claude Code reads it only once the
+    /// command's call returns): the command moves to the background, as Ctrl+B does, so the prompt is read now. The command
+    /// keeps running, shown with the background commands, and Claude is told when it ends. One not yet movable (too new) moves
+    /// as soon as Claude Code starts tracking it.
+    /// </summary>
+    private async Task BackgroundForWaitingPromptAsync()
+    {
+        if (_steered.Count == 0 || _foregroundShells.Count == 0 || _backend is not ClaudeCodeBackend { IsProcessRunning: true } claude)
+        {
+            return;
+        }
+
+        foreach (var call in _foregroundShells.ToList())
+        {
+            try
+            {
+                if (await claude.BackgroundTaskAsync(call))
+                {
+                    _foregroundShells.Remove(call);
+                }
+            }
+            catch (Exception)
+            {
+                // It stays in the foreground: the prompt is read when it ends, as before.
+            }
+        }
+    }
 
     /// <summary>What each steered prompt was (text, attachments, sender), to queue again if the process ends before taking it in.</summary>
     private readonly Dictionary<string, (string Text, IReadOnlyList<Attachment> Attachments, string? From)> _steeredInput = new(StringComparer.Ordinal);
@@ -2985,6 +3026,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 // Watching PCs miss it; the turn already has it, so it must not be queued a second time.
             }
 
+            await BackgroundForWaitingPromptAsync();
             return null;
         }
         catch (Exception)
@@ -4333,7 +4375,17 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ToolResultEvent r when r.ParentToolUseId is null:
+                _foregroundShells.Remove(r.ToolUseId);
+                if (IsClaudeCode && !r.IsError && !_backgroundTaskById.ContainsKey(r.ToolUseId) && TaskNotification.LaunchedTaskId(r.Text) is { } movedId
+                    && _calls.TryGetValue(r.ToolUseId, out var moved))
+                {
+                    // A foreground command moved to the background (here, or with Ctrl+B in a terminal): it runs on, shown as one.
+                    StartBackgroundTask(r.ToolUseId, moved.Name, moved.Input, taskId: movedId);
+                    OnBackgroundTasksRunningChanged();
+                }
+
                 CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
+
                 _main.OnGitHubLinksMentioned(this, r.Text);
 
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
@@ -4424,6 +4476,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
                 _steered.Clear();
                 _steeredInput.Clear();
+                _foregroundShells.Clear();
 
                 // After a Stop they wait for Send now, as queued prompts do.
                 if (untaken.Count > 0 && !x.Expected)

@@ -352,6 +352,19 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         return response?.Subtype == "success";
     }
 
+    /// <summary>
+    /// Moves a running foreground command to the background, as Ctrl+B does in Claude Code's terminal: its call returns at
+    /// once, the turn goes on (reading any prompt sent meanwhile), and a task notification tells the agent when it ends.
+    /// False when it didn't move: the CLI takes the request only once it tracks the command as a task (some seconds in).
+    /// </summary>
+    public async Task<bool> BackgroundTaskAsync(string toolUseId, CancellationToken cancellationToken = default)
+    {
+        var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "background_tasks", ToolUseId = toolUseId }, cancellationToken)
+            .ConfigureAwait(false);
+        return response is { Subtype: "success", Response.ValueKind: JsonValueKind.Object } moved
+            && moved.Response.TryGetProperty("backgrounded", out var backgrounded) && backgrounded.ValueKind == JsonValueKind.True;
+    }
+
     public async Task<bool> StopTaskAsync(string taskId, CancellationToken cancellationToken = default)
     {
         var response = await SendControlAsync(new OutgoingControlPayload { Subtype = "stop_task", TaskId = taskId }, cancellationToken).ConfigureAwait(false);
@@ -618,8 +631,17 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                     system.TaskUsage?.ToolUses ?? 0,
                     system.TaskUsage?.DurationMs ?? 0));
                 break;
-            case "task_updated" when system.TaskId is not null && system.Patch?.Status is { Length: > 0 } status:
-                Raise(new TaskUpdatedEvent(system.TaskId, status.ToLowerInvariant()));
+            case "task_updated" when system.TaskId is not null && system.Patch is { } patch:
+                if (patch.IsBackgrounded == true)
+                {
+                    _foregroundTasks.TryRemove(system.TaskId, out _); // Moved to the background: its end is a notice, as any background task's.
+                }
+
+                if (patch.Status is { Length: > 0 } status)
+                {
+                    Raise(new TaskUpdatedEvent(system.TaskId, status.ToLowerInvariant()));
+                }
+
                 break;
             case "task_notification" when system.TaskId is not null && _foregroundTasks.TryRemove(system.TaskId, out _):
                 // A task the turn waited on: its call usually shows how it went, so no notice; only a row nothing else ends.

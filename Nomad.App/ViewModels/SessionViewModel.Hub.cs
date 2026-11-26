@@ -174,6 +174,7 @@ public sealed partial class SessionViewModel
                     }
 
                     _relay?.PublishPrompt(text, steeredUuid, from);
+                    await BackgroundForWaitingPromptAsync();
                     break;
 
                 case RelayInput.Prompt when input.Text is { } text:
