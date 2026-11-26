@@ -10,6 +10,14 @@ using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
 
+/// <summary>Where a prompt from elsewhere went: into the running turn, into the queue behind it, or out as a prompt now.</summary>
+public enum MessageDelivery
+{
+    IntoTurn,
+    Queued,
+    Sent,
+}
+
 public enum AgentState
 {
     Idle,
@@ -2328,11 +2336,33 @@ public sealed partial class SessionViewModel : ObservableObject
     /// A message from another chat: sent now when this one is idle (starting its agent if it stopped), queued behind the running
     /// turn otherwise, like a prompt typed meanwhile.
     /// </summary>
-    /// <param name="from">The device that sent it (a phone, through Nomad Hub), shown on the prompt; null for this PC.</param>
-    public async Task ReceiveMessageAsync(string text, string? from = null)
+    public async Task ReceiveMessageAsync(string text)
     {
-        Queue(text, [], from);
+        Queue(text, []);
         if (!IsTurnRunning) await SendQueuedAsync();
+    }
+
+    /// <summary>
+    /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
+    /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
+    /// </summary>
+    public async Task<MessageDelivery> ReceivePromptAsync(string text, string from)
+    {
+        if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
+        {
+            // One that couldn't be written was queued by SteerAsync (and sent, if the turn ended meanwhile).
+            if (await SteerAsync(text, [], from))
+            {
+                return MessageDelivery.IntoTurn;
+            }
+        }
+        else
+        {
+            Queue(text, [], from);
+            if (!IsTurnRunning) await SendQueuedAsync();
+        }
+
+        return HasQueued ? MessageDelivery.Queued : MessageDelivery.Sent;
     }
 
     public void Queue(string text, IReadOnlyList<Attachment> attachments, string? from = null)
@@ -2840,7 +2870,7 @@ public sealed partial class SessionViewModel : ObservableObject
             // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
             if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
             {
-                await SteerAsync(text, images);
+                _ = await SteerAsync(text, images);
             }
             else
             {
@@ -2891,7 +2921,9 @@ public sealed partial class SessionViewModel : ObservableObject
     /// Sends a prompt into the turn Claude Code is running, as its terminal does with one typed mid-turn: the CLI takes it at
     /// its next step and carries on, so the turn and its state stay as they are.
     /// </summary>
-    private async Task SteerAsync(string text, IReadOnlyList<Attachment> attachments)
+    /// <param name="from">The device it came from (a phone, through Nomad Hub), shown on it here and to watching PCs; null for this PC.</param>
+    /// <returns>Whether it went in; when it couldn't be written (the process ended just then), it waits in the queue instead.</returns>
+    private async Task<bool> SteerAsync(string text, IReadOnlyList<Attachment> attachments, string? from = null)
     {
         var images = attachments.Where(a => a.IsImage).ToList();
         var files = attachments.Where(a => a.IsFile).ToList();
@@ -2900,23 +2932,42 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
+            FromDevice = from,
             IsSteered = true,
         };
         Items.Add(message);
         ContentChanged?.Invoke();
         _main.OnSessionActivity(this);
+        var uuid = Guid.NewGuid().ToString();
         try
         {
             var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
-            var uuid = Guid.NewGuid().ToString();
             _steered[uuid] = message;
             await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
-            _relay?.PublishPrompt(sent, uuid);
+            try
+            {
+                _relay?.PublishPrompt(sent, uuid, from);
+            }
+            catch (Exception)
+            {
+                // Watching PCs miss it; the turn already has it, so it must not be queued a second time.
+            }
+
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Items.Add(new ErrorItem(ex.Message));
+            // Not lost: it waits in the queue, as it would have before, and goes out with the next prompt.
+            _steered.Remove(uuid);
+            Items.Remove(message);
+            Queue(text, attachments, from);
+            if (!IsTurnRunning)
+            {
+                await SendQueuedAsync();
+            }
+
             ContentChanged?.Invoke();
+            return false;
         }
     }
 
