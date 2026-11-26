@@ -4,6 +4,7 @@ using Android.Content.PM;
 using Android.OS;
 using Avalonia;
 using Avalonia.Android;
+using Nomad.Mobile.Hub;
 
 namespace Nomad.Mobile.Android;
 
@@ -33,6 +34,9 @@ public class MainActivity : AvaloniaMainActivity<App>
     {
         AppServices.Store = new AndroidSecretStore(this);
         AppServices.DefaultDeviceName = DeviceName();
+#if NOMAD_EMULATOR_TEST
+        EnrollLink.PlainHttpAllowed = url => url.Host == "10.0.2.2";
+#endif
         return base.CustomizeAppBuilder(builder).WithInterFont();
     }
 

@@ -34,4 +34,16 @@
     <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
   </ItemGroup>
 
+  <!-- An emulator test build (-p:NomadEmulatorTest=true) may reach a local test hub over plain HTTP at 10.0.2.2, the emulator's
+       address for the PC it runs on. Nothing of this is in a normal build. -->
+  <PropertyGroup Condition="'$(NomadEmulatorTest)' == 'true'">
+    <DefineConstants>$(DefineConstants);NOMAD_EMULATOR_TEST</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NomadEmulatorTest)' == 'true'">
+    <AndroidResource Include="EmulatorTest\network_security_config.xml" Link="Resources\xml\network_security_config.xml" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(NomadEmulatorTest)' != 'true'">
+    <None Remove="EmulatorTest\**" />
+  </ItemGroup>
+
 </Project>

@@ -28,6 +28,9 @@ public static class EnrollLink
         return string.IsNullOrWhiteSpace(hub) || string.IsNullOrWhiteSpace(token) ? null : (hub.Trim(), token.Trim());
     }
 
+    /// <summary>Plain HTTP the platform allows anyway: only an emulator test build sets it, for the PC the emulator runs on.</summary>
+    public static Func<Uri, bool>? PlainHttpAllowed { get; set; }
+
     /// <summary>
     /// The hub address as a URL the phone may use, or why not. Android refuses plain HTTP, so the address must be HTTPS (a reverse
     /// proxy, or Tailscale's <c>tailscale serve --https</c>). A bare host name gets <c>https://</c> in front.
@@ -50,7 +53,7 @@ public static class EnrollLink
             return (null, "That isn't a web address.");
         }
 
-        if (url.Scheme != Uri.UriSchemeHttps)
+        if (url.Scheme != Uri.UriSchemeHttps && !(url.Scheme == Uri.UriSchemeHttp && PlainHttpAllowed?.Invoke(url) == true))
         {
             return (null, "The phone needs the hub over HTTPS. Put it behind a reverse proxy, or use Tailscale's \"tailscale serve --https\".");
         }
