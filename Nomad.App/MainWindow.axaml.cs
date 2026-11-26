@@ -1815,6 +1815,17 @@ public partial class MainWindow : Window
             }
         }
 
+        if (dev.AddPhone)
+        {
+            // The connection comes up a moment after start (at most 15 s).
+            for (var waited = 0; !_vm.Hub.IsConnected && waited < 150; waited++)
+            {
+                await Task.Delay(100);
+            }
+
+            await _vm.Hub.AddPhoneCommand.ExecuteAsync(null);
+        }
+
         foreach (var row in _vm.Recents.OfType<SessionListItemViewModel>().Take(dev.Pick))
         {
             _vm.TogglePick(row);

@@ -8,6 +8,7 @@ using Nomad.Core.Codex;
 using Nomad.Core.Hub;
 using Nomad.Core.OpenCode;
 using Nomad.Core.Sessions;
+using Nomad.Core.Text;
 using Nomad.Hub.Contracts;
 
 namespace Nomad.App.ViewModels;
@@ -60,10 +61,11 @@ public sealed partial class HubViewModel : ObservableObject
     public bool HasStatus => !string.IsNullOrEmpty(Status);
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddPhoneCommand))]
     public partial bool IsConnected { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ConnectCommand), nameof(AddDeviceCommand), nameof(SyncNowCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ConnectCommand), nameof(AddDeviceCommand), nameof(AddPhoneCommand), nameof(SyncNowCommand))]
     public partial bool IsWorking { get; set; }
 
     /// <summary>A one-time token for another PC, after Add device.</summary>
@@ -72,6 +74,28 @@ public sealed partial class HubViewModel : ObservableObject
     public partial string? NewToken { get; set; }
 
     public bool HasNewToken => !string.IsNullOrEmpty(NewToken);
+
+    /// <summary>The link a phone opens to enroll (docs/mobile.md §4), after Add phone; its QR code is <see cref="PhoneCode"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPhoneLink), nameof(PhoneNeedsHttps))]
+    public partial string? PhoneLink { get; set; }
+
+    public bool HasPhoneLink => !string.IsNullOrEmpty(PhoneLink);
+
+    [ObservableProperty]
+    public partial QrCode? PhoneCode { get; set; }
+
+    /// <summary>When the phone's token stops working, in words.</summary>
+    [ObservableProperty]
+    public partial string? PhoneExpiry { get; set; }
+
+    /// <summary>The hub address in the link is plain HTTP, which the phone app can't use.</summary>
+    public bool PhoneNeedsHttps => HasPhoneLink && PhoneEnrollLink.NeedsHttps(_main.Settings.HubUrl ?? "");
+
+    [ObservableProperty]
+    public partial string CopyLinkText { get; set; } = "Copy link";
+
+    private DispatcherTimer? _copiedTimer;
 
     public bool IsEnrolled => _main.Settings.HubDeviceId is not null && !string.IsNullOrEmpty(_main.Settings.HubSecret);
 
@@ -518,6 +542,7 @@ public sealed partial class HubViewModel : ObservableObject
         _main.SaveSettings();
         Devices.Clear();
         NewToken = null;
+        ClearPhoneLink();
         Status = "This PC no longer syncs. Its sessions stay here and on the hub.";
         OnPropertyChanged(nameof(IsEnrolled));
         OnPropertyChanged(nameof(IsNotEnrolled));
@@ -546,6 +571,61 @@ public sealed partial class HubViewModel : ObservableObject
         {
             IsWorking = false;
         }
+    }
+
+    private bool CanAddPhone() => !IsWorking && IsConnected;
+
+    /// <summary>A one-time token for a phone, shown as a QR code of the link its Nomad app opens.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddPhone))]
+    private async Task AddPhoneAsync()
+    {
+        if (_sync is not { } sync || _main.Settings.HubUrl is not { Length: > 0 } hubUrl)
+        {
+            return;
+        }
+
+        IsWorking = true;
+        try
+        {
+            var token = await sync.Client.NewEnrollTokenAsync();
+            var link = PhoneEnrollLink.Make(hubUrl, token.Token);
+            PhoneCode = QrCode.Encode(link);
+            PhoneExpiry = $"Scan it before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
+            PhoneLink = link;
+            CopyLinkText = "Copy link";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            Status = Describe(ex);
+        }
+        catch (ArgumentException)
+        {
+            Status = "The hub's address is too long to fit in a QR code.";
+        }
+        finally
+        {
+            IsWorking = false;
+        }
+    }
+
+    private void ClearPhoneLink()
+    {
+        PhoneLink = null;
+        PhoneCode = null;
+        PhoneExpiry = null;
+    }
+
+    /// <summary>The view copied the phone's link: the button says so for two seconds.</summary>
+    public void NotifyLinkCopied()
+    {
+        CopyLinkText = "Copied";
+        _copiedTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
+        {
+            _copiedTimer!.Stop();
+            CopyLinkText = "Copy link";
+        });
+        _copiedTimer.Stop();
+        _copiedTimer.Start();
     }
 
     [RelayCommand(CanExecute = nameof(CanAct))]
