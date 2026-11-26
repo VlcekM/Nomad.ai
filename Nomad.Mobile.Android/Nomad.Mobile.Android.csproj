@@ -17,8 +17,10 @@
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Minor), 100)))), $([System.Version]::Parse('$(Version)').Build)))</ApplicationVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
-    <!-- Phones are arm64; an emulator build passes -p:RuntimeIdentifiers=android-x64. -->
-    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">android-arm64</RuntimeIdentifiers>
+    <!-- Phones are arm64; an emulator build passes -p:NomadAndroidAbi=android-x64. (Not -p:RuntimeIdentifiers, which would reach
+         the referenced libraries too and break their builds.) -->
+    <NomadAndroidAbi Condition="'$(NomadAndroidAbi)' == ''">android-arm64</NomadAndroidAbi>
+    <RuntimeIdentifiers>$(NomadAndroidAbi)</RuntimeIdentifiers>
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
   </PropertyGroup>
 
