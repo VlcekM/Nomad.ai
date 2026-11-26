@@ -149,6 +149,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     }
 
     /// <summary>
+    /// With a prompt written into a running turn: the model may otherwise answer it only in its thinking, which the user does
+    /// not see, and carry on with its tools.
+    /// </summary>
+    public const string MidTurnReminder = "<system-reminder>The user sent this while you were working. If it asks or tells you " +
+        "something, answer it in a text message they can see before your next tool call: they do not see your thinking.</system-reminder>";
+
+    /// <summary>
     /// Writes a prompt into the turn running now, as Claude Code's terminal does with one typed mid-turn: the CLI takes it in at
     /// its next step. The turn's state (a Stop asked for, an error so far) is left as it is, and no new turn starts.
     /// </summary>
@@ -158,7 +165,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         var cli = RequireRunning();
         uuid ??= Guid.NewGuid().ToString();
         _sentUuids[uuid] = 0; // Its replayed copy is no Remote Control prompt.
-        var reminder = !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+        var reminder = _suggestNewChats && !text.TrimStart().StartsWith('/') ? MidTurnReminder + NewChatTool.Reminder : MidTurnReminder;
         await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images, reminder), cancellationToken).ConfigureAwait(false);
         return uuid;
     }
