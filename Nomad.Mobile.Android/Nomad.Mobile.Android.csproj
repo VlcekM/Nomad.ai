@@ -13,9 +13,11 @@
     <RootNamespace>Nomad.Mobile.Android</RootNamespace>
     <ApplicationId>ai.nomad.mobile</ApplicationId>
     <ApplicationTitle>Nomad</ApplicationTitle>
-    <!-- The release's version ("2.9.0"), and as Android's whole-number version code 20900. -->
+    <!-- The release's version ("2.9.0" or "2.9.0-beta.1"), and as Android's whole-number version code 20900 from its
+         numeric part; a pre-release and its final release share the code, so either installs over the other. -->
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
-    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Minor), 100)))), $([System.Version]::Parse('$(Version)').Build)))</ApplicationVersion>
+    <NomadVersionNumber>$([System.Text.RegularExpressions.Regex]::Match('$(Version)', '^\d+\.\d+\.\d+').Value)</NomadVersionNumber>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(NomadVersionNumber)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(NomadVersionNumber)').Minor), 100)))), $([System.Version]::Parse('$(NomadVersionNumber)').Build)))</ApplicationVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <!-- Phones are arm64; an emulator build passes -p:NomadAndroidAbi=android-x64. (Not -p:RuntimeIdentifiers, which would reach
          the referenced libraries too and break their builds.) -->

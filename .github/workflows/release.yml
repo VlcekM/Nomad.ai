@@ -1,6 +1,7 @@
 # Manual release: Velopack packages of Nomad.App (NativeAOT) for win-x64 and linux-x64, attached to a v<version>
-# release with Windows Setup and portable zip, Linux AppImage, update feeds and SHA256SUMS. A full release is marked
-# Latest. An installed Nomad.ai updates itself from these releases (README, "Install and update").
+# release with Windows Setup and portable zip, Linux AppImage, update feeds and SHA256SUMS, plus the signed Android app
+# (Nomad-android.apk) when the repository has the signing secrets (README, "Signing the Android app"). A full release is
+# marked Latest. An installed Nomad.ai updates itself from these releases (README, "Install and update").
 # Run it with: gh workflow run release.yml -f version=0.1.0
 name: Release
 
@@ -140,22 +141,107 @@ jobs:
           path: out
           if-no-files-found: error
 
+  # The phone app (Nomad.Mobile.Android), signed with the key in the repository secrets. Without ANDROID_KEYSTORE_BASE64
+  # the job only warns, and the release goes out without the APK.
+  package-android:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signing key
+        id: key
+        env:
+          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+          HAS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
+          HAS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS != '' }}
+        run: |
+          if [ "$HAS_KEYSTORE" != true ]; then
+            echo "::warning::No Android APK in this release: add the repository secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD (README, \"Signing the Android app\")."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$HAS_STORE_PASSWORD" = true ] && [ "$HAS_ALIAS" = true ] || {
+            echo "::error::ANDROID_KEYSTORE_BASE64 is set, but ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_ALIAS is missing."; exit 1; }
+          echo "present=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        if: steps.key.outputs.present == 'true'
+
+      # When Microsoft's download server is down (actions/setup-dotnet#794), the runner's preinstalled SDK is used.
+      - uses: actions/setup-dotnet@v5
+        if: steps.key.outputs.present == 'true'
+        id: dotnet
+        continue-on-error: true
+        with:
+          dotnet-version: 11.0.x
+
+      - name: .NET SDK
+        if: steps.key.outputs.present == 'true'
+        run: |
+          [ "${{ steps.dotnet.outcome }}" = success ] || echo "setup-dotnet failed; trying the preinstalled SDKs: $(dotnet --list-sdks | tr '\n' ' ')"
+          dotnet --version
+
+      # The Android workload needs JDK 17 or later.
+      - uses: actions/setup-java@v5
+        if: steps.key.outputs.present == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Android workload and SDK
+        if: steps.key.outputs.present == 'true'
+        run: |
+          # The preinstalled SDK (no setup-dotnet) lives in a root-owned folder.
+          dotnet workload install android || sudo "$(command -v dotnet)" workload install android
+          # The runner's Android SDK, plus the platform and build tools this workload targets.
+          dotnet build Nomad.Mobile.Android -t:InstallAndroidDependencies -f net11.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" -p:AcceptAndroidSDKLicenses=true
+
+      - name: Package
+        if: steps.key.outputs.present == 'true'
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          keystore="$RUNNER_TEMP/nomad.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$keystore"
+          # The key's password may be the store's; the env: form keeps both off the command line.
+          key_pass=ANDROID_KEY_PASSWORD
+          [ -n "$ANDROID_KEY_PASSWORD" ] || key_pass=ANDROID_KEYSTORE_PASSWORD
+          # The csproj turns the version's numeric part into Android's version code (2.9.0-beta.1 -> 20900).
+          dotnet publish Nomad.Mobile.Android -c Release -f net11.0-android -p:Version="$VERSION" \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" \
+            -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$keystore" -p:AndroidSigningKeyAlias="$ANDROID_KEY_ALIAS" \
+            -p:AndroidSigningStorePass=env:ANDROID_KEYSTORE_PASSWORD -p:AndroidSigningKeyPass=env:$key_pass -o pub
+          rm -f "$keystore"
+          mkdir out
+          mv pub/*-Signed.apk out/Nomad-android.apk
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          "$build_tools/apksigner" verify --print-certs out/Nomad-android.apk
+          "$build_tools/aapt2" dump badging out/Nomad-android.apk | grep -E "^(package|minSdkVersion|targetSdkVersion)"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.key.outputs.present == 'true'
+        with:
+          name: package-android
+          path: out
+          if-no-files-found: error
+
   release:
-    needs: [version, package-windows, package-linux]
+    needs: [version, package-windows, package-linux, package-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      # Every package-* artifact into one folder; package-android is missing when the signing secrets are.
       - uses: actions/download-artifact@v4
         with:
-          name: package-windows
-          path: out
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: package-linux
+          pattern: package-*
+          merge-multiple: true
           path: out
 
       - uses: actions/download-artifact@v4
@@ -182,6 +268,9 @@ jobs:
             echo "- \`Nomad-win-x64-Setup.exe\` installs Nomad.ai for your Windows user (no admin rights) and keeps it up to date."
             echo "- \`Nomad-win-x64-Portable.zip\` runs from any folder, without updates."
             echo "- \`Nomad-linux-x64.AppImage\` runs on Linux x64 and keeps itself up to date."
+            if [ -f out/Nomad-android.apk ]; then
+              echo "- \`Nomad-android.apk\` is the phone app for Android 10 and later; open it on the phone to install."
+            fi
             echo; echo "Verify downloads against \`SHA256SUMS\`. Install and sign in to the CLI for the agent you want to use."
           } > "$RUNNER_TEMP/notes.md"
           flags=(--latest)

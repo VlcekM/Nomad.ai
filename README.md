@@ -54,7 +54,7 @@ $env:PATH = "C:\Program Files (x86)\Microsoft Visual Studio\Installer;" + $env:P
 
 ## Install and update
 
-Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/releases)) has three downloads:
+Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/releases)) has these downloads:
 
 - **`Nomad-win-x64-Setup.exe`** installs Nomad.ai for your Windows user, without admin rights, into
   `%LOCALAPPDATA%\Nomad`, with Start menu and desktop shortcuts and an entry in Settings → Apps for
@@ -62,6 +62,8 @@ Each release on GitHub ([VlcekM/Nomad.ai](https://github.com/VlcekM/Nomad.ai/rel
 - **`Nomad-win-x64-Portable.zip`** runs from any folder and never updates itself; Settings → Updates
   links to the releases page instead.
 - **`Nomad-linux-x64.AppImage`** runs on Linux x64 (`chmod +x` and run) and updates itself.
+- **`Nomad-android.apk`** is the phone app for Android 10 and later; open it on the phone to install
+  it (Android asks once to allow installs from the browser or file manager).
 
 An installed Nomad.ai checks GitHub at startup and every 6 hours ([Velopack](https://velopack.io)).
 With **Install updates automatically** on (the default), a new version is downloaded in the background
@@ -94,7 +96,40 @@ not empty, publishes `Nomad.App` with NativeAOT on `windows-latest` (`win-x64`) 
 and `linux-x64`, the tent icon) and creates the `v<version>` release with Setup, the portable zip,
 the Linux AppImage, the update feeds (`releases.win-x64.json`, `releases.linux-x64.json` and the
 `.nupkg` files) and `SHA256SUMS`. The changelog section is the release notes, followed by GitHub's
-generated notes since the previous tag.
+generated notes since the previous tag. When the repository has the Android signing secrets (below),
+it also builds the phone app (`Nomad.Mobile.Android`) on `ubuntu-latest`, signs it and attaches it as
+`Nomad-android.apk`; without them it warns and the release goes out without the APK.
+
+### Signing the Android app
+
+Android installs an update only when it is signed with the same key as the installed app, so make the
+key once and keep a copy of it somewhere safe. A lost key means every phone has to uninstall the app
+before it can install a new one.
+
+```bash
+keytool -genkeypair -keystore nomad-release.keystore -alias nomad -keyalg RSA -keysize 2048 -validity 10000
+```
+
+`keytool` comes with any JDK. It asks for a password and a name for the certificate. Then turn the
+file into text for the secret:
+
+```bash
+base64 -w0 nomad-release.keystore > nomad-release.keystore.txt
+```
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\nomad-release.keystore")) | Set-Content -Encoding ascii nomad-release.keystore.txt
+```
+
+Add four secrets under Settings → Secrets and variables → Actions → Repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64`: the contents of `nomad-release.keystore.txt`.
+- `ANDROID_KEYSTORE_PASSWORD`: the keystore's password.
+- `ANDROID_KEY_ALIAS`: the alias, `nomad` in the command above.
+- `ANDROID_KEY_PASSWORD`: the key's password. With the command above it is the keystore's password;
+  the workflow uses that one when this secret is left out.
+
+Then delete `nomad-release.keystore.txt`.
 
 ## What it does
 
