@@ -113,10 +113,43 @@
 
                   <md:MarkdownBlock IsVisible="{Binding IsAssistant}" Markdown="{Binding ShownText}" />
 
-                  <!-- Tool calls: folded to one line. -->
-                  <Border IsVisible="{Binding IsActivity}" Background="{DynamicResource BgChipBrush}" CornerRadius="8" Padding="10,6" HorizontalAlignment="Left">
-                    <TextBlock Classes="muted" Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" />
-                  </Border>
+                  <!-- Tool calls: folded to one line; tapped open, each command or file and the thinking between them. -->
+                  <StackPanel IsVisible="{Binding IsActivity}" Spacing="4">
+                    <Button Classes="step" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}" HorizontalAlignment="Left">
+                      <TextBlock Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap">
+                        <Run Text="{Binding FoldGlyph, Mode=OneWay}" />
+                        <Run Text=" " />
+                        <Run Text="{Binding ShownText, Mode=OneWay}" />
+                      </TextBlock>
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding Steps}" IsVisible="{Binding IsOpen}" Margin="10,0,0,0">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:StepViewModel">
+                          <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0" Padding="10,3,0,3">
+                            <Panel>
+                              <StackPanel IsVisible="{Binding IsTool}" Spacing="1">
+                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Classes.failed="{Binding Failed}">
+                                  <TextBlock.Styles>
+                                    <Style Selector="TextBlock.failed"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></Style>
+                                  </TextBlock.Styles>
+                                </TextBlock>
+                                <SelectableTextBlock Text="{Binding Detail}" IsVisible="{Binding HasDetail}" FontSize="12.5" TextWrapping="Wrap"
+                                                     Foreground="{DynamicResource TextSecondaryBrush}"
+                                                     FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
+                              </StackPanel>
+                              <SelectableTextBlock IsVisible="{Binding IsThought}" Text="{Binding Detail}" FontSize="13" FontStyle="Italic"
+                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
+                            </Panel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+
+                  <!-- Thinking: its first line, all of it when tapped. -->
+                  <Button IsVisible="{Binding IsThinking}" Classes="step" Command="{Binding ToggleOpenCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                    <TextBlock Text="{Binding ThinkingText}" FontStyle="Italic" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" FontSize="13.5" />
+                  </Button>
 
                   <TextBlock IsVisible="{Binding IsNotice}" Classes="muted" Text="{Binding ShownText}" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
 

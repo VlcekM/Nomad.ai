@@ -156,6 +156,23 @@ public sealed class ScreenTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
+    public async Task Chat_screen_with_an_activity_open(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page() with { Entries = [.. Samples.Page().Entries, new ChatEntry(5, "thinking", "The test that failed is the quote one, as expected.\nNow the fix.")] };
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        chat.Entries[1].IsOpen = true;
+        var window = Show(chat, main, theme);
+
+        Find<SelectableTextBlock>(window, t => t.Text == "dotnet test Parser.Tests --filter Quote");
+        Save(window, "3c-chat-activity-open", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
     public async Task Chat_screen_working_with_a_turn_streaming(string themeName)
     {
         var theme = Theme(themeName);

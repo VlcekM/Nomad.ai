@@ -63,6 +63,20 @@
     <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
   </Style>
 
+  <!-- An activity or a thought, tapped to fold open: a chip, not a full button. -->
+  <Style Selector="Button.step">
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+  </Style>
+  <Style Selector="Button.step:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.step:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgChipBrush}" />
+  </Style>
+
   <Style Selector="Button.danger">
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
   </Style>

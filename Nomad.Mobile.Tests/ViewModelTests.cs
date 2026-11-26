@@ -220,7 +220,38 @@ public sealed class ViewModelTests
         Assert.Equal(6, chat.Entries.Count);
 
         hub.RaiseRelay("claude-code", "d1", 5, Encode(new ToolCallEvent("t1", "Bash", JsonDocument.Parse("{}").RootElement.Clone(), null)));
-        Assert.Equal("Using Bash", chat.Activity);
+        Assert.Equal("Using Bash", chat.Activity); // No input to show.
+    }
+
+    [Fact]
+    public async Task An_activity_opens_to_show_each_command_and_thought()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page() with { Entries = [.. Samples.Page().Entries, new ChatEntry(5, "thinking", "First, check the lexer.\nThen the parser.")] };
+        var chat = await OpenAsync(main, "d1");
+
+        var activity = chat.Entries[1];
+        Assert.True(activity.HasSteps);
+        Assert.Equal(["thinking", "Read", "Grep", "Bash"], activity.Steps.Select(s => s.IsThought ? "thinking" : s.Title));
+        Assert.True(activity.Steps[^1].Failed);
+        Assert.False(activity.IsOpen);
+        activity.ToggleOpenCommand.Execute(null);
+        Assert.True(activity.IsOpen);
+
+        var thought = chat.Entries[^1];
+        Assert.True(thought.IsThinking);
+        Assert.Equal("First, check the lexer. …", thought.ThinkingText);
+        thought.ToggleOpenCommand.Execute(null);
+        Assert.Equal("First, check the lexer.\nThen the parser.", thought.ThinkingText);
+    }
+
+    [Fact]
+    public void The_live_line_says_what_is_running()
+    {
+        var input = JsonDocument.Parse("{\"command\":\"dotnet test\\n  --no-build\",\"timeout\":60}").RootElement.Clone();
+        Assert.Equal("Bash: dotnet test   --no-build", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Bash", input, null)));
+        var empty = JsonDocument.Parse("{}").RootElement.Clone();
+        Assert.Equal("Using Agent", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Agent", empty, null)));
     }
 
     [Fact]

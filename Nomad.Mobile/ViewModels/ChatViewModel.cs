@@ -374,7 +374,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
                 return false;
 
             case ToolCallEvent { ParentToolUseId: null } call:
-                Activity = "Using " + call.Name;
+                Activity = ActivityLine(call);
                 _newMessage = true;
                 return true;
 
@@ -389,6 +389,25 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             default:
                 return false;
         }
+    }
+
+    /// <summary>"Bash: dotnet test" or "Read: src/App.cs": the tool and the first thing it was given, on one line.</summary>
+    internal static string ActivityLine(ToolCallEvent call)
+    {
+        string? first = null;
+        if (call.Input.ValueKind == System.Text.Json.JsonValueKind.Object)
+        {
+            foreach (var property in call.Input.EnumerateObject())
+            {
+                if (property.Value.ValueKind == System.Text.Json.JsonValueKind.String && property.Value.GetString() is { Length: > 0 } value)
+                {
+                    first = value.ReplaceLineEndings(" ").Trim();
+                    break;
+                }
+            }
+        }
+
+        return first is null ? "Using " + call.Name : $"{call.Name}: {(first.Length > 120 ? first[..120] + "…" : first)}";
     }
 
     /// <summary>

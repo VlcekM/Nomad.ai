@@ -15,7 +15,10 @@ public sealed partial class EntryViewModel : ObservableObject
         Entry = entry;
         Kind = entry.Kind;
         Text = entry.Text;
+        Steps = StepsOf(entry);
     }
+
+    private static List<StepViewModel> StepsOf(ChatEntry entry) => [.. (entry.Steps ?? []).Select(s => new StepViewModel(s))];
 
     private EntryViewModel(ChatEntry entry, bool local) : this(entry) => IsLocal = local;
 
@@ -29,7 +32,7 @@ public sealed partial class EntryViewModel : ObservableObject
     public bool IsLocal { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsNotice), nameof(IsError), nameof(IsCard))]
+    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsThinking), nameof(IsNotice), nameof(IsError), nameof(IsCard))]
     public partial string Kind { get; set; }
 
     [ObservableProperty]
@@ -45,6 +48,32 @@ public sealed partial class EntryViewModel : ObservableObject
     public bool IsAssistant => Kind == "assistant";
 
     public bool IsActivity => Kind == "activity";
+
+    public bool IsThinking => Kind == "thinking";
+
+    /// <summary>What an activity did, in order: each command or file with its one line, and the thinking between them.</summary>
+    public IReadOnlyList<StepViewModel> Steps { get; private set; } = [];
+
+    public bool HasSteps => Steps.Count > 0;
+
+    /// <summary>An activity shows its steps, or a thought its text, once tapped open.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FoldGlyph), nameof(ThinkingText))]
+    public partial bool IsOpen { get; set; }
+
+    public string FoldGlyph => IsOpen ? "▾" : "▸";
+
+    /// <summary>A thought: its first line folded, all of it open.</summary>
+    public string ThinkingText => IsOpen ? Text : FirstLine(Text);
+
+    [RelayCommand]
+    private void ToggleOpen() => IsOpen = !IsOpen;
+
+    private static string FirstLine(string text)
+    {
+        var line = text.ReplaceLineEndings("\n").Split('\n', 2)[0].Trim('*', ' ');
+        return line.Length < text.Trim().Length ? line + " …" : line;
+    }
 
     public bool IsNotice => Kind == "notice";
 
@@ -78,6 +107,14 @@ public sealed partial class EntryViewModel : ObservableObject
         IsLocal = false;
         Kind = entry.Kind;
         Text = entry.Text;
+        if (!(entry.Steps ?? []).SequenceEqual(Steps.Select(s => s.Step)))
+        {
+            Steps = StepsOf(entry);
+            OnPropertyChanged(nameof(Steps));
+            OnPropertyChanged(nameof(HasSteps));
+        }
+
+        OnPropertyChanged(nameof(ThinkingText));
         OnPropertyChanged(nameof(From));
         OnPropertyChanged(nameof(HasFrom));
         OnPropertyChanged(nameof(FromText));
@@ -89,4 +126,22 @@ public sealed partial class EntryViewModel : ObservableObject
 
     /// <summary>More of the turn streaming now.</summary>
     public void AppendLive(string text) => Text += text;
+}
+
+/// <summary>One step of an activity: a tool call with its one line, or a thought.</summary>
+public sealed class StepViewModel(ChatStep step)
+{
+    public ChatStep Step { get; } = step;
+
+    public bool IsTool => Step.Kind == "tool";
+
+    public bool IsThought => Step.Kind == "thinking";
+
+    public string Title => Step.Title;
+
+    public string Detail => Step.Detail ?? "";
+
+    public bool HasDetail => !string.IsNullOrEmpty(Step.Detail);
+
+    public bool Failed => Step.Failed;
 }

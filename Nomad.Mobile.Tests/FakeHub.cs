@@ -169,7 +169,13 @@ public static class Samples
         List<ChatEntry> entries =
         [
             new(0, "user", "The parser chokes on curly apostrophes. Can you find out why?"),
-            new(1, "activity", "Read Parser.cs, Searched for 'apostrophe'"),
+            new(1, "activity", "Read Parser.cs, Searched for 'apostrophe'", Steps:
+            [
+                new ChatStep("thinking", "Thought", "The report says curly apostrophes, so the lexer's quote handling is the first suspect."),
+                new ChatStep("tool", "Read", "src/Parser/Lexer.cs"),
+                new ChatStep("tool", "Grep", "apostrophe|\\u2019 in src/"),
+                new ChatStep("tool", "Bash", "dotnet test Parser.Tests --filter Quote", Failed: true),
+            ]),
             new(2, "assistant", "Found it. **The lexer** treats `’` as the end of a word, so:\n\n1. The token splits in two.\n2. The parser sees a stray quote.\n\n```csharp\nif (c == '\\'') return Token.Quote;\n```\n\nI'll fix the lexer and add a test."),
             new(3, "user", "Go ahead.", From: "Pixel 8"),
             new(4, "notice", "Context compacted"),
