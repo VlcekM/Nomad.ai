@@ -165,7 +165,8 @@ public sealed record ModelChangedEvent(string Model) : AgentEvent;
 public sealed record StatusEvent(string? Status) : AgentEvent;
 
 /// <summary>A UserPromptSubmit hook added text to the prompt just sent (shown under it when the user asks to see it).</summary>
-public sealed record HookContextEvent(string Text) : AgentEvent;
+/// <param name="PromptUuid">The prompt it was added to (the one the CLI echoed next); null when not known.</param>
+public sealed record HookContextEvent(string Text, string? PromptUuid = null) : AgentEvent;
 
 /// <summary>The context in use changed mid-turn: a new call of the main conversation, or a compaction.</summary>
 public sealed record ContextUsageEvent(long Tokens) : AgentEvent;

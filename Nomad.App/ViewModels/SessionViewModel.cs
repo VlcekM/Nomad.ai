@@ -2264,8 +2264,19 @@ public sealed partial class SessionViewModel : ObservableObject
     private void ToggleHookContext() => _main.ShowHookContext = !_main.ShowHookContext;
 
     /// <summary>Hook text belongs to the prompt it was added to: the latest one.</summary>
-    private void AddHookContext(string text)
+    /// <param name="promptUuid">The prompt the CLI said it was added to, when it says (live): that one, wherever it is.</param>
+    private void AddHookContext(string text, string? promptUuid = null)
     {
+        if (promptUuid is not null)
+        {
+            var added = _steered.GetValueOrDefault(promptUuid)
+                ?? Items.OfType<UserMessageItem>().LastOrDefault(u => u.Uuid == promptUuid)
+                ?? Items.OfType<UserMessageItem>().LastOrDefault();
+            added?.AddHookContext(text);
+            return;
+        }
+
+        // From a stored transcript: the latest prompt's, unless a task notification came after it.
         var prompt = Items.OfType<UserMessageItem>().LastOrDefault();
         if (_taskNotified && ReferenceEquals(prompt, _promptBeforeNotification))
         {
@@ -4026,7 +4037,7 @@ public sealed partial class SessionViewModel : ObservableObject
         switch (e)
         {
             case HookContextEvent hook:
-                AddHookContext(hook.Text);
+                AddHookContext(hook.Text, hook.PromptUuid);
                 break;
             case SessionStartedEvent s:
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)
@@ -4186,7 +4197,6 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case TaskNotificationEvent ended:
-                NoteTaskNotified();
                 CloseGroup();
                 FinishNotifiedTask(ended);
                 ContentChanged?.Invoke();

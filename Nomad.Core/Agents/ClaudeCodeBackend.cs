@@ -519,6 +519,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     {
         RawLine?.Invoke(line, false);
         var parsed = CliProtocol.ParseLine(line);
+
+        // Claude answering with hook context still held: no prompt was echoed for it, so it was a task notification's.
+        if (parsed is StreamEventLine or AssistantLine or ResultLine && _heldHookContext.Count > 0)
+        {
+            ReleaseHookContext(null, keep: false);
+        }
+
         switch (parsed)
         {
             case SystemLine system:
@@ -563,8 +570,10 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     {
         switch (system.Subtype)
         {
+            // Held until the CLI echoes the prompt it was added to, which comes right after (measured with 2.1.310). The CLI
+            // runs these hooks for a task notification too, which it doesn't echo: Claude answers instead, and it's dropped.
             case "hook_response" when system.HookEvent == "UserPromptSubmit" && HookContext.FromOutput(system.Stdout) is { } added:
-                Raise(new HookContextEvent(added));
+                _heldHookContext.Add(added);
                 break;
             case "init":
                 if (!string.IsNullOrEmpty(system.SessionId))
@@ -754,6 +763,23 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         Raise(new TurnResumedEvent());
     }
 
+    /// <summary>What UserPromptSubmit hooks added, waiting for the echo of the prompt they ran for (see the hook_response case).</summary>
+    private readonly List<string> _heldHookContext = [];
+
+    /// <summary>The held hook context goes to <paramref name="uuid"/>'s prompt (or is dropped, a notification's, when null).</summary>
+    private void ReleaseHookContext(string? uuid, bool keep)
+    {
+        if (keep)
+        {
+            foreach (var added in _heldHookContext)
+            {
+                Raise(new HookContextEvent(added, uuid));
+            }
+        }
+
+        _heldHookContext.Clear();
+    }
+
     private void HandleUser(UserLine line)
     {
         if (line.Message?.Content is not { } content)
@@ -761,9 +787,10 @@ public sealed class ClaudeCodeBackend : IAgentBackend
             return;
         }
 
-        // A replayed prompt we sent: the CLI has taken it in.
+        // A replayed prompt we sent: the CLI has taken it in. Its hook context first, while it is still known by its uuid.
         if (line.IsReplay == true && line.ParentToolUseId is null && line.Uuid is { } taken && _sentUuids.ContainsKey(taken))
         {
+            ReleaseHookContext(taken, keep: true);
             Raise(new PromptTakenEvent(taken));
         }
 
@@ -786,6 +813,7 @@ public sealed class ClaudeCodeBackend : IAgentBackend
                 _interruptRequested = false;
                 _assistantError = null;
                 Raise(new RemotePromptEvent(text, line.Uuid));
+                ReleaseHookContext(line.Uuid, keep: true); // After the event that shows the prompt.
             }
 
             return;
