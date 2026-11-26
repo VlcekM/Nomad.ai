@@ -47,6 +47,9 @@ public sealed class Device
     public DateTime EnrolledUtc { get; set; }
     public DateTime LastSeenUtc { get; set; }
     public bool Revoked { get; set; }
+
+    /// <summary>A phone (docs/mobile.md §6): it may read the board and chats and send them input, and nothing else.</summary>
+    public bool IsViewer { get; set; }
 }
 
 public sealed class EnrollToken
@@ -57,6 +60,9 @@ public sealed class EnrollToken
     public DateTime ExpiresUtc { get; set; }
     public DateTime? UsedUtc { get; set; }
     public Guid? CreatedBy { get; set; }
+
+    /// <summary>Made by Add phone: the device it enrolls is a viewer.</summary>
+    public bool ForViewer { get; set; }
 }
 
 public sealed class Project

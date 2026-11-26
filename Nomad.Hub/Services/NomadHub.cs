@@ -47,7 +47,23 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     }
 
     /// <summary>Renews the caller's leases; returns those another PC holds now.</summary>
-    public Task<List<LeaseKey>> RenewLeases(List<LeaseKey> keys) => Leases.RenewAsync(db, changes, Context.User!.DeviceId(), keys);
+    public Task<List<LeaseKey>> RenewLeases(List<LeaseKey> keys)
+    {
+        PcOnly();
+        return Leases.RenewAsync(db, changes, Context.User!.DeviceId(), keys);
+    }
+
+    /// <summary>
+    /// A phone reads the board, a chat's history and its live turn, and sends chats input through the PC that has them open
+    /// (which checks it as if typed there). Hosting, publishing, leases and raw relay input are for PCs (docs/mobile.md §6).
+    /// </summary>
+    private void PcOnly()
+    {
+        if (Context.User!.IsViewer())
+        {
+            throw new HubException("A phone can't do that.");
+        }
+    }
 
     // ------------------------------------------------------------------ relay
 
@@ -62,6 +78,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     /// <summary>The host streams its session: the events go to the session's viewers and into the turn's buffer.</summary>
     public async Task RelayPublish(string backend, string sessionId, string[] events, bool newTurn)
     {
+        PcOnly();
         RequireRelay();
         var first = relay.Publish(backend, sessionId, Context.ConnectionId, Context.User!.DeviceName(), events, newTurn);
         if (events.Length > 0)
@@ -72,6 +89,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
 
     public async Task RelayStop(string backend, string sessionId)
     {
+        PcOnly();
         RequireRelay();
         if (relay.Stop(backend, sessionId, Context.ConnectionId))
         {
@@ -94,6 +112,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     /// <summary>A PC's chats, all of them: kept for the board and sent to whoever watches it.</summary>
     public async Task BoardPublish(IReadOnlyList<BoardChat> chats)
     {
+        PcOnly();
         RequireRelay();
         var device = board.Publish(Context.ConnectionId, Context.User!.DeviceId(), Context.User!.DeviceName(), chats);
         await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
@@ -139,6 +158,7 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     /// <summary>A viewer's prompt, answer or Stop, for the host to apply as if typed there.</summary>
     public async Task RelaySendInput(string backend, string sessionId, string input)
     {
+        PcOnly();
         RequireRelay();
         var host = relay.HostOf(backend, sessionId) ?? throw new HubException("The session isn't live on another PC any more.");
         await Clients.Client(host).SendAsync(HubNames.RelayInput, backend, sessionId, input, Context.User!.DeviceName());

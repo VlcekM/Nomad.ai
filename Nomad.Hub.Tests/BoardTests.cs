@@ -16,7 +16,7 @@ public sealed class BoardTests
     {
         using var hub = new HubFactory();
         await using var pc = hub.Connect(await hub.EnrollAsync("PC-A"));
-        await using var phone = hub.Connect(await hub.EnrollAsync("Phone"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
         var changes = new List<BoardDevice>();
         var changed = new SemaphoreSlim(0);
         phone.On<BoardDevice>(HubNames.BoardChanged, d =>
@@ -58,7 +58,7 @@ public sealed class BoardTests
     {
         using var hub = new HubFactory();
         await using var pc = hub.Connect(await hub.EnrollAsync("PC-A"));
-        await using var phone = hub.Connect(await hub.EnrollAsync("Phone"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
         var asked = new List<(string Backend, string Session, int? Before, int Limit)>();
         pc.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (b, s, before, limit) =>
         {
@@ -94,7 +94,7 @@ public sealed class BoardTests
     public async Task AHubWithTheRelayOffHasNoBoard()
     {
         using var hub = new HubFactory(relay: false);
-        await using var phone = hub.Connect(await hub.EnrollAsync("Phone"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
         await phone.StartAsync();
         var refused = await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
         Assert.Contains("relay is off", refused.Message);
@@ -105,7 +105,7 @@ public sealed class BoardTests
     {
         using var hub = new HubFactory();
         var pcHttp = await hub.EnrollAsync("PC-A");
-        var phoneHttp = await hub.EnrollAsync("Phone");
+        var phoneHttp = await hub.EnrollAsync("Phone", phone: true);
         await using var phone = hub.Connect(phoneHttp);
         var closed = new TaskCompletionSource();
         phone.Closed += _ => { closed.TrySetResult(); return Task.CompletedTask; };
@@ -128,7 +128,7 @@ public sealed class BoardTests
         var pcHttp = await hub.EnrollAsync("PC-A");
         await using var old = hub.Connect(pcHttp);
         await using var fresh = hub.Connect(pcHttp);
-        await using var phone = hub.Connect(await hub.EnrollAsync("Phone"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
         old.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (_, _, _, _) => Task.FromResult(new ChatPage("idle", 0, 1, [new ChatEntry(0, "assistant", "old")])));
         fresh.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (_, _, _, _) => Task.FromResult(new ChatPage("idle", 0, 1, [new ChatEntry(0, "assistant", "fresh")])));
         await old.StartAsync();

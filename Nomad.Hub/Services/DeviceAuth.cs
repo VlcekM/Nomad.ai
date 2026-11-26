@@ -46,8 +46,13 @@ public sealed class DeviceAuthHandler(IOptionsMonitor<AuthenticationSchemeOption
             await db.Devices.Where(d => d.Id == device.Id).ExecuteUpdateAsync(s => s.SetProperty(d => d.LastSeenUtc, now), Context.RequestAborted);
         }
 
-        var identity = new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, device.Id.ToString()), new Claim(ClaimTypes.Name, device.Name)], SchemeName);
+        List<Claim> claims = [new Claim(ClaimTypes.NameIdentifier, device.Id.ToString()), new Claim(ClaimTypes.Name, device.Name)];
+        if (device.IsViewer)
+        {
+            claims.Add(new Claim(DeviceClaims.Viewer, "true"));
+        }
+
+        var identity = new ClaimsIdentity(claims, SchemeName);
         return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName));
     }
 }
@@ -57,4 +62,12 @@ public static class DeviceClaims
     public static Guid DeviceId(this ClaimsPrincipal user) => Guid.Parse(user.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     public static string DeviceName(this ClaimsPrincipal user) => user.FindFirstValue(ClaimTypes.Name) ?? "";
+
+    public const string Viewer = "nomad:viewer";
+
+    /// <summary>A phone: it reads the board and chats and sends them input, and may do nothing else (docs/mobile.md §6).</summary>
+    public static bool IsViewer(this ClaimsPrincipal user) => user.HasClaim(Viewer, "true");
 }
+
+/// <summary>Marks an API endpoint a phone may call; a phone gets 403 from every other.</summary>
+public sealed class ViewerAllowed;

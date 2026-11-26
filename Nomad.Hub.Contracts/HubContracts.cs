@@ -11,7 +11,8 @@ public sealed record EnrollResponse(Guid DeviceId, string Secret, string HubVers
 
 public sealed record EnrollTokenResponse(string Token, DateTime ExpiresUtc);
 
-public sealed record DeviceDto(Guid Id, string Name, DateTime EnrolledUtc, DateTime LastSeenUtc, bool Online, bool IsThis);
+/// <summary>An enrolled device; <paramref name="IsPhone"/>: a phone, which only reads and answers chats (docs/mobile.md §6).</summary>
+public sealed record DeviceDto(Guid Id, string Name, DateTime EnrolledUtc, DateTime LastSeenUtc, bool Online, bool IsThis, bool IsPhone = false);
 
 /// <summary>What the hub says about itself and the calling device.</summary>
 public sealed record HubInfo(string Version, Guid DeviceId, string DeviceName, bool RelayEnabled);
