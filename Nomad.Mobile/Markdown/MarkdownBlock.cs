@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
@@ -13,7 +15,8 @@ namespace Nomad.Mobile.Markdown;
 
 /// <summary>
 /// Shows Markdown (an agent's reply) as Avalonia text: paragraphs, headings, lists, quotes, code blocks, tables (as plain rows) and
-/// inline emphasis, code and links. Text can be selected and copied. Colors come from the app's theme resources.
+/// inline emphasis, code and links. A tapped web or mail link opens in the phone's browser or mail app. Colors come from the
+/// app's theme resources.
 /// </summary>
 public sealed class MarkdownBlock : ContentControl
 {
@@ -23,17 +26,24 @@ public sealed class MarkdownBlock : ContentControl
 
     private string? _shown;
 
+    // The runs of each link and where it goes, for a tap on one.
+    private readonly Dictionary<Run, string> _links = [];
+
     static MarkdownBlock()
     {
         MarkdownProperty.Changed.AddClassHandler<MarkdownBlock>((block, _) => block.Render());
     }
 
     /// <summary>The phone switched between light and dark: the colors are looked up again.</summary>
-    public MarkdownBlock() => ActualThemeVariantChanged += (_, _) =>
+    public MarkdownBlock()
     {
-        _shown = null;
-        Render();
-    };
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            _shown = null;
+            Render();
+        };
+        AddHandler(TappedEvent, OnTapped, handledEventsToo: false);
+    }
 
     public string? Markdown
     {
@@ -50,6 +60,7 @@ public sealed class MarkdownBlock : ContentControl
         }
 
         _shown = text;
+        _links.Clear();
         var panel = new StackPanel { Spacing = 8 };
         foreach (var block in Markdig.Markdown.Parse(text, Pipeline))
         {
@@ -151,7 +162,7 @@ public sealed class MarkdownBlock : ContentControl
             var c = 0;
             foreach (var cell in row.OfType<TableCell>())
             {
-                var text = new TextBlock { Margin = new Thickness(0, 2, 14, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 260, FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal };
+                var text = new TextBlock { Margin = new Thickness(0, 2, 14, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 260, FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal, Background = Brushes.Transparent };
                 foreach (var paragraph in cell.OfType<ParagraphBlock>())
                 {
                     if (paragraph.Inline is { } inline)
@@ -178,7 +189,8 @@ public sealed class MarkdownBlock : ContentControl
 
     private TextBlock Text(ContainerInline? inlines, double scale = 1, FontWeight? weight = null)
     {
-        var block = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextPrimaryBrush") };
+        // A background, so a tap anywhere on it (a link) reaches it.
+        var block = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextPrimaryBrush"), Background = Brushes.Transparent };
         if (scale != 1)
         {
             block.FontSize = 15 * scale;
@@ -238,6 +250,12 @@ public sealed class MarkdownBlock : ContentControl
                     {
                         run = style?.Invoke(run) ?? run;
                         run.Foreground = Brush("LinkBrush");
+                        run.TextDecorations = TextDecorations.Underline;
+                        if (link.Url is { } url)
+                        {
+                            _links[run] = url;
+                        }
+
                         return run;
                     };
                     if (link.FirstChild is null)
@@ -252,7 +270,9 @@ public sealed class MarkdownBlock : ContentControl
                     break;
 
                 case AutolinkInline auto:
-                    target.Add(Styled(new Run(auto.Url) { Foreground = Brush("LinkBrush") }, style));
+                    var autoRun = Styled(new Run(auto.Url) { Foreground = Brush("LinkBrush"), TextDecorations = TextDecorations.Underline }, style);
+                    _links[autoRun] = auto.IsEmail && !auto.Url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? "mailto:" + auto.Url : auto.Url;
+                    target.Add(autoRun);
                     break;
 
                 case HtmlInline html:
@@ -268,6 +288,50 @@ public sealed class MarkdownBlock : ContentControl
                     break;
             }
         }
+    }
+
+    /// <summary>A tap on a link's text opens it: web and mail links only (a file path on the PC means nothing on the phone).</summary>
+    private async void OnTapped(object? sender, TappedEventArgs e)
+    {
+        if (_links.Count == 0 || (e.Source as Visual)?.FindAncestorOfType<TextBlock>(includeSelf: true) is not { Inlines: { } inlines } block
+            || UrlAt(block, inlines, e.GetPosition(block)) is not { } url
+            || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto")
+            || TopLevel.GetTopLevel(this)?.Launcher is not { } launcher)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await launcher.LaunchUriAsync(uri);
+    }
+
+    /// <summary>The link under a point of a text block: the character there, found among its runs in order.</summary>
+    private string? UrlAt(TextBlock block, InlineCollection inlines, Point point)
+    {
+        var hit = block.TextLayout.HitTestPoint(point - new Point(block.Padding.Left, block.Padding.Top));
+        if (!hit.IsInside)
+        {
+            return null;
+        }
+
+        var start = 0;
+        foreach (var inline in inlines)
+        {
+            var length = inline switch
+            {
+                Run run => run.Text?.Length ?? 0,
+                LineBreak => Environment.NewLine.Length,
+                _ => 0,
+            };
+            if (hit.TextPosition >= start && hit.TextPosition < start + length)
+            {
+                return inline is Run r ? _links.GetValueOrDefault(r) : null;
+            }
+
+            start += length;
+        }
+
+        return null;
     }
 
     private static Run Styled(Run run, Func<Run, Run>? style) => style?.Invoke(run) ?? run;

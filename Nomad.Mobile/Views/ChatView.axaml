@@ -32,8 +32,9 @@
           <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
           <TextBox x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
                    TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
-          <Button Grid.Column="1" Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}" Margin="6,0,0,0" VerticalAlignment="Bottom" />
-          <Button Grid.Column="2" Classes="accent" Content="Send" Command="{Binding SendCommand}" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+          <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
+          <Button Grid.Column="1" Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}" Focusable="False" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+          <Button Grid.Column="2" Classes="accent" Content="Send" Command="{Binding SendCommand}" Focusable="False" Margin="6,0,0,0" VerticalAlignment="Bottom" />
         </Grid>
       </StackPanel>
     </Border>

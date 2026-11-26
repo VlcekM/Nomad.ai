@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Platform;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Nomad.Mobile.ViewModels;
 
 namespace Nomad.Mobile.Views;
@@ -11,7 +12,16 @@ public partial class MainView : UserControl
     private TopLevel? _top;
     private IInputPane? _keyboard;
 
-    public MainView() => InitializeComponent();
+    // The keyboard's last known place, in the window's coordinates; null while it is closed.
+    private Rect? _keyboardRect;
+
+    public MainView()
+    {
+        InitializeComponent();
+
+        // A phone that does resize the app for the keyboard does it after telling about the keyboard: measured again then.
+        SizeChanged += (_, _) => FitAbove();
+    }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -24,7 +34,8 @@ public partial class MainView : UserControl
             if (_keyboard is not null)
             {
                 _keyboard.StateChanged += OnKeyboardChanged;
-                FitAbove(_keyboard.State, _keyboard.OccludedRect);
+                _keyboardRect = _keyboard.State == InputPaneState.Open ? _keyboard.OccludedRect : null;
+                FitAbove();
             }
         }
     }
@@ -45,17 +56,43 @@ public partial class MainView : UserControl
         base.OnDetachedFromVisualTree(e);
     }
 
-    private void OnKeyboardChanged(object? sender, InputPaneStateEventArgs e) => FitAbove(e.NewState, e.EndRect);
+    private void OnKeyboardChanged(object? sender, InputPaneStateEventArgs e)
+    {
+        _keyboardRect = e.NewState == InputPaneState.Open ? e.EndRect : null;
+        FitAbove();
+
+        // Some keyboards report where they start rather than where they end the first time they open: asked again once
+        // they've settled.
+        DispatcherTimer.RunOnce(() =>
+        {
+            if (_keyboard is not null)
+            {
+                _keyboardRect = _keyboard.State == InputPaneState.Open ? _keyboard.OccludedRect : null;
+                FitAbove();
+            }
+        }, TimeSpan.FromMilliseconds(400));
+    }
 
     /// <summary>
     /// The on-screen keyboard covers the bottom of the window (Android 15 and later no longer shrink the app for it): the
-    /// pages end above it, so the message box and what is typed stay in sight. The view's own padding (Android's safe area,
-    /// set by Avalonia) is left alone; the part of the keyboard below it is already clear of the pages.
+    /// pages end above it, so the message box and what is typed stay in sight. Only the part of the keyboard that actually
+    /// overlaps the pages counts: on a phone that shrinks the app itself there is none, and the safe area at the bottom
+    /// (the view's padding, set by Avalonia) is already clear of them.
     /// </summary>
-    private void FitAbove(InputPaneState state, Rect keyboard)
+    private void FitAbove()
     {
-        var covered = state == InputPaneState.Open ? (_top?.ClientSize.Height ?? Bounds.Height) - keyboard.Top - Padding.Bottom : 0;
-        Pages.Margin = new Thickness(0, 0, 0, Math.Max(0, covered));
+        var covered = 0.0;
+        if (_keyboardRect is { } keyboard && _top is not null
+            && this.TranslatePoint(new Point(0, Bounds.Height - Padding.Bottom), _top) is { } pagesBottom)
+        {
+            covered = pagesBottom.Y - keyboard.Top;
+        }
+
+        var margin = new Thickness(0, 0, 0, Math.Max(0, covered));
+        if (Pages.Margin != margin)
+        {
+            Pages.Margin = margin;
+        }
     }
 
     /// <summary>Android's back button or gesture: a chat or Settings goes back to the chats; from the chats it leaves the app.</summary>

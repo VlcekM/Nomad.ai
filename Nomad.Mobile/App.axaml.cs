@@ -16,6 +16,7 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        WholeTextInputClient.UseForAllTextBoxes();
         Main = new MainViewModel(AppServices.Store, AppServices.Hubs);
         var view = new MainView { DataContext = Main };
         switch (ApplicationLifetime)
