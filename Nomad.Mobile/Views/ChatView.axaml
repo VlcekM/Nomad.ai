@@ -1,92 +1,135 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
              xmlns:md="using:Nomad.Mobile.Markdown"
+             xmlns:c="using:Nomad.App.Controls"
              x:Class="Nomad.Mobile.Views.ChatView"
              x:DataType="vm:ChatViewModel">
-  <DockPanel>
-    <!-- Header: back, title, where it runs, and its state. -->
-    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="4,6,12,8">
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Classes="flat" Content="‹ Chats" Command="{Binding BackCommand}" VerticalAlignment="Top" />
-        <StackPanel Grid.Column="1" Margin="6,4,0,0" Spacing="2">
-          <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-          <TextBlock Classes="muted" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
-        </StackPanel>
-        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding StateText}" VerticalAlignment="Center" Margin="8,0,0,0" />
-      </Grid>
-    </Border>
+  <UserControl.Styles>
+    <!-- An activity with nothing to open still reads as one: its line keeps full strength, without a chevron. -->
+    <Style Selector="Button.activity:disabled">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.problem">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
+    <!-- A question card stands on the page's ground, as the desktop's; a permission card is raised. -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="14" />
+    </Style>
+    <Style Selector="Border.card.question">
+      <Setter Property="Background" Value="{DynamicResource BgMainBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="Padding" Value="12,10,12,8" />
+    </Style>
+  </UserControl.Styles>
 
-    <!-- Message box: stays above the keyboard (the activity resizes for it). -->
-    <Border DockPanel.Dock="Bottom" Classes="bar" BorderThickness="0,1,0,0" Padding="10,8">
-      <StackPanel Spacing="6">
-        <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                   Classes="muted" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0">
-          <TextBlock.Styles>
-            <Style Selector="TextBlock.problem">
-              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
-            </Style>
-          </TextBlock.Styles>
-        </TextBlock>
+  <DockPanel>
+    <!-- The top bar: back, the chat's title with where it runs under it, and its state's mark. -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Height="56" Margin="4,0,14,0">
+      <Button Theme="{StaticResource PhoneIconButton}" Command="{Binding BackCommand}" AutomationProperties.Name="Back to chats" ToolTip.Tip="Chats">
+        <c:Icon Size="18" Data="{StaticResource IconArrowLeft}" />
+      </Button>
+      <StackPanel Grid.Column="1" Margin="4,0,0,0" Spacing="1" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+        <TextBlock Classes="muted small" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
+        <c:StatusMark Width="16" Height="16" VerticalAlignment="Center"
+                      Mark="{Binding State, Converter={x:Static v:StateMarkConverter.Instance}}"
+                      WorkingBrush="{DynamicResource AccentBrush}"
+                      WaitingBrush="{DynamicResource WaitingBrush}"
+                      UnreadBrush="{DynamicResource UnreadBrush}" />
+        <TextBlock Classes="muted small" Text="{Binding StateText}" VerticalAlignment="Center" />
+      </StackPanel>
+    </Grid>
+
+    <!-- The composer (the desktop's composer bar): stays above the keyboard (the activity resizes for it). -->
+    <StackPanel DockPanel.Dock="Bottom" Margin="12,4,12,12" Spacing="6">
+      <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 Classes="muted small" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0" />
+      <Border Classes="composer">
         <Grid ColumnDefinitions="*,Auto,Auto">
           <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
           <TextBox x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+                   Margin="14,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
                    TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
           <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
-          <Button Grid.Column="1" Classes="danger" Content="Stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}" Focusable="False" Margin="6,0,0,0" VerticalAlignment="Bottom" />
-          <Button Grid.Column="2" Classes="accent" Content="Send" Command="{Binding SendCommand}" Focusable="False" Margin="6,0,0,0" VerticalAlignment="Bottom" />
+          <Button Grid.Column="1" Theme="{StaticResource PhoneSendButton}" Classes="stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}"
+                  Focusable="False" VerticalAlignment="Bottom" Margin="0,0,-4,1" AutomationProperties.Name="Stop">
+            <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
+          </Button>
+          <Button Grid.Column="2" Theme="{StaticResource PhoneSendButton}" Command="{Binding SendCommand}"
+                  Focusable="False" VerticalAlignment="Bottom" Margin="0,0,2,1" AutomationProperties.Name="Send">
+            <c:Icon Size="16" Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+          </Button>
         </Grid>
-      </StackPanel>
-    </Border>
+      </Border>
+    </StackPanel>
 
-    <!-- A card waiting on an answer sits just above the message box. -->
-    <ContentControl DockPanel.Dock="Bottom" Content="{Binding Card}" IsVisible="{Binding Card, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <!-- A card waiting on an answer sits just above the composer: the desktop's permission or question card. It folds in and out. -->
+    <ContentControl DockPanel.Dock="Bottom" Content="{Binding Card}" IsVisible="False"
+                    c:Fold.IsOpen="{Binding Card, Converter={x:Static ObjectConverters.IsNotNull}}">
       <ContentControl.ContentTemplate>
         <DataTemplate DataType="vm:CardViewModel">
-          <Border Classes="card" Margin="10,6" BorderBrush="{DynamicResource WaitingBrush}" Background="{DynamicResource WaitingSubtleBrush}">
-            <StackPanel Spacing="8">
-              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
-              <TextBlock Classes="secondary" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
-              <Border Background="{DynamicResource BgCodeBrush}" CornerRadius="8" Padding="8,6" IsVisible="{Binding HasDetail}">
-                <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" FontSize="13" MaxLines="8"
-                                     FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
+          <Border Classes="card" Classes.question="{Binding IsQuestion}" Margin="12,6,12,2">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{Binding Title}" FontWeight="Medium" TextWrapping="Wrap" IsVisible="{Binding IsPermission}" />
+              <Border Background="{DynamicResource BgCodeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                      CornerRadius="6" Padding="10,7" IsVisible="{Binding HasDetail}">
+                <TextBlock Classes="mono" Text="{Binding Detail}" TextWrapping="Wrap" MaxLines="8" TextTrimming="CharacterEllipsis" />
               </Border>
+              <TextBlock Classes="muted small" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
 
               <!-- A question card: each question with its options, and a box for an answer of one's own. -->
               <ItemsControl ItemsSource="{Binding Questions}" IsVisible="{Binding IsQuestion}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate DataType="vm:QuestionViewModel">
-                    <StackPanel Spacing="4" Margin="0,4">
-                      <TextBlock Classes="section" Text="{Binding Header}" />
-                      <TextBlock Text="{Binding Question}" TextWrapping="Wrap" />
-                      <ItemsControl ItemsSource="{Binding Options}">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="{Binding Question}" FontWeight="SemiBold" LineHeight="20" TextWrapping="Wrap" Margin="0,0,0,2" />
+                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted small" />
+                      <ItemsControl ItemsSource="{Binding Options}" Margin="-6,0">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate DataType="vm:OptionViewModel">
-                            <ToggleButton IsChecked="{Binding IsSelected}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                                          Margin="0,3,0,0" Padding="12,8" CornerRadius="10" MinHeight="44">
-                              <StackPanel>
-                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" FontWeight="SemiBold" />
-                                <TextBlock Classes="muted" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
-                              </StackPanel>
+                            <ToggleButton Theme="{StaticResource OptionToggle}" IsChecked="{Binding IsSelected}">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                                  <TextBlock Classes="muted small" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <c:Icon Grid.Column="1" Data="{StaticResource IconCheck}" IsVisible="{Binding IsSelected}" Size="14"
+                                        VerticalAlignment="Top" Margin="10,3,0,0" />
+                              </Grid>
                             </ToggleButton>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
-                      <TextBox Text="{Binding Other}" Watermark="Or type an answer" Margin="0,3,0,0"
-                               TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+                      <Border Classes="field" Margin="0,4,0,0" Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}">
+                        <TextBox Text="{Binding Other}" Watermark="Other answer…" FontSize="{DynamicResource UiFontSize}"
+                                 TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+                      </Border>
                     </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <WrapPanel IsVisible="{Binding IsPermission}">
-                <Button Classes="accent" Content="{Binding AllowText}" Command="{Binding AllowCommand}" Margin="0,0,6,6" />
-                <Button Content="Allow for this session" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}" Margin="0,0,6,6" />
-                <Button Content="{Binding DenyText}" Command="{Binding DenyCommand}" Margin="0,0,6,6" />
+              <!-- The answers, on the right: Deny, Allow for this session, Allow (Skip, Submit for a question). -->
+              <WrapPanel IsVisible="{Binding IsPermission}" HorizontalAlignment="Right" ItemSpacing="6" Margin="0,-4,0,-6">
+                <Button Theme="{StaticResource PhoneGhostButton}" Classes="danger" Content="{Binding DenyText}" Command="{Binding DenyCommand}" />
+                <Button Theme="{StaticResource PhoneSecondaryButton}" Content="Allow for this session" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}" />
+                <Button Theme="{StaticResource PhonePrimaryButton}" Content="{Binding AllowText}" Command="{Binding AllowCommand}" />
               </WrapPanel>
-              <WrapPanel IsVisible="{Binding IsQuestion}">
-                <Button Classes="accent" Content="Send answers" Command="{Binding SubmitCommand}" Margin="0,0,6,6" />
-                <Button Content="{Binding DenyText}" Command="{Binding DenyCommand}" Margin="0,0,6,6" />
+              <WrapPanel IsVisible="{Binding IsQuestion}" HorizontalAlignment="Right" ItemSpacing="6" Margin="0,-4,0,-2">
+                <Button Theme="{StaticResource PhoneGhostButton}" Content="{Binding DenyText}" Command="{Binding DenyCommand}" />
+                <Button Theme="{StaticResource PhoneInvertedButton}" Content="Submit" Command="{Binding SubmitCommand}" />
               </WrapPanel>
             </StackPanel>
           </Border>
@@ -97,8 +140,10 @@
     <!-- The transcript, newest at the bottom; the turn streaming now grows its last entry. -->
     <Grid>
       <ScrollViewer x:Name="Scroller">
-        <StackPanel Margin="12,8,12,12" Spacing="10">
-          <Button Classes="flat" Content="Show earlier messages" Command="{Binding LoadOlderCommand}" IsVisible="{Binding HasOlder}" HorizontalAlignment="Center" />
+        <StackPanel Margin="16,4,16,12" Spacing="10">
+          <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding LoadOlderCommand}" IsVisible="{Binding HasOlder}" HorizontalAlignment="Center">
+            <TextBlock Text="Show earlier messages" />
+          </Button>
           <ItemsControl ItemsSource="{Binding Entries}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
@@ -113,71 +158,89 @@
                     </MenuFlyout>
                   </StackPanel.ContextFlyout>
                 <Panel>
-                  <!-- A prompt: a bubble on the right, saying where it came from when not the PC itself. -->
-                  <StackPanel IsVisible="{Binding IsUser}" HorizontalAlignment="Right" MaxWidth="340" Spacing="2">
-                    <Border Background="{DynamicResource UserBubbleBrush}" CornerRadius="14" Padding="12,8">
-                      <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
+                  <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not
+                       the PC itself. -->
+                  <Grid IsVisible="{Binding IsUser}" ColumnDefinitions="*,3*" Margin="0,12,0,4">
+                    <Border Grid.Column="1" HorizontalAlignment="Right"
+                            Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}"
+                            BorderThickness="1" CornerRadius="14" Padding="14,9,14,10">
+                      <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasFrom}" Margin="0,2,0,-2">
+                          <c:Icon Size="12" Data="{StaticResource IconLaptop}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                          <TextBlock Classes="muted small" Text="{Binding FromText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
+                                   FontSize="{DynamicResource BodyFontSize}" LineHeight="{DynamicResource BodyLineHeight}" />
+                      </StackPanel>
                     </Border>
-                    <TextBlock Classes="muted" Text="{Binding FromText}" IsVisible="{Binding HasFrom}" HorizontalAlignment="Right" FontSize="12" />
-                  </StackPanel>
+                  </Grid>
 
                   <md:MarkdownBlock IsVisible="{Binding IsAssistant}" Markdown="{Binding ShownText}" />
 
-                  <!-- Tool calls: folded to one line; tapped open, each command or file and the thinking between them. -->
-                  <StackPanel IsVisible="{Binding IsActivity}" Spacing="4">
-                    <Button Classes="step" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}" HorizontalAlignment="Left">
-                      <TextBlock Classes="muted" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap">
-                        <Run Text="{Binding FoldGlyph, Mode=OneWay}" />
-                        <Run Text=" " />
-                        <Run Text="{Binding ShownText, Mode=OneWay}" />
-                      </TextBlock>
+                  <!-- Tool calls: the desktop's tool group line, muted, with a chevron; tapped open, each command or file with its
+                       tool's icon, and the thinking between them. -->
+                  <StackPanel IsVisible="{Binding IsActivity}" Margin="0,-6">
+                    <Button Theme="{StaticResource PhoneLineButton}" Classes="activity" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}">
+                      <c:TrailPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" IsVisible="{Binding HasSteps}"
+                                Margin="4,0,0,0" VerticalAlignment="Center" />
+                      </c:TrailPanel>
                     </Button>
-                    <ItemsControl ItemsSource="{Binding Steps}" IsVisible="{Binding IsOpen}" Margin="10,0,0,0">
+                    <ItemsControl ItemsSource="{Binding Steps}" c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" Margin="0,0,0,8">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="vm:StepViewModel">
-                          <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0" Padding="10,3,0,3">
-                            <Panel>
-                              <StackPanel IsVisible="{Binding IsTool}" Spacing="1">
-                                <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="SemiBold" Classes.failed="{Binding Failed}">
-                                  <TextBlock.Styles>
-                                    <Style Selector="TextBlock.failed"><Setter Property="Foreground" Value="{DynamicResource DangerBrush}" /></Style>
-                                  </TextBlock.Styles>
-                                </TextBlock>
-                                <TextBlock Text="{Binding Detail}" IsVisible="{Binding HasDetail}" FontSize="12.5" TextWrapping="Wrap"
-                                                     Foreground="{DynamicResource TextSecondaryBrush}"
-                                                     FontFamily="Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace" />
-                              </StackPanel>
-                              <TextBlock IsVisible="{Binding IsThought}" Text="{Binding Detail}" FontSize="13" FontStyle="Italic"
-                                                   TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" />
-                            </Panel>
-                          </Border>
+                          <Grid ColumnDefinitions="Auto,Auto,*,Auto" MinHeight="28" Margin="6,0">
+                            <c:Icon Data="{Binding Converter={x:Static v:StepIconConverter.Instance}}" Stroke="{DynamicResource TextMutedBrush}"
+                                    VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="chrome small" FontWeight="Medium" Margin="8,6,10,6" VerticalAlignment="Top" />
+                            <!-- A tool's line, as code where it is one (a command, a path); a thought in full. -->
+                            <TextBlock Grid.Column="2" IsVisible="{Binding IsTool}" Text="{Binding Detail}" Classes="mono secondary"
+                                       TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Margin="0,7,0,6" VerticalAlignment="Top" />
+                            <TextBlock Grid.Column="2" IsVisible="{Binding IsThought}" Text="{Binding Detail}" Classes="secondary small"
+                                       TextWrapping="Wrap" LineHeight="19" Margin="0,5,0,6" VerticalAlignment="Top" />
+                            <c:Icon Grid.Column="3" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding Failed}"
+                                    VerticalAlignment="Top" Margin="8,6,0,0" />
+                          </Grid>
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                   </StackPanel>
 
-                  <!-- Thinking: its first line, all of it when tapped. -->
-                  <Button IsVisible="{Binding IsThinking}" Classes="step" Command="{Binding ToggleOpenCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
-                    <TextBlock Text="{Binding ThinkingText}" FontStyle="Italic" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" FontSize="13.5" />
-                  </Button>
+                  <!-- Thinking: the desktop's "Thought" line with a chevron; tapped open, the thought under a rule. -->
+                  <StackPanel IsVisible="{Binding IsThinking}" Margin="0,-6">
+                    <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Thought" VerticalAlignment="Center" />
+                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Border c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
+                            Padding="12,0,0,0" Margin="1,0,0,10">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="20" Classes="secondary" />
+                    </Border>
+                  </StackPanel>
 
-                  <TextBlock IsVisible="{Binding IsNotice}" Classes="muted" Text="{Binding ShownText}" TextWrapping="Wrap" HorizontalAlignment="Center" TextAlignment="Center" />
+                  <TextBlock IsVisible="{Binding IsNotice}" Classes="muted small" Text="{Binding ShownText}" TextWrapping="Wrap"
+                             HorizontalAlignment="Center" TextAlignment="Center" />
 
-                  <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" CornerRadius="8" Padding="10,6">
-                    <TextBlock Text="{Binding ShownText}" Foreground="{DynamicResource DangerBrush}" TextWrapping="Wrap" />
+                  <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerBrush}"
+                          BorderThickness="2,0,0,0" CornerRadius="4" Padding="12,8">
+                    <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
                   </Border>
 
-                  <Border IsVisible="{Binding IsCard}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="10,6" HorizontalAlignment="Left">
-                    <TextBlock Classes="muted" Text="{Binding CardText}" TextWrapping="Wrap" />
-                  </Border>
+                  <!-- A card already answered (or waiting, below): its title and the answer, muted, as the desktop's. -->
+                  <TextBlock IsVisible="{Binding IsCard}" Classes="muted small" Text="{Binding CardText}" TextWrapping="Wrap" />
 
                 </Panel>
-                <Button Classes="flat" Content="Show more" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" HorizontalAlignment="Left" />
+                <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
+                  <TextBlock Text="Show more" />
+                </Button>
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Classes="muted" Text="{Binding Activity}" IsVisible="{Binding Activity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Classes="muted small" Text="{Binding Activity}" IsVisible="{Binding Activity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </StackPanel>
       </ScrollViewer>
       <TextBlock Classes="muted" Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center" />

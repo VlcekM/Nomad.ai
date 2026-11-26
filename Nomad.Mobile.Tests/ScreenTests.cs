@@ -173,6 +173,32 @@ public sealed class ScreenTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
+    public async Task Chat_screen_with_a_thought_open_and_an_error(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page() with
+        {
+            Entries =
+            [
+                .. Samples.Page().Entries,
+                new ChatEntry(5, "thinking", "The test that failed is the quote one, as expected.\nNow the fix: treat ’ as part of a word."),
+                new ChatEntry(6, "error", "API Error: 529 Overloaded. The server is busy; try again in a moment."),
+            ],
+        };
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        chat.Entries[5].IsOpen = true;
+        var window = Show(chat, main, theme);
+
+        Find<TextBlock>(window, t => t.Text?.StartsWith("API Error: 529", StringComparison.Ordinal) == true);
+        Find<TextBlock>(window, t => t.Text?.StartsWith("The test that failed", StringComparison.Ordinal) == true);
+        Save(window, "3d-chat-thought-and-error", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
     public async Task Chat_screen_working_with_a_turn_streaming(string themeName)
     {
         var theme = Theme(themeName);
@@ -187,7 +213,8 @@ public sealed class ScreenTests
         chat.Draft = "Also check the Linux build";
         var window = Show(chat, main, theme);
 
-        Assert.True(Find<Button>(window, b => b.Content as string == "Stop").IsVisible);
+        // Stop is the desktop's icon button now, not a labelled one: found by its class.
+        Assert.True(Find<Button>(window, b => b.Classes.Contains("stop")).IsVisible);
         Save(window, "3b-chat-working", theme);
     }
 

@@ -1,48 +1,73 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             xmlns:c="using:Nomad.App.Controls"
              x:Class="Nomad.Mobile.Views.ChatsView"
              x:DataType="vm:ChatsViewModel"
              x:Name="Root">
+  <UserControl.Styles>
+    <!-- A stopped chat's title is a little muted, as the desktop's idle sessions are. -->
+    <Style Selector="Button.chatrow.stopped TextBlock.rowtitle">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.waitingline">
+      <Setter Property="Foreground" Value="{DynamicResource WaitingBrush}" />
+    </Style>
+  </UserControl.Styles>
   <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="bar" BorderThickness="0,0,0,1" Padding="16,10,6,10">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Classes="title" Text="Chats" VerticalAlignment="Center" />
-        <Button Grid.Column="1" Classes="flat" Content="Settings" Command="{Binding OpenSettingsCommand}" />
-      </Grid>
-    </Border>
+    <!-- The top bar, as the desktop's: no frame over the page's ground, the title, an icon button. -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Height="56" Margin="18,0,6,0">
+      <TextBlock Classes="title" Text="Chats" VerticalAlignment="Center" />
+      <Button Grid.Column="1" Theme="{StaticResource PhoneIconButton}" Command="{Binding OpenSettingsCommand}"
+              AutomationProperties.Name="Settings" ToolTip.Tip="Settings">
+        <c:Icon Size="18" Data="{StaticResource IconGear}" />
+      </Button>
+    </Grid>
 
     <!-- Pulling down fetches the board again. -->
     <RefreshContainer x:Name="Refresher" RefreshRequested="OnRefreshRequested">
       <ScrollViewer>
-        <StackPanel Margin="0,4,0,16">
+        <StackPanel Margin="0,0,0,16">
           <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                     Classes="secondary" TextWrapping="Wrap" Margin="20,24" />
+                     Classes="rowhint" Margin="18,16" />
           <ItemsControl ItemsSource="{Binding Groups}">
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="vm:PcGroupViewModel">
-                <StackPanel Margin="0,10,0,0">
-                  <Grid ColumnDefinitions="*,Auto" Margin="16,6,16,4">
-                    <TextBlock Classes="section" Text="{Binding Name}" />
-                    <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Summary}" />
+                <StackPanel Margin="0,8,0,0">
+                  <!-- The PC: its name and how many chats it shares, muted, as the desktop's group headings. -->
+                  <Grid ColumnDefinitions="*,Auto" Margin="18,6,18,4">
+                    <TextBlock Classes="section" Text="{Binding Name}" FontWeight="Medium" />
+                    <TextBlock Grid.Column="1" Classes="section" Text="{Binding Summary}" />
                   </Grid>
                   <ItemsControl ItemsSource="{Binding Chats}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="vm:ChatRowViewModel">
-                        <Button Classes="row" Command="{Binding #Root.((vm:ChatsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
-                          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
-                            <Ellipse Classes="state" Classes.working="{Binding IsWorking}" Classes.waiting="{Binding IsWaiting}"
-                                     VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <TextBlock Grid.Column="1" Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="muted" TextTrimming="CharacterEllipsis" Margin="0,2,0,0">
-                              <Run Text="{Binding StateText, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" />
-                              <Run Text=" · " />
-                              <Run Text="{Binding Agent, Mode=OneWay}" />
-                              <Run Text="{Binding Folder, Mode=OneWay, StringFormat=' · {0}'}" />
-                            </TextBlock>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="secondary" Text="{Binding LastLine}" FontSize="14"
-                                       MaxLines="2" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" Margin="0,4,0,0"
-                                       IsVisible="{Binding LastLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <!-- The desktop sidebar's row: the title with the agent's logo after it, the state's mark on the right;
+                             under it the chat's last line, muted (or what it waits for, in the waiting color). -->
+                        <Button Theme="{StaticResource PhoneRowButton}" Classes="chatrow" Classes.stopped="{Binding State, Converter={x:Static v:StringIs.Stopped}}"
+                                Margin="6,0"
+                                Command="{Binding #Root.((vm:ChatsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
+                          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                            <c:TrailPanel VerticalAlignment="Center">
+                              <c:EdgeFade VerticalAlignment="Center">
+                                <TextBlock Classes="rowtitle" Text="{Binding Title}" FontSize="{DynamicResource UiFontSizeLarge}" />
+                              </c:EdgeFade>
+                              <c:AgentLogo Size="14" Backend="{Binding Backend}" Opacity="0.6" Margin="7,0,0,0" />
+                            </c:TrailPanel>
+                            <c:StatusMark Grid.Column="1" Width="16" Height="16" Margin="12,0,0,0" VerticalAlignment="Center"
+                                          Mark="{Binding State, Converter={x:Static v:StateMarkConverter.Instance}}"
+                                          WorkingBrush="{DynamicResource AccentBrush}"
+                                          WaitingBrush="{DynamicResource WaitingBrush}"
+                                          UnreadBrush="{DynamicResource UnreadBrush}" />
+                            <Panel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,3,0,0">
+                              <TextBlock Classes="muted small" TextTrimming="CharacterEllipsis" IsVisible="{Binding !IsWaiting}">
+                                <Run Text="{Binding Folder, Mode=OneWay}" />
+                                <Run Text="{Binding Folder, Mode=OneWay, Converter={x:Static v:StringIs.Separator}}" />
+                                <Run Text="{Binding LastLine, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              </TextBlock>
+                              <TextBlock Classes="small waitingline" Text="{Binding StateText}" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsWaiting}" />
+                            </Panel>
                           </Grid>
                         </Button>
                       </DataTemplate>

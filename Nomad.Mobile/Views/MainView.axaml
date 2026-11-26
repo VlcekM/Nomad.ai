@@ -4,7 +4,11 @@
              xmlns:v="using:Nomad.Mobile.Views"
              x:Class="Nomad.Mobile.Views.MainView"
              x:DataType="vm:MainViewModel"
-             Background="{DynamicResource BgMainBrush}">
+             Background="{DynamicResource BgMainBrush}"
+             Foreground="{DynamicResource TextPrimaryBrush}"
+             FontFamily="{DynamicResource UiFont}"
+             FontSize="{DynamicResource UiFontSize}">
+  <!-- The page's ground, text color, font and size, as the desktop window's: everything inside inherits them. -->
   <ContentControl x:Name="Pages" Classes="page" Content="{Binding Page}">
     <ContentControl.DataTemplates>
       <DataTemplate DataType="vm:ConnectViewModel"><v:ConnectView /></DataTemplate>

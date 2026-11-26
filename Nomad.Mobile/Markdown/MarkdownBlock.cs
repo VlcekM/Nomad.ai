@@ -15,8 +15,9 @@ namespace Nomad.Mobile.Markdown;
 
 /// <summary>
 /// Shows Markdown (an agent's reply) as Avalonia text: paragraphs, headings, lists, quotes, code blocks, tables (as plain rows) and
-/// inline emphasis, code and links. A tapped web or mail link opens in the phone's browser or mail app. Colors come from the
-/// app's theme resources.
+/// inline emphasis, code and links, in the desktop transcript's sizes and colors (its body, headings, lists, framed code blocks and
+/// code pills). A tapped web or mail link opens in the phone's browser or mail app. Colors and sizes come from the app's theme
+/// resources.
 /// </summary>
 public sealed class MarkdownBlock : ContentControl
 {
@@ -61,57 +62,100 @@ public sealed class MarkdownBlock : ContentControl
 
         _shown = text;
         _links.Clear();
-        var panel = new StackPanel { Spacing = 8 };
+        var panel = new StackPanel { Spacing = ParagraphSpacing };
+        var first = true;
         foreach (var block in Markdig.Markdown.Parse(text, Pipeline))
         {
-            if (Block(block, 0) is { } control)
+            if (Block(block, 0, first, quoted: false) is { } control)
             {
                 panel.Children.Add(control);
+                first = false;
             }
         }
 
         Content = panel;
     }
 
-    private Control? Block(Block block, int depth) => block switch
+    // The desktop's transcript sizes (Nomad.App's MarkdownStyle at its default): body 15 on 21, code 13, headings 20, 17, 15.
+    private double BodySize => Size("BodyFontSize", 15);
+
+    private double LineHeight => Size("BodyLineHeight", 21);
+
+    private double CodeSize => Size("CodeFontSize", 13);
+
+    private double ParagraphSpacing => Math.Round(BodySize * 0.7);
+
+    private Control? Block(Block block, int depth, bool first, bool quoted) => block switch
     {
-        HeadingBlock heading => Text(heading.Inline, heading.Level <= 2 ? 1.25 : 1.1, FontWeight.SemiBold),
-        ParagraphBlock paragraph => Text(paragraph.Inline),
-        FencedCodeBlock or CodeBlock => Code(string.Join("\n", ((LeafBlock)block).Lines.Lines.Take(((LeafBlock)block).Lines.Count).Select(l => l.ToString()))),
-        ListBlock list => List(list, depth),
+        HeadingBlock heading => Heading(heading, first, quoted),
+        ParagraphBlock paragraph => Text(paragraph.Inline, BodySize, LineHeight, null, quoted),
+        FencedCodeBlock fenced => Code(CodeText(fenced), fenced.Info),
+        CodeBlock code => Code(CodeText(code), null),
+        ListBlock list => List(list, depth, quoted),
         QuoteBlock quote => Quote(quote, depth),
         Table table => TableBlock(table),
-        ThematicBreakBlock => new Border { Height = 1, Background = Brush("BorderBrush"), Margin = new Thickness(0, 4) },
-        ContainerBlock container => Stack(container, depth),
+        ThematicBreakBlock => new Border { Height = 1, Background = Brush("BorderBrush"), Margin = new Thickness(0, 6) },
+        ContainerBlock container => Stack(container, depth, quoted),
         _ => null,
     };
 
-    private StackPanel Stack(ContainerBlock container, int depth)
+    private static string CodeText(LeafBlock block) => string.Join("\n", block.Lines.Lines.Take(block.Lines.Count).Select(l => l.ToString()));
+
+    private Control Heading(HeadingBlock heading, bool first, bool quoted)
     {
-        var panel = new StackPanel { Spacing = 6 };
+        var size = heading.Level switch { 1 => Math.Round(BodySize * 20 / 15), 2 => Math.Round(BodySize * 17 / 15), _ => BodySize };
+        var block = Text(heading.Inline, size, Math.Round(size * 1.35), FontWeight.SemiBold, quoted);
+        block.Margin = new Thickness(0, first ? 0 : 8, 0, 0);
+        return block;
+    }
+
+    private StackPanel Stack(ContainerBlock container, int depth, bool quoted)
+    {
+        var panel = new StackPanel { Spacing = ParagraphSpacing };
+        var first = true;
         foreach (var child in container)
         {
-            if (Block(child, depth) is { } control)
+            if (Block(child, depth, first, quoted) is { } control)
             {
                 panel.Children.Add(control);
+                first = false;
             }
         }
 
         return panel;
     }
 
-    private Control List(ListBlock list, int depth)
+    /// <summary>A list as the desktop's: its markers right-aligned in a 31 px column, items close together.</summary>
+    private Control List(ListBlock list, int depth, bool quoted)
     {
-        var panel = new StackPanel { Spacing = 4 };
+        var panel = new StackPanel { Spacing = 2 };
         var number = int.TryParse(list.OrderedStart, out var start) ? start : 1;
         foreach (var item in list.OfType<ListItemBlock>())
         {
-            var marker = list.IsOrdered ? $"{number++}." : depth % 2 == 0 ? "•" : "◦";
-            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-            var bullet = new TextBlock { Text = marker, Margin = new Thickness(0, 0, 8, 0), Foreground = Brush("TextSecondaryBrush"), MinWidth = list.IsOrdered ? 20 : 10 };
-            var body = Stack(item, depth + 1);
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("31,*") };
+            var marker = new TextBlock
+            {
+                Text = list.IsOrdered ? $"{number++}." : "•",
+                FontSize = BodySize,
+                LineHeight = LineHeight,
+                Foreground = Brush(quoted ? "TextSecondaryBrush" : "TextPrimaryBrush"),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 0, list.IsOrdered ? 8 : 17, 0),
+            };
+            var body = new StackPanel { Spacing = 6 };
+            var first = true;
+            foreach (var child in item)
+            {
+                if (Block(child, depth + 1, first, quoted) is { } control)
+                {
+                    body.Children.Add(control);
+                    first = false;
+                }
+            }
+
             Grid.SetColumn(body, 1);
-            row.Children.Add(bullet);
+            row.Children.Add(marker);
             row.Children.Add(body);
             panel.Children.Add(row);
         }
@@ -121,18 +165,17 @@ public sealed class MarkdownBlock : ContentControl
 
     private Control Quote(QuoteBlock quote, int depth) => new Border
     {
-        BorderBrush = Brush("BorderInputBrush"),
-        BorderThickness = new Thickness(3, 0, 0, 0),
-        Padding = new Thickness(10, 0, 0, 0),
-        Child = Stack(quote, depth),
+        BorderBrush = Brush("BorderBrush"),
+        BorderThickness = new Thickness(2, 0, 0, 0),
+        Padding = new Thickness(12, 2, 0, 2),
+        Child = Stack(quote, depth, quoted: true),
     };
 
-    private Control Code(string code) => new Border
+    /// <summary>A code block as the desktop's: framed on the code ground, its language small in the corner; it scrolls sideways.</summary>
+    private Control Code(string code, string? language)
     {
-        Background = Brush("BgCodeBrush"),
-        CornerRadius = new CornerRadius(8),
-        Padding = new Thickness(10, 8),
-        Child = new ScrollViewer
+        var grid = new Grid();
+        grid.Children.Add(new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
@@ -140,11 +183,36 @@ public sealed class MarkdownBlock : ContentControl
             {
                 Text = code.TrimEnd('\n'),
                 FontFamily = MonoFont,
-                FontSize = 12.5,
+                FontSize = CodeSize,
+                LineHeight = Math.Round(CodeSize * 1.5),
                 Foreground = Brush("TextPrimaryBrush"),
+                Margin = new Thickness(12, 11, 12, 11),
             },
-        },
-    };
+        });
+        if (!string.IsNullOrWhiteSpace(language))
+        {
+            grid.Children.Add(new TextBlock
+            {
+                Text = language.Trim(),
+                FontSize = Size("UiFontSizeTiny", 11),
+                Foreground = Brush("TextMutedBrush"),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, 7, 10, 0),
+                IsHitTestVisible = false,
+            });
+        }
+
+        return new Border
+        {
+            Background = Brush("BgCodeBrush"),
+            BorderBrush = Brush("BorderBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Child = grid,
+        };
+    }
 
     private Control TableBlock(Table table)
     {
@@ -162,7 +230,17 @@ public sealed class MarkdownBlock : ContentControl
             var c = 0;
             foreach (var cell in row.OfType<TableCell>())
             {
-                var text = new TextBlock { Margin = new Thickness(0, 2, 14, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 260, FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal, Background = Brushes.Transparent };
+                var text = new CodePillTextBlock
+                {
+                    Margin = new Thickness(0, 3, 16, 3),
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 260,
+                    FontSize = BodySize,
+                    LineHeight = LineHeight,
+                    Foreground = Brush("TextPrimaryBrush"),
+                    FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal,
+                    Background = Brushes.Transparent,
+                };
                 foreach (var paragraph in cell.OfType<ParagraphBlock>())
                 {
                     if (paragraph.Inline is { } inline)
@@ -187,15 +265,17 @@ public sealed class MarkdownBlock : ContentControl
         };
     }
 
-    private TextBlock Text(ContainerInline? inlines, double scale = 1, FontWeight? weight = null)
+    private TextBlock Text(ContainerInline? inlines, double size, double lineHeight, FontWeight? weight, bool quoted)
     {
         // A background, so a tap anywhere on it (a link) reaches it.
-        var block = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = Brush("TextPrimaryBrush"), Background = Brushes.Transparent };
-        if (scale != 1)
+        var block = new CodePillTextBlock
         {
-            block.FontSize = 15 * scale;
-        }
-
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = size,
+            LineHeight = lineHeight,
+            Foreground = Brush(quoted ? "TextSecondaryBrush" : "TextPrimaryBrush"),
+            Background = Brushes.Transparent,
+        };
         if (weight is { } w)
         {
             block.FontWeight = w;
@@ -219,8 +299,12 @@ public sealed class MarkdownBlock : ContentControl
                     target.Add(Styled(new Run(literal.Content.ToString()), style));
                     break;
 
-                case CodeInline code:
-                    target.Add(Styled(new Run(code.Content) { FontFamily = MonoFont, Foreground = Brush("InlineCodeBrush"), FontSize = 13.5 }, style));
+                case CodeInline code when code.Content.Length > 0:
+                    // As the desktop's: a pill on the raised ground, a thin space either side of it.
+                    target.Add(new Run(CodePillTextBlock.PillGap));
+                    CodePillTextBlock.AddCodeRange(target, LengthOf(target), code.Content.Length);
+                    target.Add(Styled(new Run(code.Content) { FontFamily = MonoFont, Foreground = Brush("InlineCodeBrush"), FontSize = CodeSize, FontWeight = FontWeight.SemiLight }, style));
+                    target.Add(new Run(CodePillTextBlock.PillGap));
                     break;
 
                 case LineBreakInline:
@@ -317,12 +401,7 @@ public sealed class MarkdownBlock : ContentControl
         var start = 0;
         foreach (var inline in inlines)
         {
-            var length = inline switch
-            {
-                Run run => run.Text?.Length ?? 0,
-                LineBreak => Environment.NewLine.Length,
-                _ => 0,
-            };
+            var length = LengthOf(inline);
             if (hit.TextPosition >= start && hit.TextPosition < start + length)
             {
                 return inline is Run r ? _links.GetValueOrDefault(r) : null;
@@ -336,7 +415,24 @@ public sealed class MarkdownBlock : ContentControl
 
     private static Run Styled(Run run, Func<Run, Run>? style) => style?.Invoke(run) ?? run;
 
-    private static readonly FontFamily MonoFont = new("Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace");
+    /// <summary>How many characters an inline (or all of them) takes in its text block's text.</summary>
+    private static int LengthOf(Avalonia.Controls.Documents.Inline inline) => inline switch
+    {
+        Run run => run.Text?.Length ?? 0,
+        LineBreak => Environment.NewLine.Length,
+        _ => 0,
+    };
+
+    private static int LengthOf(InlineCollection inlines) => inlines.Sum(LengthOf);
+
+    private double Size(string key, double fallback) =>
+        this.TryFindResource(key, ActualThemeVariant, out var value) && value is double size ? size
+        : Application.Current?.TryFindResource(key, out value) == true && value is double appSize ? appSize
+        : fallback;
+
+    private FontFamily MonoFont => this.TryFindResource("MonoFont", out var value) && value is FontFamily font ? font : DefaultMono;
+
+    private static readonly FontFamily DefaultMono = new("Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace");
 
     private IBrush? Brush(string key) =>
         this.TryFindResource(key, ActualThemeVariant, out var value) && value is IBrush brush ? brush

@@ -6,12 +6,80 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
+        <!-- The desktop's own palette, icons and control themes (linked from Nomad.App), then the phone's sizes over them and its
+             touch-sized versions of the desktop's buttons. -->
+        <ResourceInclude Source="avares://Nomad.Mobile/Theme/Desktop/Palette.axaml" />
+        <ResourceInclude Source="avares://Nomad.Mobile/Theme/Desktop/Icons.axaml" />
+        <ResourceInclude Source="avares://Nomad.Mobile/Theme/Desktop/Controls.axaml" />
         <ResourceInclude Source="avares://Nomad.Mobile/Theme/Palette.axaml" />
+        <ResourceInclude Source="avares://Nomad.Mobile/Theme/PhoneControls.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
-    <FluentTheme />
+    <!-- Fluent, with its dark and light palettes recoloured from the Nomad tokens (Theme/Palette.axaml). -->
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Dark"
+                               Accent="#D2784B"
+                               RegionColor="#141414"
+                               AltHigh="#141414"
+                               AltLow="#141414"
+                               AltMedium="#141414"
+                               AltMediumHigh="#141414"
+                               AltMediumLow="#141414"
+                               BaseHigh="#EEEDE8"
+                               BaseLow="#363636"
+                               BaseMedium="#8A8883"
+                               BaseMediumHigh="#C4C3BB"
+                               BaseMediumLow="#5A5955"
+                               ChromeAltLow="#EEEDE8"
+                               ChromeBlackHigh="#000000"
+                               ChromeBlackLow="#C4C3BB"
+                               ChromeBlackMedium="#000000"
+                               ChromeBlackMediumLow="#000000"
+                               ChromeDisabledHigh="#363636"
+                               ChromeDisabledLow="#5A5955"
+                               ChromeGray="#8A8883"
+                               ChromeHigh="#4C4C4C"
+                               ChromeLow="#1C1C1C"
+                               ChromeMedium="#20201E"
+                               ChromeMediumLow="#1A1A1A"
+                               ChromeWhite="#FFFFFF"
+                               ListLow="#0BFFFFFF"
+                               ListMedium="#2B2B29"
+                               ErrorText="#E0605A" />
+        <ColorPaletteResources x:Key="Light"
+                               Accent="#D2784B"
+                               RegionColor="#F3F2EC"
+                               AltHigh="#F3F2EC"
+                               AltLow="#F3F2EC"
+                               AltMedium="#F3F2EC"
+                               AltMediumHigh="#F3F2EC"
+                               AltMediumLow="#F3F2EC"
+                               BaseHigh="#141413"
+                               BaseLow="#DEDCD3"
+                               BaseMedium="#62615B"
+                               BaseMediumHigh="#2C2B28"
+                               BaseMediumLow="#8F8D86"
+                               ChromeAltLow="#141413"
+                               ChromeBlackHigh="#000000"
+                               ChromeBlackLow="#2C2B28"
+                               ChromeBlackMedium="#141413"
+                               ChromeBlackMediumLow="#2C2B28"
+                               ChromeDisabledHigh="#DEDCD3"
+                               ChromeDisabledLow="#A8A69F"
+                               ChromeGray="#62615B"
+                               ChromeHigh="#C9C7BE"
+                               ChromeLow="#FAF9F5"
+                               ChromeMedium="#F0EEE6"
+                               ChromeMediumLow="#F5F4EF"
+                               ChromeWhite="#FFFFFF"
+                               ListLow="#0A000000"
+                               ListMedium="#E6E4DB"
+                               ErrorText="#C9433D" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
     <StyleInclude Source="avares://Nomad.Mobile/Theme/Styles.axaml" />
   </Application.Styles>
 </Application>
