@@ -22,12 +22,13 @@ public sealed class HubFactory(bool relay = true) : WebApplicationFactory<Progra
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
         builder.UseSetting("Hub:DataPath", DataPath).UseSetting("Hub:RelayEnabled", relay ? "true" : "false");
 
-    public async Task<HttpClient> EnrollAsync(string name)
+    /// <param name="phone">Enroll it with Add phone's kind of token, as a phone (a viewer).</param>
+    public async Task<HttpClient> EnrollAsync(string name, bool phone = false)
     {
         string token;
         await using (var scope = Services.CreateAsyncScope())
         {
-            token = (await DeviceEndpoints.NewEnrollTokenAsync(scope.ServiceProvider.GetRequiredService<HubDb>(), null)).Token;
+            token = (await DeviceEndpoints.NewEnrollTokenAsync(scope.ServiceProvider.GetRequiredService<HubDb>(), null, forViewer: phone)).Token;
         }
 
         var anonymous = CreateClient();

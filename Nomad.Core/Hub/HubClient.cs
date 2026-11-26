@@ -253,9 +253,10 @@ public sealed class HubClient : IAsyncDisposable
     public async Task RevokeDeviceAsync(Guid id, CancellationToken ct = default) =>
         (await _http.DeleteAsync($"api/devices/{id}", ct).ConfigureAwait(false)).EnsureSuccessStatusCode();
 
-    public async Task<EnrollTokenResponse> NewEnrollTokenAsync(CancellationToken ct = default)
+    /// <param name="phone">A token for Add phone: the device it enrolls is a phone, which may only read and answer chats.</param>
+    public async Task<EnrollTokenResponse> NewEnrollTokenAsync(CancellationToken ct = default, bool phone = false)
     {
-        using var response = await _http.PostAsync("api/enroll-tokens", null, ct).ConfigureAwait(false);
+        using var response = await _http.PostAsync(phone ? "api/enroll-tokens?phone=true" : "api/enroll-tokens", null, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync(HubJson.Default.EnrollTokenResponse, ct).ConfigureAwait(false))!;
     }

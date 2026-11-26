@@ -13,12 +13,18 @@ public static class DeviceEndpoints
     public static string Version { get; } =
         typeof(DeviceEndpoints).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
-    /// <summary>Stores a new one-time enrollment token and returns it (only its hash is kept).</summary>
-    public static async Task<EnrollTokenResponse> NewEnrollTokenAsync(HubDb db, Guid? createdBy, CancellationToken ct = default)
+    /// <summary>
+    /// Stores a new one-time enrollment token and returns it (only its hash is kept). <paramref name="forViewer"/>: Add phone's,
+    /// so the device it enrolls is a viewer.
+    /// </summary>
+    public static async Task<EnrollTokenResponse> NewEnrollTokenAsync(HubDb db, Guid? createdBy, CancellationToken ct = default, bool forViewer = false)
     {
         var token = Secrets.NewToken(18);
         var now = DateTime.UtcNow;
-        db.EnrollTokens.Add(new EnrollToken { TokenHash = Secrets.Hash(token), CreatedUtc = now, ExpiresUtc = now + EnrollTokenLifetime, CreatedBy = createdBy });
+        db.EnrollTokens.Add(new EnrollToken
+        {
+            TokenHash = Secrets.Hash(token), CreatedUtc = now, ExpiresUtc = now + EnrollTokenLifetime, CreatedBy = createdBy, ForViewer = forViewer,
+        });
         await db.SaveChangesAsync(ct);
         return new EnrollTokenResponse(token, now + EnrollTokenLifetime);
     }
@@ -41,10 +47,11 @@ public static class DeviceEndpoints
             var device = new Device
             {
                 Id = Guid.NewGuid(),
-                Name = string.IsNullOrWhiteSpace(request.DeviceName) ? "PC" : request.DeviceName.Trim(),
+                Name = string.IsNullOrWhiteSpace(request.DeviceName) ? token.ForViewer ? "Phone" : "PC" : request.DeviceName.Trim(),
                 SecretHash = Secrets.Hash(secret),
                 EnrolledUtc = now,
                 LastSeenUtc = now,
+                IsViewer = token.ForViewer,
             };
             token.UsedUtc = now;
             db.Devices.Add(device);
@@ -56,17 +63,23 @@ public static class DeviceEndpoints
     public static void Map(RouteGroupBuilder api)
     {
         api.MapGet("/info", (HttpContext http, HubOptions options) =>
-            new HubInfo(Version, http.User.DeviceId(), http.User.DeviceName(), options.RelayEnabled));
+            new HubInfo(Version, http.User.DeviceId(), http.User.DeviceName(), options.RelayEnabled)).WithMetadata(new ViewerAllowed());
 
         api.MapGet("/devices", async (HttpContext http, HubDb db, Presence presence, CancellationToken ct) =>
         {
             var me = http.User.DeviceId();
             var devices = await db.Devices.AsNoTracking().Where(d => !d.Revoked).OrderBy(d => d.EnrolledUtc).ToListAsync(ct);
-            return devices.Select(d => new DeviceDto(d.Id, d.Name, d.EnrolledUtc, d.LastSeenUtc, presence.IsOnline(d.Id), d.Id == me)).ToList();
+            return devices.Select(d => new DeviceDto(d.Id, d.Name, d.EnrolledUtc, d.LastSeenUtc, presence.IsOnline(d.Id), d.Id == me, d.IsViewer)).ToList();
         });
 
-        api.MapDelete("/devices/{id:guid}", async (Guid id, HubDb db, LiveConnections live, CancellationToken ct) =>
+        // A PC revokes any device; a phone only itself (signing out).
+        api.MapDelete("/devices/{id:guid}", async (Guid id, HttpContext http, HubDb db, LiveConnections live, CancellationToken ct) =>
         {
+            if (http.User.IsViewer() && id != http.User.DeviceId())
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+
             var n = await db.Devices.Where(d => d.Id == id).ExecuteUpdateAsync(s => s.SetProperty(d => d.Revoked, true), ct);
             if (n > 0)
             {
@@ -74,10 +87,11 @@ public static class DeviceEndpoints
             }
 
             return n == 0 ? Results.NotFound() : Results.NoContent();
-        });
+        }).WithMetadata(new ViewerAllowed());
 
-        api.MapPost("/enroll-tokens", async (HttpContext http, HubDb db, CancellationToken ct) =>
-            await NewEnrollTokenAsync(db, http.User.DeviceId(), ct));
+        // ?phone=true: Add phone's token, which enrolls a viewer.
+        api.MapPost("/enroll-tokens", async (HttpContext http, HubDb db, bool? phone, CancellationToken ct) =>
+            await NewEnrollTokenAsync(db, http.User.DeviceId(), ct, phone == true));
 
         api.MapGet("/projects", async (HttpContext http, HubDb db, CancellationToken ct) =>
         {
