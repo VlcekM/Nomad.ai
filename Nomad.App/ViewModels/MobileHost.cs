@@ -281,10 +281,20 @@ internal sealed class MobileHost : IDisposable
                     return new ChatInputResult(false, "Nothing to send.");
                 }
 
-                // Answered once queued, not once the agent has started (that can take a while), so a slow start never looks failed.
-                var busy = s.IsTurnRunning;
-                _ = s.ReceiveMessageAsync(text, from);
-                return new ChatInputResult(true, busy ? "Queued: it is working, and gets this when the turn ends." : "Sent.");
+                // As if typed on the PC. Answered within a few seconds, not once the agent has started (that can take a while),
+                // so a slow start never looks failed.
+                var delivery = s.ReceivePromptAsync(text, from);
+                if (await Task.WhenAny(delivery, Task.Delay(TimeSpan.FromSeconds(3))) != delivery)
+                {
+                    return new ChatInputResult(true, "Sent.");
+                }
+
+                return new ChatInputResult(true, await delivery switch
+                {
+                    MessageDelivery.IntoTurn => "Sent into the running turn: it reads it at its next step.",
+                    MessageDelivery.Queued => "Queued: it is working, and gets this when the turn ends.",
+                    _ => "Sent.",
+                });
 
             case "stop":
                 if (!s.IsTurnRunning)

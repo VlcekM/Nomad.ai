@@ -8,7 +8,7 @@ Nomad Mobile is a phone app that shows every chat open in Nomad, on every one of
 
 - Lists the chats open in Nomad on every connected PC, for every backend (Claude Code, Codex, OpenCode, Antigravity). Each row shows the PC, folder, title, state (waiting on you, working, idle, stopped) and the last line said. Chats waiting on an answer sort first.
 - Opens a chat: its recent transcript, then the running turn as it streams.
-- Sends a message. During a running turn it queues, as a message typed on the PC does; to a chat whose process has stopped, it starts the chat again on its PC.
+- Sends a message, handled as one typed on the PC: during a running Claude Code turn it goes in and is read at the agent's next step, with other agents it queues behind the turn, and to a chat whose process has stopped it starts the chat again on its PC.
 - Answers permission and question cards. The first answer from anywhere wins and the card closes everywhere, as the relay already does between PCs.
 - Stops a running turn.
 
@@ -52,7 +52,7 @@ A `MobileHost` class in `Nomad.App`, beside `HubViewModel`, answers for the chat
 
 - The board is built from `MainViewModel.ReachableChats`: open chats that have a session id and were not started from the Claude app. It is the same set the chat tools (`list_chats`, `send_to_chat`) reach.
 - History is mapped from the transcript items the chat window already shows: user messages, assistant text, tool groups, cards, notices and errors. The window has already turned every backend into those items, so Antigravity needs no extra work and nothing is read from disk again.
-- Every input is applied on the UI thread under the same checks the desktop uses. An answer must name the pending card's `RequestId`, or it is refused. A question's answers are all checked before any of them is applied. "Allow for this session" is accepted only where the PC itself offers it. A prompt goes through the chat's own queue, which starts the process if it has stopped.
+- Every input is applied on the UI thread under the same checks the desktop uses. An answer must name the pending card's `RequestId`, or it is refused. A question's answers are all checked before any of them is applied. "Allow for this session" is accepted only where the PC itself offers it. A prompt is handled as one typed on the PC: into a running Claude Code turn, otherwise through the chat's own queue, which starts the process if it has stopped.
 - Live events already stream for every chat this PC starts while the hub relay is on (`AttachRelay` runs at every process start). Whether Antigravity's events stream correctly gets confirmed during the build.
 - Settings › Hub gains **Add phone**. It makes an enrollment token and shows a QR code of `nomad://enroll?hub=<address>&token=<token>`, with the link as text beside it.
 
