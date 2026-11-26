@@ -32,7 +32,7 @@ public sealed partial class EntryViewModel : ObservableObject
     public bool IsLocal { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsThinking), nameof(IsNotice), nameof(IsError), nameof(IsCard))]
+    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsThinking), nameof(IsNotice), nameof(IsError), nameof(IsCard), nameof(IsClipped))]
     public partial string Kind { get; set; }
 
     [ObservableProperty]
@@ -88,7 +88,8 @@ public sealed partial class EntryViewModel : ObservableObject
 
     public string FromText => "from " + Entry.From;
 
-    public bool IsClipped => !IsExpanded && Text.Length > ClipAt;
+    /// <summary>Long text shows clipped until Show more; a thought folds by itself instead.</summary>
+    public bool IsClipped => !IsThinking && !IsExpanded && Text.Length > ClipAt;
 
     public string ShownText => IsClipped ? Text[..ClipAt].TrimEnd() + "…" : Text;
 
@@ -103,6 +104,13 @@ public sealed partial class EntryViewModel : ObservableObject
     public void Update(ChatEntry entry)
     {
         var cardChanged = entry.Card != Entry.Card;
+        if (entry.Kind != Kind)
+        {
+            // Another kind of item now holds this place (a thought taken into an activity group): it starts folded.
+            IsOpen = false;
+            IsExpanded = false;
+        }
+
         Entry = entry;
         IsLocal = false;
         Kind = entry.Kind;

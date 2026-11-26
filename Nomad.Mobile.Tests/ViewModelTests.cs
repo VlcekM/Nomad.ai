@@ -240,9 +240,14 @@ public sealed class ViewModelTests
 
         var thought = chat.Entries[^1];
         Assert.True(thought.IsThinking);
+        Assert.False(new EntryViewModel(new ChatEntry(9, "thinking", new string('x', 3000))).IsClipped); // A thought folds by itself.
         Assert.Equal("First, check the lexer. …", thought.ThinkingText);
         thought.ToggleOpenCommand.Execute(null);
         Assert.Equal("First, check the lexer.\nThen the parser.", thought.ThinkingText);
+
+        // The agent then calls a tool, and the thought moves into a new activity in the same place: it starts folded.
+        thought.Update(new ChatEntry(thought.Index, "activity", "Read Lexer.cs", Steps: [new ChatStep("tool", "Read", "Lexer.cs")]));
+        Assert.False(thought.IsOpen);
     }
 
     [Fact]
@@ -252,6 +257,11 @@ public sealed class ViewModelTests
         Assert.Equal("Bash: dotnet test   --no-build", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Bash", input, null)));
         var empty = JsonDocument.Parse("{}").RootElement.Clone();
         Assert.Equal("Using Agent", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Agent", empty, null)));
+        var blank = JsonDocument.Parse("{\"description\":\"   \",\"prompt\":\"Look\"}").RootElement.Clone();
+        Assert.Equal("Agent: Look", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Agent", blank, null)));
+        var emoji = new string('a', 119) + "\U0001F600tail";
+        var withEmoji = JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string> { ["command"] = emoji })).RootElement.Clone();
+        Assert.Equal("Bash: " + new string('a', 119) + "…", ChatViewModel.ActivityLine(new ToolCallEvent("t", "Bash", withEmoji, null)));
     }
 
     [Fact]

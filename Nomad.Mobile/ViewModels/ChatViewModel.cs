@@ -399,15 +399,22 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
         {
             foreach (var property in call.Input.EnumerateObject())
             {
-                if (property.Value.ValueKind == System.Text.Json.JsonValueKind.String && property.Value.GetString() is { Length: > 0 } value)
+                if (property.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                    && property.Value.GetString()?.ReplaceLineEndings(" ").Trim() is { Length: > 0 } value)
                 {
-                    first = value.ReplaceLineEndings(" ").Trim();
+                    first = value;
                     break;
                 }
             }
         }
 
-        return first is null ? "Using " + call.Name : $"{call.Name}: {(first.Length > 120 ? first[..120] + "…" : first)}";
+        if (first is null)
+        {
+            return "Using " + call.Name;
+        }
+
+        var cut = first.Length > 120 && char.IsHighSurrogate(first[119]) ? 119 : 120; // Never half an emoji.
+        return $"{call.Name}: {(first.Length > 120 ? first[..cut] + "…" : first)}";
     }
 
     /// <summary>
