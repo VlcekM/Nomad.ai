@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <!-- Plain HTTP stays refused (Android's default): the hub must be reached over HTTPS. -->
+  <application android:label="Nomad" android:icon="@drawable/icon" android:usesCleartextTraffic="false" android:allowBackup="false" />
+</manifest>

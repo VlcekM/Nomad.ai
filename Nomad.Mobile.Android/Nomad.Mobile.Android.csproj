@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Android head of Nomad Mobile (docs/mobile.md §5): the activity, the Keystore-backed secret store and the nomad:// link
+    handler. Build it with the Android workload; the SDK and JDK locations come from the machine (ANDROID_HOME / JAVA_HOME, or
+    -p:AndroidSdkDirectory / -p:JavaSdkDirectory). A signed release takes the signing properties on the command line, as the
+    release workflow passes them; see .github/workflows/release.yml.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <RootNamespace>Nomad.Mobile.Android</RootNamespace>
+    <ApplicationId>ai.nomad.mobile</ApplicationId>
+    <ApplicationTitle>Nomad</ApplicationTitle>
+    <!-- The release's version ("2.9.0"), and as Android's whole-number version code 20900. -->
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(Version)').Minor), 100)))), $([System.Version]::Parse('$(Version)').Build)))</ApplicationVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- Phones are arm64; an emulator build passes -p:RuntimeIdentifiers=android-x64. -->
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == ''">android-arm64</RuntimeIdentifiers>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" Version="11.3.22" />
+    <!-- SkiaSharp 3, as the desktop app uses: Avalonia's own 2.88 ships a libSkiaSharp.so without the 16 KB page alignment that
+         Android 15+ devices with 16 KB pages require (build warning XA0141). -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Android" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
+  </ItemGroup>
+
+</Project>
