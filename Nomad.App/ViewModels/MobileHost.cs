@@ -421,15 +421,17 @@ internal sealed class MobileHost : IDisposable
         }
     }
 
-    /// <summary>Cuts text to <paramref name="max"/> characters, never between the two halves of a surrogate pair.</summary>
-    /// <summary>Most steps an activity sends, newest kept; and how much text they share (the entry's own limit).</summary>
+    /// <summary>Most steps an activity sends, newest kept.</summary>
     private const int MaxSteps = 60;
 
-    /// <summary>What an activity group did: its tool calls with their one line, and the thinking between them.</summary>
+    /// <summary>
+    /// What an activity group did: its tool calls with their one line, and the thinking between them. They share the entry's own
+    /// limit with its summary, so a page stays as large as it was before steps were sent.
+    /// </summary>
     private static List<ChatStep> Steps(ToolGroupItem group)
     {
         var steps = new List<ChatStep>();
-        var budget = MaxText;
+        var budget = MaxText - Math.Min(group.Summary.Length, MaxText);
         // Newest first, so a long group keeps what it is doing now; put back in order at the end.
         foreach (var entry in group.Entries.Reverse().Take(MaxSteps))
         {
@@ -460,6 +462,7 @@ internal sealed class MobileHost : IDisposable
 
     private static string OneLine(string text) => text.ReplaceLineEndings(" ").Trim();
 
+    /// <summary>Cuts text to <paramref name="max"/> characters, never between the two halves of a surrogate pair.</summary>
     internal static string Clip(string text, int max = MaxText)
     {
         if (text.Length <= max)
