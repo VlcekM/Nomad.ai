@@ -162,9 +162,18 @@ public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList
 
 /// <summary>
 /// One transcript entry as the phone shows it. <paramref name="Kind"/> is <c>user</c>, <c>assistant</c>, <c>activity</c>
-/// (a group of tool calls), <c>notice</c>, <c>error</c>, <c>permission</c> or <c>question</c>; the last two carry a card.
+/// (a group of tool calls), <c>thinking</c>, <c>notice</c>, <c>error</c>, <c>permission</c> or <c>question</c>; the last two
+/// carry a card. An activity's <paramref name="Steps"/> are what it did, in order: each command or file with its one line, and
+/// the thinking between them, so the phone can show what the agent is doing, not only that it is busy.
 /// </summary>
-public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null);
+public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null, IReadOnlyList<ChatStep>? Steps = null);
+
+/// <summary>
+/// One step of an activity: <paramref name="Kind"/> <c>tool</c> (<paramref name="Title"/> the tool's name, <paramref name="Detail"/>
+/// its one line, such as the command it runs) or <c>thinking</c> (<paramref name="Detail"/> the thought). <paramref name="Failed"/>:
+/// the tool call failed.
+/// </summary>
+public sealed record ChatStep(string Kind, string Title, string? Detail = null, bool Failed = false);
 
 /// <summary>A permission or question card. <paramref name="Id"/> names it in an answer; only a pending one takes one.</summary>
 public sealed record ChatCard(

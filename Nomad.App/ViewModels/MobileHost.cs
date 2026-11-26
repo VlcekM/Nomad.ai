@@ -187,7 +187,9 @@ internal sealed class MobileHost : IDisposable
     {
         UserMessageItem u => new ChatEntry(index, "user", Clip(u.DisplayText), u.IsFromChat ? u.FromChatName : u.FromDevice),
         AssistantTextItem a => new ChatEntry(index, "assistant", Clip(a.Text)),
-        ToolGroupItem g => new ChatEntry(index, "activity", g.Summary.Length > 0 ? Clip(g.Summary) : $"{g.Calls.Count} tool call{(g.Calls.Count == 1 ? "" : "s")}"),
+        ToolGroupItem g => new ChatEntry(index, "activity", g.Summary.Length > 0 ? Clip(g.Summary) : $"{g.Calls.Count} tool call{(g.Calls.Count == 1 ? "" : "s")}",
+            Steps: Steps(g)),
+        ThinkingItem t when t.DisplayText.Length > 0 => new ChatEntry(index, t.IsNarration ? "assistant" : "thinking", Clip(t.DisplayText)),
         QuestionItem q => new ChatEntry(index, "question", "", Card: new ChatCard(q.Request.RequestId, pending && !q.IsAnswered, null, null, null,
             false, null, null, q.AnswerText, [.. q.Questions.Select(e => new ChatQuestion(Clip(e.Header, 200), Clip(e.Question, 2000), e.MultiSelect,
                 [.. e.Options.Select(o => new ChatOption(o.Label, o.Description is { } d ? Clip(d, 2000) : null))]))])),
@@ -420,6 +422,44 @@ internal sealed class MobileHost : IDisposable
     }
 
     /// <summary>Cuts text to <paramref name="max"/> characters, never between the two halves of a surrogate pair.</summary>
+    /// <summary>Most steps an activity sends, newest kept; and how much text they share (the entry's own limit).</summary>
+    private const int MaxSteps = 60;
+
+    /// <summary>What an activity group did: its tool calls with their one line, and the thinking between them.</summary>
+    private static List<ChatStep> Steps(ToolGroupItem group)
+    {
+        var steps = new List<ChatStep>();
+        var budget = MaxText;
+        // Newest first, so a long group keeps what it is doing now; put back in order at the end.
+        foreach (var entry in group.Entries.Reverse().Take(MaxSteps))
+        {
+            ChatStep? step = entry switch
+            {
+                ToolCallItem call => new ChatStep("tool", call.Name, Clip(OneLine(call.Summary.Length > 0 ? call.Summary : call.InputText), 400),
+                    call.Status == ToolStatus.Failed),
+                ThinkingItem { DisplayText.Length: > 0 } thinking => new ChatStep("thinking", "Thought", Clip(thinking.DisplayText, 2_000)),
+                _ => null,
+            };
+            if (step is null)
+            {
+                continue;
+            }
+
+            budget -= step.Title.Length + (step.Detail?.Length ?? 0);
+            if (budget < 0)
+            {
+                break;
+            }
+
+            steps.Add(step);
+        }
+
+        steps.Reverse();
+        return steps;
+    }
+
+    private static string OneLine(string text) => text.ReplaceLineEndings(" ").Trim();
+
     internal static string Clip(string text, int max = MaxText)
     {
         if (text.Length <= max)
