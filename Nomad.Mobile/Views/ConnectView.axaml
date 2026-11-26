@@ -14,15 +14,18 @@
 
       <StackPanel Spacing="6">
         <TextBlock Classes="section" Text="Hub address" />
-        <TextBox Text="{Binding Address}" Watermark="https://hub.example.ts.net" AcceptsReturn="False" />
+        <TextBox Text="{Binding Address}" Watermark="https://hub.example.ts.net" AcceptsReturn="False"
+                 TextInputOptions.ContentType="Url" TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
       </StackPanel>
       <StackPanel Spacing="6">
         <TextBlock Classes="section" Text="Enrollment token" />
-        <TextBox Text="{Binding Token}" Watermark="From Add phone on a PC" AcceptsReturn="False" />
+        <!-- A code: never autocorrected or capitalized, or it would no longer match. -->
+        <TextBox Text="{Binding Token}" Watermark="From Add phone on a PC" AcceptsReturn="False"
+                 TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
       </StackPanel>
       <StackPanel Spacing="6">
         <TextBlock Classes="section" Text="This phone's name" />
-        <TextBox Text="{Binding DeviceName}" AcceptsReturn="False" />
+        <TextBox Text="{Binding DeviceName}" AcceptsReturn="False" TextInputOptions.AutoCapitalization="True" />
         <TextBlock Classes="muted" TextWrapping="Wrap" Text="Shown on prompts you send and in the PCs' device list." />
       </StackPanel>
 
