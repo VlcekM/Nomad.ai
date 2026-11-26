@@ -22,6 +22,8 @@
     <NomadAndroidAbi Condition="'$(NomadAndroidAbi)' == ''">android-arm64</NomadAndroidAbi>
     <RuntimeIdentifiers>$(NomadAndroidAbi)</RuntimeIdentifiers>
     <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <!-- Exceptions keep their messages in a release build, so a crash report says what went wrong. -->
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
   </PropertyGroup>
 
   <ItemGroup>

@@ -43,7 +43,17 @@ public class MainActivity : AvaloniaMainActivity<App>
 
     protected override void OnCreate(Bundle? savedInstanceState)
     {
-        base.OnCreate(savedInstanceState);
+        try
+        {
+            base.OnCreate(savedInstanceState);
+        }
+        catch (Exception ex)
+        {
+            // Android's own crash report shows only the outer exception; the whole chain goes to the log ("adb logcat -s Nomad").
+            global::Android.Util.Log.Error("Nomad", ex.ToString());
+            throw;
+        }
+
         OpenLink(Intent);
     }
 
