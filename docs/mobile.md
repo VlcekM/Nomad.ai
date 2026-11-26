@@ -96,7 +96,7 @@ The hub speaks plain HTTP, and Android refuses plain HTTP by default, so the app
 
 ## 6. Security
 
-- A phone holds a device secret, as a PC does. It can do what a watching PC can (prompt, answer, stop), change a chat's model, effort and mode, and start a chat in a folder on a PC that shares its chats. It reads no files and runs no commands of its own: everything goes through the agent, under the chat's permission mode.
+- A phone holds a device secret, as a PC does. It can do what a watching PC can (prompt, answer, stop), change a chat's model, effort and mode, and start a chat on a PC that shares its chats, in one of the folders that PC lists. It reads no files and runs no commands of its own: everything goes through the agent, under the chat's permission mode, which the phone can set like the PC's own menus can, Bypass permissions included. An enrolled phone is trusted as much as the PC's own keyboard, which is why a lost one is revoked at once.
 - The PC checks every input as if it were typed there (§4).
 - The secret is stored at rest under the Android Keystore.
 - A lost phone is revoked from Settings › Hub on any PC; the hub ends its open connections at once, and its secret no longer signs in.

@@ -295,6 +295,9 @@ public sealed class HubClient : IAsyncDisposable
     public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
         Live.InvokeAsync(HubNames.BoardPublish, chats, ct);
 
+    /// <summary>This PC stopped sharing: off the board.</summary>
+    public Task BoardWithdrawAsync(CancellationToken ct = default) => Live.InvokeAsync(HubNames.BoardWithdraw, ct);
+
     /// <summary>The board now; <see cref="BoardChanged"/> carries every change after it.</summary>
     public Task<IReadOnlyList<BoardDevice>> BoardWatchAsync(CancellationToken ct = default) =>
         Live.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch, ct);

@@ -54,6 +54,27 @@ public sealed class BoardTests
     }
 
     [Fact]
+    public async Task APcThatStopsSharingLeavesTheBoardButStaysConnected()
+    {
+        using var hub = new HubFactory();
+        await using var pc = hub.Connect(await hub.EnrollAsync("PC-A"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
+        await pc.StartAsync();
+        await phone.StartAsync();
+
+        await pc.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s1") });
+        Assert.True(Assert.Single(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch)).Online);
+
+        // Sharing off: gone from the board, where an empty publication would have kept it online with no chats.
+        await pc.InvokeAsync(HubNames.BoardWithdraw);
+        Assert.Empty(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
+        Assert.Equal(HubConnectionState.Connected, pc.State);
+
+        // A phone may not withdraw anything.
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync(HubNames.BoardWithdraw));
+    }
+
+    [Fact]
     public async Task ThePhoneReadsAndDrivesAChatThroughThePcThatHasItOpen()
     {
         using var hub = new HubFactory();

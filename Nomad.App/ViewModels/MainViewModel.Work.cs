@@ -129,6 +129,9 @@ public sealed partial class MainViewModel
         return session;
     }
 
+    /// <summary>A phone's chat that failed to start: no longer counted as starting.</summary>
+    public void DropPhoneChat(SessionViewModel session) => _starting.Remove(session);
+
     /// <summary>
     /// Opens the listed session <paramref name="sessionId"/>; false when it isn't listed (deleted, say).
     /// </summary>

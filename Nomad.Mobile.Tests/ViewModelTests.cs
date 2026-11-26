@@ -175,6 +175,31 @@ public sealed class ViewModelTests
         Assert.Same(page, main.Page);
         Assert.Equal("That folder isn't on this PC.", page.Status);
         Assert.True(page.StatusIsProblem);
+
+        // Tried again, it's a new request, not the refused one's id (which the PC would answer from memory).
+        await page.StartCommand.ExecuteAsync(null);
+        Assert.Equal(2, hub.Started.Count);
+        Assert.NotEqual(hub.Started[0].Chat.Id, hub.Started[1].Chat.Id);
+    }
+
+    [Fact]
+    public async Task A_start_whose_answer_was_lost_is_resent_with_its_id_unless_it_changed()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.StartAnswer = chat => hub.Started.Count < 3 ? throw new TimeoutException("No answer.") : new NewChatResult(true, "Started.", "new-1");
+
+        main.Chats.NewChatCommand.Execute(null);
+        var page = Assert.IsType<NewChatViewModel>(main.Page);
+        await page.LoadAsync();
+        page.Prompt = "Hello";
+        await page.StartCommand.ExecuteAsync(null);
+        await page.StartCommand.ExecuteAsync(null);
+        page.Prompt = "Hello there";
+        await page.StartCommand.ExecuteAsync(null);
+
+        Assert.Equal(hub.Started[0].Chat.Id, hub.Started[1].Chat.Id);
+        Assert.NotEqual(hub.Started[1].Chat.Id, hub.Started[2].Chat.Id);
+        Assert.Equal("Hello there", hub.Started[2].Chat.Prompt);
     }
 
     [Fact]
@@ -308,6 +333,25 @@ public sealed class ViewModelTests
         Assert.Contains("Watch d1", hub.Calls); // The turn so far comes with it.
         Assert.Contains("History d1 newest", hub.Calls);
         Assert.Equal(5, chat.Entries.Count);
+    }
+
+    [Fact]
+    public async Task After_the_hub_restarts_its_board_counts_again_from_one_and_the_phone_follows_it()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("d1", "Before the restart", "idle", 0)], 500));
+
+        // The restarted hub's board, and its first change, carry low numbers.
+        hub.SetConnected(false);
+        hub.Board.Clear();
+        hub.Board.Add(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("d1", "After the restart", "idle", 0)], 1));
+        hub.SetConnected(true);
+        await Task.Yield();
+        Assert.Equal(["Desk PC"], main.Chats.Groups.Select(g => g.Name));
+        Assert.Equal("After the restart", main.Chats.Groups[0].Chats.Single().Title);
+
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC", [Samples.Chat("d2", "New since", "working", 0)], 2));
+        Assert.Equal("New since", main.Chats.Groups[0].Chats.Single().Title);
     }
 
     [Fact]

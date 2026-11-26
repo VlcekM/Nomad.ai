@@ -12,7 +12,9 @@ public sealed partial class NewChatViewModel : ObservableObject
 {
     private readonly MainViewModel _main;
     private NewChatOptions? _options;
-    private string? _startId;
+    // The last start sent, with its id: tried again unchanged after a lost answer, it reuses the id so the PC doesn't start a
+    // second chat; changed, it's a new request.
+    private NewChat? _lastStart;
 
     public NewChatViewModel(MainViewModel main)
     {
@@ -127,17 +129,21 @@ public sealed partial class NewChatViewModel : ObservableObject
         Show("Starting…", problem: false);
         var before = _main.Chats.Groups.FirstOrDefault(g => g.DeviceId == device)?.Chats.Select(c => c.SessionId).ToHashSet() ?? [];
         var chat = new NewChat(agent.Id, Folder.Selected is { Id.Length: > 0 } folder ? folder.Id : null,
-            Model.Selected?.Id, Effort.Selected?.Id, Mode.Selected?.Id, Prompt.Trim(), _startId ??= Guid.NewGuid().ToString("N"));
+            Model.Selected?.Id, Effort.Selected?.Id, Mode.Selected?.Id, Prompt.Trim());
+        chat = _lastStart is { } last && last with { Id = null } == chat ? last : chat with { Id = Guid.NewGuid().ToString("N") };
+        _lastStart = chat;
         try
         {
             var result = await connection.ChatStartAsync(device, chat);
             if (!result.Ok)
             {
+                // Refused, so nothing started: the next try is a new request.
+                _lastStart = null;
                 Show(result.Message, problem: true);
                 return;
             }
 
-            _startId = null;
+            _lastStart = null;
             if (await WaitForRowAsync(device, agent.Id, result.SessionId, before) is { } row)
             {
                 _main.OpenChatRow(row);

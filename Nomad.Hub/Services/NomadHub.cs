@@ -118,6 +118,17 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
         await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
     }
 
+    /// <summary>This PC stopped sharing: off the board, as if it had gone.</summary>
+    public async Task BoardWithdraw()
+    {
+        PcOnly();
+        RequireRelay();
+        if (board.Drop(Context.ConnectionId) is { } device)
+        {
+            await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
+        }
+    }
+
     /// <summary>The board as it is now; every change after it comes as <see cref="HubNames.BoardChanged"/>.</summary>
     public async Task<IReadOnlyList<BoardDevice>> BoardWatch()
     {

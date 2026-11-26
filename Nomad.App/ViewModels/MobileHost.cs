@@ -76,9 +76,10 @@ internal sealed class MobileHost : IDisposable
             return;
         }
 
-        // Not shared: the board lists none of this PC's chats (sent once, when it stops sharing).
-        List<BoardChat> chats = _enabled() ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board)] : [];
-        var json = JsonSerializer.Serialize(chats, HubJson.Default.IReadOnlyListBoardChat);
+        // Not shared: off the board, so phones show this PC offline (sent once, when it stops sharing or connects).
+        var sharing = _enabled();
+        List<BoardChat> chats = sharing ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board)] : [];
+        var json = sharing ? JsonSerializer.Serialize(chats, HubJson.Default.IReadOnlyListBoardChat) : NotSharing;
         if (json == _lastBoard)
         {
             return;
@@ -87,7 +88,15 @@ internal sealed class MobileHost : IDisposable
         _publishing = true;
         try
         {
-            await _client.BoardPublishAsync(chats);
+            if (sharing)
+            {
+                await _client.BoardPublishAsync(chats);
+            }
+            else
+            {
+                await WithdrawAsync();
+            }
+
             _lastBoard = json;
         }
         catch (Exception e) when (e is InvalidOperationException or Microsoft.AspNetCore.SignalR.HubException or IOException or TaskCanceledException)
@@ -97,6 +106,21 @@ internal sealed class MobileHost : IDisposable
         finally
         {
             _publishing = false;
+        }
+    }
+
+    private const string NotSharing = "not sharing";
+
+    /// <summary>Off the board; a hub older than the call gets the empty list it understood as "none shared".</summary>
+    private async Task WithdrawAsync()
+    {
+        try
+        {
+            await _client.BoardWithdrawAsync();
+        }
+        catch (Microsoft.AspNetCore.SignalR.HubException e) when (e.Message.Contains("Method does not exist", StringComparison.OrdinalIgnoreCase))
+        {
+            await _client.BoardPublishAsync([]);
         }
     }
 
@@ -410,7 +434,7 @@ internal sealed class MobileHost : IDisposable
             throw new InvalidOperationException("This PC isn't sharing its chats right now.");
         }
 
-        await Task.WhenAny(Task.WhenAll(_main.LoadCodexCatalogAsync(), _main.LoadOpenCodeCatalogAsync()), Task.Delay(TimeSpan.FromSeconds(6)));
+        await Task.WhenAny(Task.WhenAll(_main.LoadCodexCatalogAsync(), _main.LoadOpenCodeCatalogAsync()), Task.Delay(CatalogWait));
 
         var agents = AgentBackends.All
             .Select(b => new NewChatAgent(b.Id, b.Name, SettingsOf(new SessionViewModel(_main, null, b.Id))))
@@ -421,11 +445,11 @@ internal sealed class MobileHost : IDisposable
     // Chats started for a phone's request id, so a retry doesn't start a second one.
     private readonly Dictionary<string, Task<NewChatResult>> _started = [];
 
-    private Task<NewChatResult> StartAsync(NewChat chat, string from)
+    private async Task<NewChatResult> StartAsync(NewChat chat, string from)
     {
         if (chat.Id is not { } key)
         {
-            return StartOnceAsync(chat, from);
+            return await StartOnceAsync(chat, from);
         }
 
         if (!_started.TryGetValue(key, out var started))
@@ -438,12 +462,39 @@ internal sealed class MobileHost : IDisposable
             _started[key] = started = StartOnceAsync(chat, from);
         }
 
-        return started;
+        // A refusal or failure started nothing, so it isn't kept: the same request tried again (sharing turned on, the folder
+        // made) gets a fresh answer.
+        try
+        {
+            var result = await started;
+            if (!result.Ok)
+            {
+                ForgetStart(key, started);
+            }
+
+            return result;
+        }
+        catch
+        {
+            ForgetStart(key, started);
+            throw;
+        }
     }
 
-    /// <summary>How long a start waits for the new chat's session id: within the hub's 15 seconds (an agent's start, with its
-    /// hooks, can take most of that).</summary>
-    private static readonly TimeSpan StartWait = TimeSpan.FromSeconds(12);
+    private void ForgetStart(string key, Task<NewChatResult> started)
+    {
+        if (_started.TryGetValue(key, out var kept) && kept == started)
+        {
+            _started.Remove(key);
+        }
+    }
+
+    /// <summary>How long a start waits for the new chat's session id. Kept short, since the hub's other calls to this PC wait
+    /// behind it (see <see cref="AnswerWait"/>); a slower start answers without the id and the phone finds the chat on the board.</summary>
+    private static readonly TimeSpan StartWait = TimeSpan.FromSeconds(4);
+
+    /// <summary>How long new-chat options wait for the Codex and OpenCode model lists, for the same reason.</summary>
+    private static readonly TimeSpan CatalogWait = TimeSpan.FromSeconds(4);
 
     /// <summary>
     /// Starts a chat as the new-session page here would, but in the background (the PC's window stays where it is), and sends it
@@ -468,9 +519,12 @@ internal sealed class MobileHost : IDisposable
             return new NewChatResult(false, "Nomad doesn't know that agent.");
         }
 
-        if (chat.Folder is { } folder && !Directory.Exists(folder))
+        // Only a folder the PC offered (its recent ones), so a phone can't point it anywhere else, a network share included.
+        if (chat.Folder is { } folder
+            && (!_main.RecentFolders.Any(f => string.Equals(Path.TrimEndingDirectorySeparator(f), Path.TrimEndingDirectorySeparator(folder), StringComparison.OrdinalIgnoreCase))
+                || !Directory.Exists(folder)))
         {
-            return new NewChatResult(false, "That folder isn't on this PC.");
+            return new NewChatResult(false, "That folder isn't on this PC's list.");
         }
 
         var session = _main.StartPhoneChat(chat.Backend, chat.Folder);
@@ -495,6 +549,7 @@ internal sealed class MobileHost : IDisposable
         {
             if (delivery.IsCompleted && delivery.Result == MessageDelivery.Failed)
             {
+                _main.DropPhoneChat(session);
                 return new NewChatResult(false,
                     session.Items.LastOrDefault() is ErrorItem error ? "It couldn't start: " + error.Message : "It couldn't start. Look at Nomad on the PC.");
             }

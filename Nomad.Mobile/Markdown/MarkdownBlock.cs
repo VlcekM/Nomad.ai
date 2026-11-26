@@ -442,11 +442,13 @@ public sealed class MarkdownBlock : ContentControl
             return null;
         }
 
+        // The character under the finger: TextPosition moves on to the next one over a character's right half.
+        var position = hit.CharacterHit.FirstCharacterIndex;
         var start = 0;
         foreach (var inline in inlines)
         {
             var length = LengthOf(inline);
-            if (hit.TextPosition >= start && hit.TextPosition < start + length)
+            if (position >= start && position < start + length)
             {
                 return inline is Run r ? _links.GetValueOrDefault(r) : null;
             }

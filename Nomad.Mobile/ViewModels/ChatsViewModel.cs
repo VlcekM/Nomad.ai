@@ -89,6 +89,12 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
         }
     }
 
+    /// <summary>
+    /// A new connection: the hub may have restarted and counts its changes from 1 again, so what was seen before says nothing
+    /// about what comes now. The board fetched next replaces it.
+    /// </summary>
+    public void ForgetSequence() => _seen.Clear();
+
     /// <summary>Takes a PC's entry unless a newer one was seen; false when it was older.</summary>
     private bool Take(BoardDevice device)
     {

@@ -163,6 +163,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (up)
         {
             // Everything is fetched again: the board, and the open chat's live turn and newest page.
+            Chats.ForgetSequence();
             _ = Chats.RefreshAsync();
             if (OpenChat is { } chat)
             {

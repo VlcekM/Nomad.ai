@@ -286,6 +286,10 @@ public static class HubNames
     /// <summary>Client → server (a PC): <c>(IReadOnlyList&lt;BoardChat&gt;)</c>, the chats open in it now, all of them.</summary>
     public const string BoardPublish = "BoardPublish";
 
+    /// <summary>Client → server (a PC): no arguments, it stopped sharing its chats: off the board, so it shows offline to phones
+    /// (an empty <see cref="BoardPublish"/> means sharing with nothing open).</summary>
+    public const string BoardWithdraw = "BoardWithdraw";
+
     /// <summary>Client → server (the phone): → <c>IReadOnlyList&lt;BoardDevice&gt;</c>, and <see cref="BoardChanged"/> from then on.</summary>
     public const string BoardWatch = "BoardWatch";
 
