@@ -91,6 +91,63 @@ public sealed class BoardTests
     }
 
     [Fact]
+    public async Task APhoneStartsAChatAndReadsItsSettingsThroughThePc()
+    {
+        using var hub = new HubFactory();
+        await using var pc = hub.Connect(await hub.EnrollAsync("PC-A"));
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
+        var started = new List<(NewChat Chat, string From)>();
+        var settings = new ChatSettings("opus", [new ChatChoice("opus", "Opus")], "high", [new ChatChoice("high", "High")], "plan", [new ChatChoice("plan", "Plan")]);
+        pc.On<NewChatOptions>(HubNames.NewChatOptionsRequested, () =>
+            Task.FromResult(new NewChatOptions([new NewChatAgent("claude-code", "Claude Code", settings)], "claude-code", ["R:\\Work"])));
+        pc.On<NewChat, string, NewChatResult>(HubNames.ChatStartRequested, (chat, from) =>
+        {
+            started.Add((chat, from));
+            return Task.FromResult(new NewChatResult(true, "Started.", "s9"));
+        });
+        pc.On<string, string, ChatSettings>(HubNames.ChatSettingsRequested, (_, _) => Task.FromResult(settings));
+        await pc.StartAsync();
+        await phone.StartAsync();
+
+        // A PC with no chats open is still on the board, online, and takes a new chat.
+        await pc.InvokeAsync(HubNames.BoardPublish, new List<BoardChat>());
+        var device = Assert.Single(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
+        Assert.True(device.Online);
+        Assert.Empty(device.Chats);
+
+        var options = await phone.InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsGet, device.DeviceId);
+        Assert.Equal("Opus", Assert.Single(options.Agents).Settings.Models.Single().Name);
+        var result = await phone.InvokeAsync<NewChatResult>(HubNames.ChatStart, device.DeviceId,
+            new NewChat("claude-code", "R:\\Work", "opus", "high", "plan", "Hello"));
+        Assert.Equal((true, "s9"), (result.Ok, result.SessionId));
+        Assert.Equal(("Hello", "Phone"), (started.Single().Chat.Prompt, started.Single().From));
+
+        // A chat's settings come from the PC that has it open.
+        await pc.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s9") });
+        Assert.Equal("plan", (await phone.InvokeAsync<ChatSettings>(HubNames.ChatSettingsGet, device.DeviceId, "antigravity", "s9")).Mode);
+
+        // No PC by that id: refused by the hub, never reaching a PC.
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsGet, Guid.NewGuid()));
+
+        // Gone, it is offline.
+        var changes = new List<BoardDevice>();
+        var changed = new SemaphoreSlim(0);
+        phone.On<BoardDevice>(HubNames.BoardChanged, d =>
+        {
+            lock (changes)
+            {
+                changes.Add(d);
+            }
+
+            changed.Release();
+        });
+        await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch);
+        await pc.StopAsync();
+        Assert.True(await changed.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.False(changes[^1].Online);
+    }
+
+    [Fact]
     public async Task AHubWithTheRelayOffHasNoBoard()
     {
         using var hub = new HubFactory(relay: false);

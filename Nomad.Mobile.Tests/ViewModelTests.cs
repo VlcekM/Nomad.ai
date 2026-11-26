@@ -134,6 +134,33 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task A_PC_with_no_chats_open_stays_listed_while_online_and_leaves_when_gone()
+    {
+        var (main, hub, _) = await SignedInAsync();
+
+        hub.RaiseBoard(new BoardDevice(Samples.Laptop, "Laptop", [], 30, Online: true));
+        Assert.Equal("No open chats", main.Chats.Groups.Single(g => g.Name == "Laptop").Summary);
+        Assert.Contains(main.Chats.Devices, d => d.DeviceName == "Laptop"); // A new chat can start there.
+
+        hub.RaiseBoard(new BoardDevice(Samples.Laptop, "Laptop", [], 31));
+        Assert.DoesNotContain(main.Chats.Groups, g => g.Name == "Laptop");
+    }
+
+    [Fact]
+    public async Task Connecting_to_another_hub_drops_the_old_hubs_PCs()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        Assert.Equal(2, main.Chats.Groups.Count);
+
+        // The new hub has seen fewer changes, so its sequence numbers are lower: the old PCs must still go.
+        hub.Board.Clear();
+        hub.Board.Add(new BoardDevice(Guid.NewGuid(), "Test PC", [Samples.Chat("t1", "Test chat", "idle", 1)], 2, Online: true));
+        await main.EnrollAsync(new Uri("http://10.0.2.2:8096/"), "token", "Test phone");
+
+        Assert.Equal(["Test PC"], main.Chats.Groups.Select(g => g.Name));
+    }
+
+    [Fact]
     public async Task A_new_chat_the_PC_refuses_stays_with_its_reason()
     {
         var (main, hub, _) = await SignedInAsync();

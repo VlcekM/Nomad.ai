@@ -394,9 +394,9 @@ public sealed class BoardState
     /// <summary>A PC's entry: the chats of all its connections, the latest publication's first, each chat once. Under the lock.</summary>
     private BoardDevice EntryOf(Guid device, string name)
     {
-        var chats = _byConnection.Values.Where(v => v.Device == device).OrderByDescending(v => v.Seq).SelectMany(v => v.Chats)
-            .DistinctBy(c => (c.Backend, c.SessionId)).ToList();
-        return new BoardDevice(device, name, chats, _seq);
+        var connections = _byConnection.Values.Where(v => v.Device == device).ToList();
+        var chats = connections.OrderByDescending(v => v.Seq).SelectMany(v => v.Chats).DistinctBy(c => (c.Backend, c.SessionId)).ToList();
+        return new BoardDevice(device, name, chats, _seq, Online: connections.Count > 0);
     }
 }
 

@@ -78,6 +78,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async Task UseAsync(Enrollment enrollment)
     {
+        // Another hub's PCs and sequence numbers mean nothing on this one.
+        if (Enrollment is not null && Enrollment != enrollment)
+        {
+            Chats.Clear();
+        }
+
         Enrollment = enrollment;
         var connection = _hubs.Open(enrollment.Hub, enrollment.Secret);
         Connection = connection;

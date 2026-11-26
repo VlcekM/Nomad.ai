@@ -147,9 +147,10 @@ public sealed record BoardChat(
 
 /// <summary>
 /// A PC on the board and the chats open in its Nomad; no chats when it has gone. <paramref name="Seq"/> grows with every change
-/// on the board, so a watcher keeps a PC's entry only when its sequence is newer than the one it has.
+/// on the board, so a watcher keeps a PC's entry only when its sequence is newer than the one it has. <paramref name="Online"/>:
+/// the PC is connected and lists its chats, even with none open (a new chat can start there); false once it has gone.
 /// </summary>
-public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList<BoardChat> Chats, long Seq = 0);
+public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList<BoardChat> Chats, long Seq = 0, bool Online = false);
 
 /// <summary>
 /// A page of a chat's transcript, oldest first: the entries before the cursor asked for (the newest without one).

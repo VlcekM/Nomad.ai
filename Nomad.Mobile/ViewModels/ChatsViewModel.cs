@@ -77,7 +77,10 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
         }
     }
 
-    /// <summary>One PC's entry changed. An older update than the one held is ignored; a PC with no chats leaves the list.</summary>
+    /// <summary>
+    /// One PC's entry changed. An older update than the one held is ignored; a PC that has gone leaves the list (one still
+    /// connected with no chats open stays, so a new chat can start there).
+    /// </summary>
     public void Apply(BoardDevice device)
     {
         if (Take(device))
@@ -95,7 +98,7 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
         }
 
         _seen[device.DeviceId] = device.Seq;
-        if (device.Chats.Count == 0)
+        if (device.Chats.Count == 0 && !device.Online)
         {
             _devices.Remove(device.DeviceId);
         }
@@ -220,7 +223,12 @@ public sealed partial class PcGroupViewModel(Guid deviceId) : ObservableObject
     {
         Name = device.DeviceName;
         var waiting = device.Chats.Count(c => c.State == "waiting");
-        Summary = waiting > 0 ? $"{waiting} waiting on you" : device.Chats.Count == 1 ? "1 chat" : $"{device.Chats.Count} chats";
+        Summary = waiting > 0 ? $"{waiting} waiting on you" : device.Chats.Count switch
+        {
+            0 => "No open chats",
+            1 => "1 chat",
+            var n => $"{n} chats",
+        };
         // The first time a PC is seen its chats come in board order (waiting, working, newest); after that each keeps its place.
         foreach (var chat in device.Chats.OrderBy(c => ChatsViewModel.Rank(c.State)).ThenByDescending(c => c.LastActivityUtc))
         {
