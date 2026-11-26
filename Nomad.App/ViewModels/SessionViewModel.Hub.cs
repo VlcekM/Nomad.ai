@@ -144,6 +144,7 @@ public sealed partial class SessionViewModel
                     var decoded = (input.Images ?? []).Select((i, n) => PromptImages.FromBytes(i.Data, i.MediaType, $"image {n + 1}")).ToList();
                     List<Attachment> attachments = [.. files, .. decoded.OfType<Attachment>()];
                     _steered[steeredUuid] = steered;
+                    _waitingPrompts.Add(steeredUuid);
                     _steeredInput[steeredUuid] = (shown, attachments, from);
                     ContentChanged?.Invoke();
                     _main.OnSessionActivity(this);
@@ -156,6 +157,7 @@ public sealed partial class SessionViewModel
                         // Not lost: it waits in the queue, as one typed here would, and goes out with the next prompt.
                         _steered.Remove(steeredUuid);
                         _steeredInput.Remove(steeredUuid);
+                        _waitingPrompts.Remove(steeredUuid);
                         Items.Remove(steered);
                         if (attachments.Count < files.Count + decoded.Count)
                         {

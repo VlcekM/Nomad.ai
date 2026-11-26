@@ -2098,6 +2098,15 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private readonly HashSet<string> _foregroundShells = new(StringComparer.Ordinal);
 
+    /// <summary>Commands this chat moved to the background, by their call: their call's result is their launch, not their end.</summary>
+    private readonly HashSet<string> _movedShells = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Prompts sent into this turn and not yet read, by uuid: what a running command is moved aside for. Only this turn's: one the
+    /// CLI never confirms must not move every later command.
+    /// </summary>
+    private readonly HashSet<string> _waitingPrompts = new(StringComparer.Ordinal);
+
     /// <summary>
     /// A prompt sent into the turn waits to be read while a command runs in the foreground (Claude Code reads it only once the
     /// command's call returns): the command moves to the background, as Ctrl+B does, so the prompt is read now. The command
@@ -2106,7 +2115,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// </summary>
     private async Task BackgroundForWaitingPromptAsync()
     {
-        if (_steered.Count == 0 || _foregroundShells.Count == 0 || _backend is not ClaudeCodeBackend { IsProcessRunning: true } claude)
+        if (_waitingPrompts.Count == 0 || _foregroundShells.Count == 0 || _backend is not ClaudeCodeBackend { IsProcessRunning: true } claude)
         {
             return;
         }
@@ -2118,6 +2127,7 @@ public sealed partial class SessionViewModel : ObservableObject
                 if (await claude.BackgroundTaskAsync(call))
                 {
                     _foregroundShells.Remove(call);
+                    _movedShells.Add(call);
                 }
             }
             catch (Exception)
@@ -3016,6 +3026,7 @@ public sealed partial class SessionViewModel : ObservableObject
             var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
             _steered[uuid] = message;
             _steeredInput[uuid] = (text, attachments, from);
+            _waitingPrompts.Add(uuid);
             await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
             try
             {
@@ -3034,6 +3045,7 @@ public sealed partial class SessionViewModel : ObservableObject
             // Not lost: it waits in the queue, as it would have before, and goes out with the next prompt.
             _steered.Remove(uuid);
             _steeredInput.Remove(uuid);
+            _waitingPrompts.Remove(uuid);
             Items.Remove(message);
             var queued = Queue(text, attachments, from);
             ContentChanged?.Invoke();
@@ -4218,6 +4230,7 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case PromptTakenEvent taken when _steered.Remove(taken.Uuid, out var steered):
                 _steeredInput.Remove(taken.Uuid);
+                _waitingPrompts.Remove(taken.Uuid);
                 steered.IsSeen = true;
                 break;
 
@@ -4376,10 +4389,11 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case ToolResultEvent r when r.ParentToolUseId is null:
                 _foregroundShells.Remove(r.ToolUseId);
-                if (IsClaudeCode && !r.IsError && !_backgroundTaskById.ContainsKey(r.ToolUseId) && TaskNotification.LaunchedTaskId(r.Text) is { } movedId
+                if (_movedShells.Remove(r.ToolUseId) && !r.IsError && !_backgroundTaskById.ContainsKey(r.ToolUseId)
                     && _calls.TryGetValue(r.ToolUseId, out var moved))
                 {
-                    // A foreground command moved to the background (here, or with Ctrl+B in a terminal): it runs on, shown as one.
+                    // A foreground command this chat moved to the background: it runs on, shown as one (its id from the launch line).
+                    var movedId = TaskNotification.LaunchedTaskId(r.Text);
                     StartBackgroundTask(r.ToolUseId, moved.Name, moved.Input, taskId: movedId);
                     OnBackgroundTasksRunningChanged();
                 }
@@ -4477,6 +4491,8 @@ public sealed partial class SessionViewModel : ObservableObject
                 _steered.Clear();
                 _steeredInput.Clear();
                 _foregroundShells.Clear();
+                _movedShells.Clear();
+                _waitingPrompts.Clear();
 
                 // After a Stop they wait for Send now, as queued prompts do.
                 if (untaken.Count > 0 && !x.Expected)
@@ -4793,6 +4809,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
+        _waitingPrompts.Clear(); // Read by now, or carried into a turn of their own: nothing to move a command aside for.
         foreach (var task in _backgroundTaskById.Values.Where(task => task.IsForeground && task.IsRunning).ToList())
             task.Finish(result.IsError, null, stopped: result.Interrupted);
 
