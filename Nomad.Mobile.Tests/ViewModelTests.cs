@@ -41,7 +41,7 @@ public sealed class ViewModelTests
 
         Assert.True(main.IsConnected);
         Assert.Null(main.Chats.Status);
-        // The PC with something waiting comes first; within it, waiting, working, then by last activity.
+        // PCs by name; within one, at first sight: waiting, working, then by last activity.
         Assert.Equal(["Desk PC", "Laptop"], main.Chats.Groups.Select(g => g.Name));
         Assert.Equal(["d3", "d2", "d1", "d4"], main.Chats.Groups[0].Chats.Select(c => c.SessionId));
         Assert.Equal("1 waiting on you", main.Chats.Groups[0].Summary);
@@ -49,6 +49,24 @@ public sealed class ViewModelTests
         Assert.Equal("Waiting: allow Bash", waiting.StateText);
         Assert.Equal("notes", waiting.Folder);
         Assert.Equal("Nomad.ai", main.Chats.Groups[0].Chats[1].Folder); // A Windows path, read on a phone.
+    }
+
+    [Fact]
+    public async Task Chats_keep_their_place_as_they_work_and_new_ones_go_last()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var desk = main.Chats.Groups[0];
+        var before = desk.Chats.Select(c => c.SessionId).ToList();
+
+        // The last chat starts working and the rest go idle: nothing moves under the finger.
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC",
+            [.. before.Select((id, n) => Samples.Chat(id, "Chat " + id, n == before.Count - 1 ? "working" : "idle", n))], 20));
+        Assert.Equal(before, desk.Chats.Select(c => c.SessionId));
+
+        // A new chat goes at the end, though it is the newest and waiting.
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC",
+            [Samples.Chat("d9", "New", "waiting", 0, waiting: "a question"), .. before.Select((id, n) => Samples.Chat(id, "Chat " + id, "idle", n + 1))], 21));
+        Assert.Equal([.. before, "d9"], desk.Chats.Select(c => c.SessionId));
     }
 
     [Fact]

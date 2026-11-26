@@ -131,11 +131,10 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
 
     private void Rebuild()
     {
-        // PCs with something waiting on the user come first, then by name. Rows and groups are kept and updated, not rebuilt, so
-        // the list doesn't jump while it updates.
+        // PCs by name. Nothing moves as chats work or wait (a moving row takes the tap meant for another); rows and groups are
+        // kept and updated, not rebuilt.
         var ordered = _devices.Values
-            .OrderBy(d => d.Chats.Any(c => c.State == "waiting") ? 0 : 1)
-            .ThenBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
         Sync(Groups, ordered, g => g.DeviceId, d => d.DeviceId, d => new PcGroupViewModel(d.DeviceId), (g, d) => g.Update(d));
         Status = _devices.Count == 0
@@ -198,6 +197,9 @@ public sealed partial class PcGroupViewModel(Guid deviceId) : ObservableObject
 {
     public Guid DeviceId { get; } = deviceId;
 
+    // Where each chat first appeared: its place for good, so the list never reorders under a finger. New chats go last.
+    private readonly Dictionary<(string Backend, string SessionId), int> _place = [];
+
     [ObservableProperty]
     public partial string Name { get; set; } = "";
 
@@ -211,10 +213,13 @@ public sealed partial class PcGroupViewModel(Guid deviceId) : ObservableObject
         Name = device.DeviceName;
         var waiting = device.Chats.Count(c => c.State == "waiting");
         Summary = waiting > 0 ? $"{waiting} waiting on you" : device.Chats.Count == 1 ? "1 chat" : $"{device.Chats.Count} chats";
-        var ordered = device.Chats
-            .OrderBy(c => ChatsViewModel.Rank(c.State))
-            .ThenByDescending(c => c.LastActivityUtc)
-            .ToList();
+        // The first time a PC is seen its chats come in board order (waiting, working, newest); after that each keeps its place.
+        foreach (var chat in device.Chats.OrderBy(c => ChatsViewModel.Rank(c.State)).ThenByDescending(c => c.LastActivityUtc))
+        {
+            _place.TryAdd((chat.Backend, chat.SessionId), _place.Count);
+        }
+
+        var ordered = device.Chats.OrderBy(c => _place[(c.Backend, c.SessionId)]).ToList();
         ChatsViewModel.Sync(Chats, ordered, r => (r.Backend, r.SessionId), c => (c.Backend, c.SessionId), c => new ChatRowViewModel(device.DeviceId, c.Backend, c.SessionId),
             (r, c) => r.Update(device.DeviceName, c));
     }
