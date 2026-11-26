@@ -324,6 +324,15 @@ public sealed class ViewModelTests
     }
 
     [Theory]
+    [InlineData("https://desk.example.ts.net/", "kuxZR6HOMWtNIVf1GN069W1w")]
+    [InlineData("https://hub.example.com:8443/nomad?x=1&y=2", "a+b/c=d")]
+    public void The_link_Add_phone_makes_reads_back_on_the_phone(string hub, string token)
+    {
+        var parsed = EnrollLink.TryParse(Nomad.Core.Hub.PhoneEnrollLink.Make(hub, token));
+        Assert.Equal((hub, token), parsed);
+    }
+
+    [Theory]
     [InlineData("desk.example.ts.net", "https://desk.example.ts.net/")]
     [InlineData("https://desk.example.ts.net:8443/", "https://desk.example.ts.net:8443/")]
     [InlineData("http://desk.example.ts.net", null)]

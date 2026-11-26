@@ -213,6 +213,31 @@ dotnet test Nomad.Hub.Tests                 # the hub's API and two PCs syncing 
 docker build -f Nomad.Hub/Dockerfile .      # the image, from the repository root
 ```
 
+### Nomad Mobile
+
+The Android app (Android 10 and later) lists the chats open in Nomad on every PC connected to the hub, and
+reads, prompts, answers and stops them from anywhere. It talks only to the hub: each PC shares its open chats
+while Settings › Hub › **Stream live sessions** is on, and does the work for its own chats, so every backend
+works. The design is `docs/mobile.md`.
+
+The phone needs the hub over HTTPS, since Android refuses plain HTTP: put the hub behind your reverse proxy,
+or use Tailscale, whose `tailscale serve --https=443 http://127.0.0.1:<hub port>` gives it a real certificate
+on your private network (the phone needs the Tailscale app). Then in Settings › Hub on a PC, **Add phone**
+shows a QR code: scan it with the phone's camera and Nomad opens with the address and a one-time token filled
+in. A phone is listed and revoked like a PC; signing out on the phone revokes it too.
+
+Each release has `Nomad-android.apk`; open it on the phone to install. To build it yourself, install the
+Android workload (`dotnet workload install android`) and run:
+
+```powershell
+dotnet test Nomad.Mobile.Tests              # view models against a fake hub, and every screen rendered headlessly
+dotnet build Nomad.Mobile.Android -c Release -f net11.0-android -t:InstallAndroidDependencies -p:AcceptAndroidSDKLicenses=true
+dotnet publish Nomad.Mobile.Android -c Release -f net11.0-android
+```
+
+`Nomad.Mobile.Android` is left out of `Nomad.slnx`, so the solution builds without the Android workload.
+`NOMAD_MOBILE_SCREENS=<folder>` makes the screen tests save their PNGs there.
+
 ### Memory and rendering
 
 Nomad.ai draws with the GPU through ANGLE over Direct3D 11, which is far faster than Skia's software
@@ -261,6 +286,9 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | `Nomad.Hub.Contracts` | Wire types shared by the hub and the app, with source-generated JSON |
 | `Nomad.Hub.Tests` | The hub's API, and two PCs syncing through it with `Nomad.Core`'s `HubSync` |
 | `Nomad.Core.Tests` | A few xUnit tests over captured stream-json fixtures and session titles |
+| `Nomad.Mobile` | The phone app's views, view models and transcript model (Avalonia, no Android types) |
+| `Nomad.Mobile.Android` | The Android head: the activity, the Keystore-backed secret store, `nomad://enroll` links |
+| `Nomad.Mobile.Tests` | The phone app's view models against a fake hub, and its screens rendered headlessly |
 
 ### Dependencies
 
@@ -271,6 +299,8 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 | Markdig 1.4.2 | Markdown parsing for the transcript and release notes |
 | Velopack 1.2.161 | Setup, the portable zip and self-update (`vpk` 1.2.161 packs releases) |
 | xUnit 2.9.3 | `Nomad.Core.Tests` |
+| Avalonia.Android, SkiaSharp 3.119.4 | The phone app (SkiaSharp 3 for Android's 16 KB pages) |
+| Avalonia.Headless.XUnit 11.3.22 | `Nomad.Mobile.Tests` (screens rendered without a display) |
 
 ## Probe
 

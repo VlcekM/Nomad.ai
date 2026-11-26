@@ -1,6 +1,6 @@
 # Nomad Mobile - design
 
-Status: the trial build (§7), Antigravity sync (§8) and the hub's board (§3, and §4 except Add phone) are built; the app is next.
+Status: built: the trial build (§7), Antigravity sync (§8), the hub's board and Add phone (§3, §4) and the Android app (§5). Testing on a real phone is next.
 
 Nomad Mobile is a phone app that shows every chat open in Nomad, on every one of the user's PCs, in one list, and lets the user read, answer and prompt them from anywhere. It targets Android first and is built with Avalonia, like the desktop app. The app talks only to Nomad Hub, never to a PC directly, so it works wherever the hub is reachable and no PC has to accept connections from outside.
 
