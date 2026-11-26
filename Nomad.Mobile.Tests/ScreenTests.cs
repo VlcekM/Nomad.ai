@@ -1,3 +1,5 @@
+using Avalonia.Media;
+using Avalonia.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -152,6 +154,30 @@ public sealed class ScreenTests
         Find<TextBlock>(window, t => t.Text == "Fix the parser bug");
         Find<TextBlock>(window, t => t.Text == "from Pixel 8");
         Save(window, "3-chat", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
+    public async Task Chat_screen_typing(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page();
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        chat.Draft = "Go ahead and fix it.";
+        var window = Show(chat, main, theme);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var box = Find<TextBox>(window, t => t.Name == "Composer");
+        box.Focus(NavigationMethod.Pointer);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        // Bare inside the composer, whose frame lights up instead: no Fluent border or fill of its own while focused.
+        var border = box.GetVisualDescendants().OfType<Border>().Single(b => b.Name == "PART_BorderElement");
+        Assert.Equal(default, border.BorderThickness);
+        Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(border.Background).Color);
+        Save(window, "3e-chat-typing", theme);
     }
 
     [AvaloniaTheory]

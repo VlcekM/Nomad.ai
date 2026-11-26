@@ -1,6 +1,20 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="using:Nomad.App.Controls">
+
+  <!-- Fluent draws a focused or hovered text box with its own border and fill, from these: none here, since the frame around a
+       text box is the view's (the composer's, a field's), as on the desktop. Its own styles beat ours on its template parts, so
+       its colors are what change. -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
+    <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
+  </Styles.Resources>
+
   <!--
     The phone's look: the desktop's (its palette, icons and control themes are linked in App.axaml; these are the phone's
     counterparts of Nomad.App/Theme/Styles.axaml and the transcript styles in Nomad.App/Views/SessionView.axaml). Fluent is
@@ -80,8 +94,10 @@
     <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
     <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TextPrimaryBrush}" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!-- No focus rectangle inside the frame: the frame around it lights up instead, as the desktop's composer does. -->
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
   </Style>
-  <Style Selector="TextBox /template/ Border#PART_BorderElement, TextBox:pointerover /template/ Border#PART_BorderElement, TextBox:focus /template/ Border#PART_BorderElement">
+  <Style Selector="TextBox /template/ Border#PART_BorderElement, TextBox:pointerover /template/ Border#PART_BorderElement, TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus-within /template/ Border#PART_BorderElement, TextBox:focus-visible /template/ Border#PART_BorderElement">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
