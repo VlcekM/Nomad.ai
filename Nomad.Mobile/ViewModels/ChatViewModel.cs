@@ -578,6 +578,9 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     public void CloseSettings() => SettingsPanel = null;
 
+    /// <summary>Archived from its settings: back to the chats, where it no longer shows once the PC's list updates.</summary>
+    public void LeaveAfterArchive() => _main.GoBack();
+
     /// <summary>The chat screen closed: stop watching it.</summary>
     public void Close()
     {

@@ -100,6 +100,72 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task Chat_settings_rename_pin_and_archive_the_chat_as_the_PCs_list_does()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+
+        // An older PC says nothing about the chat itself: no actions to offer.
+        chat.OpenSettingsCommand.Execute(null);
+        var panel = Assert.IsType<ChatSettingsViewModel>(chat.SettingsPanel);
+        await panel.LoadAsync();
+        Assert.False(panel.HasChatActions);
+        main.GoBack();
+
+        hub.Settings = hub.Settings with { Title = "Old name", Pinned = false };
+        chat.OpenSettingsCommand.Execute(null);
+        panel = Assert.IsType<ChatSettingsViewModel>(chat.SettingsPanel);
+        await panel.LoadAsync();
+        Assert.True(panel.HasChatActions);
+        Assert.Equal("Old name", panel.NewTitle);
+        Assert.False(panel.RenameCommand.CanExecute(null)); // Unchanged, or blank: nothing to send.
+        panel.NewTitle = "   ";
+        Assert.False(panel.RenameCommand.CanExecute(null));
+
+        // Rename sends the trimmed name and the chat's header follows.
+        panel.NewTitle = "  New name ";
+        Assert.True(panel.RenameCommand.CanExecute(null));
+        hub.Settings = hub.Settings with { Title = "New name" };
+        await panel.RenameCommand.ExecuteAsync(null);
+        var rename = hub.Sent.Last().Input;
+        Assert.Equal(("rename", "New name"), (rename.Kind, rename.Text));
+        Assert.Equal("New name", chat.Title);
+        Assert.False(panel.RenameCommand.CanExecute(null));
+
+        // Pin asks for the opposite of what shows, and shows what the PC then says.
+        hub.Settings = hub.Settings with { Pinned = true };
+        await panel.TogglePinCommand.ExecuteAsync(null);
+        Assert.Equal(("pin", "on"), (hub.Sent.Last().Input.Kind, hub.Sent.Last().Input.Choice));
+        Assert.True(panel.IsPinned);
+        hub.Settings = hub.Settings with { Pinned = false };
+        await panel.TogglePinCommand.ExecuteAsync(null);
+        Assert.Equal("off", hub.Sent.Last().Input.Choice);
+        Assert.False(panel.IsPinned);
+
+        // Archive takes two taps; the first sends nothing.
+        var count = hub.Sent.Count;
+        await panel.ArchiveCommand.ExecuteAsync(null);
+        Assert.True(panel.ConfirmingArchive);
+        Assert.Equal("Tap again to archive", panel.ArchiveText);
+        Assert.Equal(count, hub.Sent.Count);
+
+        // A refusal stays on the page and says why.
+        hub.Answer = i => i.Kind == "archive" ? new ChatInputResult(false, "This chat can't be archived from here.") : new ChatInputResult(true, "Sent.");
+        await panel.ArchiveCommand.ExecuteAsync(null);
+        Assert.Equal("archive", hub.Sent.Last().Input.Kind);
+        Assert.Same(panel, chat.SettingsPanel);
+        Assert.Equal("This chat can't be archived from here.", panel.Status);
+        Assert.False(panel.ConfirmingArchive);
+
+        // Archived, the chat closes and the list shows again.
+        hub.Answer = _ => new ChatInputResult(true, "Archived.");
+        await panel.ArchiveCommand.ExecuteAsync(null);
+        await panel.ArchiveCommand.ExecuteAsync(null);
+        Assert.Null(chat.SettingsPanel);
+        Assert.IsNotType<ChatViewModel>(main.Page);
+    }
+
+    [Fact]
     public async Task New_chat_offers_the_PCs_agents_and_folders_and_starts_with_the_picks()
     {
         var (main, hub, _) = await SignedInAsync();

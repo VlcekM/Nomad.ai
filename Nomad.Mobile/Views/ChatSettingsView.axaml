@@ -23,6 +23,45 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <!-- The chat itself, as its row's menu in the PC's list: its name, pinned or not, archived. -->
+        <StackPanel IsVisible="{Binding HasChatActions}" Margin="0,18,0,0" Spacing="10">
+          <TextBlock Classes="rowlabel" Text="Name" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Border Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1"
+                    CornerRadius="12" Padding="12,2">
+              <TextBox Text="{Binding NewTitle}" Watermark="The chat's name" AcceptsReturn="False" VerticalAlignment="Center"
+                       TextInputOptions.AutoCapitalization="True" />
+            </Border>
+            <Button Grid.Column="1" Theme="{StaticResource PhoneIconButton}" Command="{Binding RenameCommand}" Margin="6,0,-8,0"
+                    AutomationProperties.Name="Rename" ToolTip.Tip="Rename">
+              <c:Icon Size="18" Data="{StaticResource IconCheck}" />
+            </Button>
+          </Grid>
+          <Button Theme="{StaticResource PhoneRowButton}" Command="{Binding TogglePinCommand}" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Stretch" Margin="-12,4,-12,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <c:Icon Size="16" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Grid.Column="1" Classes="rowlabel" Text="Pinned" VerticalAlignment="Center" />
+              <c:Icon Grid.Column="2" Size="14" Data="{StaticResource IconCheck}" IsVisible="{Binding IsPinned}"
+                      Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+            </Grid>
+          </Button>
+          <Border Classes="rowline" />
+          <Button Theme="{StaticResource PhoneRowButton}" Command="{Binding ArchiveCommand}" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Stretch" Margin="-12,0">
+            <StackPanel Spacing="1">
+              <TextBlock Classes="rowlabel" Text="{Binding ArchiveText}" Classes.danger="{Binding ConfirmingArchive}" />
+              <TextBlock Classes="rowhint" Text="Ends its process on the PC and moves it out of the open chats, as the PC's Archive does."
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Button>
+          <StackPanel.Styles>
+            <Style Selector="TextBlock.danger">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </StackPanel.Styles>
+        </StackPanel>
+
         <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                    Classes="muted small" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="0,12,0,0">
           <TextBlock.Styles>

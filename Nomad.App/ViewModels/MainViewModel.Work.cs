@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.Core.Git;
+using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
 
@@ -131,6 +132,24 @@ public sealed partial class MainViewModel
 
     /// <summary>A phone's chat that failed to start: no longer counted as starting.</summary>
     public void DropPhoneChat(SessionViewModel session) => _starting.Remove(session);
+
+    /// <summary>The list row of an open chat, which the list's own Rename, Pin and Archive act on.</summary>
+    public SessionListItemViewModel? RowOf(SessionViewModel session) =>
+        session.SessionId is { } id ? _all.FirstOrDefault(s => s.SessionId == id) : null;
+
+    /// <summary>Renames a chat as the list's Rename does; false when it has no row or the title couldn't be saved.</summary>
+    public bool RenameFromPhone(SessionViewModel session, string title)
+    {
+        if (RowOf(session) is not { } row)
+        {
+            return false;
+        }
+
+        row.RenameText = title;
+        row.IsRenaming = true;
+        EndRename(row, save: true);
+        return row.Title == SessionTitles.Shorten(title.ReplaceLineEndings(" ").Trim());
+    }
 
     /// <summary>
     /// Opens the listed session <paramref name="sessionId"/>; false when it isn't listed (deleted, say).

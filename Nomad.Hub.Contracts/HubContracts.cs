@@ -219,13 +219,18 @@ public sealed record ChatChoice(string Id, string Name, string? Description = nu
 /// A chat's settings as its menus on the PC show them: the model, effort and permission mode now, and what each can be
 /// changed to (a list with one choice or none: nothing to change).
 /// </summary>
+/// <param name="Title">The chat's name in the PC's list, which input of kind <c>rename</c> changes; null from an older PC.</param>
+/// <param name="Pinned">Whether it is pinned in the PC's list (input <c>pin</c>, Choice <c>on</c> or <c>off</c>); null from an
+/// older PC. Input <c>archive</c> archives it there, ending its process, as the list's Archive does.</param>
 public sealed record ChatSettings(
     string? Model,
     IReadOnlyList<ChatChoice> Models,
     string? Effort,
     IReadOnlyList<ChatChoice> Efforts,
     string? Mode,
-    IReadOnlyList<ChatChoice> Modes);
+    IReadOnlyList<ChatChoice> Modes,
+    string? Title = null,
+    bool? Pinned = null);
 
 /// <summary>
 /// What a new chat on a PC can start as: each agent with its settings as a new chat there starts with them (the defaults

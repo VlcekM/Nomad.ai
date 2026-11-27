@@ -347,6 +347,40 @@ internal sealed class MobileHost : IDisposable
             case "model" or "effort" or "mode":
                 return await ChangeSettingAsync(s, input.Kind, input.Choice);
 
+            case "rename":
+                var title = input.Text?.ReplaceLineEndings(" ").Trim();
+                if (string.IsNullOrEmpty(title))
+                {
+                    return new ChatInputResult(false, "A chat needs a name.");
+                }
+
+                return _main.RenameFromPhone(s, title)
+                    ? new ChatInputResult(true, "Renamed.")
+                    : new ChatInputResult(false, "It couldn't be renamed. Look at the chat on the PC.");
+
+            case "pin":
+                if (_main.RowOf(s) is not { } pinRow || input.Choice is not ("on" or "off"))
+                {
+                    return new ChatInputResult(false, "It can't be pinned now.");
+                }
+
+                if (pinRow.IsPinned != (input.Choice == "on"))
+                {
+                    await _main.TogglePinnedAsync(pinRow);
+                }
+
+                return new ChatInputResult(true, pinRow.IsPinned ? "Pinned." : "Unpinned.");
+
+            case "archive":
+                if (_main.RowOf(s) is not { CanManage: true } archiveRow)
+                {
+                    return new ChatInputResult(false, "This chat can't be archived from here.");
+                }
+
+                // Answered at once: archiving ends the chat's process, which can take a moment.
+                _ = _main.SetArchivedAsync([archiveRow], archive: true);
+                return new ChatInputResult(true, "Archived.");
+
             default:
                 return new ChatInputResult(false, "Nomad doesn't know that kind of input.");
         }
@@ -362,7 +396,9 @@ internal sealed class MobileHost : IDisposable
             throw new InvalidOperationException("This PC isn't sharing its chats right now.");
         }
 
-        return Find(backend, id) is { } s ? SettingsOf(s) : throw new InvalidOperationException("That chat is no longer open in Nomad.");
+        return Find(backend, id) is { } s
+            ? SettingsOf(s) with { Title = _main.RowOf(s)?.Title ?? s.TitleOrPlaceholder, Pinned = _main.RowOf(s)?.IsPinned ?? false }
+            : throw new InvalidOperationException("That chat is no longer open in Nomad.");
     }
 
     private static ChatSettings SettingsOf(SessionViewModel s)
