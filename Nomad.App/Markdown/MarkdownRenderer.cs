@@ -877,9 +877,16 @@ public static partial class LinkSupport
         // Implicit file URIs treat the fragment as part of the filename. Split it for raw Markdown paths.
         var hash = link.Url.IndexOf('#');
         var rawPath = hash >= 0 ? link.Url[..hash] : link.Url;
-        var fragmentLine = hash >= 0 ? FragmentLine(link.Url[hash..]) : null;
-        return ResolvePath(block, PathPrefix + Uri.UnescapeDataString(rawPath)) is { } markdownPath
-            ? new LinkTarget(null, markdownPath, null, fragmentLine, PreferFilesView: true)
+        var decodedPath = Uri.UnescapeDataString(rawPath);
+        var lineSuffix = LineSuffix().Match(decodedPath);
+        var lineNumber = hash >= 0 ? FragmentLine(link.Url[hash..]) : null;
+        if (lineNumber is null && lineSuffix.Success && int.TryParse(lineSuffix.Groups[1].Value, out var suffixLine) && suffixLine > 0)
+        {
+            lineNumber = suffixLine;
+        }
+
+        return ResolvePath(block, PathPrefix + decodedPath) is { } markdownPath
+            ? new LinkTarget(null, markdownPath, null, lineNumber, PreferFilesView: true)
             : null;
     }
 
@@ -1086,7 +1093,16 @@ public static partial class LinkSupport
         }
 
         text = LineSuffix().Replace(text, "");
-        if (OperatingSystem.IsWindows()) text = text.Replace('/', '\\');
+        if (OperatingSystem.IsWindows())
+        {
+            // Codex emits absolute Markdown paths with a slash before the drive, e.g. /R:/repo/file.cs.
+            if (text.Length >= 4 && text[0] == '/' && char.IsAsciiLetter(text[1]) && text[2] == ':' && text[3] == '/')
+            {
+                text = text[1..];
+            }
+
+            text = text.Replace('/', '\\');
+        }
 
         try
         {
@@ -1113,7 +1129,7 @@ public static partial class LinkSupport
     [System.Text.RegularExpressions.GeneratedRegex(@"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*(\(\))?$")]
     private static partial System.Text.RegularExpressions.Regex SymbolName();
 
-    [System.Text.RegularExpressions.GeneratedRegex(@":\d+(:\d+)?$")]
+    [System.Text.RegularExpressions.GeneratedRegex(@":(\d+)(?::\d+)?$")]
     private static partial System.Text.RegularExpressions.Regex LineSuffix();
 
     [System.Text.RegularExpressions.GeneratedRegex(@"^#L(\d+)(?:-L?\d+)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]

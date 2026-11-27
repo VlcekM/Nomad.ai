@@ -2265,7 +2265,7 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>Whether a name in the chat (<c>ActionState.Held</c>) is declared in the folder's code.</summary>
     public bool KnowsSymbol(string reference) => CanShowFiles && Files.CodeSearch.Find(reference).Count > 0;
 
-    /// <summary>A file link clicked in the chat: opens it in the Files view at <paramref name="line"/>.</summary>
+    /// <summary>Opens a file linked from chat in the Files view at the given one-based line.</summary>
     public void OpenFile(string path, int? line = null)
     {
         if (!CanShowFiles || !File.Exists(path))
@@ -2274,7 +2274,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         IsFilesView = true;
-        Files.OpenAt(path, line is int l ? (l, 1) : null);
+        Files.OpenAt(path, line is int l ? (l - 1, 0) : null);
     }
 
     /// <summary>A name clicked in the chat: the Files view, at its declaration (Go To with the name when several match).</summary>

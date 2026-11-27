@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v3.0.0
+
+- Added Nomad Mobile for Android 10 and later. Pair from **Settings → Hub → Add phone**, then follow live chats, send prompts and attachments, answer permission and question cards, and start chats on connected PCs. The Android app is available to build from source. A signed APK requires the repository's Android signing secrets.
+- Fixed Windows file links in Codex replies, including links with a leading slash before the drive letter. Chat file links now jump to the requested line in the Files view.
+- Reduced startup and transcript memory use and fixed UI freezes in long chats.
+- Fixed stale waiting indicators and improved single-instance handling on Linux.
+
 ## v2.8.7
 
 - The OpenCode cost card works with OpenCode v2 instead of failing with "Couldn't read OpenCode's costs".
