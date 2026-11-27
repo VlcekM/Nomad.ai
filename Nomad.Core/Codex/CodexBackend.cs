@@ -176,7 +176,7 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
     }
 
     /// <summary>Just "/compact", as Codex's terminal takes it (it has no summary instructions to pass on).</summary>
-    internal static bool IsCompactCommand(string text) => string.Equals(text.Trim(), "/compact", StringComparison.OrdinalIgnoreCase);
+    public static bool IsCompactCommand(string text) => string.Equals(text.Trim(), "/compact", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Starts a turn on the server; one it refuses runs no turn after all.</summary>
     private async Task CallTurnAsync(CodexServer server, string method, JsonObject parameters, CancellationToken cancellationToken)
