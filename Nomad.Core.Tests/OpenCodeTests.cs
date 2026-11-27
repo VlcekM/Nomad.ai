@@ -30,6 +30,38 @@ public class OpenCodeTests
         return events;
     }
 
+    /// <summary>V2 events stream the reply and close the turn with the reported usage.</summary>
+    [Fact]
+    public void V2StreamsTextAndCompletesTheTurn()
+    {
+        var translator = new OpenCodeTranslator("ses_v2", "/work");
+        translator.BeginTurn();
+        string[] wire =
+        [
+            """{"type":"session.step.started","data":{"sessionID":"ses_v2","assistantMessageID":"msg_1","model":{"providerID":"opencode","id":"big-pickle"}}}""",
+            """{"type":"session.text.delta","data":{"sessionID":"other","assistantMessageID":"msg_2","ordinal":0,"delta":"Ignored"}}""",
+            """{"type":"session.text.started","data":{"sessionID":"ses_v2","assistantMessageID":"msg_1","ordinal":0}}""",
+            """{"type":"session.text.delta","data":{"sessionID":"ses_v2","assistantMessageID":"msg_1","ordinal":0,"delta":"OK"}}""",
+            """{"type":"session.text.ended","data":{"sessionID":"ses_v2","assistantMessageID":"msg_1","ordinal":0,"text":"OK"}}""",
+            """{"type":"session.step.ended","data":{"sessionID":"ses_v2","assistantMessageID":"msg_1","tokens":{"input":7,"output":2},"cost":0}}""",
+            """{"type":"session.execution.succeeded","data":{"sessionID":"ses_v2"}}""",
+        ];
+
+        var events = new List<AgentEvent>();
+        foreach (var json in wire)
+        {
+            using var doc = JsonDocument.Parse(json);
+            events.AddRange(translator.Handle(doc.RootElement));
+        }
+
+        Assert.Equal("opencode/big-pickle", Assert.Single(events.OfType<AssistantMessageStartedEvent>()).Model);
+        Assert.Equal("OK", Assert.Single(events.OfType<TextDeltaEvent>()).Text);
+        Assert.Equal("OK", Assert.Single(events.OfType<BlockCompletedEvent>()).Text);
+        var result = Assert.Single(events.OfType<TurnCompletedEvent>()).Result;
+        Assert.Equal(9, result.TotalTokens);
+        Assert.False(result.IsError);
+    }
+
     [Fact]
     public void ToolTurnRaisesClaudeShapedEvents()
     {

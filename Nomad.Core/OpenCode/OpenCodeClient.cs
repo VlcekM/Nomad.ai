@@ -48,8 +48,8 @@ public sealed record OpenCodeConnectedProvider(string Id, string Name, bool IsOA
 /// <summary>What <c>POST /provider/{id}/oauth/authorize</c> returns: the browser URL, callback mode ("auto" | "code"), and instructions.</summary>
 public sealed record OpenCodeOAuthAuthorization(string Url, string Method, string Instructions);
 
-/// <summary>The calls Nomad makes to <c>opencode serve</c> (its v1 API, the one OpenCode's own TUI uses).</summary>
-public static class OpenCodeClient
+/// <summary>The calls Nomad makes to <c>opencode serve</c> (v1 and v2).</summary>
+public static partial class OpenCodeClient
 {
     private static string Q(string? directory) => directory is null ? "" : "directory=" + Uri.EscapeDataString(directory);
 
@@ -71,6 +71,11 @@ public static class OpenCodeClient
             throw new HttpRequestException($"OpenCode: {method} {url.Split('?')[0]} failed ({(int)response.StatusCode}): {ErrorText(text)}");
         }
 
+        if (response.Content.Headers.ContentType?.MediaType == "text/html")
+        {
+            throw new InvalidOperationException($"OpenCode returned a web page for {url.Split('?')[0]} instead of an API response.");
+        }
+
         return JsonDocument.Parse(text.Length == 0 ? "null" : text);
     }
 
@@ -79,7 +84,7 @@ public static class OpenCodeClient
         try
         {
             using var doc = JsonDocument.Parse(body);
-            return OpenCodeJson.Str(OpenCodeJson.Obj(doc.RootElement, "data"), "message") ?? OpenCodeJson.Str(doc.RootElement, "name") ?? body;
+            return OpenCodeJson.Str(doc.RootElement, "message") ?? OpenCodeJson.Str(OpenCodeJson.Obj(doc.RootElement, "data"), "message") ?? OpenCodeJson.Str(doc.RootElement, "name") ?? body;
         }
         catch (JsonException)
         {
@@ -90,6 +95,9 @@ public static class OpenCodeClient
     /// <summary>A new session in <paramref name="directory"/> with these permission rules; its id.</summary>
     public static async Task<string> CreateSessionAsync(OpenCodeServer server, string directory, JsonArray permission, CancellationToken ct = default)
     {
+        if (server.IsV2) return await CreateV2SessionAsync(server, directory, permission, ct).ConfigureAwait(false);
+
+
         using var doc = await SendAsync(server, HttpMethod.Post, Url("session", directory), new JsonObject { ["permission"] = permission }, ct).ConfigureAwait(false);
         return OpenCodeJson.Str(doc.RootElement, "id") ?? throw new InvalidOperationException("OpenCode created a session without an id.");
     }
@@ -100,11 +108,11 @@ public static class OpenCodeClient
         var body = new JsonObject();
         if (messageId is not null)
         {
-            body["messageID"] = messageId;
+            body[server.IsV2 ? "before" : "messageID"] = messageId;
         }
 
-        using var doc = await SendAsync(server, HttpMethod.Post, Url($"session/{sessionId}/fork", directory), body, ct).ConfigureAwait(false);
-        return OpenCodeJson.Str(doc.RootElement, "id") ?? throw new InvalidOperationException("OpenCode forked a session without an id.");
+        using var doc = await SendAsync(server, HttpMethod.Post, SessionUrl(server, sessionId, directory, "fork"), body, ct).ConfigureAwait(false);
+        return OpenCodeJson.Str(server.IsV2 ? Data(doc) : doc.RootElement, "id") ?? throw new InvalidOperationException("OpenCode forked a session without an id.");
     }
 
     /// <summary>Changes a session's title and/or permission rules.</summary>
@@ -118,10 +126,10 @@ public static class OpenCodeClient
 
         if (permission is not null)
         {
-            body["permission"] = permission;
+            body[server.IsV2 ? "permissions" : "permission"] = server.IsV2 ? V2Rules(permission) : permission;
         }
 
-        using var _ = await SendAsync(server, HttpMethod.Patch, Url($"session/{sessionId}", directory), body, ct).ConfigureAwait(false);
+        using var _ = await SendAsync(server, HttpMethod.Patch, SessionUrl(server, sessionId, directory), body, ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends a prompt; the turn runs in the background and reports over the event stream.</summary>
@@ -129,6 +137,13 @@ public static class OpenCodeClient
         OpenCodeServer server, string directory, string sessionId, string text, IReadOnlyList<PromptImage>? images,
         string? model, string? agent, string? messageId, string? variant = null, CancellationToken ct = default, string? system = null)
     {
+        if (server.IsV2)
+        {
+            await PromptV2Async(server, sessionId, text, images, model, agent, messageId, variant, system, ct).ConfigureAwait(false);
+            return;
+        }
+
+
         var parts = new JsonArray((JsonNode)new JsonObject { ["type"] = "text", ["text"] = text });
         foreach (var image in images ?? [])
         {
@@ -169,29 +184,29 @@ public static class OpenCodeClient
     /// <summary>Rewinds the session to just before <paramref name="messageId"/>: it and everything after go with the next prompt.</summary>
     public static async Task RevertAsync(OpenCodeServer server, string directory, string sessionId, string messageId, CancellationToken ct = default)
     {
-        using var _ = await SendAsync(server, HttpMethod.Post, Url($"session/{sessionId}/revert", directory), new JsonObject { ["messageID"] = messageId }, ct).ConfigureAwait(false);
+        using var _ = await SendAsync(server, HttpMethod.Post, SessionUrl(server, sessionId, directory, server.IsV2 ? "revert/stage" : "revert"), new JsonObject { ["messageID"] = messageId }, ct).ConfigureAwait(false);
     }
 
     public static async Task DeleteSessionAsync(OpenCodeServer server, string? directory, string sessionId, CancellationToken ct = default)
     {
-        using var _ = await SendAsync(server, HttpMethod.Delete, Url($"session/{sessionId}", directory), null, ct).ConfigureAwait(false);
+        using var _ = await SendAsync(server, HttpMethod.Delete, SessionUrl(server, sessionId, directory), null, ct).ConfigureAwait(false);
     }
 
     public static async Task AbortAsync(OpenCodeServer server, string directory, string sessionId, CancellationToken ct = default)
     {
-        using var _ = await SendAsync(server, HttpMethod.Post, Url($"session/{sessionId}/abort", directory), null, ct).ConfigureAwait(false);
+        using var _ = await SendAsync(server, HttpMethod.Post, SessionUrl(server, sessionId, directory, server.IsV2 ? "interrupt" : "abort"), null, ct).ConfigureAwait(false);
     }
 
     /// <summary>Answers a permission request: once | always | reject.</summary>
-    public static async Task ReplyPermissionAsync(OpenCodeServer server, string directory, string requestId, string reply, string? message, CancellationToken ct = default)
+    public static async Task ReplyPermissionAsync(OpenCodeServer server, string directory, string requestId, string reply, string? message, CancellationToken ct = default, string? sessionId = null)
     {
-        var body = new JsonObject { ["reply"] = reply };
+        var body = new JsonObject { [server.IsV2 ? "decision" : "reply"] = reply };
         if (!string.IsNullOrEmpty(message))
         {
             body["message"] = message;
         }
 
-        using var _ = await SendAsync(server, HttpMethod.Post, Url($"permission/{requestId}/reply", directory), body, ct).ConfigureAwait(false);
+        using var _ = await SendAsync(server, HttpMethod.Post, server.IsV2 ? $"api/session/{sessionId}/permission/{requestId}/reply" : Url($"permission/{requestId}/reply", directory), body, ct).ConfigureAwait(false);
     }
 
     /// <summary>Answers a question request: for each question in order, the labels chosen (or the typed answer).</summary>
@@ -213,50 +228,56 @@ public static class OpenCodeClient
 
     /// <summary>A session's stored messages (each <c>{ info, parts }</c>), oldest first.</summary>
     public static Task<JsonDocument> GetMessagesAsync(OpenCodeServer server, string? directory, string sessionId, CancellationToken ct = default) =>
-        SendAsync(server, HttpMethod.Get, Url($"session/{sessionId}/message", directory), null, ct);
+        server.IsV2 ? GetV2MessagesAsync(server, sessionId, ct) : SendAsync(server, HttpMethod.Get, Url($"session/{sessionId}/message", directory), null, ct);
 
     /// <summary>Asks OpenCode to write a short title for the session (it also does so by itself after the first prompt).</summary>
     public static async Task<string?> GetTitleAsync(OpenCodeServer server, string? directory, string sessionId, CancellationToken ct = default)
     {
-        using var doc = await SendAsync(server, HttpMethod.Get, Url($"session/{sessionId}", directory), null, ct).ConfigureAwait(false);
-        return OpenCodeJson.Str(doc.RootElement, "title");
+        using var doc = await SendAsync(server, HttpMethod.Get, SessionUrl(server, sessionId, directory), null, ct).ConfigureAwait(false);
+        return OpenCodeJson.Str(server.IsV2 ? Data(doc) : doc.RootElement, "title");
     }
 
     /// <summary>Every top-level session OpenCode has, in every project, newest first.</summary>
-    public static async Task<IReadOnlyList<OpenCodeSessionInfo>> ListSessionsAsync(OpenCodeServer server, int limit = 500, CancellationToken ct = default)
+    public static async Task<IReadOnlyList<OpenCodeSessionInfo>> ListSessionsAsync(OpenCodeServer server, int limit = 500, CancellationToken ct = default, bool rootsOnly = true)
     {
-        using var doc = await SendAsync(server, HttpMethod.Get, Url("experimental/session", null, $"roots=true&limit={limit}"), null, ct).ConfigureAwait(false);
-        var list = new List<OpenCodeSessionInfo>();
-        if (doc.RootElement.ValueKind != JsonValueKind.Array)
-        {
-            return list;
-        }
+        if (server.IsV2) return await ListV2SessionsAsync(server, limit, rootsOnly, ct).ConfigureAwait(false);
 
-        foreach (var s in doc.RootElement.EnumerateArray())
+        using var doc = await SendAsync(server, HttpMethod.Get, Url("experimental/session", null,
+            $"roots={rootsOnly.ToString().ToLowerInvariant()}&limit={limit}"), null, ct).ConfigureAwait(false);
+        var sessions = new List<OpenCodeSessionInfo>();
+        AddSessions(sessions, doc.RootElement, rootsOnly, limit);
+        return sessions;
+    }
+
+    /// <summary>Appends session summaries in server order, optionally skipping forks.</summary>
+    private static void AddSessions(List<OpenCodeSessionInfo> sessions, JsonElement page, bool rootsOnly, int limit)
+    {
+        if (page.ValueKind != JsonValueKind.Array) return;
+
+        foreach (var s in page.EnumerateArray())
         {
-            if (OpenCodeJson.Str(s, "id") is not { } id || OpenCodeJson.Str(s, "parentID") is not null)
-            {
-                continue;
-            }
+            if (sessions.Count >= limit) return;
+            if (OpenCodeJson.Str(s, "id") is not { } id || rootsOnly && OpenCodeJson.Str(s, "parentID") is not null) continue;
 
             var time = OpenCodeJson.Obj(s, "time");
             var updated = OpenCodeJson.Long(time, "updated") ?? OpenCodeJson.Long(time, "created") ?? 0;
             var model = OpenCodeJson.Obj(s, "model");
             var modelId = OpenCodeJson.Str(model, "providerID") is { } p && OpenCodeJson.Str(model, "id") is { } m ? $"{p}/{m}" : null;
-            list.Add(new OpenCodeSessionInfo(
+            sessions.Add(new OpenCodeSessionInfo(
                 id,
-                OpenCodeJson.Str(s, "directory"),
+                OpenCodeJson.Str(s, "directory") ?? OpenCodeJson.Str(OpenCodeJson.Obj(s, "location"), "directory"),
                 OpenCodeTitles.Clean(OpenCodeJson.Str(s, "title")),
                 DateTimeOffset.FromUnixTimeMilliseconds(updated).UtcDateTime,
                 modelId));
         }
-
-        return list;
     }
 
     /// <summary>The models of every connected provider, and the default model ("provider/model") if OpenCode names one.</summary>
     public static async Task<(IReadOnlyList<OpenCodeModel> Models, string? Default)> ListModelsAsync(OpenCodeServer server, CancellationToken ct = default)
     {
+        if (server.IsV2) return await ListV2ModelsAsync(server, ct).ConfigureAwait(false);
+
+
         using var doc = await SendAsync(server, HttpMethod.Get, "config/providers", null, ct).ConfigureAwait(false);
         var models = new List<OpenCodeModel>();
         string? fallback = null;
@@ -308,14 +329,15 @@ public static class OpenCodeClient
     /// <summary>The primary agents the user can pick (build, plan, and custom ones), without OpenCode's hidden ones.</summary>
     public static async Task<IReadOnlyList<OpenCodeAgent>> ListAgentsAsync(OpenCodeServer server, CancellationToken ct = default)
     {
-        using var doc = await SendAsync(server, HttpMethod.Get, "agent", null, ct).ConfigureAwait(false);
+        using var doc = await SendAsync(server, HttpMethod.Get, server.IsV2 ? "api/agent" : "agent", null, ct).ConfigureAwait(false);
         var list = new List<OpenCodeAgent>();
-        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+        var agents = server.IsV2 ? Data(doc) : doc.RootElement;
+        if (agents.ValueKind == JsonValueKind.Array)
         {
-            foreach (var a in doc.RootElement.EnumerateArray())
+            foreach (var a in agents.EnumerateArray())
             {
                 if (OpenCodeJson.Str(a, "mode") is "primary" or "all" && !(a.TryGetProperty("hidden", out var h) && h.ValueKind == JsonValueKind.True)
-                    && OpenCodeJson.Str(a, "name") is { } name)
+                    && (OpenCodeJson.Str(a, server.IsV2 ? "id" : "name")) is { } name)
                 {
                     list.Add(new OpenCodeAgent(name, OpenCodeJson.Str(a, "description")));
                 }
@@ -331,6 +353,9 @@ public static class OpenCodeClient
     public static async Task<(IReadOnlyList<OpenCodeOAuthProvider> OAuthProviders, IReadOnlyList<OpenCodeConnectedProvider> Connected)> GetProviderAuthAsync(
         OpenCodeServer server, CancellationToken ct = default)
     {
+        if (server.IsV2) return await GetV2ProviderAuthAsync(server, ct).ConfigureAwait(false);
+
+
         using var providersDoc = await SendAsync(server, HttpMethod.Get, "provider", null, ct).ConfigureAwait(false);
         using var authDoc = await SendAsync(server, HttpMethod.Get, "provider/auth", null, ct).ConfigureAwait(false);
 
@@ -444,6 +469,9 @@ public static class OpenCodeClient
     public static async Task<OpenCodeOAuthAuthorization> StartOAuthAsync(
         OpenCodeServer server, string providerId, int methodIndex, IReadOnlyDictionary<string, string>? inputs = null, CancellationToken ct = default)
     {
+        if (server.IsV2) return await StartV2OAuthAsync(server, providerId, methodIndex, inputs, ct).ConfigureAwait(false);
+
+
         var body = new JsonObject { ["method"] = methodIndex };
         if (inputs is { Count: > 0 })
         {
@@ -468,6 +496,13 @@ public static class OpenCodeClient
     public static async Task CompleteOAuthAsync(
         OpenCodeServer server, string providerId, int methodIndex, string? code = null, CancellationToken ct = default)
     {
+        if (server.IsV2)
+        {
+            await CompleteV2OAuthAsync(server, providerId, methodIndex, code, ct).ConfigureAwait(false);
+            return;
+        }
+
+
         var body = new JsonObject { ["method"] = methodIndex };
         if (!string.IsNullOrWhiteSpace(code))
         {
@@ -480,6 +515,13 @@ public static class OpenCodeClient
     /// <summary>Removes stored credentials for an OpenCode provider.</summary>
     public static async Task RemoveAuthAsync(OpenCodeServer server, string providerId, CancellationToken ct = default)
     {
+        if (server.IsV2)
+        {
+            await RemoveV2AuthAsync(server, providerId, ct).ConfigureAwait(false);
+            return;
+        }
+
+
         using var _ = await SendAsync(server, HttpMethod.Delete, $"auth/{Uri.EscapeDataString(providerId)}", null, ct).ConfigureAwait(false);
     }
 
@@ -577,7 +619,7 @@ public static class OpenCodeClient
     /// </summary>
     public static async Task ReadEventsAsync(OpenCodeServer server, string directory, Action<JsonElement> onEvent, Action? onConnected, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, Url("event", directory));
+        using var request = new HttpRequestMessage(HttpMethod.Get, server.IsV2 ? "api/event" : Url("event", directory));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
         using var response = await server.Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();

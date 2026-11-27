@@ -942,20 +942,9 @@ public sealed class OpenCodeFiles(Func<string?> cliPath) : ISessionFiles
         {
             // The server's list has every project's sessions; `opencode session list` only the folder's it runs in.
             var server = OpenCode.OpenCodeServer.GetAsync(ct).GetAwaiter().GetResult();
-            var json = server.Http.GetStringAsync("experimental/session?limit=5000", ct).GetAwaiter().GetResult();
-            using var doc = JsonDocument.Parse(json);
-            var result = new List<LocalSession>();
-            foreach (var s in doc.RootElement.EnumerateArray())
-            {
-                if (OpenCode.OpenCodeJson.Str(s, "id") is not { } id)
-                {
-                    continue;
-                }
-
-                var updated = OpenCode.OpenCodeJson.Long(OpenCode.OpenCodeJson.Obj(s, "time"), "updated") ?? 0;
-                result.Add(new LocalSession(Backend, id, OpenCode.OpenCodeJson.Str(s, "title") ?? "", OpenCode.OpenCodeJson.Str(s, "directory"), null,
-                    DateTimeOffset.FromUnixTimeMilliseconds(updated).UtcDateTime, updated.ToString()));
-            }
+            var sessions = OpenCode.OpenCodeClient.ListSessionsAsync(server, 5000, ct, rootsOnly: false).GetAwaiter().GetResult();
+            var result = sessions.Select(session => new LocalSession(Backend, session.Id, session.Title, session.Directory, null,
+                session.UpdatedUtc, new DateTimeOffset(session.UpdatedUtc).ToUnixTimeMilliseconds().ToString())).ToList();
 
             _last = result;
             return result;
@@ -972,7 +961,10 @@ public sealed class OpenCodeFiles(Func<string?> cliPath) : ISessionFiles
 
     public async Task<IReadOnlyList<PayloadFile>> CollectAsync(LocalSession session, CancellationToken ct)
     {
-        var json = await RunAsync($"export {session.SessionId}", null, ct).ConfigureAwait(false);
+        var server = await OpenCode.OpenCodeServer.GetAsync(ct).ConfigureAwait(false);
+        var json = server.IsV2
+            ? await OpenCode.OpenCodeClient.ExportV2SessionAsync(server, session.SessionId, ct).ConfigureAwait(false)
+            : await RunAsync($"export {session.SessionId}", null, ct).ConfigureAwait(false);
         var start = json.IndexOf('{');
         if (start < 0)
         {
@@ -996,7 +988,17 @@ public sealed class OpenCodeFiles(Func<string?> cliPath) : ISessionFiles
     {
         if (files.TryGetValue(Export, out var export))
         {
-            await RunAsync($"import \"{export}\"", Directory.Exists(folder) ? folder : null, ct).ConfigureAwait(false);
+            var server = await OpenCode.OpenCodeServer.GetAsync(ct).ConfigureAwait(false);
+            var directory = Directory.Exists(folder) ? folder : null;
+            if (server.IsV2)
+            {
+                var json = await File.ReadAllTextAsync(export, ct).ConfigureAwait(false);
+                await OpenCode.OpenCodeClient.ImportV2SessionAsync(server, json, directory, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                await RunAsync($"import \"{export}\"", directory, ct).ConfigureAwait(false);
+            }
         }
 
         List(ct);

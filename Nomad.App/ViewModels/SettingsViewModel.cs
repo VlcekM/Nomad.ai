@@ -101,7 +101,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 "OpenCode",
                 "Connect subscription providers (ChatGPT, GitHub Copilot, SuperGrok, …) or use free OpenCode Zen.",
                 "opencode",
-                "Install it with npm i -g opencode-ai",
+                "Install it with npm i -g @opencode/cli",
                 s.OpenCodePath,
                 path =>
                 {

@@ -20,7 +20,7 @@ public static class OpenCodeTools
         var o = new JsonObject();
         switch (tool)
         {
-            case "bash":
+            case "bash" or "shell":
                 Copy(input, o, "command", "command");
                 Copy(input, o, "description", "description");
                 Copy(input, o, "timeout", "timeout");
@@ -76,7 +76,7 @@ public static class OpenCodeTools
     /// <summary>The Claude Code name for an OpenCode tool name, or the name itself.</summary>
     public static string Name(string tool) => tool switch
     {
-        "bash" => "Bash",
+        "bash" or "shell" => "Bash",
         "read" => "Read",
         "write" => "Write",
         "edit" or "patch" or "multiedit" => "Edit",
@@ -132,7 +132,7 @@ public static class OpenCodeTools
             case "edit":
                 o["file_path"] = OpenCodeJson.Str(metadata, "filepath") ?? patterns.FirstOrDefault() ?? "";
                 return ("Edit", ToElement(o));
-            case "bash":
+            case "bash" or "shell":
                 o["command"] = OpenCodeJson.Str(metadata, "command") ?? string.Join(" ", patterns);
                 return ("Bash", ToElement(o));
             case "webfetch":
@@ -241,7 +241,9 @@ public static class OpenCodeTools
 
         try
         {
-            return Path.GetFullPath(Path.Combine(cwd, path));
+            var combined = Path.Combine(cwd, path);
+            // History can carry a workspace path from another operating system.
+            return Path.IsPathFullyQualified(cwd) ? Path.GetFullPath(combined) : combined;
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {

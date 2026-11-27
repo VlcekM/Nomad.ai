@@ -369,8 +369,8 @@ public static partial class AgentAuth
     // ------------------------------------------------------------------ OpenCode
 
     /// <summary>
-    /// Fast status check for OpenCode: reads OpenCode's local <c>auth.json</c> immediately unless
-    /// <paramref name="queryServer"/> is true (after connecting or disconnecting a provider).
+    /// Fast status check for OpenCode: reads OpenCode's local <c>auth.json</c> immediately unless a v2 server is running
+    /// or <paramref name="queryServer"/> is true (after connecting or disconnecting a provider).
     /// </summary>
     public static async Task<AgentAuthStatus> GetOpenCodeStatusAsync(bool queryServer = false, CancellationToken ct = default)
     {
@@ -379,9 +379,10 @@ public static partial class AgentAuth
             return new AgentAuthStatus(false, false, "Not installed");
         }
 
-        if (queryServer)
+        var running = OpenCodeServer.Current;
+        if (queryServer || running?.IsV2 == true)
         {
-            var server = await OpenCodeServer.GetAsync(ct).ConfigureAwait(false);
+            var server = running ?? await OpenCodeServer.GetAsync(ct).ConfigureAwait(false);
             var (_, connected) = await OpenCodeClient.GetProviderAuthAsync(server, ct).ConfigureAwait(false);
             return BuildOpenCodeStatus(connected);
         }

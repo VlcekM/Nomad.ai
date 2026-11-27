@@ -57,6 +57,9 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
     /// <summary>The OpenCode version the server reported, e.g. "1.19.5".</summary>
     public string? Version { get; private set; }
 
+    /// <summary>Whether this server exposes the OpenCode v2 API.</summary>
+    internal bool IsV2 { get; private set; }
+
     /// <summary>The configured path or command name (Settings); "opencode" when empty.</summary>
     public static string? CliPath { get; set; }
 
@@ -110,7 +113,7 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
     private static async Task<OpenCodeServer> StartAsync(CancellationToken cancellationToken)
     {
         var exe = ResolveExecutable(CliPath)
-            ?? throw new FileNotFoundException($"Could not find OpenCode ('{(string.IsNullOrWhiteSpace(CliPath) ? "opencode" : CliPath)}'). Install it (npm i -g opencode-ai), or set its path in Settings.");
+            ?? throw new FileNotFoundException($"Could not find OpenCode ('{(string.IsNullOrWhiteSpace(CliPath) ? "opencode" : CliPath)}'). Install it (npm i -g @opencode/cli), or set its path in Settings.");
 
         var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
         var psi = new ProcessStartInfo
@@ -210,16 +213,29 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
 
         try
         {
-            using var health = await server.Http.GetAsync("global/health", cancellationToken).ConfigureAwait(false);
-            if (health.IsSuccessStatusCode)
+            using var info = await server.Http.GetAsync("api/info", timeout.Token).ConfigureAwait(false);
+            server.IsV2 = info.IsSuccessStatusCode && info.Content.Headers.ContentType?.MediaType == "application/json";
+
+            if (server.IsV2)
             {
-                using var doc = JsonDocument.Parse(await health.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
+                using var agents = await server.Http.GetAsync("api/agent", timeout.Token).ConfigureAwait(false);
+            }
+
+            using var health = server.IsV2 ? null : await server.Http.GetAsync("global/health", timeout.Token).ConfigureAwait(false);
+            if (server.IsV2 || health?.IsSuccessStatusCode == true)
+            {
+                using var doc = JsonDocument.Parse(await (health ?? info).Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false));
                 server.Version = OpenCodeJson.Str(doc.RootElement, "version");
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException)
         {
-            // Only the version is missing.
+            // The version endpoint is optional on older releases.
+        }
+        catch
+        {
+            await server.DisposeAsync().ConfigureAwait(false);
+            throw;
         }
 
         return server;
@@ -235,10 +251,34 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
         var exe = CliLocator.Resolve(name);
         if (exe is not null && CliLocator.IsBatchFile(exe))
         {
-            var binary = Path.Combine(Path.GetDirectoryName(exe)!, "node_modules", "opencode-ai", "bin", "opencode.exe");
-            if (File.Exists(binary))
+            var modules = Path.Combine(Path.GetDirectoryName(exe)!, "node_modules");
+            var v2 = Path.Combine(modules, "@opencode", "cli", "bin", "opencode.exe");
+            if (File.Exists(v2)) return v2;
+
+            var v1 = Path.Combine(modules, "opencode-ai", "bin", "opencode.exe");
+            if (File.Exists(v1)) return v1;
+        }
+
+        if (exe is null && name == "opencode" && OperatingSystem.IsLinux())
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var aliases = Path.Combine(home, ".nvm", "alias");
+            var versions = Path.Combine(home, ".nvm", "versions", "node");
+            var defaultAlias = Path.Combine(aliases, "default");
+            if (File.Exists(defaultAlias) && File.ReadAllText(defaultAlias).Trim() is { } version
+                && Regex.IsMatch(version, @"^v?\d+\.\d+\.\d+$"))
             {
-                return binary;
+                exe = CliLocator.Resolve(Path.Combine(versions, "v" + version.TrimStart('v'), "bin", name));
+            }
+
+            if (exe is null && Directory.Exists(versions))
+            {
+                exe = Directory.EnumerateDirectories(versions)
+                    .Select(path => (Path: path, Version: System.Version.TryParse(Path.GetFileName(path).TrimStart('v'), out var v) ? v : null))
+                    .Where(entry => entry.Version is not null)
+                    .OrderByDescending(entry => entry.Version)
+                    .Select(entry => CliLocator.Resolve(Path.Combine(entry.Path, "bin", name)))
+                    .FirstOrDefault(path => path is not null);
             }
         }
 

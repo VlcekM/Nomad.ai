@@ -120,7 +120,7 @@ public sealed class OpenCodeBackend : IAgentBackend
 
     public async Task RespondAsync(PermissionRequest request, PermissionDecision decision, CancellationToken cancellationToken = default)
     {
-        var (server, _) = Require();
+        var (server, sessionId) = Require();
         lock (_gate)
         {
             if (!_translator!.TakePending(request.RequestId, out _))
@@ -129,7 +129,16 @@ public sealed class OpenCodeBackend : IAgentBackend
             }
         }
 
-        if (request.RequestId.StartsWith("que", StringComparison.Ordinal))
+        if (server.IsV2 && request.ToolName == "AskUserQuestion")
+        {
+            var answers = decision.Choice != PermissionChoice.Deny && decision.UpdatedInput is { } input
+                ? OpenCodeTools.Answers(request.Input, input)
+                : null;
+            await OpenCodeClient.ReplyV2FormAsync(server, sessionId, request.RequestId, answers, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (!server.IsV2 && request.RequestId.StartsWith("que", StringComparison.Ordinal))
         {
             if (decision.Choice == PermissionChoice.Deny || decision.UpdatedInput is not { } answered)
             {
@@ -146,10 +155,10 @@ public sealed class OpenCodeBackend : IAgentBackend
         var reply = decision.Choice switch
         {
             PermissionChoice.Deny => "reject",
-            PermissionChoice.AllowForSession => "always",
+            PermissionChoice.AllowForSession when !server.IsV2 => "always",
             _ => "once",
         };
-        await OpenCodeClient.ReplyPermissionAsync(server, _directory, request.RequestId, reply, decision.Choice == PermissionChoice.Deny ? decision.DenyMessage : null, cancellationToken).ConfigureAwait(false);
+        await OpenCodeClient.ReplyPermissionAsync(server, _directory, request.RequestId, reply, decision.Choice == PermissionChoice.Deny ? decision.DenyMessage : null, cancellationToken, sessionId).ConfigureAwait(false);
     }
 
     public async Task InterruptAsync(CancellationToken cancellationToken = default)
@@ -275,12 +284,13 @@ public sealed class OpenCodeBackend : IAgentBackend
     /// </summary>
     internal static JsonArray Rules(string mode)
     {
-        static JsonObject Rule(string permission, string action) => new() { ["permission"] = permission, ["pattern"] = "*", ["action"] = action };
+        static JsonNode Rule(string permission, string action) => new JsonObject { ["permission"] = permission, ["pattern"] = "*", ["action"] = action };
 
         return mode switch
         {
             "bypassPermissions" => [Rule("edit", "allow"), Rule("bash", "allow"), Rule("webfetch", "allow"), Rule("external_directory", "allow")],
             "acceptEdits" => [Rule("edit", "allow"), Rule("bash", "ask"), Rule("webfetch", "ask"), Rule("external_directory", "ask")],
+            "plan" => [Rule("edit", "deny"), Rule("bash", "ask"), Rule("webfetch", "ask"), Rule("external_directory", "ask")],
             _ => [Rule("edit", "ask"), Rule("bash", "ask"), Rule("webfetch", "ask"), Rule("external_directory", "ask")],
         };
     }

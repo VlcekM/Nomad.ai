@@ -8,7 +8,7 @@ namespace Nomad.Core.OpenCode;
 /// <c>.delta</c>, <c>permission.asked</c>, <c>session.idle</c>, …) into Nomad's <see cref="AgentEvent"/>s. Events of
 /// other sessions (another chat, a subagent's child session) are ignored. Not thread-safe: feed it from one thread.
 /// </summary>
-public sealed class OpenCodeTranslator
+public sealed partial class OpenCodeTranslator
 {
     private readonly Dictionary<string, string> _roles = new(StringComparer.Ordinal);
     private readonly HashSet<string> _announcedMessages = new(StringComparer.Ordinal);
@@ -77,6 +77,11 @@ public sealed class OpenCodeTranslator
 
     public IEnumerable<AgentEvent> Handle(JsonElement ev)
     {
+        if (OpenCodeJson.Obj(ev, "data") is { ValueKind: JsonValueKind.Object } data)
+        {
+            return HandleV2(OpenCodeJson.Str(ev, "type"), data);
+        }
+
         var type = OpenCodeJson.Str(ev, "type");
         var p = OpenCodeJson.Obj(ev, "properties");
         if (type is null || SessionOf(p) is { } sid && sid != SessionId)
@@ -272,7 +277,7 @@ public sealed class OpenCodeTranslator
         return (index, true);
     }
 
-    private IEnumerable<AgentEvent> PermissionAsked(JsonElement p)
+    private IEnumerable<AgentEvent> PermissionAsked(JsonElement p, bool suppressAllowForSession = false)
     {
         if (OpenCodeJson.Str(p, "id") is not { } requestId)
         {
@@ -308,6 +313,7 @@ public sealed class OpenCodeTranslator
             Input = input,
             ToolUseId = callId,
             BlockedPath = permission == "external_directory" ? patterns.FirstOrDefault() : null,
+            SuppressAllowForSession = suppressAllowForSession,
         };
         _pending[requestId] = request;
         yield return new PermissionRequestedEvent(request);
