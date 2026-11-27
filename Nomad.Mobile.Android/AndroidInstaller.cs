@@ -147,8 +147,10 @@ public sealed class AndroidInstaller : IAppInstaller
             default:
                 _pendingConfirm = null;
                 // Refused for the file itself (older, signed by someone else, not for this phone), not for the moment it was tried in.
+#pragma warning disable CA1416 // Only a number compared: Android 14's timeout status never arrives on older versions.
                 var refused = status is not (PackageInstallStatus.FailureAborted or PackageInstallStatus.FailureStorage
                     or PackageInstallStatus.FailureBlocked or PackageInstallStatus.FailureTimeout);
+#pragma warning restore CA1416
                 Current?.Failed?.Invoke(Explain(status, intent.GetStringExtra(PackageInstaller.ExtraStatusMessage)), refused);
                 break;
         }
