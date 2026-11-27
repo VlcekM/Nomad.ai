@@ -4541,11 +4541,12 @@ public sealed partial class SessionViewModel : ObservableObject
 
             case ToolResultEvent r when r.ParentToolUseId is null:
                 _foregroundShells.Remove(r.ToolUseId);
+                // A foreground command this chat moved to the background runs on, shown as one (its id from the launch line).
+                // Only with that line: a command that finished before the move took effect returns its output instead, and
+                // listed as running it would never end (no notification comes for it), leaving a stale waiting row.
                 if (_movedShells.Remove(r.ToolUseId) && !r.IsError && !_backgroundTaskById.ContainsKey(r.ToolUseId)
-                    && _calls.TryGetValue(r.ToolUseId, out var moved))
+                    && _calls.TryGetValue(r.ToolUseId, out var moved) && TaskNotification.LaunchedTaskId(r.Text) is { } movedId)
                 {
-                    // A foreground command this chat moved to the background: it runs on, shown as one (its id from the launch line).
-                    var movedId = TaskNotification.LaunchedTaskId(r.Text);
                     StartBackgroundTask(r.ToolUseId, moved.Name, moved.Input, taskId: movedId);
                     OnBackgroundTasksRunningChanged();
                 }
