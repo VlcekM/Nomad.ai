@@ -28,6 +28,7 @@ Directory.CreateDirectory(options.DataPath);
 builder.Services.AddSingleton(options);
 builder.Services.AddDbContext<HubDb>(o => o.UseSqlite($"Data Source={Path.Combine(options.DataPath, "hub.db")}"));
 builder.Services.AddSingleton<BlobStore>();
+builder.Services.AddSingleton<PhoneAppStore>();
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
 builder.Services.AddSingleton<RelayState>();
@@ -72,13 +73,14 @@ app.UseAuthorization();
 DeviceEndpoints.MapAnonymous(app);
 var api = app.MapGroup("/api").RequireAuthorization();
 
-// A phone may only ask who it is and revoke itself in the API; everything else there is for PCs (docs/mobile.md §6).
+// A phone may only ask who it is, revoke itself and fetch the phone app in the API; everything else there is for PCs (docs/mobile.md §6).
 api.AddEndpointFilter(async (context, next) =>
     context.HttpContext.User.IsViewer() && context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<ViewerAllowed>() is null
         ? Results.StatusCode(StatusCodes.Status403Forbidden)
         : await next(context));
 DeviceEndpoints.Map(api);
 BlobEndpoints.Map(api);
+PhoneAppEndpoints.Map(api);
 Sessions.Map(api);
 UsageEndpoints.Map(api);
 app.MapHub<NomadHub>(HubNames.HubPath);

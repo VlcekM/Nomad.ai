@@ -55,6 +55,10 @@ public sealed class HubConnection : IHubConnection
 
     public Task RevokeDeviceAsync(Guid id, CancellationToken ct = default) => _client.RevokeDeviceAsync(id, ct);
 
+    public Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default) => _client.PhoneAppAsync(ct);
+
+    public Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default) => _client.PhoneAppDownloadAsync(ct);
+
     public ValueTask DisposeAsync() => _client.DisposeAsync();
 }
 

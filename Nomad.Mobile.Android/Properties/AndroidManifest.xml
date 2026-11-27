@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" android:installLocation="auto">
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- Updating itself: the downloaded APK goes to Android's installer, which asks first unless Android lets the app update itself. -->
+  <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+  <!-- Android 12+: an update of itself goes in without asking. -->
+  <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
   <!-- Plain HTTP stays refused (Android's default): the hub must be reached over HTTPS. -->
   <application android:label="Nomad" android:icon="@drawable/icon" android:usesCleartextTraffic="false" android:allowBackup="false" />
 </manifest>

@@ -328,6 +328,32 @@ public sealed class HubClient : IAsyncDisposable
     public async Task<HubInfo> InfoAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/info", HubJson.Default.HubInfo, ct).ConfigureAwait(false))!;
 
+    /// <summary>The phone app the hub offers as an update; null when it offers none (or is too old to say).</summary>
+    public async Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("api/phone-app", ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync(HubJson.Default.PhoneAppInfo, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The offered phone app's file, read as it downloads.</summary>
+    public async Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/phone-app/apk", HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            response.Dispose();
+            throw new HttpRequestException($"The hub answered {(int)response.StatusCode} for the phone app.", null, response.StatusCode);
+        }
+
+        return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+    }
+
     public async Task<List<DeviceDto>> DevicesAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/devices", HubJson.Default.ListDeviceDto, ct).ConfigureAwait(false))!;
 

@@ -146,6 +146,23 @@ public sealed class FakeHub : IHubConnection, IHubFactory
         return Task.CompletedTask;
     }
 
+    /// <summary>The phone app the hub offers (null: none), and its file's bytes.</summary>
+    public PhoneAppInfo? PhoneApp { get; set; }
+
+    public byte[] PhoneAppBytes { get; set; } = [];
+
+    public Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default)
+    {
+        Calls.Add("PhoneApp");
+        return Task.FromResult(PhoneApp);
+    }
+
+    public Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default)
+    {
+        Calls.Add("PhoneAppDownload");
+        return Task.FromResult<Stream>(new MemoryStream(PhoneAppBytes));
+    }
+
     public ValueTask DisposeAsync()
     {
         Calls.Add("Dispose");

@@ -20,12 +20,16 @@ public sealed partial class MainViewModel : ObservableObject
         _hubs = hubs;
         Chats = new ChatsViewModel(this);
         Connect = new ConnectViewModel(this);
+        Update = new AppUpdateViewModel(this);
         Page = Connect;
     }
 
     public ChatsViewModel Chats { get; }
 
     public ConnectViewModel Connect { get; }
+
+    /// <summary>Updating this app, when the hub (or the GitHub release) has a newer one.</summary>
+    public AppUpdateViewModel Update { get; }
 
     /// <summary>The screen showing: a <see cref="ConnectViewModel"/>, <see cref="ChatsViewModel"/>, <see cref="ChatViewModel"/> or <see cref="SettingsViewModel"/>.</summary>
     [ObservableProperty]
@@ -82,6 +86,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (Enrollment is not null && Enrollment != enrollment)
         {
             Chats.Clear();
+            Update.Clear();
         }
 
         Enrollment = enrollment;
@@ -169,6 +174,8 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 _ = chat.ReattachAsync();
             }
+
+            _ = Update.CheckAsync();
         }
         else
         {
@@ -187,6 +194,8 @@ public sealed partial class MainViewModel : ObservableObject
             Chats.Status = "Reconnecting to the hub…";
             _ = connection.ReconnectNowAsync().ContinueWith(_ => { }, TaskScheduler.Default);
         }
+
+        Update.OnResumed();
     }
 
     public void OpenChatRow(ChatRowViewModel row)
@@ -274,6 +283,7 @@ public sealed partial class MainViewModel : ObservableObject
         Enrollment.Clear(_store);
         Enrollment = null;
         Chats.Clear();
+        Update.Clear();
         Connect.Reset();
         Connect.Error = problem;
         ShowPage(Connect);

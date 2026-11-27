@@ -43,6 +43,26 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <!-- The app: its version, and an update when there is one. -->
+        <StackPanel IsVisible="{Binding Update.IsSupported}">
+          <TextBlock Classes="section" Text="App" Margin="0,22,0,6" />
+          <Grid ColumnDefinitions="*,Auto" Margin="0,10" MinHeight="24">
+            <TextBlock Classes="rowlabel" Text="Nomad on this phone" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Classes="rowhint" Text="{Binding Update.InstalledText}" VerticalAlignment="Center" />
+          </Grid>
+          <Border Classes="rowline" />
+          <StackPanel Margin="0,10" Spacing="3" DataContext="{Binding Update}">
+            <TextBlock Classes="rowlabel" Text="{Binding OfferText}" TextWrapping="Wrap"
+                       IsVisible="{Binding OfferText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Classes="rowhint" Text="{Binding UpToDateText}" TextWrapping="Wrap"
+                       IsVisible="{Binding UpToDateText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <TextBlock Classes="rowhint" Classes.danger="{Binding StatusIsProblem}" Text="{Binding Status}" TextWrapping="Wrap"
+                       IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <Button Theme="{StaticResource PhonePrimaryButton}" Content="{Binding ButtonText}" Command="{Binding UpdateCommand}"
+                    IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}" HorizontalAlignment="Stretch" Margin="0,6,0,0" />
+          </StackPanel>
+        </StackPanel>
+
         <StackPanel Spacing="2" Margin="0,26,0,0">
           <Button Theme="{StaticResource PhoneSecondaryButton}" Content="Connect to another hub" Command="{Binding ConnectElsewhereCommand}"
                   HorizontalAlignment="Stretch" />

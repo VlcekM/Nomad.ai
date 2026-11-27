@@ -61,6 +61,21 @@
       </Button>
     </Grid>
 
+    <!-- An update of the app, ready to install (or how installing it goes): the text, and Update. -->
+    <Border DockPanel.Dock="Top" Classes="field updatebar" Margin="14,0,14,8" Padding="14,8,8,8"
+            DataContext="{Binding Update}" IsVisible="False" c:Fold.IsOpen="{Binding ShowsBar}">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel VerticalAlignment="Center" Spacing="2">
+          <TextBlock Classes="rowlabel" Text="{Binding OfferText}" TextWrapping="Wrap"
+                     IsVisible="{Binding OfferText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Classes="rowhint" Classes.danger="{Binding StatusIsProblem}" Text="{Binding Status}" TextWrapping="Wrap"
+                     IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+        <Button Grid.Column="1" Theme="{StaticResource PhonePrimaryButton}" Content="{Binding ButtonText}" Command="{Binding UpdateCommand}"
+                IsVisible="{Binding Offer, Converter={x:Static ObjectConverters.IsNotNull}}" Margin="10,0,0,0" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+
     <!-- Pulling down fetches the board again. -->
     <RefreshContainer x:Name="Refresher" RefreshRequested="OnRefreshRequested">
       <ScrollViewer>

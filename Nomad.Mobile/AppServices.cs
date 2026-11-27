@@ -22,6 +22,12 @@ public static class AppServices
     /// <summary>Runs work on the UI thread. Hub events arrive on any thread; the tests run it at once.</summary>
     public static Action<Action> Post { get; set; } = work => Dispatcher.UIThread.Post(work);
 
+    /// <summary>Installs updates of this app; null (the tests' default) offers none.</summary>
+    public static IAppInstaller? Installer { get; set; }
+
+    /// <summary>Where an update comes from when the hub offers none (the GitHub release, on Android); null looks nowhere else.</summary>
+    public static Func<CancellationToken, Task<AppOffer?>>? ReleaseFeed { get; set; }
+
     /// <summary>Copies text to the clipboard, where the platform has one.</summary>
     public static Func<string, Task>? CopyText { get; set; }
 }

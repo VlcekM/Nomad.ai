@@ -8,7 +8,7 @@ namespace Nomad.Hub.Tests;
 
 /// <summary>
 /// A phone is a viewer (docs/mobile.md §6): it reads the board and chats and sends them input through the PC that has them open,
-/// and can do nothing else: no sessions, files, leases, devices or tokens, and it revokes only itself.
+/// and can do nothing else: no sessions, files, leases, devices or tokens, and it revokes only itself. It may fetch the phone app the hub offers.
 /// </summary>
 public sealed class ViewerTests
 {
@@ -47,6 +47,29 @@ public sealed class ViewerTests
         // Signing out: it revokes itself, and its secret stops working.
         Assert.Equal(HttpStatusCode.NoContent, (await phone.DeleteAsync($"/api/devices/{phoneId}")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/api/info")).StatusCode);
+    }
+
+    [Fact]
+    public async Task APhoneFetchesThePhoneAppTheHubOffers()
+    {
+        using var hub = new HubFactory();
+        var phone = await hub.EnrollAsync("Phone", phone: true);
+        Assert.Equal(HttpStatusCode.NotFound, (await phone.GetAsync("/api/phone-app")).StatusCode); // None offered yet.
+
+        var folder = Directory.CreateDirectory(Path.Combine(hub.DataPath, "phone-app")).FullName;
+        byte[] apk = [.. Enumerable.Range(0, 70_000).Select(i => (byte)i)];
+        await File.WriteAllBytesAsync(Path.Combine(folder, "Nomad-android.apk"), apk);
+        await File.WriteAllTextAsync(Path.Combine(folder, "Nomad-android.json"), """{ "version": "2.9.0", "versionCode": 20900 }""");
+
+        var info = (await phone.GetFromJsonAsync("/api/phone-app", HubJson.Default.PhoneAppInfo))!;
+        Assert.Equal(("2.9.0", 20900L, apk.Length), (info.Version, info.VersionCode, info.Size));
+        Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(apk)), info.Sha256);
+        Assert.Equal(apk, await phone.GetByteArrayAsync("/api/phone-app/apk"));
+
+        // Without the version file it is still offered, unversioned: the phone compares the files.
+        File.Delete(Path.Combine(folder, "Nomad-android.json"));
+        var bare = (await phone.GetFromJsonAsync("/api/phone-app", HubJson.Default.PhoneAppInfo))!;
+        Assert.Equal(("", 0L), (bare.Version, bare.VersionCode));
     }
 
     [Fact]

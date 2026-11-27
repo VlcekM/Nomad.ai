@@ -28,6 +28,9 @@ public sealed partial class ChatsViewModel(MainViewModel main) : ObservableObjec
     [ObservableProperty]
     public partial bool IsRefreshing { get; set; }
 
+    /// <summary>The bar over the list when an update of the app is ready.</summary>
+    public AppUpdateViewModel Update => main.Update;
+
     public IReadOnlyList<BoardDevice> Devices => [.. _devices.Values.OrderBy(d => d.DeviceName, StringComparer.CurrentCultureIgnoreCase)];
 
     /// <summary>Fetches the whole board again (on connecting, and when the list is pulled down).</summary>

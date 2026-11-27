@@ -40,6 +40,12 @@
     <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
   </ItemGroup>
 
+  <!-- Beside a published APK: its version, for a hub to offer it as an update (docs/mobile.md §5, "Updating the app"). -->
+  <Target Name="NomadPhoneAppInfo" AfterTargets="Publish" Condition="'$(PublishDir)' != ''">
+    <WriteLinesToFile File="$(PublishDir)Nomad-android.json" Overwrite="true"
+                      Lines="{ &quot;version&quot;: &quot;$(ApplicationDisplayVersion)&quot;, &quot;versionCode&quot;: $(ApplicationVersion) }" />
+  </Target>
+
   <!-- An emulator test build (-p:NomadEmulatorTest=true) may reach a local test hub over plain HTTP at 10.0.2.2, the emulator's
        address for the PC it runs on. Nothing of this is in a normal build. -->
   <PropertyGroup Condition="'$(NomadEmulatorTest)' == 'true'">

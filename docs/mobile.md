@@ -90,6 +90,12 @@ The app takes Nomad's colors and fonts, and follows the phone's light or dark se
 
 Android may close the connection while the app is in the background. On return the app reconnects: SignalR reconnects dropped connections itself, and the app reconnects after a deliberate close, as the desktop does. It then calls `BoardWatch` again, re-watches the open chat (`WatchResult` returns the turn so far) and fetches the newest history page. The first version keeps no transcript on the phone, so nothing it shows can go stale.
 
+### Updating the app
+
+The app updates itself from the hub, so a new build reaches the phone without its file being sent again. The hub offers whatever is in its data folder's `phone-app` folder: `Nomad-android.apk`, and the `Nomad-android.json` that publishing the app writes beside it with the version and Android's version code (`GET /api/phone-app` says what is offered, with the file's size and SHA-256; `GET /api/phone-app/apk` is the file; a phone may call both). The phone looks on connecting and on coming back from the background, at most every half hour, and again whenever Settings opens. A higher version code is an update; so is the same one with a different file (a newer build of the same version), and a file with no version beside it is compared by its contents alone. When the hub offers nothing, the newest GitHub release's `Nomad-android.apk` is offered if its tag is a higher version.
+
+An update shows as a bar over the chats and in Settings › App. **Update** downloads it, checks its size and SHA-256 against the offer, and hands it to Android's package installer. The first time, Android asks for Nomad to be allowed to install apps; once that switch is on and the app comes back, the update carries on. From Android 12 on the update then goes in without asking, since an app may update itself (the manifest asks for `UPDATE_PACKAGES_WITHOUT_USER_ACTION`); Android 10 and 11 show their confirm screen each time, over the app or when it next comes back. Android ends the app while it installs the new copy, and the app is opened again from the home screen: Android doesn't let an app, or its installer's answer, open it from the background. An update must be signed with the same key as the installed app: a build signed by someone else is refused, and the app says so; so is an older one, which isn't offered again.
+
 ### Connection security
 
 The hub speaks plain HTTP, and Android refuses plain HTTP by default, so the app requires HTTPS. There are two ways to provide it. One is the reverse proxy the hub design already expects (§9). The other is Tailscale, whose `tailscale serve --https` gets a real certificate for the PC's private network name at no cost. The README covers both.
@@ -98,6 +104,7 @@ The hub speaks plain HTTP, and Android refuses plain HTTP by default, so the app
 
 - A phone holds a device secret, as a PC does. It can do what a watching PC can (prompt, answer, stop), change a chat's model, effort and mode, and start a chat on a PC that shares its chats, in one of the folders that PC lists. It reads no files and runs no commands of its own: everything goes through the agent, under the chat's permission mode, which the phone can set like the PC's own menus can, Bypass permissions included. An enrolled phone is trusted as much as the PC's own keyboard, which is why a lost one is revoked at once.
 - The PC checks every input as if it were typed there (§4).
+- A phone may fetch the phone app the hub offers, and installs only what Android's installer accepts: a file signed with the installed app's key, after the user allows it.
 - The secret is stored at rest under the Android Keystore.
 - A lost phone is revoked from Settings › Hub on any PC; the hub ends its open connections at once, and its secret no longer signs in.
 

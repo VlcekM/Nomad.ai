@@ -261,7 +261,10 @@ on your private network (the phone needs the Tailscale app). Then in Settings â€
 shows a QR code: scan it with the phone's camera and Nomad opens with the address and a one-time token filled
 in. A phone is listed and revoked like a PC; signing out on the phone revokes it too.
 
-Each release has `Nomad-android.apk`; open it on the phone to install. To build it yourself, install the
+Each release has `Nomad-android.apk`; open it on the phone to install. After that the app updates itself:
+it offers the newest release, or whatever the hub offers in its data folder's `phone-app` folder (the
+`Nomad-android.apk` and `Nomad-android.json` that publishing the app writes), and **Update** hands it to
+Android's installer. To build it yourself, install the
 Android workload (`dotnet workload install android`) and run:
 
 ```powershell

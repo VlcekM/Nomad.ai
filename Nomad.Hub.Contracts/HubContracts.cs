@@ -18,6 +18,13 @@ public sealed record DeviceDto(Guid Id, string Name, DateTime EnrolledUtc, DateT
 public sealed record HubInfo(string Version, Guid DeviceId, string DeviceName, bool RelayEnabled);
 
 /// <summary>
+/// The phone app the hub offers (docs/mobile.md §5, "Updating the app"): its version as the release names it ("2.9.0") and as
+/// Android's version code (20900; 0 when the hub wasn't told), the file's size and SHA-256 (lowercase hex), and when it was
+/// put there. A phone with a lower version code, or the same one and a different file, offers it as an update.
+/// </summary>
+public sealed record PhoneAppInfo(string Version, long VersionCode, long Size, string Sha256, DateTime PublishedUtc);
+
+/// <summary>
 /// A project: a repository (or folder) the same on every PC, keyed by something path-independent: the normalised git
 /// remote, else the root commit, else the folder name and the device it came from.
 /// </summary>

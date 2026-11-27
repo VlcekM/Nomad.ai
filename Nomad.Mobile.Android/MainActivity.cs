@@ -35,6 +35,8 @@ public class MainActivity : AvaloniaMainActivity<App>
     {
         AppServices.Store = new AndroidSecretStore(this);
         AppServices.DefaultDeviceName = DeviceName();
+        AppServices.Installer = new AndroidInstaller(this);
+        AppServices.ReleaseFeed = GitHubRelease.LatestAsync;
 #if NOMAD_EMULATOR_TEST
         EnrollLink.PlainHttpAllowed = url => url.Host == "10.0.2.2";
 #endif
@@ -55,6 +57,18 @@ public class MainActivity : AvaloniaMainActivity<App>
         }
 
         OpenLink(Intent);
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        AndroidInstaller.OnResumed(this);
+    }
+
+    protected override void OnPause()
+    {
+        AndroidInstaller.InForeground = false;
+        base.OnPause();
     }
 
     protected override void OnNewIntent(Intent? intent)

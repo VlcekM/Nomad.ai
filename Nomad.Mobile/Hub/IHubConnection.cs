@@ -49,6 +49,12 @@ public interface IHubConnection : IAsyncDisposable
 
     Task UnwatchAsync(string backend, string sessionId, CancellationToken ct = default);
 
+    /// <summary>The phone app the hub offers as an update; null when it offers none.</summary>
+    Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default);
+
+    /// <summary>The offered phone app's file, read as it downloads.</summary>
+    Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default);
+
     /// <summary>Revokes a device on the hub (this phone, when signing out).</summary>
     Task RevokeDeviceAsync(Guid id, CancellationToken ct = default);
 }

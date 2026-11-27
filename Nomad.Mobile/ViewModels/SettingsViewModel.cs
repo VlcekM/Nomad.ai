@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Nomad.Mobile.ViewModels;
 
-/// <summary>Settings: the hub, the PCs on the board, and Sign out, which also revokes this phone on the hub.</summary>
+/// <summary>Settings: the hub, the PCs on the board, the app's version and updates, and Sign out, which also revokes this phone on the hub.</summary>
 public sealed partial class SettingsViewModel : ObservableObject, IClosable
 {
     private readonly MainViewModel main;
@@ -14,7 +14,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IClosable
         this.main = main;
         main.PropertyChanged += OnMainChanged;
         main.Chats.BoardChanged += OnBoardChanged;
+        _ = main.Update.CheckAsync(force: true);
     }
+
+    /// <summary>The App section: this version, and an update when there is one (looked for again as Settings opens).</summary>
+    public AppUpdateViewModel Update => main.Update;
 
     public void Close()
     {
