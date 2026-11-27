@@ -128,7 +128,8 @@ public static class ChatTools
     }
 
     /// <summary>
-    /// A minimal MCP server over JSON-RPC messages, offering only the chat tools: what Antigravity gets through the bridge.
+    /// A minimal MCP server over JSON-RPC messages, offering the chat tools and <see cref="AgentTools"/>: what Antigravity and
+    /// Codex get through the bridge. Every call runs here, in the Nomad window's process, not in the bridge process.
     /// </summary>
     public static async Task<JsonObject?> HandleAsync(JsonElement message, string? callerKey)
     {
@@ -145,7 +146,9 @@ public static class ChatTools
                 ["serverInfo"] = new JsonObject { ["name"] = "nomad_chats", ["version"] = "1.0.0" },
             },
             "ping" => new JsonObject(),
-            "tools/list" => new JsonObject { ["tools"] = new JsonArray(Descriptors()) },
+            "tools/list" => new JsonObject { ["tools"] = new JsonArray([.. Descriptors(), .. AgentTools.Descriptors()]) },
+            "tools/call" when AgentTools.Owns(Str(parameters, "name")) =>
+                await AgentTools.CallAsync(Str(parameters, "name"), parameters, callerKey).ConfigureAwait(false),
             "tools/call" => await CallAsync(Str(parameters, "name"), parameters, callerKey).ConfigureAwait(false),
             _ => null,
         };

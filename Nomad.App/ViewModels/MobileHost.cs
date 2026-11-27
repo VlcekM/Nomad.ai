@@ -241,12 +241,22 @@ internal sealed class MobileHost : IDisposable
             Clip(p.Detail, 4000), p.Description is { } d ? Clip(d, 2000) : null, p.CanAllowForSession, p.AllowText, p.DenyText, p.AnswerText, null)),
         ErrorItem e => new ChatEntry(index, "error", Clip(e.Message)),
         NoticeItem n => new ChatEntry(index, "notice", Clip(n.Text)),
-        SentFilesItem f => new ChatEntry(index, "notice", f.Caption.Length > 0 ? Clip($"Sent files: {f.Caption}") : "Sent files (open Nomad on the PC to see them)"),
+        SentFilesItem f => new ChatEntry(index, "notice", Clip(SentFilesLine(f))),
         AssistantImagesItem i => new ChatEntry(index, "notice", $"{i.Sources.Count} image{(i.Sources.Count == 1 ? "" : "s")} (open Nomad on the PC to see them)"),
         ArtifactItem art => new ChatEntry(index, "notice", Clip($"Artifact: {art.Title} {art.Url}")),
         NewChatItem chat => new ChatEntry(index, "notice", Clip($"Suggested a new chat: {chat.Title}")),
         _ => null,
     };
+
+    /// <summary>
+    /// A sent-files item as the phone shows it: the files' names and the caption (the files themselves stay on the PC).
+    /// </summary>
+    internal static string SentFilesLine(SentFilesItem f)
+    {
+        var names = string.Join(", ", f.SentPaths.Select(Path.GetFileName));
+        var what = f.SentPaths.Count == 1 ? $"Sent a file: {names}" : $"Sent {f.SentPaths.Count} files: {names}";
+        return (f.Caption.Length > 0 ? $"{what}. {f.Caption}" : what) + " (open Nomad on the PC to see it)";
+    }
 
     // ------------------------------------------------------------------ input
 

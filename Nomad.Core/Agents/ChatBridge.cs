@@ -6,9 +6,11 @@ using System.Text.Json.Nodes;
 namespace Nomad.Core.Agents;
 
 /// <summary>
-/// How agents that take only command-line MCP servers (Antigravity) reach the chat tools. Nomad listens on a named pipe; the agent
-/// starts <c>Nomad.ai.exe --chat-bridge &lt;pipe&gt; &lt;chat key&gt;</c>, which relays its stdin and stdout to that pipe. The first line
-/// on the pipe is the chat key, so every call is answered for the chat that made it.
+/// How agents that take only command-line MCP servers (Antigravity, Codex) reach the chat tools and <see cref="AgentTools"/>. Nomad
+/// listens on a named pipe; the agent starts <c>Nomad.ai.exe --chat-bridge &lt;pipe&gt; &lt;chat key&gt;</c>, which relays its stdin and
+/// stdout to that pipe. The first line on the pipe is the chat key, so every call is answered for the chat that made it. The bridge
+/// process only relays: every call runs in the Nomad window's own process, on the user's desktop, even when the agent started the
+/// bridge on a hidden one.
 /// </summary>
 public static class ChatBridge
 {
@@ -44,10 +46,36 @@ public static class ChatBridge
 
         return new JsonObject
         {
-            ["name"] = "nomad_chats",
+            ["name"] = ServerName,
             ["command"] = exe,
             ["args"] = new JsonArray(Argument, pipe, chatKey),
             ["env"] = new JsonArray(),
+        };
+    }
+
+    /// <summary>
+    /// The server name both agents see the tools under (Antigravity calls them <c>mcp_nomad_chats_…</c>, Codex
+    /// <c>mcp__nomad_chats__…</c>).
+    /// </summary>
+    public const string ServerName = "nomad_chats";
+
+    /// <summary>
+    /// The thread config a Codex <c>thread/start</c>, <c>thread/resume</c> or <c>thread/fork</c> takes to add the bridge as an MCP
+    /// server for the chat with <paramref name="chatKey"/> (one app server runs every Codex chat, so each thread names its own key);
+    /// null when not listening. Its tool time limit leaves room for the longest command <c>run_on_desktop</c> allows.
+    /// </summary>
+    public static JsonObject? CodexConfig(string chatKey)
+    {
+        if (PipeName is not { } pipe || Environment.ProcessPath is not { } exe) return null;
+
+        return new JsonObject
+        {
+            ["mcp_servers." + ServerName] = new JsonObject
+            {
+                ["command"] = exe,
+                ["args"] = new JsonArray(Argument, pipe, chatKey),
+                ["tool_timeout_sec"] = (int)DesktopCommand.MaxTimeout.TotalSeconds + 60,
+            },
         };
     }
 
@@ -83,18 +111,48 @@ public static class ChatBridge
         await using var _ = pipe;
         using var reader = new StreamReader(pipe, new UTF8Encoding(false));
         await using var writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };
+        // Calls are answered as they finish, each on its own, so a long one (a command on the desktop) holds up no other.
+        var writing = new SemaphoreSlim(1, 1);
+        var calls = new List<Task>();
         try
         {
             var key = await reader.ReadLineAsync().ConfigureAwait(false);
             while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
-                if (await AnswerAsync(line, key).ConfigureAwait(false) is { } response)
-                    await writer.WriteLineAsync(response.ToJsonString()).ConfigureAwait(false);
+                calls.RemoveAll(c => c.IsCompleted);
+                calls.Add(Task.Run(() => AnswerLineAsync(line, key, writer, writing)));
             }
         }
         catch (IOException)
         {
             // The bridge process went away with its agent.
+        }
+
+        await Task.WhenAll(calls).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Answers one line and writes the response, one response at a time.
+    /// </summary>
+    private static async Task AnswerLineAsync(string line, string? key, StreamWriter writer, SemaphoreSlim writing)
+    {
+        try
+        {
+            if (await AnswerAsync(line, key).ConfigureAwait(false) is not { } response) return;
+
+            await writing.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await writer.WriteLineAsync(response.ToJsonString()).ConfigureAwait(false);
+            }
+            finally
+            {
+                writing.Release();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            // The bridge process went away before the answer.
         }
     }
 

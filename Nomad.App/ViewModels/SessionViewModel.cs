@@ -4855,6 +4855,25 @@ public sealed partial class SessionViewModel : ObservableObject
             CloseGroup();
             Items.Add(sent);
         }
+        else if (!isError && (KeptFile(text) ?? (IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.SendFileName) ? KeptCopyOf(call.Input, call.Cwd) : null)) is { } kept)
+        {
+            // Nomad's send_file, from another agent: shown when it ran, and here again when the transcript loads later.
+            if (!_shownByTools.Remove("file:" + Path.GetFileName(kept)) && File.Exists(kept))
+            {
+                CloseGroup();
+                Items.Add(new SentFilesItem([kept], InputText(call.Input, "caption")));
+            }
+        }
+        else if (!isError && (text.StartsWith(Nomad.Core.Agents.AgentTools.NotifiedMarker, StringComparison.Ordinal) ||
+                IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.NotifyName)) &&
+            InputText(call.Input, "title") is { } noteTitle && InputText(call.Input, "message") is { } noteMessage)
+        {
+            if (!_shownByTools.Remove("note:" + noteTitle + "\n" + noteMessage))
+            {
+                CloseGroup();
+                Items.Add(new NoticeItem(NotificationLine(noteTitle, noteMessage)));
+            }
+        }
         else if (call.Name == "Artifact" && !isError && ArtifactItem.From(call.Input, call.Cwd, text) is { } artifact)
         {
             CloseGroup();
@@ -4931,6 +4950,102 @@ public sealed partial class SessionViewModel : ObservableObject
     }
 
     private void CloseGroup() => _openGroup = null;
+
+    #region Agent tools (send_file, notify)
+
+    /// <summary>
+    /// What <see cref="ShowSentFile"/> and <see cref="ShowNotification"/> put in the transcript while the tool ran, so its result
+    /// arriving afterwards does not show it twice.
+    /// </summary>
+    private readonly HashSet<string> _shownByTools = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Shows a file Nomad's send_file kept for the user, as its call runs.
+    /// </summary>
+    internal void ShowSentFile(string path, string? caption)
+    {
+        CloseGroup();
+        _shownByTools.Add("file:" + Path.GetFileName(path));
+        Items.Add(new SentFilesItem([path], caption));
+        CloseGroup();
+    }
+
+    /// <summary>
+    /// Whether a call is one of Nomad's own agent tools, as Codex (<c>mcp__nomad_chats__send_file</c>) or Antigravity
+    /// (<c>Run mcp_nomad_chats_send_file</c>) names it.
+    /// </summary>
+    private static bool IsNomadTool(string name, string tool) =>
+        name.EndsWith(Nomad.Core.Agents.ChatBridge.ServerName + "__" + tool, StringComparison.Ordinal) ||
+        name.EndsWith(Nomad.Core.Agents.ChatBridge.ServerName + "_" + tool, StringComparison.Ordinal);
+
+    /// <summary>
+    /// For a send_file call whose result a saved transcript lost (Antigravity keeps none): the newest kept copy with the sent
+    /// file's name, else the file itself while it still exists; null when neither is there.
+    /// </summary>
+    private static string? KeptCopyOf(System.Text.Json.JsonElement input, string? cwd)
+    {
+        if (InputText(input, "path") is not { } given) return null;
+
+        try
+        {
+            var original = Path.GetFullPath(cwd is not null ? Path.Combine(cwd, given) : given);
+            var sent = Path.Combine(Nomad.Core.Agents.AgentTools.KeptRoot, "sent");
+            var name = Path.GetFileName(original);
+            var kept = Directory.Exists(sent)
+                ? new DirectoryInfo(sent).EnumerateDirectories().OrderByDescending(d => d.Name, StringComparer.Ordinal)
+                    .Select(d => Path.Combine(d.FullName, name)).FirstOrDefault(File.Exists)
+                : null;
+            return kept ?? (File.Exists(original) ? original : null);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Shows a notification's line, as Nomad's notify runs.
+    /// </summary>
+    internal void ShowNotification(string title, string message)
+    {
+        CloseGroup();
+        _shownByTools.Add("note:" + title + "\n" + message);
+        Items.Add(new NoticeItem(NotificationLine(title, message)));
+    }
+
+    /// <summary>
+    /// A notification as the transcript (and the phone) shows it.
+    /// </summary>
+    private static string NotificationLine(string title, string message) => $"Notification: {title}. {message}";
+
+    /// <summary>
+    /// The kept copy a send_file result names, when it is one in Nomad's kept folder; null otherwise.
+    /// </summary>
+    private static string? KeptFile(string result)
+    {
+        var at = result.IndexOf(Nomad.Core.Agents.AgentTools.KeptMarker, StringComparison.Ordinal);
+        if (at < 0) return null;
+
+        var path = result[(at + Nomad.Core.Agents.AgentTools.KeptMarker.Length)..].Split('\n')[0].Trim();
+        var root = Path.GetFullPath(Path.Combine(Nomad.Core.Agents.AgentTools.KeptRoot, "sent")) + Path.DirectorySeparatorChar;
+        try
+        {
+            return Path.GetFullPath(path).StartsWith(root, StringComparison.OrdinalIgnoreCase) ? Path.GetFullPath(path) : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A string argument of a tool call's input, trimmed; null when missing or empty.
+    /// </summary>
+    private static string? InputText(System.Text.Json.JsonElement input, string name) =>
+        input.ValueKind == System.Text.Json.JsonValueKind.Object && input.TryGetProperty(name, out var value) &&
+        value.ValueKind == System.Text.Json.JsonValueKind.String && value.GetString()?.Trim() is { Length: > 0 } text ? text : null;
+
+    #endregion
 
     /// <summary>Marks each finished turn's last text as its response (the one with a Copy button).</summary>
     private void MarkResponseEnds()
