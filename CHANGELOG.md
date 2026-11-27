@@ -3,6 +3,13 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.6
+
+- Connect to OpenCode v2 for provider sign-in, chats, tool approvals, and session history. On Linux, Nomad can also find OpenCode installed through NVM.
+- Send a message from another chat into a running Claude Code turn. Claude can answer in the transcript while long-running commands continue in the background.
+- Keep task notification hook context off user messages.
+- Share open chats with phone viewers through Nomad Hub so they can read conversations and answer prompts.
+
 ## v2.8.5
 
 - Chat names stay in sync with renames made outside Nomad: a `/rename` in Claude Code or the Claude app, or a rename in Antigravity, now shows up in Nomad, and renaming a Gemini chat in Nomad also renames it in Antigravity.
