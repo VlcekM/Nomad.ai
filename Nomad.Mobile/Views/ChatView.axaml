@@ -215,13 +215,13 @@
 
                   <!-- Thinking: the desktop's "Thought" line with a chevron; tapped open, the thought under a rule. -->
                   <StackPanel IsVisible="{Binding IsThinking}" Margin="0,-6">
-                    <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}">
+                    <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}" IsVisible="{Binding !InFull}">
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Text="Thought" VerticalAlignment="Center" />
                         <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" VerticalAlignment="Center" />
                       </StackPanel>
                     </Button>
-                    <Border c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
+                    <Border c:Fold.IsOpen="{Binding ShowsThought}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
                             Padding="12,0,0,0" Margin="1,0,0,10">
                       <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="20" Classes="secondary" />
                     </Border>

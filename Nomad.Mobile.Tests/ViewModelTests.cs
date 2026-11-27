@@ -394,6 +394,24 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task Thinking_shows_in_full_when_the_PC_writes_it_out_and_folds_again_when_it_stops()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var thinking = new ChatEntry(5, "thinking", "First, check the lexer.\nThen the parser.");
+        hub.Pages["d1"] = Samples.Page() with { Entries = [.. Samples.Page().Entries, thinking], ThinkingInFull = true };
+        var chat = await OpenAsync(main, "d1");
+
+        var thought = chat.Entries[^1];
+        Assert.True(thought.InFull);
+        Assert.True(thought.ShowsThought);
+
+        hub.Pages["d1"] = hub.Pages["d1"] with { ThinkingInFull = false };
+        chat.ScheduleRefresh(TimeSpan.Zero);
+        await Task.Delay(100);
+        Assert.False(thought.ShowsThought);
+    }
+
+    [Fact]
     public async Task An_activity_opens_to_show_each_command_and_thought()
     {
         var (main, hub, _) = await SignedInAsync();

@@ -58,8 +58,16 @@ public sealed partial class EntryViewModel : ObservableObject
 
     /// <summary>An activity shows its steps, or a thought its text, once tapped open.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FoldGlyph), nameof(ThinkingText))]
+    [NotifyPropertyChangedFor(nameof(FoldGlyph), nameof(ThinkingText), nameof(ShowsThought))]
     public partial bool IsOpen { get; set; }
+
+    /// <summary>The PC writes thinking out in full: a thought shows whole, with no "Thought" line to open it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsThought))]
+    public partial bool InFull { get; set; }
+
+    /// <summary>A thought's text is showing: opened, or written out in full.</summary>
+    public bool ShowsThought => IsOpen || InFull;
 
     public string FoldGlyph => IsOpen ? "▾" : "▸";
 

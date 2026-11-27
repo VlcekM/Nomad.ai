@@ -159,7 +159,9 @@ public sealed record BoardDevice(Guid DeviceId, string DeviceName, IReadOnlyList
 /// changes whenever items before the end change place (a reload, a rewind): cursors from another generation no longer fit, so
 /// a phone that sees it change starts again from the newest page. <paramref name="Loading"/>: the transcript is still loading.
 /// </summary>
-public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList<ChatEntry> Entries, int Generation = 0, bool Loading = false);
+/// <param name="ThinkingInFull">The PC writes Claude's thinking out in full rather than folding it, so the phone does too.</param>
+public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList<ChatEntry> Entries, int Generation = 0, bool Loading = false,
+    bool ThinkingInFull = false);
 
 /// <summary>
 /// One transcript entry as the phone shows it. <paramref name="Kind"/> is <c>user</c>, <c>assistant</c>, <c>activity</c>

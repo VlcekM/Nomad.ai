@@ -177,6 +177,8 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             var firstIndex = page.Entries.Count > 0 ? page.Entries[0].Index : int.MaxValue;
             List<ChatEntry> keep = sameGeneration ? [.. Entries.Where(e => !e.IsLocal && e.Index < firstIndex).Select(e => e.Entry)] : [];
             ChatsViewModel.Sync(Entries, [.. keep, .. page.Entries], e => e.Index, e => e.Index, e => new EntryViewModel(e), (vm, e) => vm.Update(e));
+            _thinkingInFull = page.ThinkingInFull;
+            MarkThinking();
             HasOlder = Entries.Count > 0 && Entries[0].Index > 0;
             Card = page.Entries.LastOrDefault(e => e.Card is { Pending: true })?.Card is { } card ? CardFor(card) : null;
             IsLoading = page.Loading;
@@ -220,7 +222,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             {
                 if (Entries.Count == 0 || page.Entries[i].Index < Entries[0].Index)
                 {
-                    Entries.Insert(0, new EntryViewModel(page.Entries[i]));
+                    Entries.Insert(0, new EntryViewModel(page.Entries[i]) { InFull = _thinkingInFull });
                 }
             }
 
@@ -229,6 +231,17 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
         catch (Exception ex)
         {
             ShowStatus("Couldn't load earlier messages: " + Problem(ex), problem: true);
+        }
+    }
+
+    // The PC writes thinking out in full (its Show thinking switch), as of the newest page.
+    private bool _thinkingInFull;
+
+    private void MarkThinking()
+    {
+        foreach (var entry in Entries)
+        {
+            entry.InFull = _thinkingInFull;
         }
     }
 
