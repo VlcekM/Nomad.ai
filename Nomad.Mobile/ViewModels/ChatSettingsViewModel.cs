@@ -92,6 +92,7 @@ public sealed partial class ChatSettingsViewModel : ObservableObject
 
     internal void Apply(ChatSettings settings)
     {
+        _chat.NoteSettings(settings);
         Model.Set(settings.Models, settings.Model);
         Effort.Set(settings.Efforts, settings.Effort);
         Mode.Set(settings.Modes, settings.Mode);

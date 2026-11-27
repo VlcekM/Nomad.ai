@@ -354,6 +354,40 @@ public sealed class HubClient : IAsyncDisposable
         return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>Puts a file on the hub for a prompt (a phone's attachment); the hub keeps it a day.</summary>
+    public async Task<ChatFile> UploadFileAsync(Stream content, string name, long? length = null, CancellationToken ct = default)
+    {
+        using var body = new StreamContent(content);
+        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        if (length is { } known)
+        {
+            body.Headers.ContentLength = known;
+        }
+
+        using var response = await _http.PostAsync("api/files?name=" + Uri.EscapeDataString(name), body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = response.StatusCode == HttpStatusCode.RequestEntityTooLarge ? "it is too large" : $"the hub answered {(int)response.StatusCode}";
+            throw new HttpRequestException($"The file couldn't be put on the hub: {detail}.", null, response.StatusCode);
+        }
+
+        return (await response.Content.ReadFromJsonAsync(HubJson.Default.ChatFile, ct).ConfigureAwait(false))!;
+    }
+
+    /// <summary>A file a phone put on the hub for a prompt to this PC, read as it downloads.</summary>
+    public async Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/files/" + Uri.EscapeDataString(id), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            response.Dispose();
+            throw new HttpRequestException(response.StatusCode == HttpStatusCode.NotFound
+                ? "The hub no longer has the file (it keeps them a day)." : $"The hub answered {(int)response.StatusCode} for the file.", null, response.StatusCode);
+        }
+
+        return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+    }
+
     public async Task<List<DeviceDto>> DevicesAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/devices", HubJson.Default.ListDeviceDto, ct).ConfigureAwait(false))!;
 

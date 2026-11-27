@@ -56,26 +56,93 @@
     </Grid>
 
     <!-- The composer (the desktop's composer bar): stays above the keyboard (the activity resizes for it). -->
-    <StackPanel DockPanel.Dock="Bottom" Margin="12,4,12,12" Spacing="6">
+    <StackPanel DockPanel.Dock="Bottom" Margin="12,4,12,8" Spacing="6">
       <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                  Classes="muted small" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0" />
       <Border Classes="composer">
-        <Grid ColumnDefinitions="*,Auto,Auto">
-          <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
-          <TextBox x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
-                   Margin="14,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
-                   TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
-          <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
-          <Button Grid.Column="1" Theme="{StaticResource PhoneSendButton}" Classes="stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}"
-                  Focusable="False" VerticalAlignment="Bottom" Margin="0,0,-4,1" AutomationProperties.Name="Stop">
-            <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
-          </Button>
-          <Button Grid.Column="2" Theme="{StaticResource PhoneSendButton}" Command="{Binding SendCommand}"
-                  Focusable="False" VerticalAlignment="Bottom" Margin="0,0,2,1" AutomationProperties.Name="Send">
-            <c:Icon Size="16" Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
-          </Button>
+        <Grid RowDefinitions="Auto,Auto">
+          <!-- Attached files, as the desktop's tray: images as thumbnails, other files as chips, each with a remove button,
+               above a dashed rule. Folds open with the first. -->
+          <Border c:Fold.IsOpen="{Binding HasAttachments}" IsVisible="False">
+            <StackPanel>
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,4,8,8">
+                <ItemsControl ItemsSource="{Binding Attachments}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:AttachmentViewModel">
+                      <Panel VerticalAlignment="Top">
+                        <StackPanel Margin="2,8,8,0" Spacing="3" IsVisible="{Binding HasPreview}">
+                          <Panel Height="72" MaxWidth="144">
+                            <Border CornerRadius="8" ClipToBounds="True">
+                              <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                            </Border>
+                            <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" />
+                          </Panel>
+                          <TextBlock Text="{Binding Name}" MaxWidth="110" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                     TextTrimming="CharacterEllipsis" TextAlignment="Center" />
+                        </StackPanel>
+                        <Border Margin="2,8,8,0" Height="48" MaxWidth="210" Padding="10,0,14,0" CornerRadius="8"
+                                Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                IsVisible="{Binding ShowsChip}">
+                          <Grid ColumnDefinitions="Auto,*">
+                            <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding Detail}" Classes="muted small" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                        <!-- A small round mark with a finger-sized target around it. -->
+                        <Button Command="{Binding $parent[ItemsControl].((vm:ChatViewModel)DataContext).RemoveAttachmentCommand}" CommandParameter="{Binding}"
+                                Focusable="False" Width="32" Height="32" Padding="0" Margin="0,-6,-6,0" Background="Transparent" BorderThickness="0"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" AutomationProperties.Name="Remove">
+                          <Border Width="20" Height="20" CornerRadius="10" Background="{DynamicResource BgRaisedBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <c:Icon Size="10" Data="{StaticResource IconClose}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                        </Button>
+                      </Panel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <c:DashedRule Stroke="{DynamicResource BorderInputBrush}" Margin="10,0" />
+            </StackPanel>
+          </Border>
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto">
+            <!-- Attach: the phone's file picker (photos, downloads, any app that shares files). Not focusable, as Send. -->
+            <Button Theme="{StaticResource PhoneIconButton}" Click="OnAttachClick" Focusable="False" VerticalAlignment="Bottom" Margin="2,0,-8,1"
+                    AutomationProperties.Name="Attach files" ToolTip.Tip="Attach files">
+              <c:Icon Size="18" Data="{StaticResource IconPlus}" />
+            </Button>
+            <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
+            <TextBox Grid.Column="1" x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+                     Margin="6,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
+                     TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+            <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
+            <Button Grid.Column="2" Theme="{StaticResource PhoneSendButton}" Classes="stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}"
+                    Focusable="False" VerticalAlignment="Bottom" Margin="0,0,-4,1" AutomationProperties.Name="Stop">
+              <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
+            </Button>
+            <Button Grid.Column="3" Theme="{StaticResource PhoneSendButton}" Command="{Binding SendCommand}"
+                    Focusable="False" VerticalAlignment="Bottom" Margin="0,0,2,1" AutomationProperties.Name="Send">
+              <c:Icon Size="16" Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+            </Button>
+          </Grid>
         </Grid>
       </Border>
+      <!-- The model and effort, as the desktop's row under its composer shows them: a tap opens the chat's settings. -->
+      <Button Theme="{StaticResource PhoneGhostButton}" Command="{Binding OpenSettingsCommand}" Focusable="False" HorizontalAlignment="Left"
+              Padding="8,4" Margin="0,-2,0,0" MinHeight="36"
+              IsVisible="{Binding SettingsSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              AutomationProperties.Name="Model and effort">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="muted small" Text="{Binding SettingsSummary}" VerticalAlignment="Center" />
+          <c:Icon Size="12" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
     </StackPanel>
 
     <!-- A card waiting on an answer sits just above the composer: the desktop's permission or question card. It folds in and out. -->

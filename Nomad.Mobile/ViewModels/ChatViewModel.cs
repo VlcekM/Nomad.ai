@@ -32,7 +32,13 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     // A message whose sending failed without an answer (it may have reached the PC): sent again, it keeps its id, so the PC
     // applies it once.
-    private (string Text, string Id)? _unconfirmed;
+    private (string Text, string Files, string Id)? _unconfirmed;
+
+    /// <summary>The most files one message takes.</summary>
+    public const int MaxAttachments = 10;
+
+    /// <summary>The largest file one can attach (the hub's limit).</summary>
+    public const long MaxAttachmentSize = 50L * 1024 * 1024;
 
     public ChatViewModel(MainViewModel main, ChatRowViewModel row)
     {
@@ -41,6 +47,17 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
         Title = row.Title;
         State = row.State;
         _lastActivity = row.LastActivityUtc;
+        Attachments.CollectionChanged += (_, e) =>
+        {
+            // A thumbnail lives as long as its file stays attached.
+            foreach (var gone in e.OldItems?.OfType<AttachmentViewModel>() ?? [])
+            {
+                gone.Dispose();
+            }
+
+            OnPropertyChanged(nameof(HasAttachments));
+            SendCommand.NotifyCanExecuteChanged();
+        };
     }
 
     public Guid DeviceId => _row.DeviceId;
@@ -92,7 +109,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
     public partial bool HasOlder { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SendCommand), nameof(StopCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SendCommand), nameof(StopCommand), nameof(RemoveAttachmentCommand))]
     public partial bool IsSending { get; set; }
 
     /// <summary>The host streams this chat live (its turn shows as it is written); otherwise changes show as the board reports them.</summary>
@@ -114,11 +131,44 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     // ------------------------------------------------------------------ loading
 
-    /// <summary>Opens the chat: its live turn and its newest page.</summary>
+    /// <summary>Opens the chat: its live turn and its newest page, and its model and effort for under the message box.</summary>
     public async Task AttachAsync()
     {
+        _ = LoadSettingsSummaryAsync();
         await WatchAsync();
         await RefreshAsync();
+    }
+
+    /// <summary>The chat's model and effort as its menus on the PC show them ("Opus 5.5 · High"); null until known.</summary>
+    [ObservableProperty]
+    public partial string? SettingsSummary { get; set; }
+
+    private async Task LoadSettingsSummaryAsync()
+    {
+        if (_main.Connection is not { } connection || _closed)
+        {
+            return;
+        }
+
+        try
+        {
+            NoteSettings(await connection.ChatSettingsAsync(DeviceId, Backend, SessionId));
+        }
+        catch (Exception)
+        {
+            // Only a label: the settings themselves say what went wrong when opened.
+        }
+    }
+
+    /// <summary>What the PC says the chat's settings are now: the label under the message box follows.</summary>
+    internal void NoteSettings(ChatSettings settings)
+    {
+        static string? NameOf(string? id, IReadOnlyList<ChatChoice> choices) =>
+            id is null ? null : choices.FirstOrDefault(c => c.Id == id)?.Name ?? id;
+
+        var parts = new[] { NameOf(settings.Model, settings.Models), NameOf(settings.Effort, settings.Efforts) }
+            .Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+        SettingsSummary = parts.Count > 0 ? string.Join(" · ", parts) : null;
     }
 
     /// <summary>The connection came back: watch again (the turn so far comes with it) and fetch the newest page.</summary>
@@ -452,24 +502,126 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     // ------------------------------------------------------------------ input
 
-    private bool CanSend => !IsSending && Draft.Trim().Length > 0;
+    /// <summary>Files attached to the message: they go with it when it is sent.</summary>
+    public ObservableCollection<AttachmentViewModel> Attachments { get; } = [];
 
-    /// <summary>Sends the message. During a turn the PC queues it, as one typed there would be.</summary>
+    public bool HasAttachments => Attachments.Count > 0;
+
+    /// <summary>Files picked on the phone, attached to the message (up to <see cref="MaxAttachments"/>, each within the hub's limit).</summary>
+    public void AddFiles(IEnumerable<PickedFile> files)
+    {
+        var refused = new List<string>();
+        foreach (var file in files)
+        {
+            if (file.Size > MaxAttachmentSize)
+            {
+                refused.Add($"{file.Name} is larger than {MaxAttachmentSize / (1024 * 1024)} MB.");
+                continue;
+            }
+
+            if (Attachments.Count >= MaxAttachments)
+            {
+                refused.Add($"A message takes {MaxAttachments} files at most.");
+                break;
+            }
+
+            var attachment = new AttachmentViewModel(file);
+            Attachments.Add(attachment);
+            _ = attachment.LoadPreviewAsync();
+        }
+
+        if (refused.Count > 0)
+        {
+            ShowStatus(string.Join(" ", refused), problem: true);
+        }
+    }
+
+    // Not while sending: what is being sent is the files as they were when Send was tapped.
+    [RelayCommand(CanExecute = nameof(CanRemoveAttachment))]
+    private void RemoveAttachment(AttachmentViewModel attachment) => Attachments.Remove(attachment);
+
+    private bool CanRemoveAttachment => !IsSending;
+
+    private bool CanSend => !IsSending && (Draft.Trim().Length > 0 || Attachments.Count > 0);
+
+    /// <summary>
+    /// Sends the message, with its files: they go onto the hub first, and the PC fetches them from there. During a turn the PC
+    /// queues it, as one typed there would be.
+    /// </summary>
     [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
         var text = Draft.Trim();
-        var id = _unconfirmed is { } earlier && earlier.Text == text ? earlier.Id : NewId();
-        _unconfirmed = (text, id);
-        var result = await SendInputAsync(new ChatInput("prompt", text, Id: id));
+        var attached = Attachments.ToList();
+        if (attached.Count > 0 && !await UploadAsync(attached))
+        {
+            return;
+        }
+
+        var files = attached.Select(a => a.Uploaded!).ToList();
+        var fileKey = string.Join(",", files.Select(f => f.Id));
+        var id = _unconfirmed is { } earlier && earlier.Text == text && earlier.Files == fileKey ? earlier.Id : NewId();
+        _unconfirmed = (text, fileKey, id);
+        var result = await SendInputAsync(new ChatInput("prompt", text, Id: id, Files: files.Count > 0 ? files : null));
         if (result is not null)
         {
             _unconfirmed = null; // The PC answered: a new send is a new message.
         }
 
-        if (result is { Ok: true } && Draft.Trim() == text)
+        if (result is { Ok: false })
         {
-            Draft = "";
+            // Refused (the hub may no longer have a file, say): sent again, it is a new message, with its files put up afresh.
+            foreach (var attachment in attached)
+            {
+                attachment.Uploaded = null;
+            }
+        }
+
+        if (result is { Ok: true })
+        {
+            if (Draft.Trim() == text)
+            {
+                Draft = "";
+            }
+
+            foreach (var sent in attached)
+            {
+                Attachments.Remove(sent);
+            }
+        }
+    }
+
+    /// <summary>Puts the files not yet on the hub there, saying how far it has got; false (and why) if one couldn't go.</summary>
+    private async Task<bool> UploadAsync(IReadOnlyList<AttachmentViewModel> attached)
+    {
+        if (_main.Connection is not { } connection)
+        {
+            ShowStatus("Not connected to the hub.", problem: true);
+            return false;
+        }
+
+        IsSending = true;
+        try
+        {
+            var waiting = attached.Where(a => a.Uploaded is null).ToList();
+            for (var i = 0; i < waiting.Count; i++)
+            {
+                var attachment = waiting[i];
+                ShowStatus(waiting.Count == 1 ? $"Sending {attachment.Name}…" : $"Sending files, {i + 1} of {waiting.Count}…", problem: false);
+                await using var content = await attachment.File.OpenAsync();
+                attachment.Uploaded = await connection.UploadFileAsync(content, attachment.Name, attachment.File.Size);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ShowStatus("Couldn't send the files: " + Problem(ex), problem: true);
+            return false;
+        }
+        finally
+        {
+            IsSending = false;
         }
     }
 

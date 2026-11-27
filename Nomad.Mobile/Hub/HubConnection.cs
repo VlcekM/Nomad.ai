@@ -59,6 +59,9 @@ public sealed class HubConnection : IHubConnection
 
     public Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default) => _client.PhoneAppDownloadAsync(ct);
 
+    public Task<ChatFile> UploadFileAsync(Stream content, string name, long? length, CancellationToken ct = default) =>
+        _client.UploadFileAsync(content, name, length, ct);
+
     public ValueTask DisposeAsync() => _client.DisposeAsync();
 }
 

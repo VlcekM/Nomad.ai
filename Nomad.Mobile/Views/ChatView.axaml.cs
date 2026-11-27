@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Nomad.Mobile.Markdown;
 using Nomad.Mobile.ViewModels;
@@ -41,6 +42,41 @@ public partial class ChatView : UserControl
         {
             _firstPage = false;
             Dispatcher.UIThread.Post(scroller.ScrollToEnd, DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>The + beside the message box: the phone's own file picker, any number of files; they attach to the message.</summary>
+    private async void OnAttachClick(object? sender, RoutedEventArgs e)
+    {
+        if (_chat is not { } chat || TopLevel.GetTopLevel(this)?.StorageProvider is not { CanOpen: true } storage)
+        {
+            return;
+        }
+
+        try
+        {
+            var picked = await storage.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Attach files", AllowMultiple = true });
+            var files = new List<PickedFile>();
+            foreach (var file in picked)
+            {
+                long? size = null;
+                try
+                {
+                    size = (long?)(await file.GetBasicPropertiesAsync()).Size;
+                }
+                catch (Exception)
+                {
+                    // Not every source says; the hub checks it anyway.
+                }
+
+                files.Add(new PickedFile(file.Name, size, file.OpenReadAsync));
+            }
+
+            chat.AddFiles(files);
+        }
+        catch (Exception ex)
+        {
+            chat.ShowProblem("Couldn't open the files: " + ex.Message);
         }
     }
 

@@ -48,6 +48,7 @@ internal sealed class MobileHost : IDisposable
         client.StartRequested = (chat, from) => Dispatcher.UIThread.InvokeAsync<NewChatResult>(() => StartAsync(chat, from));
         client.ConnectionChanged += OnConnectionChanged;
         _timer.Start();
+        _ = Task.Run(SweepPhoneFiles);
     }
 
     public void Dispose()
@@ -303,6 +304,126 @@ internal sealed class MobileHost : IDisposable
         }
     }
 
+    /// <summary>Where files phones attach are kept: beside the settings, one folder per file, so names never collide.</summary>
+    internal static string PhoneFilesFolder => Path.Combine(Path.GetDirectoryName(Program.SettingsPath)!, "phone-files");
+
+    /// <summary>
+    /// How long a prompt's files may take to come from the hub: the hub gives up on this PC's answer after 15 seconds, and other
+    /// calls from it wait behind this one.
+    /// </summary>
+    private static readonly TimeSpan FetchBudget = TimeSpan.FromSeconds(9);
+
+    /// <summary>Downloads a phone prompt's files from the hub, each into a folder of its own, and makes them attachments.</summary>
+    private async Task<List<Attachment>> FetchFilesAsync(IReadOnlyList<ChatFile> files)
+    {
+        var attachments = new List<Attachment>();
+        if (files.Count == 0)
+        {
+            return attachments;
+        }
+
+        using var budget = new CancellationTokenSource(FetchBudget);
+        foreach (var file in files)
+        {
+            // The hub's ids are 32 hex digits; the name is kept to a plain file name, so nothing lands outside its folder.
+            if (file?.Id is not { Length: 32 } || !file.Id.All(char.IsAsciiHexDigit))
+            {
+                throw new IOException("the phone named a file the hub doesn't have.");
+            }
+
+            var dir = Path.Combine(PhoneFilesFolder, file.Id.ToLowerInvariant());
+            Directory.CreateDirectory(dir);
+            var path = Path.Combine(dir, SafeFileName(file.Name));
+            if (!File.Exists(path))
+            {
+                var partial = path + ".part";
+                try
+                {
+                    await using (var source = await _client.DownloadFileAsync(file.Id, budget.Token))
+                    await using (var target = File.Create(partial))
+                    {
+                        await source.CopyToAsync(target, budget.Token);
+                    }
+
+                    File.Move(partial, path, overwrite: true);
+                }
+                catch
+                {
+                    // Nothing half-fetched left behind.
+                    try
+                    {
+                        File.Delete(partial);
+                        if (!Directory.EnumerateFileSystemEntries(dir).Any())
+                        {
+                            Directory.Delete(dir);
+                        }
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                    }
+
+                    throw;
+                }
+            }
+
+            // Read (and an image decoded, and scaled down if large) away from the window.
+            attachments.Add(await Task.Run(() => PromptImages.FromPath(path)));
+        }
+
+        return attachments;
+    }
+
+    private static readonly HashSet<string> DeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    };
+
+    /// <summary>A plain file name Windows will make: no folders, no characters it refuses, not a device's name.</summary>
+    internal static string SafeFileName(string? name)
+    {
+        var clean = string.Concat((name ?? "").Replace('\\', '/').Split('/')[^1].Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.');
+        if (clean.Length == 0 || clean is "." or "..")
+        {
+            return "file";
+        }
+
+        return DeviceNames.Contains(clean.Split('.')[0].TrimEnd()) ? "_" + clean : clean;
+    }
+
+    /// <summary>How long files phones sent are kept on this PC: long enough for a chat to come back to them.</summary>
+    private static readonly TimeSpan KeepPhoneFiles = TimeSpan.FromDays(30);
+
+    /// <summary>Removes files phones sent more than <see cref="KeepPhoneFiles"/> ago (once, when Nomad starts).</summary>
+    private static void SweepPhoneFiles()
+    {
+        try
+        {
+            if (!Directory.Exists(PhoneFilesFolder))
+            {
+                return;
+            }
+
+            foreach (var dir in Directory.GetDirectories(PhoneFilesFolder))
+            {
+                if (Directory.GetLastWriteTimeUtc(dir) < DateTime.UtcNow - KeepPhoneFiles)
+                {
+                    try
+                    {
+                        Directory.Delete(dir, recursive: true);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        // In use or locked: next time.
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
     private async Task<ChatInputResult> ApplyOnceAsync(string backend, string id, ChatInput input, string from)
     {
         if (!_enabled())
@@ -325,15 +446,29 @@ internal sealed class MobileHost : IDisposable
         switch (input.Kind)
         {
             case "prompt":
-                var text = input.Text?.Trim();
-                if (string.IsNullOrEmpty(text))
+                var text = input.Text?.Trim() ?? "";
+                var files = input.Files ?? [];
+                if (text.Length == 0 && files.Count == 0)
                 {
                     return new ChatInputResult(false, "Nothing to send.");
                 }
 
+                // Its files first, onto this PC, then attached as if attached here: an image as an image, anything else by path.
+                List<Attachment> attachments;
+                try
+                {
+                    attachments = await FetchFilesAsync(files);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or OperationCanceledException)
+                {
+                    return new ChatInputResult(false, ex is OperationCanceledException
+                        ? "Its files took too long to reach the PC. Try fewer or smaller ones."
+                        : "Its files couldn't be fetched onto the PC: " + ex.Message);
+                }
+
                 // As if typed on the PC. Answered within a few seconds, not once the agent has started (that can take a while),
                 // so a slow start never looks failed.
-                var delivery = s.ReceivePromptAsync(text, from);
+                var delivery = s.ReceivePromptAsync(text, from, attachments);
                 if (await Task.WhenAny(delivery, Task.Delay(TimeSpan.FromSeconds(3))) != delivery)
                 {
                     return new ChatInputResult(true, "Sent.");

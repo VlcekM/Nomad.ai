@@ -25,6 +25,12 @@ public sealed record HubInfo(string Version, Guid DeviceId, string DeviceName, b
 public sealed record PhoneAppInfo(string Version, long VersionCode, long Size, string Sha256, DateTime PublishedUtc);
 
 /// <summary>
+/// A file a phone put on the hub for a prompt (<c>POST api/files?name=</c>): its id, which the PC fetches it by
+/// (<c>GET api/files/{id}</c>), its name and size. The hub keeps it a day.
+/// </summary>
+public sealed record ChatFile(string Id, string Name, long Size);
+
+/// <summary>
 /// A project: a repository (or folder) the same on every PC, keyed by something path-independent: the normalised git
 /// remote, else the root commit, else the folder name and the device it came from.
 /// </summary>
@@ -204,7 +210,8 @@ public sealed record ChatQuestion(string Header, string Question, bool MultiSele
 public sealed record ChatOption(string Label, string? Description);
 
 /// <summary>
-/// Input for a chat: <c>prompt</c> (<paramref name="Text"/>, queued behind a running turn as if typed), <c>answer</c>
+/// Input for a chat: <c>prompt</c> (<paramref name="Text"/>, queued behind a running turn as if typed, with any
+/// <paramref name="Files"/> attached as if attached there: an image as an image, another file by its path on the PC), <c>answer</c>
 /// (<paramref name="Card"/>, <paramref name="Choice"/> <c>allow</c>, <c>session</c> or <c>deny</c>, and for a question one
 /// <see cref="ChatAnswer"/> per question, in order), <c>stop</c>, or a setting changed as in the chat's own menus on the PC:
 /// <c>model</c>, <c>effort</c> or <c>mode</c>, <paramref name="Choice"/> the id of one of its <see cref="ChatSettings"/> choices.
@@ -213,7 +220,8 @@ public sealed record ChatOption(string Label, string? Description);
 /// <paramref name="Id"/>, when given, makes a retry safe: the PC applies an input with an id it has just applied only once, and
 /// answers the retry with the first result.
 /// </remarks>
-public sealed record ChatInput(string Kind, string? Text = null, string? Card = null, string? Choice = null, IReadOnlyList<ChatAnswer>? Answers = null, string? Id = null);
+public sealed record ChatInput(string Kind, string? Text = null, string? Card = null, string? Choice = null, IReadOnlyList<ChatAnswer>? Answers = null, string? Id = null,
+    IReadOnlyList<ChatFile>? Files = null);
 
 /// <summary>A question's answer: the labels picked, and/or typed text.</summary>
 public sealed record ChatAnswer(IReadOnlyList<string> Options, string? Other);

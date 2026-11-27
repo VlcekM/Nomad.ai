@@ -163,6 +163,26 @@ public sealed class FakeHub : IHubConnection, IHubFactory
         return Task.FromResult<Stream>(new MemoryStream(PhoneAppBytes));
     }
 
+    /// <summary>Files put on the hub, by id, with their bytes; set <see cref="UploadFails"/> to refuse them.</summary>
+    public Dictionary<string, (string Name, byte[] Bytes)> Files { get; } = [];
+
+    public bool UploadFails { get; set; }
+
+    public async Task<ChatFile> UploadFileAsync(Stream content, string name, long? length, CancellationToken ct = default)
+    {
+        Calls.Add("Upload " + name);
+        if (UploadFails)
+        {
+            throw new HttpRequestException("The file couldn't be put on the hub: it is too large.");
+        }
+
+        using var copy = new MemoryStream();
+        await content.CopyToAsync(copy, ct);
+        var id = Guid.NewGuid().ToString("N");
+        Files[id] = (name, copy.ToArray());
+        return new ChatFile(id, name, copy.Length);
+    }
+
     public ValueTask DisposeAsync()
     {
         Calls.Add("Dispose");

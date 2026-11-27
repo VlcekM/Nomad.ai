@@ -158,6 +158,32 @@ public sealed class ScreenTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
+    public async Task Chat_screen_with_attachments(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        hub.Pages["d1"] = Samples.Page();
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        var picture = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "nomad.png"));
+        chat.AddFiles([
+            new PickedFile("nomad.png", picture.Length, () => Task.FromResult<Stream>(new MemoryStream(picture))),
+            new PickedFile("Quarterly report.pdf", 1_300_000, () => Task.FromResult<Stream>(new MemoryStream())),
+        ]);
+        await Task.Delay(300); // The thumbnail is read off the UI thread.
+        chat.Draft = "What's in these?";
+        var window = Show(chat, main, theme);
+
+        Find<TextBlock>(window, t => t.Text == "Quarterly report.pdf");
+        Find<TextBlock>(window, t => t.Text == "PDF · 1.2 MB");
+        Find<TextBlock>(window, t => t.Text == "Opus · High");
+        Assert.True(chat.Attachments[0].HasPreview);
+        Save(window, "3f-chat-attachments", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
     public async Task Chat_screen_typing(string themeName)
     {
         var theme = Theme(themeName);

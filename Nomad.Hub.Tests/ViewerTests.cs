@@ -73,6 +73,30 @@ public sealed class ViewerTests
     }
 
     [Fact]
+    public async Task APhonePutsAFileOnTheHubThatOnlyAPcCanFetch()
+    {
+        using var hub = new HubFactory();
+        var pc = await hub.EnrollAsync("PC-A");
+        var phone = await hub.EnrollAsync("Phone", phone: true);
+        byte[] photo = [.. Enumerable.Range(0, 90_000).Select(i => (byte)(i * 7))];
+
+        var put = await phone.PostAsync("/api/files?name=" + Uri.EscapeDataString("../../holiday:1.jpg"), new ByteArrayContent(photo));
+        put.EnsureSuccessStatusCode();
+        var file = (await put.Content.ReadFromJsonAsync(HubJson.Default.ChatFile))!;
+        Assert.Equal(("holiday_1.jpg", (long)photo.Length), (file.Name, file.Size)); // No folders, nothing a PC can't name.
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.GetAsync("/api/files/" + file.Id)).StatusCode);
+        Assert.Equal(photo, await pc.GetByteArrayAsync("/api/files/" + file.Id));
+        Assert.Equal(HttpStatusCode.NotFound, (await pc.GetAsync("/api/files/" + new string('0', 32))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await pc.GetAsync("/api/files/..%2F..%2Fhub.db")).StatusCode);
+
+        // A day on, it is gone.
+        var store = new PhoneFileStore(new Services.HubOptions { DataPath = hub.DataPath });
+        store.Sweep(DateTime.UtcNow + PhoneFileStore.KeepFor + TimeSpan.FromMinutes(1));
+        Assert.Equal(HttpStatusCode.NotFound, (await pc.GetAsync("/api/files/" + file.Id)).StatusCode);
+    }
+
+    [Fact]
     public async Task APhoneWatchesAndSendsInputButCantHostPublishOrDriveTheRelay()
     {
         using var hub = new HubFactory();

@@ -37,6 +37,7 @@
     <Compile Include="..\Nomad.App\Controls\EdgeFade.cs" Link="Theme\Desktop\Controls\EdgeFade.cs" />
     <Compile Include="..\Nomad.App\Controls\TrailPanel.cs" Link="Theme\Desktop\Controls\TrailPanel.cs" />
     <Compile Include="..\Nomad.App\Controls\FrameLoop.cs" Link="Theme\Desktop\Controls\FrameLoop.cs" />
+    <Compile Include="..\Nomad.App\Controls\DashedRule.cs" Link="Theme\Desktop\Controls\DashedRule.cs" />
     <!-- Named by Controls.axaml's text box themes (the desktop composer's), so they are here for it to build. -->
     <Compile Include="..\Nomad.App\Controls\TextCaret.cs" Link="Theme\Desktop\Controls\TextCaret.cs" />
     <Compile Include="..\Nomad.App\Controls\MarkdownBackdrop.cs" Link="Theme\Desktop\Controls\MarkdownBackdrop.cs" />

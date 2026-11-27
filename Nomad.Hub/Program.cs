@@ -29,6 +29,7 @@ builder.Services.AddSingleton(options);
 builder.Services.AddDbContext<HubDb>(o => o.UseSqlite($"Data Source={Path.Combine(options.DataPath, "hub.db")}"));
 builder.Services.AddSingleton<BlobStore>();
 builder.Services.AddSingleton<PhoneAppStore>();
+builder.Services.AddSingleton<PhoneFileStore>();
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
 builder.Services.AddSingleton<RelayState>();
@@ -81,6 +82,7 @@ api.AddEndpointFilter(async (context, next) =>
 DeviceEndpoints.Map(api);
 BlobEndpoints.Map(api);
 PhoneAppEndpoints.Map(api);
+FileEndpoints.Map(api);
 Sessions.Map(api);
 UsageEndpoints.Map(api);
 app.MapHub<NomadHub>(HubNames.HubPath);

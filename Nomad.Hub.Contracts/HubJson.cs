@@ -11,6 +11,7 @@ namespace Nomad.Hub.Contracts;
 [JsonSerializable(typeof(List<DeviceDto>))]
 [JsonSerializable(typeof(HubInfo))]
 [JsonSerializable(typeof(PhoneAppInfo))]
+[JsonSerializable(typeof(ChatFile))]
 [JsonSerializable(typeof(ProjectDto))]
 [JsonSerializable(typeof(List<ProjectDto>))]
 [JsonSerializable(typeof(ProjectFolderRequest))]

@@ -11,6 +11,7 @@ public partial class MainView : UserControl
 {
     private TopLevel? _top;
     private IInputPane? _keyboard;
+    private IInsetsManager? _insets;
 
     // The keyboard's last known place, in the window's coordinates; null while it is closed.
     private Rect? _keyboardRect;
@@ -34,8 +35,15 @@ public partial class MainView : UserControl
             if (_keyboard is not null)
             {
                 _keyboard.StateChanged += OnKeyboardChanged;
-                _keyboardRect = _keyboard.State == InputPaneState.Open ? _keyboard.OccludedRect : null;
-                FitAbove();
+                MeasureKeyboard();
+            }
+
+            // Android tells the app whenever the space its bars and keyboard take changes, whether or not the keyboard's own
+            // report came: measured again each time, so a missed or wrong report can't leave a gap where the keyboard was.
+            _insets = _top.InsetsManager;
+            if (_insets is not null)
+            {
+                _insets.SafeAreaChanged += OnSafeAreaChanged;
             }
         }
     }
@@ -53,24 +61,49 @@ public partial class MainView : UserControl
             _keyboard = null;
         }
 
+        if (_insets is not null)
+        {
+            _insets.SafeAreaChanged -= OnSafeAreaChanged;
+            _insets = null;
+        }
+
         base.OnDetachedFromVisualTree(e);
     }
 
     private void OnKeyboardChanged(object? sender, InputPaneStateEventArgs e)
     {
-        _keyboardRect = e.NewState == InputPaneState.Open ? e.EndRect : null;
+        // Taken at its word for now, so the pages move with it...
+        _keyboardRect = e.NewState == InputPaneState.Open && e.EndRect.Height > 0 ? e.EndRect : null;
         FitAbove();
 
-        // Some keyboards report where they start rather than where they end the first time they open: asked again once
-        // they've settled.
-        DispatcherTimer.RunOnce(() =>
+        // ...then measured once it has settled. On Android 12 and later the report comes as the keyboard starts to move and
+        // can carry the state from before: a keyboard closing can say it is open, at full height.
+        var settled = e.AnimationDuration + TimeSpan.FromMilliseconds(120);
+        DispatcherTimer.RunOnce(MeasureKeyboard, settled);
+        if (settled < TimeSpan.FromMilliseconds(400))
         {
-            if (_keyboard is not null)
-            {
-                _keyboardRect = _keyboard.State == InputPaneState.Open ? _keyboard.OccludedRect : null;
-                FitAbove();
-            }
-        }, TimeSpan.FromMilliseconds(400));
+            DispatcherTimer.RunOnce(MeasureKeyboard, TimeSpan.FromMilliseconds(400));
+        }
+    }
+
+    private void OnSafeAreaChanged(object? sender, SafeAreaChangedArgs e)
+    {
+        MeasureKeyboard();
+        Dispatcher.UIThread.Post(MeasureKeyboard, DispatcherPriority.Background); // Once Android has finished handing them out.
+    }
+
+    /// <summary>
+    /// Where the keyboard is now, from the space Android says it takes (none when it is closed), not from the last report.
+    /// </summary>
+    private void MeasureKeyboard()
+    {
+        if (_keyboard is null)
+        {
+            return;
+        }
+
+        _keyboardRect = _keyboard.OccludedRect is { Height: > 0 } rect ? rect : null;
+        FitAbove();
     }
 
     /// <summary>

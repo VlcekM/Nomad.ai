@@ -55,6 +55,9 @@ public interface IHubConnection : IAsyncDisposable
     /// <summary>The offered phone app's file, read as it downloads.</summary>
     Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default);
 
+    /// <summary>Puts a file on the hub for a prompt; the prompt then names it, and the PC fetches it from there.</summary>
+    Task<ChatFile> UploadFileAsync(Stream content, string name, long? length, CancellationToken ct = default);
+
     /// <summary>Revokes a device on the hub (this phone, when signing out).</summary>
     Task RevokeDeviceAsync(Guid id, CancellationToken ct = default);
 }

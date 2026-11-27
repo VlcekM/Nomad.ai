@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
+    <!-- A real picture, for the attachment tray's thumbnail. -->
+    <None Include="..\Nomad.Mobile\Assets\nomad.png" Link="nomad.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -787,4 +787,99 @@ public sealed class ViewModelTests
                 + "mail <me@example.com>, a file [here](file:///C:/x.txt), `http://in.code/` and ![pic](https://img.example/p.png)."));
 
     private static string Encode(AgentEvent e) => RelayCodec.Encode(e) ?? throw new InvalidOperationException($"{e.GetType().Name} isn't relayed.");
+
+    private static PickedFile Picked(string name, string text) =>
+        new(name, text.Length, () => Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text))));
+
+    [Fact]
+    public async Task Attached_files_go_onto_the_hub_and_the_message_names_them()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+
+        Assert.False(chat.SendCommand.CanExecute(null));
+        chat.AddFiles([Picked("notes.txt", "remember the milk"), Picked("log.csv", "a,b")]);
+        Assert.True(chat.HasAttachments);
+        Assert.True(chat.SendCommand.CanExecute(null)); // Files alone are a message.
+        Assert.Equal("TXT · 17 B", chat.Attachments[0].Detail);
+
+        await chat.SendCommand.ExecuteAsync(null);
+
+        var input = Assert.Single(hub.Sent).Input;
+        Assert.Equal(("prompt", ""), (input.Kind, input.Text));
+        Assert.Equal(["notes.txt", "log.csv"], input.Files!.Select(f => f.Name));
+        Assert.Equal("remember the milk", System.Text.Encoding.UTF8.GetString(hub.Files[input.Files![0].Id].Bytes));
+        Assert.False(chat.HasAttachments); // Sent: the tray empties.
+    }
+
+    [Fact]
+    public async Task A_message_sent_again_after_a_failure_sends_its_files_once()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+        var fail = true;
+        hub.Answer = _ => fail ? throw new InvalidOperationException("Not connected.") : new ChatInputResult(true, "Sent.");
+
+        chat.Draft = "Look at this";
+        chat.AddFiles([Picked("shot.txt", "x")]);
+        await chat.SendCommand.ExecuteAsync(null);
+        Assert.True(chat.HasAttachments); // Kept for the retry.
+
+        fail = false;
+        await chat.SendCommand.ExecuteAsync(null);
+        Assert.Single(hub.Files); // Put on the hub once.
+        Assert.Equal(hub.Sent[0].Input.Id, hub.Sent[1].Input.Id);
+        Assert.Equal(hub.Sent[0].Input.Files![0].Id, hub.Sent[1].Input.Files![0].Id);
+        Assert.False(chat.HasAttachments);
+    }
+
+    [Fact]
+    public async Task A_file_the_hub_refuses_keeps_the_message_and_says_why()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+        hub.UploadFails = true;
+
+        chat.Draft = "Here";
+        chat.AddFiles([Picked("big.bin", "x")]);
+        await chat.SendCommand.ExecuteAsync(null);
+
+        Assert.Empty(hub.Sent); // Nothing reached the PC.
+        Assert.True(chat.StatusIsProblem);
+        Assert.Contains("too large", chat.Status);
+        Assert.Equal("Here", chat.Draft);
+        Assert.True(chat.HasAttachments);
+    }
+
+    [Fact]
+    public async Task Too_large_or_too_many_files_are_refused_when_attached()
+    {
+        var (main, _, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+
+        chat.AddFiles([new PickedFile("film.mp4", ChatViewModel.MaxAttachmentSize + 1, () => Task.FromResult<Stream>(new MemoryStream()))]);
+        Assert.False(chat.HasAttachments);
+        Assert.Contains("film.mp4 is larger than 50 MB", chat.Status);
+
+        chat.AddFiles(Enumerable.Range(0, ChatViewModel.MaxAttachments + 2).Select(i => Picked($"f{i}.txt", "x")));
+        Assert.Equal(ChatViewModel.MaxAttachments, chat.Attachments.Count);
+        Assert.Contains("10 files at most", chat.Status);
+
+        chat.RemoveAttachmentCommand.Execute(chat.Attachments[0]);
+        Assert.Equal(ChatViewModel.MaxAttachments - 1, chat.Attachments.Count);
+    }
+
+    [Fact]
+    public async Task The_model_and_effort_show_under_the_message_box_and_follow_a_change()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var chat = await OpenAsync(main, "d1");
+        await Task.Yield();
+        Assert.Equal("Opus · High", chat.SettingsSummary);
+
+        chat.OpenSettingsCommand.Execute(null);
+        hub.Settings = hub.Settings with { Model = "sonnet", Effort = "low" };
+        await chat.SettingsPanel!.LoadAsync();
+        Assert.Equal("Sonnet · Low", chat.SettingsSummary);
+    }
 }
