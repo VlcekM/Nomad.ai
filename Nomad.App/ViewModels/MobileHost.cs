@@ -79,7 +79,9 @@ internal sealed class MobileHost : IDisposable
         // Not shared: off the board, so phones show this PC offline (sent once, when it stops sharing or connects).
         var sharing = _enabled();
         List<BoardChat> chats = sharing
-            ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board), .. _main.ClosedChats(ClosedShown).Select(Closed)]
+            // An archived chat can stay loaded on the PC (still readable there), but it has left the list: off the board too.
+            ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer && _main.RowOf(s) is not { IsArchived: true }).Select(Board),
+               .. _main.ClosedChats(ClosedShown).Select(Closed)]
             : [];
         var json = sharing ? JsonSerializer.Serialize(chats, HubJson.Default.IReadOnlyListBoardChat) : NotSharing;
         if (json == _lastBoard)
