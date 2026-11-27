@@ -141,12 +141,21 @@ public sealed partial class MainViewModel
         _all.Where(r => !r.IsArchived && r.CanManage && r.IsStored && !r.IsOnOtherPc && !_open.ContainsKey(r.SessionId))
             .OrderByDescending(r => r.IsPinned).ThenByDescending(r => r.LastActivityUtc).Take(max);
 
+    // Idle chats the phone is reading, newest last: loaded for it, but not open here, so the PC's lists don't change.
+    private readonly List<SessionViewModel> _peeked = [];
+    private const int PeekedKept = 6;
+
     /// <summary>
-    /// Opens a chat from the Idle list for the phone, as clicking its row does but without showing it here: its transcript
-    /// loads and the next prompt starts its process. Null when there is no such row or it can't be opened.
+    /// A chat from the Idle list for the phone to read: its transcript loads, but it isn't opened here (it stays in Idle,
+    /// on the PC and on the phone) until <see cref="OpenPeeked"/>. Null when there is no such row or it can't be read.
     /// </summary>
-    public SessionViewModel? OpenForPhone(string backend, string sessionId)
+    public SessionViewModel? PeekForPhone(string backend, string sessionId)
     {
+        if (_peeked.FirstOrDefault(p => p.SessionId == sessionId && p.Backend == backend) is { } kept)
+        {
+            return kept;
+        }
+
         if (_open.ContainsKey(sessionId)
             || _all.FirstOrDefault(r => r.SessionId == sessionId && r.Backend == backend) is not { } row
             || row.IsArchived || !row.CanManage || !row.IsStored || row.IsOnOtherPc)
@@ -154,8 +163,37 @@ public sealed partial class MainViewModel
             return null;
         }
 
-        var session = CreateStoredSession(row);
+        var session = NewStoredSession(row);
         _ = LoadHistoryAsync(session, row);
+        _peeked.Add(session);
+        if (_peeked.Count > PeekedKept)
+        {
+            _peeked.RemoveAt(0);
+        }
+
+        return session;
+    }
+
+    public bool IsPeeked(SessionViewModel session) => _peeked.Contains(session);
+
+    /// <summary>
+    /// The phone acts on a chat it was only reading (a prompt, a setting): it opens here, as clicking its row does. If it
+    /// was opened here meanwhile, that open one is what the phone now acts on.
+    /// </summary>
+    public SessionViewModel OpenPeeked(SessionViewModel session)
+    {
+        _peeked.Remove(session);
+        if (session.SessionId is not { } id)
+        {
+            return session;
+        }
+
+        if (_open.TryGetValue(id, out var open))
+        {
+            return open;
+        }
+
+        _open[id] = session;
         return session;
     }
 

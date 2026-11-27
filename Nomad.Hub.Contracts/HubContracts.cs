@@ -132,7 +132,7 @@ public sealed record WatchResult(bool Live, string? HostName, IReadOnlyList<stri
 /// <summary>
 /// One chat in Nomad's list on a PC. <paramref name="State"/> is <c>waiting</c> (a card waits on the user), <c>working</c>,
 /// <c>idle</c> (its process runs), <c>stopped</c>, or <c>closed</c>: in the PC's Idle list and not open there (no last line);
-/// asking for its history opens it on the PC, as clicking its row does. <paramref name="Waiting"/> says what waits, in a few words.
+/// the phone can read its history, and input to it (a prompt, a setting) opens it on the PC, as clicking its row does. <paramref name="Waiting"/> says what waits, in a few words.
 /// </summary>
 public sealed record BoardChat(
     string Backend,

@@ -6,7 +6,7 @@ Nomad Mobile is a phone app that shows every chat open in Nomad, on every one of
 
 ## 1. What the first version does
 
-- Lists the chats open in Nomad on every connected PC, for every backend (Claude Code, Codex, OpenCode, Antigravity). Each row shows the PC, folder, title, state (waiting on you, working, idle, stopped) and the last line said. Chats waiting on an answer sort first. Under them, each PC's Idle list: its newest chats not open in Nomad (pinned first, archived left out). Opening one opens it on the PC, as clicking its row there does; its process starts with the next prompt.
+- Lists the chats open in Nomad on every connected PC, for every backend (Claude Code, Codex, OpenCode, Antigravity). Each row shows the PC, folder, title, state (waiting on you, working, idle, stopped) and the last line said. Chats waiting on an answer sort first. Under them, each PC's Idle list: its newest chats not open in Nomad (pinned first, archived left out). Reading one leaves it where it is, on the PC and on the phone; sending it a prompt or changing a setting opens it on the PC, as clicking its row there does, and its process starts with that prompt.
 - Opens a chat: its recent transcript, then the running turn as it streams.
 - Sends a message, handled as one typed on the PC: during a running Claude Code turn it goes in and is read at the agent's next step, with other agents it queues behind the turn, and to a chat whose process has stopped it starts the chat again on its PC.
 - Answers permission and question cards. The first answer from anywhere wins and the card closes everywhere, as the relay already does between PCs.

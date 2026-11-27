@@ -88,7 +88,7 @@ public class MainActivity : AvaloniaMainActivity<App>
         }
     }
 
-    /// <summary>The name the user gave the phone ("Jame's S21"), else its model.</summary>
+    /// <summary>The name the user gave the phone ("Anna's Pixel"), else its model.</summary>
     private string DeviceName()
     {
         try

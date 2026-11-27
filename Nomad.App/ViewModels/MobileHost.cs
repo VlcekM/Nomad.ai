@@ -163,10 +163,10 @@ internal sealed class MobileHost : IDisposable
         return "";
     }
 
-    // A chat from the Idle list opens when the phone first asks for it, as clicking its row would.
+    // A chat from the Idle list is only read while the phone shows it; it opens on the PC when the phone acts on it.
     private SessionViewModel? Find(string backend, string id) =>
         _main.ReachableChats.FirstOrDefault(s => s.Backend == backend && s.SessionId == id && !s.IsRelayViewer)
-        ?? _main.OpenForPhone(backend, id);
+        ?? _main.PeekForPhone(backend, id);
 
     /// <summary>
     /// Per chat, a number that changes whenever its items before the end change place (a reload clears them, a rewind or a
@@ -313,6 +313,13 @@ internal sealed class MobileHost : IDisposable
         if (Find(backend, id) is not { } s)
         {
             return new ChatInputResult(false, "That chat is no longer open in Nomad.");
+        }
+
+        // Read from the Idle list until now: a prompt or a setting opens it on the PC, as clicking its row there does.
+        // Its name, pin and archive are the list row's, so those leave it where it is.
+        if (input.Kind is not ("rename" or "pin" or "archive") && _main.IsPeeked(s))
+        {
+            s = _main.OpenPeeked(s);
         }
 
         switch (input.Kind)
