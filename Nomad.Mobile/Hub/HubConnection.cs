@@ -62,8 +62,8 @@ public sealed class HubConnection : IHubConnection
     public Task<ChatFile> UploadFileAsync(Stream content, string name, long? length, CancellationToken ct = default) =>
         _client.UploadFileAsync(content, name, length, ct);
 
-    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default) =>
-        _client.ChatFileAsync(device, backend, sessionId, index, number, ct);
+    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, ChatFileRequest request, CancellationToken ct = default) =>
+        _client.ChatFileAsync(device, backend, sessionId, request, ct);
 
     public Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default) => _client.DownloadFileAsync(id, ct);
 

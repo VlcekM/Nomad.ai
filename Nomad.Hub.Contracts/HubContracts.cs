@@ -187,7 +187,7 @@ public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList
 /// <remarks>
 /// <paramref name="Files"/>: the files the agent sent the user (Claude's SendUserFile, or Nomad's send_file for other agents), in a
 /// <c>notice</c> whose <paramref name="Text"/> names them for a phone that can't show them; a phone that can shows them under
-/// their caption instead, each fetched through <see cref="HubNames.ChatFileGet"/> by the entry's index and its place in the list.
+/// their caption instead, each fetched through <see cref="HubNames.ChatFileGet"/> by the entry's index, its place in the list and its name.
 /// </remarks>
 public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null, IReadOnlyList<ChatStep>? Steps = null,
     ChatSentFiles? Files = null);
@@ -197,6 +197,15 @@ public sealed record ChatSentFiles(string Caption, IReadOnlyList<ChatSentFile> F
 
 /// <summary>One sent file: its name, and whether it is an image (PNG, JPEG, GIF, WebP or BMP), which the phone shows as a picture.</summary>
 public sealed record ChatSentFile(string Name, bool Image);
+
+/// <summary>
+/// A phone asking for a sent file (<see cref="HubNames.ChatFileGet"/>): file <paramref name="Number"/> of the entry at
+/// <paramref name="Index"/>, as the page of <paramref name="Generation"/> listed it, under <paramref name="Name"/>; the PC refuses
+/// it when the chat has changed since (another generation, or another name there). <paramref name="MaxSize"/>: the largest file
+/// wanted (a picture to show, say), larger ones refused before anything is sent. <paramref name="Fresh"/>: the hub lost the copy
+/// the PC named before, so the PC sends it again. Set by the hub only.
+/// </summary>
+public sealed record ChatFileRequest(int Index, int Number, int Generation, string Name, long? MaxSize = null, bool Fresh = false);
 
 /// <summary>
 /// One step of an activity: <paramref name="Kind"/> <c>tool</c> (<paramref name="Title"/> the tool's name, <paramref name="Detail"/>
@@ -363,17 +372,17 @@ public static class HubNames
     public const string ChatStartRequested = "ChatStartRequested";
 
     /// <summary>
-    /// Client → server (the phone): <c>(Guid device, backend, sessionId, int index, int number)</c> → <see cref="ChatFile"/>, file
-    /// <c>number</c> of the sent files in the entry at <c>index</c>; the phone then fetches it with <c>GET api/files/{id}</c>, which
-    /// waits for the PC to finish putting it there.
+    /// Client → server (the phone): <c>(Guid device, backend, sessionId, ChatFileRequest)</c> → <see cref="ChatFile"/>, the file the
+    /// request names; the phone then fetches it with <c>GET api/files/{id}</c>, which waits for the PC to finish putting it there.
     /// </summary>
     public const string ChatFileGet = "ChatFileGet";
 
     /// <summary>
-    /// Server → the PC with the chat, a client result: <c>(backend, sessionId, int index, int number, string id)</c> →
+    /// Server → the PC with the chat, a client result: <c>(backend, sessionId, ChatFileRequest, string id)</c> →
     /// <see cref="ChatFile"/>. The PC answers at once, with <c>id</c> (a place the hub keeps for the file, which only this PC may
     /// fill, with <c>PUT api/files/{id}?name=</c>, for two minutes) or the id of the same file it put there earlier, and sends the
-    /// file afterwards, so the hub's other calls to it don't wait behind the upload.
+    /// file afterwards, so the hub's other calls to it don't wait behind the upload. It refuses, sending nothing, when the request no
+    /// longer fits the chat or the file is larger than the request allows.
     /// </summary>
     public const string ChatFileRequested = "ChatFileRequested";
 

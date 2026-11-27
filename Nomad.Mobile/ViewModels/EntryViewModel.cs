@@ -171,6 +171,25 @@ public sealed partial class EntryViewModel : ObservableObject
     /// <summary>More of the turn streaming now.</summary>
     public void AppendLive(string text) => Text += text;
 
+    /// <summary>
+    /// The files as of the transcript's <paramref name="generation"/>: files listed under another generation (the PC reloaded or
+    /// rewound the chat since) are made anew, so no picture or saved copy of another file stays in their place.
+    /// </summary>
+    internal void RenewFiles(int generation)
+    {
+        if (Files.Any(f => f.Generation is { } had && had != generation))
+        {
+            DisposeFiles();
+            Files = FilesOf(Entry);
+            OnPropertyChanged(nameof(Files));
+        }
+
+        foreach (var file in Files)
+        {
+            file.Generation = generation;
+        }
+    }
+
     /// <summary>Gone from the chat, or the chat closed: its pictures are freed.</summary>
     public void DisposeFiles()
     {

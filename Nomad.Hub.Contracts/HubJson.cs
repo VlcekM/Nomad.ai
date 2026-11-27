@@ -39,6 +39,7 @@ namespace Nomad.Hub.Contracts;
 [JsonSerializable(typeof(IReadOnlyList<BoardDevice>))]
 [JsonSerializable(typeof(ChatPage))]
 [JsonSerializable(typeof(ChatSentFiles))]
+[JsonSerializable(typeof(ChatFileRequest))]
 [JsonSerializable(typeof(ChatInput))]
 [JsonSerializable(typeof(ChatInputResult))]
 [JsonSerializable(typeof(ChatSettings))]

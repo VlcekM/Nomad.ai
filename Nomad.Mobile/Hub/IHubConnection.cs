@@ -59,10 +59,9 @@ public interface IHubConnection : IAsyncDisposable
     Task<ChatFile> UploadFileAsync(Stream content, string name, long? length, CancellationToken ct = default);
 
     /// <summary>
-    /// A file the agent sent the user: file <paramref name="number"/> of the entry at <paramref name="index"/>, which the PC with the
-    /// chat puts on the hub; fetch it with <see cref="DownloadFileAsync"/>.
+    /// A file the agent sent the user, which the PC with the chat puts on the hub; fetch it with <see cref="DownloadFileAsync"/>.
     /// </summary>
-    Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default);
+    Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, ChatFileRequest request, CancellationToken ct = default);
 
     /// <summary>A file the PC put on the hub for this phone, read as it downloads (the hub waits for it to arrive first).</summary>
     Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default);

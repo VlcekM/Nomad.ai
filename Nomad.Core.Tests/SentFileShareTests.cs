@@ -130,4 +130,39 @@ public sealed class SentFileShareTests : IDisposable
         // A folder is not a file.
         Assert.Throws<InvalidOperationException>(() => share.Offer(_dir, "slot3"));
     }
+
+    [Fact]
+    public async Task AFileLargerThanThePhoneAskedForIsNeverSent()
+    {
+        var path = Path.Combine(_dir, "large.png");
+        await File.WriteAllBytesAsync(path, new byte[100]);
+        var hub = new FakeHub();
+        hub.Gate.SetResult();
+        var share = new SentFileShare(hub.UploadAsync);
+
+        var refused = Assert.Throws<InvalidOperationException>(() => share.Offer(path, "slot1", maxSize: 99));
+        Assert.Contains("larger than the phone asked for", refused.Message);
+        Assert.Null(share.UploadOf("slot1"));
+        Assert.Equal("slot2", share.Offer(path, "slot2", maxSize: 100).Id);
+        await share.UploadOf("slot2")!;
+        Assert.Equal("slot2", Assert.Single(hub.Uploads).Slot);
+    }
+
+    [Fact]
+    public async Task AFreshCopyIsSentWhenTheHubHasLostTheOneBefore()
+    {
+        var path = Path.Combine(_dir, "shot.png");
+        await File.WriteAllBytesAsync(path, [1, 2]);
+        var hub = new FakeHub();
+        hub.Gate.SetResult();
+        var share = new SentFileShare(hub.UploadAsync);
+
+        share.Offer(path, "slot1");
+        await share.UploadOf("slot1")!;
+        Assert.Equal("slot1", share.Offer(path, "slot2").Id);
+        Assert.Equal("slot3", share.Offer(path, "slot3", fresh: true).Id);
+        await share.UploadOf("slot3")!;
+        Assert.Equal("slot3", share.Offer(path, "slot4").Id); // And that one is named from then on.
+        Assert.Equal(["slot1", "slot3"], hub.Uploads.Select(u => u.Slot));
+    }
 }

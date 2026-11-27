@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.Core.Agents;
@@ -57,6 +58,17 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
             OnPropertyChanged(nameof(HasAttachments));
             SendCommand.NotifyCanExecuteChanged();
+        };
+        Entries.CollectionChanged += (_, e) =>
+        {
+            // An entry gone from the transcript frees its pictures (a move keeps it; ClearEntries frees them before a clear).
+            if (e.Action is NotifyCollectionChangedAction.Remove or NotifyCollectionChangedAction.Replace)
+            {
+                foreach (var gone in (e.OldItems?.OfType<EntryViewModel>() ?? []).Except(e.NewItems?.OfType<EntryViewModel>() ?? []))
+                {
+                    gone.DisposeFiles();
+                }
+            }
         };
     }
 
@@ -264,7 +276,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             var page = await connection.ChatHistoryAsync(DeviceId, Backend, SessionId, Entries[0].Index, PageSize);
             if (page.Generation != _generation)
             {
-                Entries.Clear();
+                ClearEntries();
                 await RefreshAsync();
                 return;
             }
@@ -765,15 +777,42 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     // ------------------------------------------------------------------ files the agent sent
 
-    /// <summary>Larger images show as a chip: a picture would mean holding all of it in memory first.</summary>
+    /// <summary>Larger image files show as a chip: a picture would mean fetching all of it first.</summary>
     public const long MaxPictureSize = 15L * 1024 * 1024;
 
+    /// <summary>Images with more pixels than this show as a chip: decoding one would take too much of the phone's memory.</summary>
+    public const long MaxPicturePixels = 24_000_000;
+
     /// <summary>The widest a picture is kept (wider ones are scaled down): wider than any phone shows it.</summary>
-    private const int MaxPictureWidth = 1440;
+    internal const int MaxPictureWidth = 1440;
+
+    /// <summary>The tallest a picture is kept (taller ones are scaled down), so a long strip stays a modest size in memory.</summary>
+    internal const int MaxPictureHeight = 4096;
+
+    /// <summary>Pictures are fetched and decoded one at a time, so a page of large screenshots never needs room for all at once.</summary>
+    private readonly SemaphoreSlim _pictureTurn = new(1, 1);
+
+    private void ClearEntries()
+    {
+        foreach (var entry in Entries)
+        {
+            entry.DisposeFiles();
+        }
+
+        Entries.Clear();
+    }
+
+    private ChatFileRequest RequestFor(SentFileViewModel file, long? maxSize = null) =>
+        new(file.EntryIndex, file.Number, file.Generation ?? _generation, file.Name, maxSize);
 
     /// <summary>Every sent file showing can be opened, and each image's picture is fetched once.</summary>
     private void WireFiles()
     {
+        foreach (var entry in Entries)
+        {
+            entry.RenewFiles(_generation);
+        }
+
         foreach (var file in Entries.SelectMany(e => e.Files))
         {
             file.Opener ??= OpenSentFileAsync;
@@ -792,41 +831,59 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             return;
         }
 
+        await _pictureTurn.WaitAsync();
         try
         {
-            var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, file.EntryIndex, file.Number);
-            if (onHub.Size > MaxPictureSize || _closed)
+            if (_closed || file.IsDisposed)
             {
                 return;
             }
 
+            // The PC sends nothing larger than a picture may be.
+            var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, RequestFor(file, MaxPictureSize));
             using var copy = new MemoryStream();
             await using (var stream = await connection.DownloadFileAsync(onHub.Id))
             {
                 await stream.CopyToAsync(copy);
             }
 
-            copy.Position = 0;
-            var picture = await Task.Run(() =>
+            if (PictureWidth(copy.GetBuffer().AsSpan(0, (int)copy.Length)) is not { } width || _closed || file.IsDisposed)
             {
-                var full = new Avalonia.Media.Imaging.Bitmap(copy);
-                if (full.PixelSize.Width <= MaxPictureWidth)
-                {
-                    return full;
-                }
+                return;
+            }
 
-                using (full)
-                {
-                    copy.Position = 0;
-                    return Avalonia.Media.Imaging.Bitmap.DecodeToWidth(copy, MaxPictureWidth);
-                }
-            });
+            copy.Position = 0;
+            var picture = await Task.Run(() => Avalonia.Media.Imaging.Bitmap.DecodeToWidth(copy, width));
             AppServices.Post(() => file.Show(picture));
         }
         catch (Exception)
         {
-            // Not fetched, or not an image the phone can read: it stays a chip, which a tap still opens.
+            // Not fetched, too large, or not an image the phone can read: it stays a chip, which a tap still opens.
         }
+        finally
+        {
+            _pictureTurn.Release();
+        }
+    }
+
+    /// <summary>
+    /// The width to decode an image at: its own, or less to keep it within <see cref="MaxPictureWidth"/> and
+    /// <see cref="MaxPictureHeight"/>; null when its header can't be read or it has more than <see cref="MaxPicturePixels"/>.
+    /// </summary>
+    internal static int? PictureWidth(ReadOnlySpan<byte> image)
+    {
+        if (ImageHeader.SizeOf(image) is not var (width, height) || (long)width * height > MaxPicturePixels)
+        {
+            return null;
+        }
+
+        var scaled = Math.Min(width, MaxPictureWidth);
+        if ((long)height * scaled / width > MaxPictureHeight)
+        {
+            scaled = (int)Math.Max(1, (long)width * MaxPictureHeight / height);
+        }
+
+        return scaled;
     }
 
     /// <summary>Saves a file the agent sent in the phone's Downloads and opens it; a second tap opens the saved copy.</summary>
@@ -849,7 +906,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             if (file.Saved is null)
             {
                 file.IsBusy = true;
-                var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, file.EntryIndex, file.Number);
+                var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, RequestFor(file));
                 await using var stream = await connection.DownloadFileAsync(onHub.Id);
                 file.Saved = await files.SaveAsync(SentFileKinds.SavedName(file.Name), SentFileKinds.OpenType(file.Name), stream);
             }

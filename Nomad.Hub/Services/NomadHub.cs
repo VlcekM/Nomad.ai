@@ -159,34 +159,47 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     /// <summary>
     /// A file a chat sent the user, for a phone: the PC with the chat is given a place on the hub for it and answers at once, with
     /// that place or a copy it put here before; the phone's fetch of it waits for it to arrive. Only a file the PC sent the user can
-    /// be named: never one a phone attached.
+    /// be named: never one a phone attached. A copy the hub no longer has (its files were cleared) is asked for afresh, once.
     /// </summary>
-    public async Task<ChatFile> ChatFileGet(Guid device, string backend, string sessionId, int index, int number)
+    public async Task<ChatFile> ChatFileGet(Guid device, string backend, string sessionId, ChatFileRequest request)
     {
         RequireRelay();
-        var slot = slots.Reserve(device);
-        ChatFile? file;
-        try
+        request = request with { Fresh = false };
+        while (true)
         {
-            file = await AskPcAsync(device, backend, sessionId, (pc, ct) =>
-                Clients.Client(pc).InvokeAsync<ChatFile>(HubNames.ChatFileRequested, backend, sessionId, index, number, slot, ct));
-        }
-        catch
-        {
-            slots.Drop(slot);
-            throw;
-        }
+            var slot = slots.Reserve(device);
+            ChatFile? file;
+            try
+            {
+                var asked = request;
+                file = await AskPcAsync(device, backend, sessionId, (pc, ct) =>
+                    Clients.Client(pc).InvokeAsync<ChatFile>(HubNames.ChatFileRequested, backend, sessionId, asked, slot, ct));
+            }
+            catch
+            {
+                slots.Drop(slot);
+                throw;
+            }
 
-        if (file is null || file.Id != slot)
-        {
+            if (file is not null && file.Id == slot)
+            {
+                return file with { Name = PhoneFileStore.CleanName(file.Name) };
+            }
+
             slots.Drop(slot);
-            if (file is null || !(files.IsForPhones(file.Id) || slots.IsPendingFor(file.Id, device)))
+            if (file is not null && (files.IsForPhones(file.Id) || slots.IsPendingFor(file.Id, device)))
+            {
+                return file with { Name = PhoneFileStore.CleanName(file.Name) };
+            }
+
+            // A copy no longer here (or never a sent file at all): asked afresh once, then refused.
+            if (file is null || request.Fresh || !PhoneFileStore.IsId(file.Id) || files.Find(file.Id) is not null)
             {
                 throw new HubException("That PC didn't send the file.");
             }
-        }
 
-        return file with { Name = PhoneFileStore.CleanName(file.Name) };
+            request = request with { Fresh = true };
+        }
     }
 
     /// <summary>What a new chat on a PC can start as.</summary>

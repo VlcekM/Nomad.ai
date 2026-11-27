@@ -248,12 +248,12 @@ public sealed class BoardTests
         await using var pc = hub.Connect(pcHttp);
         await using var phone = hub.Connect(phoneHttp);
         byte[] shot = [.. Enumerable.Range(0, 120_000).Select(i => (byte)(i * 13))];
-        var asked = new List<(string Session, int Index, int Number)>();
+        var asked = new List<(string Session, ChatFileRequest Request)>();
         string? named = null;
-        pc.On<string, string, int, int, string, ChatFile>(HubNames.ChatFileRequested, (backend, s, index, number, slot) =>
+        pc.On<string, string, ChatFileRequest, string, ChatFile>(HubNames.ChatFileRequested, (backend, s, request, slot) =>
         {
-            asked.Add((s, index, number));
-            if (named is not null)
+            asked.Add((s, request));
+            if (named is not null && !request.Fresh)
             {
                 return Task.FromResult(new ChatFile(named, "shot.png", shot.Length));
             }
@@ -271,8 +271,10 @@ public sealed class BoardTests
         await pc.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s1") });
         var device = Assert.Single(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch)).DeviceId;
 
-        var file = await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1);
-        Assert.Equal(("s1", 4, 1), Assert.Single(asked));
+        // A phone can't ask for a fresh copy itself: only the hub does, when it lost one.
+        var wanted = new ChatFileRequest(4, 1, 7, "shot.png", 15_000_000, Fresh: true);
+        var file = await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", wanted);
+        Assert.Equal(("s1", wanted with { Fresh = false }), Assert.Single(asked)); // Index, place, generation, name and limit reach the PC.
         Assert.Equal("shot_1.png", file.Name); // Kept to a plain name, whatever the PC says.
 
         // The phone's fetch waits for the PC to finish sending it, and gets it as a download, never as something to show.
@@ -289,17 +291,25 @@ public sealed class BoardTests
 
         // The PC may name the copy it put there before...
         named = file.Id;
-        Assert.Equal(file.Id, (await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1)).Id);
+        Assert.Equal(file.Id, (await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", wanted)).Id);
+        Assert.Equal(2, asked.Count);
 
-        // ...but never a file a phone attached, which stays out of a phone's reach.
+        // ...and when the hub no longer has that copy, it asks once more for a fresh one, which arrives.
+        named = new string('a', 32);
+        var fresh = await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", wanted);
+        Assert.Equal([false, true], asked.Skip(2).Select(a => a.Request.Fresh));
+        Assert.Equal(shot, await phoneHttp.GetByteArrayAsync("/api/files/" + fresh.Id));
+
+        // ...but never a file a phone attached, which stays out of a phone's reach (and isn't asked for again).
         var attached = (await (await phoneHttp.PostAsync("/api/files?name=a.txt", new ByteArrayContent([1, 2, 3]))).Content.ReadFromJsonAsync(HubJson.Default.ChatFile))!;
         named = attached.Id;
-        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1));
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", wanted));
         Assert.Equal(HttpStatusCode.Forbidden, (await phoneHttp.GetAsync("/api/files/" + attached.Id)).StatusCode);
+        Assert.Equal(5, asked.Count);
 
         // A chat the PC doesn't list never reaches it.
-        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "other", 0, 0));
-        Assert.Equal(3, asked.Count);
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "other", wanted));
+        Assert.Equal(5, asked.Count);
     }
 
     [Fact]

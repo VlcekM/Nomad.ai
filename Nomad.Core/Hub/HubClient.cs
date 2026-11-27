@@ -121,8 +121,8 @@ public sealed class HubClient : IAsyncDisposable
             NewChatOptionsRequested is { } options ? options() : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.On<NewChat, string, NewChatResult>(HubNames.ChatStartRequested, (chat, from) =>
             StartRequested is { } start ? start(chat, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
-        connection.On<string, string, int, int, string, ChatFile>(HubNames.ChatFileRequested, (b, s, index, number, id) =>
-            FileRequested is { } file ? file(b, s, index, number, id) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<string, string, ChatFileRequest, string, ChatFile>(HubNames.ChatFileRequested, (b, s, request, id) =>
+            FileRequested is { } file ? file(b, s, request, id) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
@@ -294,11 +294,10 @@ public sealed class HubClient : IAsyncDisposable
     public Func<NewChat, string, Task<NewChatResult>>? StartRequested { get; set; }
 
     /// <summary>
-    /// A file a chat here sent the user, for a phone: (backend, session id, the entry's index, the file's place in it, the id of the
-    /// place the hub kept for it). Answers at once with that id (or a copy put there before), and sends the file afterwards with
-    /// <see cref="UploadSentFileAsync"/>.
+    /// A file a chat here sent the user, for a phone: (backend, session id, which file, the id of the place the hub kept for it).
+    /// Answers at once with that id (or a copy put there before), and sends the file afterwards with <see cref="UploadSentFileAsync"/>.
     /// </summary>
-    public Func<string, string, int, int, string, Task<ChatFile>>? FileRequested { get; set; }
+    public Func<string, string, ChatFileRequest, string, Task<ChatFile>>? FileRequested { get; set; }
 
     /// <summary>Puts this PC's open chats on the board, replacing what it listed before.</summary>
     public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
@@ -327,11 +326,10 @@ public sealed class HubClient : IAsyncDisposable
         Live.InvokeAsync<NewChatResult>(HubNames.ChatStart, device, chat, ct);
 
     /// <summary>
-    /// File <paramref name="number"/> of the files a chat sent the user in its entry at <paramref name="index"/>, put on the hub by
-    /// the PC with the chat: fetch it with <see cref="DownloadFileAsync"/>.
+    /// A file a chat sent the user, put on the hub by the PC with the chat: fetch it with <see cref="DownloadFileAsync"/>.
     /// </summary>
-    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default) =>
-        Live.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, backend, sessionId, index, number, ct);
+    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, ChatFileRequest request, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, backend, sessionId, request, ct);
 
     private sealed class ForeverRetry : IRetryPolicy
     {

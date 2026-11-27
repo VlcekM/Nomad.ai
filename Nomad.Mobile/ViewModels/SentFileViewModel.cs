@@ -23,6 +23,12 @@ public sealed partial class SentFileViewModel(ChatSentFile file, int entryIndex,
     /// <summary>Its place among the entry's files.</summary>
     public int Number { get; } = number;
 
+    /// <summary>
+    /// The generation of the transcript whose page listed it (null until the chat says): the PC sends it only while the transcript
+    /// is still that generation, so a reload or rewind never sends another file in its place.
+    /// </summary>
+    public int? Generation { get; internal set; }
+
     public string Name => File.Name;
 
     /// <summary>An image the phone can show (PNG, JPEG, GIF, WebP or BMP).</summary>
@@ -74,6 +80,9 @@ public sealed partial class SentFileViewModel(ChatSentFile file, int entryIndex,
         old?.Dispose();
     }
 
+    /// <summary>Its entry has gone: nothing more is shown in it.</summary>
+    internal bool IsDisposed => _disposed;
+
     public void Dispose()
     {
         _disposed = true;
@@ -84,9 +93,10 @@ public sealed partial class SentFileViewModel(ChatSentFile file, int entryIndex,
 }
 
 /// <summary>
-/// How a file the agent sent is kept and opened on the phone. Nothing in one runs: a web page, a script or a vector image (which can
-/// carry one) is kept as a text file (its name with ".txt" added, and the type text/plain, which is what a browser goes by, whatever
-/// it is asked to open it as), and an app package is only saved, never handed to the installer.
+/// How a file the agent sent is kept and opened on the phone. Nothing in one runs: only kinds known to be safe to open (pictures,
+/// documents, media, archives, plain text) open as themselves; anything else, a web page, a script, a vector image or a name the app
+/// doesn't know (or none), is kept as a text file (its name with ".txt" added, and the type text/plain, which is what a browser goes
+/// by, whatever it is asked to open it as); and an app package is only saved, never handed to the installer.
 /// </summary>
 public static class SentFileKinds
 {
@@ -102,19 +112,10 @@ public static class SentFileKinds
         SavedOnly,
     }
 
-    private static readonly HashSet<string> Active = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".html", ".htm", ".xhtml", ".shtml", ".mht", ".mhtml", ".svg", ".svgz", ".xml", ".xsl", ".xslt", ".js", ".mjs", ".cjs", ".hta",
-        ".php", ".jsp", ".asp", ".aspx",
-    };
-
     private static readonly HashSet<string> Packages = new(StringComparer.OrdinalIgnoreCase) { ".apk", ".apks", ".apkm", ".xapk", ".aab" };
 
-    public static Opening Of(string name) => Path.GetExtension(name) is var ext && Packages.Contains(ext) ? Opening.SavedOnly
-        : Active.Contains(ext) ? Opening.AsText
-        : Opening.AsItself;
-
-    private static readonly Dictionary<string, string> Types = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>The kinds that open as themselves, with their types: none of them runs anything in the app that opens it.</summary>
+    private static readonly Dictionary<string, string> Safe = new(StringComparer.OrdinalIgnoreCase)
     {
         [".png"] = "image/png",
         [".jpg"] = "image/jpeg",
@@ -122,6 +123,7 @@ public static class SentFileKinds
         [".gif"] = "image/gif",
         [".webp"] = "image/webp",
         [".bmp"] = "image/bmp",
+        [".heic"] = "image/heic",
         [".pdf"] = "application/pdf",
         [".txt"] = "text/plain",
         [".md"] = "text/plain",
@@ -129,19 +131,40 @@ public static class SentFileKinds
         [".csv"] = "text/csv",
         [".json"] = "application/json",
         [".zip"] = "application/zip",
+        [".7z"] = "application/x-7z-compressed",
+        [".gz"] = "application/gzip",
+        [".tar"] = "application/x-tar",
         [".mp3"] = "audio/mpeg",
+        [".m4a"] = "audio/mp4",
+        [".ogg"] = "audio/ogg",
+        [".flac"] = "audio/flac",
         [".wav"] = "audio/wav",
         [".mp4"] = "video/mp4",
+        [".mov"] = "video/quicktime",
+        [".mkv"] = "video/x-matroska",
         [".webm"] = "video/webm",
+        [".doc"] = "application/msword",
+        [".xls"] = "application/vnd.ms-excel",
+        [".ppt"] = "application/vnd.ms-powerpoint",
         [".docx"] = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         [".xlsx"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         [".pptx"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        [".odt"] = "application/vnd.oasis.opendocument.text",
+        [".ods"] = "application/vnd.oasis.opendocument.spreadsheet",
     };
 
-    /// <summary>The name it is kept under on the phone: with ".txt" added for anything that could run.</summary>
+    public static Opening Of(string name) => Path.GetExtension(name) is var ext && Packages.Contains(ext) ? Opening.SavedOnly
+        : Safe.ContainsKey(ext) ? Opening.AsItself
+        : Opening.AsText;
+
+    /// <summary>The name it is kept under on the phone: with ".txt" added for anything not known to be safe.</summary>
     public static string SavedName(string name) => Of(name) == Opening.AsText ? name + ".txt" : name;
 
-    /// <summary>The type it is kept and opened as: text for anything that could run, else its own (any app's choice when unknown).</summary>
-    public static string OpenType(string name) => Of(name) == Opening.AsText ? "text/plain"
-        : Types.TryGetValue(Path.GetExtension(name), out var type) ? type : "application/octet-stream";
+    /// <summary>The type it is kept and opened as: its own for a safe kind, an app package's for one, else text.</summary>
+    public static string OpenType(string name) => Of(name) switch
+    {
+        Opening.AsItself => Safe[Path.GetExtension(name)],
+        Opening.SavedOnly => "application/vnd.android.package-archive",
+        _ => "text/plain",
+    };
 }

@@ -268,10 +268,11 @@ internal sealed class MobileHost : IDisposable
     }
 
     /// <summary>
-    /// File <paramref name="number"/> of the sent-files item at <paramref name="index"/>, for a phone: put in the hub's place
-    /// <paramref name="slot"/> (or named again if put there before). Only a file a sent-files item in the chat names can be sent.
+    /// A file of a sent-files item, for a phone: put in the hub's place <paramref name="slot"/> (or named again if put there before).
+    /// Only a file a sent-files item in the chat names can be sent, and only the one the phone saw: the same generation of the
+    /// transcript, the same name at that place.
     /// </summary>
-    private async Task<ChatFile> SentFileAsync(string backend, string id, int index, int number, string slot)
+    private async Task<ChatFile> SentFileAsync(string backend, string id, ChatFileRequest request, string slot)
     {
         var path = await OnUiAsync(() =>
         {
@@ -285,11 +286,13 @@ internal sealed class MobileHost : IDisposable
                 throw new InvalidOperationException("That chat is no longer open in Nomad.");
             }
 
-            return index >= 0 && index < s.Items.Count && s.Items[index] is SentFilesItem f && number >= 0 && number < Math.Min(f.SentPaths.Count, MaxSentFiles)
-                ? f.SentPaths[number]
-                : throw new InvalidOperationException("That file is no longer in the chat; open the chat again.");
+            var (index, number) = (request.Index, request.Number);
+            return GenerationOf(s) == request.Generation && index >= 0 && index < s.Items.Count && s.Items[index] is SentFilesItem f
+                && number >= 0 && number < Math.Min(f.SentPaths.Count, MaxSentFiles) && Path.GetFileName(f.SentPaths[number]) == request.Name
+                    ? f.SentPaths[number]
+                    : throw new InvalidOperationException("That file is no longer in the chat; open the chat again.");
         });
-        return await Task.Run(() => _sentFiles.Offer(path, slot));
+        return await Task.Run(() => _sentFiles.Offer(path, slot, request.MaxSize, request.Fresh));
     }
 
     // ------------------------------------------------------------------ input

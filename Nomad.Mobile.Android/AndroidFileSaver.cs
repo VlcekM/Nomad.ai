@@ -19,11 +19,7 @@ public sealed class AndroidFileSaver(Context context) : IFileSaver
         var resolver = _app.ContentResolver!;
         var values = new ContentValues();
         values.Put(MediaStore.IMediaColumns.DisplayName, name);
-        if (type != "application/octet-stream")
-        {
-            // What every app that opens it is told it is (an unknown one is left to Android, which goes by the name).
-            values.Put(MediaStore.IMediaColumns.MimeType, type);
-        }
+        values.Put(MediaStore.IMediaColumns.MimeType, type); // What every app that opens it is told it is.
 
         values.Put(MediaStore.IMediaColumns.RelativePath, global::Android.OS.Environment.DirectoryDownloads + "/Nomad");
         values.Put(MediaStore.IMediaColumns.IsPending, 1);
@@ -49,13 +45,8 @@ public sealed class AndroidFileSaver(Context context) : IFileSaver
 
     public bool Open(string saved, string type)
     {
+        // Always the app's own type (text for anything not known to be safe), never one Android guesses from the name.
         var uri = global::Android.Net.Uri.Parse(saved)!;
-        if (type == "application/octet-stream")
-        {
-            // Not a type the app knows (only ones that can't run anything get here): Android may know it from the name.
-            type = _app.ContentResolver!.GetType(uri) is { Length: > 0 } known && known != type ? known : "*/*";
-        }
-
         var intent = new Intent(Intent.ActionView);
         intent.SetDataAndType(uri, type);
         intent.AddFlags(ActivityFlags.GrantReadUriPermission | ActivityFlags.NewTask);

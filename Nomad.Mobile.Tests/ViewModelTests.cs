@@ -976,6 +976,120 @@ public sealed class ViewModelTests
         }
     }
 
+    [Theory]
+    [InlineData("report.pdf", "report.pdf", "application/pdf")]
+    [InlineData("shot.PNG", "shot.PNG", "image/png")]
+    [InlineData("page.html", "page.html.txt", "text/plain")]
+    [InlineData("page.xht", "page.xht.txt", "text/plain")]
+    [InlineData("drawing.svg", "drawing.svg.txt", "text/plain")]
+    [InlineData("README", "README.txt", "text/plain")]
+    [InlineData("setup.weird", "setup.weird.txt", "text/plain")]
+    [InlineData("tool.apk", "tool.apk", "application/vnd.android.package-archive")]
+    public void Only_kinds_known_to_be_safe_open_as_themselves_and_anything_else_is_kept_as_text(string name, string saved, string type)
+    {
+        Assert.Equal(saved, SentFileKinds.SavedName(name));
+        Assert.Equal(type, SentFileKinds.OpenType(name));
+    }
+
+    [Fact]
+    public async Task A_file_is_asked_for_by_its_generation_and_name_and_a_rewound_chat_makes_it_anew()
+    {
+        var saver = new FakeSaver();
+        AppServices.Files = saver;
+        try
+        {
+            var (main, hub, _) = await SignedInAsync();
+            hub.Pages["d1"] = WithSentFiles("report.pdf") with { Generation = 3 };
+            hub.SentFiles["d1/5/0"] = ("report.pdf", [1, 2, 3]);
+            var chat = await OpenAsync(main, "d1");
+            var file = chat.Entries.Single(e => e.Index == 5).Files[0];
+            await file.OpenCommand.ExecuteAsync(null);
+            Assert.Equal(new ChatFileRequest(5, 0, 3, "report.pdf"), hub.FileRequests.Single());
+
+            // Rewound on the PC, with another file in that place: the old one is freed, and the new one asked for as itself.
+            hub.Pages["d1"] = WithSentFiles("other.pdf") with { Generation = 4 };
+            hub.SentFiles["d1/5/0"] = ("other.pdf", [4, 5]);
+            chat.ScheduleRefresh(TimeSpan.Zero);
+            await Task.Delay(100);
+            Assert.True(file.IsDisposed);
+            var renewed = chat.Entries.Single(e => e.Index == 5).Files[0];
+            Assert.NotSame(file, renewed);
+            Assert.Equal(4, renewed.Generation);
+            await renewed.OpenCommand.ExecuteAsync(null);
+            Assert.Equal(new ChatFileRequest(5, 0, 4, "other.pdf"), hub.FileRequests[^1]);
+            Assert.Equal([4, 5], saver.Saved[^1].Bytes);
+        }
+        finally
+        {
+            AppServices.Files = null;
+        }
+    }
+
+    [Fact]
+    public async Task An_entry_gone_from_the_chat_frees_its_files()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        hub.Pages["d1"] = WithSentFiles("report.pdf");
+        var chat = await OpenAsync(main, "d1");
+        var entry = chat.Entries.Single(e => e.Index == 5);
+        chat.Entries.Remove(entry);
+        Assert.True(entry.Files[0].IsDisposed);
+    }
+
+    [Fact]
+    public async Task A_picture_too_large_to_show_is_never_sent_and_stays_a_chip()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var page = Samples.Page();
+        hub.Pages["d1"] = page with
+        {
+            Entries = [.. page.Entries, new ChatEntry(5, "notice", "Sent files", Files: new ChatSentFiles("", [new ChatSentFile("huge.png", true)]))],
+        };
+        hub.SentFiles["d1/5/0"] = ("huge.png", new byte[ChatViewModel.MaxPictureSize + 1]);
+        var chat = await OpenAsync(main, "d1");
+        await Task.Delay(100);
+
+        Assert.Equal(ChatViewModel.MaxPictureSize, hub.FileRequests.Single().MaxSize); // The PC is told the limit, and refuses past it.
+        Assert.DoesNotContain(hub.Calls, c => c.StartsWith("Download", StringComparison.Ordinal));
+        Assert.True(chat.Entries.Single(e => e.Index == 5).Files[0].ShowsChip);
+    }
+
+    private static byte[] Png(int width, int height)
+    {
+        var data = new byte[33];
+        new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, (byte)'I', (byte)'H', (byte)'D', (byte)'R' }.CopyTo(data, 0);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(16), width);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(data.AsSpan(20), height);
+        return data;
+    }
+
+    [Theory]
+    [InlineData(800, 600, 800)] // Kept as it is.
+    [InlineData(3000, 1000, 1440)] // Narrowed to the widest kept.
+    [InlineData(1000, 20000, 204)] // A long strip: narrowed until it is no taller than the tallest kept.
+    [InlineData(6000, 6000, null)] // Too many pixels to decode at all.
+    public void A_picture_s_size_is_read_from_its_header_before_it_is_decoded(int width, int height, int? decodedWidth)
+    {
+        Assert.Equal((width, height), ImageHeader.SizeOf(Png(width, height)));
+        Assert.Equal(decodedWidth, ChatViewModel.PictureWidth(Png(width, height)));
+    }
+
+    [Fact]
+    public void Image_headers_of_each_kind_are_read_and_anything_else_is_not()
+    {
+        // JPEG: an APP0 segment, then the frame's height and width.
+        byte[] jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0, 4, 0, 0, 0xFF, 0xC0, 0, 17, 8, 0x02, 0x58, 0x03, 0x20, 3, 0, 0, 0, 0];
+        Assert.Equal((800, 600), ImageHeader.SizeOf(jpeg));
+        byte[] gif = [.. "GIF89a"u8, 0x20, 0x03, 0x58, 0x02];
+        Assert.Equal((800, 600), ImageHeader.SizeOf(gif));
+        byte[] webp = [.. "RIFF"u8, 0, 0, 0, 0, .. "WEBPVP8X"u8, 10, 0, 0, 0, 0, 0, 0, 0, 0x1F, 0x03, 0, 0x57, 0x02, 0];
+        Assert.Equal((800, 600), ImageHeader.SizeOf(webp));
+
+        Assert.Null(ImageHeader.SizeOf("<svg/>"u8));
+        Assert.Null(ImageHeader.SizeOf(Png(800, 600).AsSpan(0, 20))); // Cut short.
+        Assert.Null(ChatViewModel.PictureWidth([1, 2, 3]));
+    }
+
     [Fact]
     public async Task A_file_no_longer_in_the_chat_says_so_and_an_older_PC_s_notice_stays_a_notice()
     {

@@ -183,15 +183,27 @@ public sealed class FakeHub : IHubConnection, IHubFactory
         return new ChatFile(id, name, copy.Length);
     }
 
-    /// <summary>Files chats sent the user, by "session/index/number", with their bytes; the PC puts one on the hub when asked.</summary>
+    /// <summary>
+    /// Files chats sent the user, by "session/index/number", with their bytes; the PC puts one on the hub when asked, as it does only
+    /// under the name the phone expects and no larger than the phone allows.
+    /// </summary>
     public Dictionary<string, (string Name, byte[] Bytes)> SentFiles { get; } = [];
 
-    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default)
+    /// <summary>What the phone asked for each sent file with.</summary>
+    public List<ChatFileRequest> FileRequests { get; } = [];
+
+    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, ChatFileRequest request, CancellationToken ct = default)
     {
-        Calls.Add($"ChatFile {sessionId} {index} {number}");
-        if (!SentFiles.TryGetValue($"{sessionId}/{index}/{number}", out var sent))
+        Calls.Add($"ChatFile {sessionId} {request.Index} {request.Number}");
+        FileRequests.Add(request);
+        if (!SentFiles.TryGetValue($"{sessionId}/{request.Index}/{request.Number}", out var sent) || sent.Name != request.Name)
         {
             throw new InvalidOperationException("That file is no longer in the chat; open the chat again.");
+        }
+
+        if (sent.Bytes.Length > request.MaxSize)
+        {
+            throw new InvalidOperationException("The file is larger than the phone asked for.");
         }
 
         var id = Guid.NewGuid().ToString("N");
