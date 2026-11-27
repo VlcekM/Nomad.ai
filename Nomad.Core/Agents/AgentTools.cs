@@ -13,7 +13,7 @@ public interface IAgentDesk
     /// <summary>
     /// The calling chat, when it is one this Nomad started and still has open; null otherwise (the tools then refuse).
     /// </summary>
-    Task<ChatInfo?> FindAsync(string? callerKey);
+    Task<DeskChat?> FindAsync(string? callerKey);
 
     /// <summary>
     /// Shows the file (already copied to Nomad's kept folder) in the calling chat's transcript, under the caption.
@@ -25,6 +25,12 @@ public interface IAgentDesk
     /// </summary>
     Task<string> NotifyAsync(string callerKey, string title, string message);
 }
+
+/// <summary>
+/// A chat calling the agent tools: what it is, its permission mode as Nomad names it (<c>default</c>, <c>acceptEdits</c>,
+/// <c>auto</c>, <c>plan</c>, <c>bypassPermissions</c>), and a token cancelled when the user stops its turn.
+/// </summary>
+public sealed record DeskChat(ChatInfo Info, string? Mode, CancellationToken Stopped = default);
 
 /// <summary>
 /// The tools Nomad itself serves to agents that lack them (Antigravity and Codex, through <see cref="ChatBridge"/>): a screenshot,
@@ -104,7 +110,7 @@ public static class AgentTools
             {"name":"take_screenshot","description":"Take a screenshot of the user's real screen (your own shell runs on a hidden desktop, so screen captures from it fail). Saves a PNG and returns its path, which you can open with your file-reading tool, and the monitors' layout; the picture is also returned when it is small enough. All monitors by default, or one.","inputSchema":{"type":"object","properties":{"monitor":{"type":"integer","minimum":1,"description":"One monitor's number (1 is the leftmost); omit for all of them. The result lists the monitors."}},"additionalProperties":false}}
             """)!,
         JsonNode.Parse("""
-            {"name":"run_on_desktop","description":"Run a Windows PowerShell command on the user's real desktop, from Nomad's own process. Use it for what fails from your own shell because that runs on a hidden desktop: focusing or reading windows, clicking or typing (pyautogui), screen captures, opening programs the user should see. Returns the exit code, output and errors. Not for ordinary work, which your own shell does.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The PowerShell command or script."},"working_folder":{"type":"string","description":"The folder to run in; defaults to this chat's folder."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"description":"How long to wait before stopping it: 60 by default, at most 600."}},"required":["command"],"additionalProperties":false}}
+            {"name":"run_on_desktop","description":"Run a Windows PowerShell command on the user's real desktop, from Nomad's own process. Use it for what fails from your own shell because that runs on a hidden desktop: focusing or reading windows, clicking or typing (pyautogui), screen captures, opening programs the user should see. Returns the exit code, output and errors. Not for ordinary work, which your own shell does. It runs outside any sandbox, so it works only while this chat's permission mode is Bypass permissions.","inputSchema":{"type":"object","properties":{"command":{"type":"string","description":"The PowerShell command or script."},"working_folder":{"type":"string","description":"The folder to run in; defaults to this chat's folder."},"timeout_seconds":{"type":"integer","minimum":1,"maximum":600,"description":"How long to wait before stopping it: 60 by default, at most 600."}},"required":["command"],"additionalProperties":false}}
             """)!,
         JsonNode.Parse("""
             {"name":"send_file","description":"Hand the user a file: Nomad keeps a copy and shows it in this chat, an image as a picture and any other file as an item the user can open or save. Use it to show the user a picture or give them something you made. Up to 100 MB; not a folder.","inputSchema":{"type":"object","properties":{"path":{"type":"string","description":"The file, preferably an absolute path (a relative one is taken from this chat's folder)."},"caption":{"type":"string","description":"A line shown with it."}},"required":["path"],"additionalProperties":false}}
@@ -120,8 +126,18 @@ public static class AgentTools
     public static async Task<JsonObject> CallAsync(string? name, JsonElement parameters, string? callerKey, CancellationToken cancellationToken = default)
     {
         if (Desk is not { } desk) return ToolResult("Nomad's desktop tools are not available here.", error: true);
-        if (callerKey is null || await desk.FindAsync(callerKey).ConfigureAwait(false) is not { } chat)
+        if (callerKey is null || await desk.FindAsync(callerKey).ConfigureAwait(false) is not { } caller)
             return ToolResult("These tools work only for a chat Nomad started and has open.", error: true);
+
+        var chat = caller.Info;
+        if (name == RunName && !AllowsDesktopCommands(caller.Mode))
+        {
+            AgentToolLog.Write($"run_on_desktop for \"{chat.Title}\" refused in permission mode {ModeLabel(caller.Mode)}");
+            return ToolResult($"run_on_desktop is not available in this chat's permission mode, {ModeLabel(caller.Mode)}. It runs " +
+                "commands on the user's desktop outside any sandbox, so Nomad allows it only in Bypass permissions mode, where the " +
+                "chat already runs any command without asking. If it is needed, ask the user to switch this chat to Bypass permissions.",
+                error: true);
+        }
 
         var input = parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("arguments", out var arguments) ? arguments : default;
         try
@@ -129,7 +145,7 @@ public static class AgentTools
             return name switch
             {
                 ScreenshotName => await ScreenshotAsync(input, chat).ConfigureAwait(false),
-                RunName => await RunAsync(input, chat, cancellationToken).ConfigureAwait(false),
+                RunName => await RunAsync(input, chat, cancellationToken, caller.Stopped).ConfigureAwait(false),
                 SendFileName => await SendFileAsync(input, chat, callerKey, desk).ConfigureAwait(false),
                 NotifyName => await NotifyAsync(input, chat, callerKey, desk).ConfigureAwait(false),
                 _ => ToolResult($"Unknown tool: {name}.", error: true),
@@ -141,6 +157,29 @@ public static class AgentTools
             return ToolResult($"{name} failed: {ex.Message}", error: true);
         }
     }
+
+    /// <summary>
+    /// Whether a chat in <paramref name="mode"/> may use <c>run_on_desktop</c>: only when the mode already lets the agent run any
+    /// command, unsandboxed, without asking. For Codex that is Bypass permissions alone (Manual and Plan are read-only sandboxes;
+    /// Accept edits and Auto run commands only inside the folder's sandbox, asking or having a reviewer decide past it). For
+    /// Antigravity it is Bypass permissions alone too (Manual asks before commands, Accept edits approves only file edits, Auto
+    /// only the commands it judges safe, Plan only plans).
+    /// </summary>
+    public static bool AllowsDesktopCommands(string? mode) => mode == "bypassPermissions";
+
+    /// <summary>
+    /// A permission mode as Nomad's mode menu names it, for messages.
+    /// </summary>
+    private static string ModeLabel(string? mode) => mode switch
+    {
+        "default" => "Manual",
+        "acceptEdits" => "Accept edits",
+        "auto" => "Auto",
+        "plan" => "Plan",
+        "bypassPermissions" => "Bypass permissions",
+        null or "" => "unknown",
+        _ => mode,
+    };
 
     #region take_screenshot
 
@@ -179,8 +218,12 @@ public static class AgentTools
             var folder = Path.Combine(KeptRoot, "screenshots");
             Directory.CreateDirectory(folder);
             ClearOldScreenshots(folder);
-            var path = Path.Combine(folder, $"screenshot-{DateTime.Now:yyyyMMdd-HHmmss-fff}.png");
-            File.WriteAllBytes(path, png);
+            // The random part keeps two screenshots in the same millisecond apart; CreateNew never overwrites one.
+            var path = Path.Combine(folder, $"screenshot-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Unique()}.png");
+            using (var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                file.Write(png);
+            }
             AgentToolLog.Write($"take_screenshot for \"{chat.Title}\": {what}, {width}x{height}, {path}");
 
             var text = $"Saved a screenshot of {what} ({width}x{height} pixels, top left at {left},{top} on the desktop) to {path}\n" +
@@ -231,7 +274,7 @@ public static class AgentTools
     /// <summary>
     /// Runs the command in PowerShell on the user's desktop and reports how it went.
     /// </summary>
-    private static async Task<JsonObject> RunAsync(JsonElement input, ChatInfo chat, CancellationToken cancellationToken)
+    private static async Task<JsonObject> RunAsync(JsonElement input, ChatInfo chat, CancellationToken cancellationToken, CancellationToken stopped)
     {
         if (Str(input, "command") is not { Length: > 0 } command) return ToolResult("Give the command to run.", error: true);
 
@@ -252,16 +295,21 @@ public static class AgentTools
         if (!Directory.Exists(folder)) return ToolResult($"The working folder does not exist: {folder}", error: true);
 
         AgentToolLog.Write($"run_on_desktop for \"{chat.Title}\" in {folder} (limit {timeout.TotalSeconds:0} s): {Shorten(command, 2000)}");
-        var result = await DesktopCommand.RunAsync(command, folder, timeout, cancellationToken).ConfigureAwait(false);
+        // Stopped early by the call's own cancellation (the agent cancelled it, or its bridge went away) or by the user stopping the turn.
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopped);
+        var result = await DesktopCommand.RunAsync(command, folder, timeout, stop.Token).ConfigureAwait(false);
         AgentToolLog.Write($"run_on_desktop for \"{chat.Title}\" ended: " +
-            (result.TimedOut ? "stopped at the time limit" : $"exit code {result.ExitCode}") + $" after {result.Elapsed.TotalSeconds:0.0} s");
+            (result.TimedOut ? "stopped at the time limit" : result.Cancelled ? "stopped early (cancelled)" : $"exit code {result.ExitCode}") +
+            $" after {result.Elapsed.TotalSeconds:0.0} s");
 
         var text = (result.TimedOut
                 ? $"Stopped after {timeout.TotalSeconds:0} seconds, the time limit, with everything it started."
-                : $"Exit code: {result.ExitCode}") +
+                : result.Cancelled
+                    ? "Stopped before it finished, with everything it started: the user stopped the turn or the call was cancelled."
+                    : $"Exit code: {result.ExitCode}") +
             $"\n\nOutput:\n{(result.Output.Length > 0 ? result.Output.TrimEnd() : "(none)")}" +
             $"\n\nErrors:\n{(result.Errors.Length > 0 ? result.Errors.TrimEnd() : "(none)")}";
-        return ToolResult(text, error: result.TimedOut || result.ExitCode != 0);
+        return ToolResult(text, error: result.TimedOut || result.Cancelled || result.ExitCode != 0);
     }
 
     /// <summary>
@@ -312,17 +360,20 @@ public static class AgentTools
     public const string KeptMarker = "Kept copy: ";
 
     /// <summary>
-    /// The kept copy's path for <paramref name="name"/>: a new folder for each file, named for the time, so names never clash.
+    /// The kept copy's path for <paramref name="name"/>: a new folder for each file, named for the time and a random part, so two
+    /// calls in the same millisecond (Codex runs calls in parallel) never share one. The copy into it never overwrites, too.
     /// </summary>
     private static string KeptPath(string name)
     {
-        var stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-        var folder = Path.Combine(KeptRoot, "sent", stamp);
-        for (var i = 2; Directory.Exists(folder); i++) folder = Path.Combine(KeptRoot, "sent", $"{stamp}-{i}");
-
+        var folder = Path.Combine(KeptRoot, "sent", $"{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Unique()}");
         Directory.CreateDirectory(folder);
         return Path.Combine(folder, name);
     }
+
+    /// <summary>
+    /// A random part for kept file and folder names.
+    /// </summary>
+    private static string Unique() => Guid.NewGuid().ToString("N")[..12];
 
     /// <summary>
     /// A size in megabytes, for messages.

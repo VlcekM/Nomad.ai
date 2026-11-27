@@ -11,11 +11,12 @@ namespace Nomad.App.ViewModels;
 internal sealed class AgentDesk(MainViewModel main) : IAgentDesk
 {
     /// <summary>
-    /// The calling chat, when it is open here with a session.
+    /// The calling chat, when it is open here with a session: with its permission mode now, and its Stop.
     /// </summary>
-    public Task<ChatInfo?> FindAsync(string? callerKey) =>
+    public Task<DeskChat?> FindAsync(string? callerKey) =>
         Dispatcher.UIThread.InvokeAsync(() => Find(callerKey) is { } s
-            ? new ChatInfo(s.SessionId!, s.TitleOrPlaceholder, s.BackendName, s.Folder, s.IsTurnRunning ? "working" : "idle")
+            ? new DeskChat(new ChatInfo(s.SessionId!, s.TitleOrPlaceholder, s.BackendName, s.Folder, s.IsTurnRunning ? "working" : "idle"),
+                s.PermissionMode, s.AgentToolsStopped)
             : null).GetTask();
 
     /// <summary>

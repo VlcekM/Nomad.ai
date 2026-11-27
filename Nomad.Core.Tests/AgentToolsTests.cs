@@ -13,12 +13,16 @@ public sealed class AgentToolsTests : IDisposable
 
         public List<(string Key, string Title, string Message)> Notes { get; } = [];
 
-        public Task<ChatInfo?> FindAsync(string? callerKey) =>
-            Task.FromResult(callerKey == "me" ? new ChatInfo("s1", "Desk test", "Antigravity", folder, "working") : null);
+        public string? Mode { get; set; } = "bypassPermissions";
+
+        public CancellationToken Stopped { get; set; }
+
+        public Task<DeskChat?> FindAsync(string? callerKey) =>
+            Task.FromResult(callerKey == "me" ? new DeskChat(new ChatInfo("s1", "Desk test", "Antigravity", folder, "working"), Mode, Stopped) : null);
 
         public Task ShowFileAsync(string callerKey, string path, string? caption)
         {
-            Files.Add((callerKey, path, caption));
+            lock (Files) Files.Add((callerKey, path, caption));
             return Task.CompletedTask;
         }
 
@@ -308,6 +312,300 @@ public sealed class AgentToolsTests : IDisposable
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(20));
     }
 
+    [Theory]
+    [InlineData("default", "Manual")]
+    [InlineData("plan", "Plan")]
+    [InlineData("acceptEdits", "Accept edits")]
+    [InlineData("auto", "Auto")]
+    [InlineData(null, "unknown")]
+    public async Task RunOnDesktopIsRefusedUnlessTheChatBypassesPermissions(string? mode, string label)
+    {
+        _desk.Mode = mode;
+        var started = 0;
+        void Count(int _) => Interlocked.Increment(ref started);
+        DesktopCommand.Started += Count;
+        try
+        {
+            var response = await ChatTools.HandleAsync(Call("run_on_desktop", new JsonObject { ["command"] = "Write-Output hi" }), "me");
+
+            Assert.True(IsError(response));
+            Assert.Contains($"not available in this chat's permission mode, {label}.", Text(response));
+            Assert.Contains("Bypass permissions", Text(response));
+            Assert.Equal(0, started);
+        }
+        finally
+        {
+            DesktopCommand.Started -= Count;
+        }
+    }
+
+    [Theory]
+    [InlineData("default")]
+    [InlineData("plan")]
+    public async Task TheOtherToolsWorkInEveryMode(string mode)
+    {
+        _desk.Mode = mode;
+        await File.WriteAllTextAsync(Path.Combine(_folder, "a.txt"), "x");
+
+        Assert.False(IsError(await ChatTools.HandleAsync(Call("take_screenshot", new JsonObject()), "me")));
+        Assert.False(IsError(await ChatTools.HandleAsync(Call("send_file", new JsonObject { ["path"] = "a.txt" }), "me")));
+        Assert.False(IsError(await ChatTools.HandleAsync(Call("notify", new JsonObject { ["title"] = "t", ["message"] = "m" }), "me")));
+    }
+
+    [Fact]
+    public void OnlyBypassPermissionsAllowsDesktopCommands()
+    {
+        Assert.True(AgentTools.AllowsDesktopCommands("bypassPermissions"));
+        foreach (var mode in new[] { "default", "acceptEdits", "auto", "plan", "dontAsk", "", null })
+        {
+            Assert.False(AgentTools.AllowsDesktopCommands(mode));
+        }
+    }
+
+    [Fact]
+    public async Task StoppingTheTurnStopsTheCommandAndWhatItStarted()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        using var stop = new CancellationTokenSource();
+        _desk.Stopped = stop.Token;
+        var marker = Path.Combine(_root, "child.pid");
+        var call = ChatTools.HandleAsync(Call("run_on_desktop", new JsonObject
+        {
+            ["command"] = ChildCommand(marker) + "; Start-Sleep 60",
+            ["timeout_seconds"] = 120,
+        }), "me");
+
+        var child = await WaitForPidAsync(marker);
+        var started = DateTime.UtcNow;
+        await stop.CancelAsync();
+        var response = await call;
+
+        Assert.True(IsError(response));
+        Assert.StartsWith("Stopped before it finished", Text(response));
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(20));
+        Assert.True(HasExited(child), "the command's child is still running");
+    }
+
+    [Fact]
+    public async Task ACancelledCallStopsTheCommand()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var started = DateTime.UtcNow;
+        var result = await AgentTools.CallAsync("run_on_desktop",
+            Parse("""{"name":"run_on_desktop","arguments":{"command":"Start-Sleep 60","timeout_seconds":120}}"""), "me", cancel.Token);
+
+        Assert.True(result["isError"]!.GetValue<bool>());
+        Assert.StartsWith("Stopped before it finished", result["content"]![0]!["text"]!.GetValue<string>());
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(20));
+    }
+
+    [Fact]
+    public async Task AProgramTheCommandOpensOutlivesItAndIsNotInNomadsJob()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        // Nomad's job exists once any process is put in it; without one, the check below would prove nothing.
+        using var member = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c ping -n 30 127.0.0.1 >nul")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+        })!;
+        Nomad.Core.Process.ChildProcessJob.TryAssign(member);
+        Assert.Contains(member.Id, Nomad.Core.Process.ChildProcessJob.ProcessIds());
+
+        var marker = Path.Combine(_root, "child.pid");
+        var shell = 0;
+        void Remember(int pid) => shell = pid;
+        DesktopCommand.Started += Remember;
+        int child;
+        try
+        {
+            var response = await ChatTools.HandleAsync(Call("run_on_desktop", new JsonObject { ["command"] = ChildCommand(marker) }), "me");
+            Assert.False(IsError(response), Text(response));
+            child = await WaitForPidAsync(marker);
+        }
+        finally
+        {
+            DesktopCommand.Started -= Remember;
+        }
+
+        try
+        {
+            Assert.False(HasExited(child), "the program the command opened ended with it");
+            Assert.NotEqual(0, shell);
+            Assert.DoesNotContain(child, Nomad.Core.Process.ChildProcessJob.ProcessIds());
+            Assert.DoesNotContain(shell, Nomad.Core.Process.ChildProcessJob.ProcessIds());
+        }
+        finally
+        {
+            // The test's own child, by the id it wrote.
+            try
+            {
+                using var process = System.Diagnostics.Process.GetProcessById(child);
+                process.Kill();
+            }
+            catch (ArgumentException)
+            {
+            }
+
+            member.Kill(entireProcessTree: true);
+        }
+    }
+
+    [Fact]
+    public async Task TheBridgeCancelsACallOnNotificationsCancelledAndAnswersNothing()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var (client, serving, pids) = await ConnectAsync();
+        await using var _ = client;
+        using var reader = new StreamReader(client);
+        var writer = new StreamWriter(client) { AutoFlush = true, NewLine = "\n" };
+        await writer.WriteLineAsync("me");
+        await writer.WriteLineAsync(Call("run_on_desktop", new JsonObject { ["command"] = "Start-Sleep 60", ["timeout_seconds"] = 120 }, id: 5).GetRawText());
+        var shell = await pids.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        await writer.WriteLineAsync("""{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":5,"reason":"test"}}""");
+        await WaitUntilAsync(() => HasExited(shell));
+        await writer.WriteLineAsync("""{"jsonrpc":"2.0","id":6,"method":"ping"}""");
+
+        // The cancelled call gets no answer: the first line back is the ping's.
+        var answer = JsonDocument.Parse((await reader.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(30)))!).RootElement;
+        Assert.Equal(6, answer.GetProperty("id").GetInt32());
+        client.Close();
+        await serving.WaitAsync(TimeSpan.FromSeconds(30));
+    }
+
+    [Fact]
+    public async Task TheBridgeGoingAwayStopsItsCommand()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        var (client, serving, pids) = await ConnectAsync();
+        var writer = new StreamWriter(client) { AutoFlush = true, NewLine = "\n" };
+        await writer.WriteLineAsync("me");
+        await writer.WriteLineAsync(Call("run_on_desktop", new JsonObject { ["command"] = "Start-Sleep 60", ["timeout_seconds"] = 120 }).GetRawText());
+        var shell = await pids.Task.WaitAsync(TimeSpan.FromSeconds(30));
+
+        await client.DisposeAsync();
+        await serving.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.True(HasExited(shell));
+    }
+
+    [Fact]
+    public async Task SendFileCallsInTheSameMomentEachKeepTheirOwnCopy()
+    {
+        var source = Path.Combine(_folder, "same.txt");
+        await File.WriteAllTextAsync(source, "x");
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 20).Select(_ =>
+            Task.Run(() => ChatTools.HandleAsync(Call("send_file", new JsonObject { ["path"] = source }), "me"))));
+
+        Assert.All(responses, r => Assert.False(IsError(r), Text(r)));
+        Assert.Equal(20, _desk.Files.Select(f => f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public async Task ScreenshotsInTheSameMomentEachGetTheirOwnFile()
+    {
+        var responses = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ =>
+            Task.Run(() => ChatTools.HandleAsync(Call("take_screenshot", new JsonObject()), "me"))));
+
+        Assert.All(responses, r => Assert.False(IsError(r), Text(r)));
+        Assert.Equal(10, Directory.GetFiles(Path.Combine(_root, "kept", "screenshots"), "screenshot-*.png").Length);
+    }
+
+    [Fact]
+    public void TheSentFileIndexFindsTheCopyEachCallMade()
+    {
+        var one = Path.Combine(_root, "kept", "sent", "1", "report.md");
+        var two = Path.Combine(_root, "kept", "sent", "2", "report.md");
+        var three = Path.Combine(_root, "kept", "sent", "3", "report.md");
+        SentFileIndex.Record("chat-a", "call-1", one);
+        SentFileIndex.Record("chat-a", "call-2", two);
+        SentFileIndex.Record("chat-b", "call-1", three);
+
+        Assert.Equal(one, SentFileIndex.Find("chat-a", "call-1"));
+        Assert.Equal(two, SentFileIndex.Find("chat-a", "call-2"));
+        Assert.Equal(three, SentFileIndex.Find("chat-b", "call-1"));
+        Assert.Null(SentFileIndex.Find("chat-b", "call-2"));
+
+        var saved = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(Path.Combine(SentFileIndex.FolderPath, "chat-a.json")));
+        Assert.Equal(two, saved!["call-2"]);
+    }
+
+    /// <summary>
+    /// PowerShell that opens a hidden PowerShell sleeping for two minutes and writes that child's process id to the marker file.
+    /// </summary>
+    private static string ChildCommand(string marker) =>
+        "$c = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList '-NoProfile','-Command','Start-Sleep 120'; " +
+        $"Set-Content -LiteralPath '{marker.Replace("'", "''")}' -Value $c.Id";
+
+    private static async Task<int> WaitForPidAsync(string marker)
+    {
+        for (var i = 0; i < 300; i++)
+        {
+            try
+            {
+                if (File.Exists(marker) && int.TryParse((await File.ReadAllTextAsync(marker)).Trim(), out var pid)) return pid;
+            }
+            catch (IOException)
+            {
+                // Still being written.
+            }
+
+            await Task.Delay(100);
+        }
+
+        throw new TimeoutException("The command never started its child.");
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 300 && !condition(); i++) await Task.Delay(100);
+
+        Assert.True(condition());
+    }
+
+    private static bool HasExited(int pid)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            return process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A pipe served as Nomad serves a bridge process, its client end, and the id of the first PowerShell a call starts.
+    /// </summary>
+    private static async Task<(System.IO.Pipes.NamedPipeClientStream Client, Task Serving, TaskCompletionSource<int> Pids)> ConnectAsync()
+    {
+        var name = "nomad-test-" + Guid.NewGuid().ToString("N");
+        var server = new System.IO.Pipes.NamedPipeServerStream(name, System.IO.Pipes.PipeDirection.InOut, 1,
+            System.IO.Pipes.PipeTransmissionMode.Byte, System.IO.Pipes.PipeOptions.Asynchronous);
+        var client = new System.IO.Pipes.NamedPipeClientStream(".", name, System.IO.Pipes.PipeDirection.InOut, System.IO.Pipes.PipeOptions.Asynchronous);
+        var connecting = server.WaitForConnectionAsync();
+        await client.ConnectAsync(10_000);
+        await connecting;
+
+        var pids = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void First(int pid)
+        {
+            if (pids.TrySetResult(pid)) DesktopCommand.Started -= First;
+        }
+
+        DesktopCommand.Started += First;
+        return (client, Task.Run(() => ChatBridge.ServeAsync(server)), pids);
+    }
+
     [Fact]
     public void PowerShellErrorRecordsBecomeText()
     {
@@ -343,10 +641,10 @@ public sealed class AgentToolsTests : IDisposable
         Assert.True(server["tool_timeout_sec"]!.GetValue<int>() > DesktopCommand.MaxTimeout.TotalSeconds);
     }
 
-    private static JsonElement Call(string name, JsonObject arguments) => Parse(new JsonObject
+    private static JsonElement Call(string name, JsonObject arguments, int id = 7) => Parse(new JsonObject
     {
         ["jsonrpc"] = "2.0",
-        ["id"] = 7,
+        ["id"] = id,
         ["method"] = "tools/call",
         ["params"] = new JsonObject { ["name"] = name, ["arguments"] = arguments },
     }.ToJsonString());

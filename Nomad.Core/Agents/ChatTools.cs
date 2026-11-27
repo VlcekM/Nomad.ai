@@ -131,7 +131,7 @@ public static class ChatTools
     /// A minimal MCP server over JSON-RPC messages, offering the chat tools and <see cref="AgentTools"/>: what Antigravity and
     /// Codex get through the bridge. Every call runs here, in the Nomad window's process, not in the bridge process.
     /// </summary>
-    public static async Task<JsonObject?> HandleAsync(JsonElement message, string? callerKey)
+    public static async Task<JsonObject?> HandleAsync(JsonElement message, string? callerKey, CancellationToken cancellationToken = default)
     {
         if (message.ValueKind != JsonValueKind.Object || !message.TryGetProperty("id", out var id)) return null;
 
@@ -148,7 +148,7 @@ public static class ChatTools
             "ping" => new JsonObject(),
             "tools/list" => new JsonObject { ["tools"] = new JsonArray([.. Descriptors(), .. AgentTools.Descriptors()]) },
             "tools/call" when AgentTools.Owns(Str(parameters, "name")) =>
-                await AgentTools.CallAsync(Str(parameters, "name"), parameters, callerKey).ConfigureAwait(false),
+                await AgentTools.CallAsync(Str(parameters, "name"), parameters, callerKey, cancellationToken).ConfigureAwait(false),
             "tools/call" => await CallAsync(Str(parameters, "name"), parameters, callerKey).ConfigureAwait(false),
             _ => null,
         };

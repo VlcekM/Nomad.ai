@@ -5,9 +5,9 @@ namespace Nomad.Core.Agents;
 
 /// <summary>
 /// What a PowerShell command run by <see cref="DesktopCommand"/> left behind: its exit code (null when it was stopped at its time
-/// limit), what it printed, and how long it took.
+/// limit or cancelled), what it printed, and how long it took.
 /// </summary>
-public sealed record DesktopCommandResult(int? ExitCode, string Output, string Errors, bool TimedOut, TimeSpan Elapsed);
+public sealed record DesktopCommandResult(int? ExitCode, string Output, string Errors, bool TimedOut, TimeSpan Elapsed, bool Cancelled = false);
 
 /// <summary>
 /// Runs a PowerShell command as a child of the Nomad window's own process, so it starts on the desktop the user sees ("Default")
@@ -31,8 +31,29 @@ public static partial class DesktopCommand
     public const int MaxStreamChars = 30_000;
 
     /// <summary>
+    /// The PowerShell processes running now, so the ones still running when Nomad exits are ended.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, System.Diagnostics.Process> Running = new();
+
+    /// <summary>
+    /// Whether the exit handler is in place.
+    /// </summary>
+    private static int _exitHooked;
+
+    /// <summary>
+    /// The process id of each PowerShell started, as it starts; a test reads it.
+    /// </summary>
+    internal static event Action<int>? Started;
+
+    /// <summary>
     /// Runs <paramref name="command"/> in Windows PowerShell in <paramref name="workingDirectory"/>, without a window, and waits for
-    /// it up to <paramref name="timeout"/>; a command still running then is stopped with everything it started.
+    /// it up to <paramref name="timeout"/>, or until <paramref name="cancellationToken"/> is cancelled; a command still running then is
+    /// stopped with everything it started (its own process tree, found from its process id).
+    /// <para>
+    /// PowerShell is deliberately not put in Nomad's child-process job: everything in that job ends when Nomad does, and a program
+    /// the command opens for the user (<c>Start-Process</c>) must outlive Nomad. A PowerShell still running when Nomad exits is
+    /// ended on its own, leaving what it opened.
+    /// </para>
     /// </summary>
     public static async Task<DesktopCommandResult> RunAsync(string command, string workingDirectory, TimeSpan timeout, CancellationToken cancellationToken = default)
     {
@@ -60,42 +81,77 @@ public static partial class DesktopCommand
         using var process = new System.Diagnostics.Process { StartInfo = psi };
         if (!process.Start()) throw new InvalidOperationException("PowerShell did not start.");
 
-        Process.ChildProcessJob.TryAssign(process);
-        process.StandardInput.Close();
-        var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-        var errors = process.StandardError.ReadToEndAsync(CancellationToken.None);
-
+        HookExit();
+        Running[process.Id] = process;
+        Started?.Invoke(process.Id);
         var timedOut = false;
-        using (var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+        var cancelled = false;
+        try
         {
-            limit.CancelAfter(timeout);
-            try
+            process.StandardInput.Close();
+            var output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            var errors = process.StandardError.ReadToEndAsync(CancellationToken.None);
+
+            using (var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
-                await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                timedOut = true;
+                limit.CancelAfter(timeout);
                 try
                 {
-                    process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
                 }
-                catch (InvalidOperationException)
+                catch (OperationCanceledException)
                 {
-                    // It ended just now.
+                    cancelled = cancellationToken.IsCancellationRequested;
+                    timedOut = !cancelled;
+                    try
+                    {
+                        process.Kill(entireProcessTree: true);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // It ended just now.
+                    }
+
+                    await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
                 }
-
-                await process.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
             }
+
+            // A grandchild that keeps the pipes open must not hold the answer up.
+            var streams = Task.WhenAll(output, errors);
+            await Task.WhenAny(streams, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None)).ConfigureAwait(false);
+            var stdout = output.IsCompletedSuccessfully ? output.Result : "";
+            var stderr = errors.IsCompletedSuccessfully ? errors.Result : "";
+
+            return new DesktopCommandResult(timedOut || cancelled ? null : process.ExitCode, Clip(stdout), Clip(PlainErrors(stderr)), timedOut,
+                clock.Elapsed, cancelled);
         }
+        finally
+        {
+            Running.TryRemove(process.Id, out _);
+        }
+    }
 
-        // A grandchild that keeps the pipes open must not hold the answer up.
-        var streams = Task.WhenAll(output, errors);
-        await Task.WhenAny(streams, Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None)).ConfigureAwait(false);
-        var stdout = output.IsCompletedSuccessfully ? output.Result : "";
-        var stderr = errors.IsCompletedSuccessfully ? errors.Result : "";
+    /// <summary>
+    /// Ends, as Nomad exits, each PowerShell still running (only that process: what it opened for the user stays).
+    /// </summary>
+    private static void HookExit()
+    {
+        if (Interlocked.Exchange(ref _exitHooked, 1) != 0) return;
 
-        return new DesktopCommandResult(timedOut ? null : process.ExitCode, Clip(stdout), Clip(PlainErrors(stderr)), timedOut, clock.Elapsed);
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            foreach (var process in Running.Values)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: false);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
+                {
+                    // Already gone.
+                }
+            }
+        };
     }
 
     /// <summary>

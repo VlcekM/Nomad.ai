@@ -3223,6 +3223,7 @@ public sealed partial class SessionViewModel : ObservableObject
     public async Task StopAsync()
     {
         _stopRequested = true;
+        StopAgentTools();
         _pendingFolderMove = null;
         RefreshSteerHints();
         if (_movingFolder)
@@ -4855,17 +4856,16 @@ public sealed partial class SessionViewModel : ObservableObject
             CloseGroup();
             Items.Add(sent);
         }
-        else if (!isError && (KeptFile(text) ?? (IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.SendFileName) ? KeptCopyOf(call.Input, call.Cwd) : null)) is { } kept)
+        else if (!isError && IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.SendFileName))
         {
             // Nomad's send_file, from another agent: shown when it ran, and here again when the transcript loads later.
-            if (!_shownByTools.Remove("file:" + Path.GetFileName(kept)) && File.Exists(kept))
+            if (SentCopy(toolUseId, call, text) is { } kept)
             {
                 CloseGroup();
                 Items.Add(new SentFilesItem([kept], InputText(call.Input, "caption")));
             }
         }
-        else if (!isError && (text.StartsWith(Nomad.Core.Agents.AgentTools.NotifiedMarker, StringComparison.Ordinal) ||
-                IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.NotifyName)) &&
+        else if (!isError && IsNomadTool(call.Name, Nomad.Core.Agents.AgentTools.NotifyName) &&
             InputText(call.Input, "title") is { } noteTitle && InputText(call.Input, "message") is { } noteMessage)
         {
             if (!_shownByTools.Remove("note:" + noteTitle + "\n" + noteMessage))
@@ -4954,10 +4954,36 @@ public sealed partial class SessionViewModel : ObservableObject
     #region Agent tools (send_file, notify)
 
     /// <summary>
-    /// What <see cref="ShowSentFile"/> and <see cref="ShowNotification"/> put in the transcript while the tool ran, so its result
-    /// arriving afterwards does not show it twice.
+    /// What <see cref="ShowNotification"/> put in the transcript while the tool ran, so its result arriving afterwards does not show
+    /// it twice.
     /// </summary>
     private readonly HashSet<string> _shownByTools = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The kept copies <see cref="ShowSentFile"/> showed while their calls ran, oldest first, until each call's result pairs it with
+    /// the call.
+    /// </summary>
+    private readonly List<string> _shownFiles = [];
+
+    /// <summary>
+    /// The cancellation behind <see cref="AgentToolsStopped"/>, replaced each time the user stops a turn.
+    /// </summary>
+    private CancellationTokenSource _agentToolsStop = new();
+
+    /// <summary>
+    /// Cancelled when the user stops this chat's turn, which stops a command Nomad's run_on_desktop is running for it.
+    /// </summary>
+    internal CancellationToken AgentToolsStopped => _agentToolsStop.Token;
+
+    /// <summary>
+    /// Stops what Nomad's agent tools are running for this chat.
+    /// </summary>
+    private void StopAgentTools()
+    {
+        var stopped = Interlocked.Exchange(ref _agentToolsStop, new CancellationTokenSource());
+        stopped.Cancel();
+        stopped.Dispose();
+    }
 
     /// <summary>
     /// Shows a file Nomad's send_file kept for the user, as its call runs.
@@ -4965,9 +4991,43 @@ public sealed partial class SessionViewModel : ObservableObject
     internal void ShowSentFile(string path, string? caption)
     {
         CloseGroup();
-        _shownByTools.Add("file:" + Path.GetFileName(path));
+        _shownFiles.Add(path);
         Items.Add(new SentFilesItem([path], caption));
         CloseGroup();
+    }
+
+    /// <summary>
+    /// The kept copy a send_file call sent, to show now; null when it showed already as the call ran, or is gone. The copy is the one
+    /// its result names (Codex keeps results), else the one shown while it ran, and that pairing is recorded by the call's id, so a
+    /// transcript loaded later (Antigravity keeps no results) finds exactly that copy again.
+    /// </summary>
+    private string? SentCopy(string toolUseId, ToolCallItem call, string result)
+    {
+        var kept = KeptFile(result);
+        var shown = kept is not null
+            ? _shownFiles.FindIndex(f => string.Equals(f, kept, StringComparison.OrdinalIgnoreCase))
+            : InputText(call.Input, "path") is { } given
+                ? _shownFiles.FindIndex(f => string.Equals(Path.GetFileName(f), Path.GetFileName(given), StringComparison.OrdinalIgnoreCase))
+                : _shownFiles.Count == 1 ? 0 : -1;
+        if (shown >= 0)
+        {
+            kept = _shownFiles[shown];
+            _shownFiles.RemoveAt(shown);
+        }
+
+        if (SessionId is { } session)
+        {
+            if (kept is not null)
+            {
+                Nomad.Core.Agents.SentFileIndex.Record(session, toolUseId, kept);
+            }
+            else
+            {
+                kept = Nomad.Core.Agents.SentFileIndex.Find(session, toolUseId);
+            }
+        }
+
+        return shown < 0 && kept is not null && File.Exists(kept) ? kept : null;
     }
 
     /// <summary>
@@ -4977,31 +5037,6 @@ public sealed partial class SessionViewModel : ObservableObject
     private static bool IsNomadTool(string name, string tool) =>
         name.EndsWith(Nomad.Core.Agents.ChatBridge.ServerName + "__" + tool, StringComparison.Ordinal) ||
         name.EndsWith(Nomad.Core.Agents.ChatBridge.ServerName + "_" + tool, StringComparison.Ordinal);
-
-    /// <summary>
-    /// For a send_file call whose result a saved transcript lost (Antigravity keeps none): the newest kept copy with the sent
-    /// file's name, else the file itself while it still exists; null when neither is there.
-    /// </summary>
-    private static string? KeptCopyOf(System.Text.Json.JsonElement input, string? cwd)
-    {
-        if (InputText(input, "path") is not { } given) return null;
-
-        try
-        {
-            var original = Path.GetFullPath(cwd is not null ? Path.Combine(cwd, given) : given);
-            var sent = Path.Combine(Nomad.Core.Agents.AgentTools.KeptRoot, "sent");
-            var name = Path.GetFileName(original);
-            var kept = Directory.Exists(sent)
-                ? new DirectoryInfo(sent).EnumerateDirectories().OrderByDescending(d => d.Name, StringComparer.Ordinal)
-                    .Select(d => Path.Combine(d.FullName, name)).FirstOrDefault(File.Exists)
-                : null;
-            return kept ?? (File.Exists(original) ? original : null);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
 
     /// <summary>
     /// Shows a notification's line, as Nomad's notify runs.
