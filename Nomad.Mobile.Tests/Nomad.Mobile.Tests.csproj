@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Nomad.Mobile.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- Renders the screens without a display, with the real Skia renderer, so each can be looked at as a PNG. -->
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Skia" Version="11.3.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
+    <!-- A real picture, for the attachment tray's thumbnail. -->
+    <None Include="..\Nomad.Mobile\Assets\nomad.png" Link="nomad.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

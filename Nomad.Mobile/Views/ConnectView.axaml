@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             x:Class="Nomad.Mobile.Views.ConnectView"
+             x:DataType="vm:ConnectViewModel">
+  <!-- A page in the desktop settings' manner: a title, labelled fields in their frames, and a hint under each. -->
+  <ScrollViewer>
+    <StackPanel Margin="20,28,20,20" Spacing="18">
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <Image Source="avares://Nomad.Mobile/Assets/nomad.png" Width="36" Height="36" />
+        <TextBlock Classes="title" Text="Connect to Nomad Hub" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="rowhint"
+                 Text="On a PC, open Nomad's Settings › Hub and choose Add phone. Scan its code with this phone's camera, or paste the link or the address and token here." />
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="rowlabel" Text="Hub address" />
+        <Border Classes="field">
+          <TextBox Text="{Binding Address}" Watermark="https://hub.example.ts.net" AcceptsReturn="False"
+                   TextInputOptions.ContentType="Url" TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
+        </Border>
+      </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock Classes="rowlabel" Text="Enrollment token" />
+        <!-- A code: never autocorrected or capitalized, or it would no longer match. -->
+        <Border Classes="field">
+          <TextBox Text="{Binding Token}" Watermark="From Add phone on a PC" AcceptsReturn="False" FontFamily="{DynamicResource MonoFont}"
+                   TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
+        </Border>
+      </StackPanel>
+      <StackPanel Spacing="8">
+        <TextBlock Classes="rowlabel" Text="This phone's name" />
+        <Border Classes="field">
+          <TextBox Text="{Binding DeviceName}" AcceptsReturn="False" TextInputOptions.AutoCapitalization="True" />
+        </Border>
+        <TextBlock Classes="rowhint" Text="Shown on prompts you send and in the PCs' device list." />
+      </StackPanel>
+
+      <TextBlock Text="{Binding Error}" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 Classes="danger" TextWrapping="Wrap" />
+
+      <StackPanel Spacing="2">
+        <Button Theme="{StaticResource PhonePrimaryButton}" Content="Connect this phone" Command="{Binding ConnectCommand}"
+                HorizontalAlignment="Stretch" />
+        <Button Theme="{StaticResource PhoneGhostButton}" Content="Back to chats" Command="{Binding CancelCommand}" IsVisible="{Binding CanCancel}"
+                HorizontalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="rowhint" FontSize="{DynamicResource UiFontSizeSmall}"
+                 Text="The phone needs the hub over HTTPS: put it behind a reverse proxy, or use Tailscale's &quot;tailscale serve --https&quot; and its private network." />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -1354,6 +1354,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     private SessionViewModel CreateStoredSession(SessionListItemViewModel item)
     {
+        var session = NewStoredSession(item);
+        _open[item.SessionId] = session;
+        return session;
+    }
+
+    /// <summary>A stored session's view model, its transcript not loaded yet, not counted as open.</summary>
+    private SessionViewModel NewStoredSession(SessionListItemViewModel item)
+    {
         var session = new SessionViewModel(this, item.WorkingDirectory, item.Backend) { IsLoadingHistory = true, Title = item.Title, IsNew = false, SessionId = item.SessionId };
         if (item.IsOpenCode)
         {
@@ -1364,7 +1372,6 @@ public sealed partial class MainViewModel : ObservableObject
             _ = LoadCodexCatalogAsync();
         }
 
-        _open[item.SessionId] = session;
         return session;
     }
 

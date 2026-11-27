@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The phone app's views, view models and transcript model (docs/mobile.md §5), with no Android types: the Android head and the
+       headless tests both build on it. -->
+  <PropertyGroup>
+    <RootNamespace>Nomad.Mobile</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nomad.Mobile.Tests" />
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Markdig" Version="1.4.2" />
+  </ItemGroup>
+
+  <!-- The desktop app's look, linked rather than copied so one source stays true for both: its palette, icons and control
+       themes, and the drawn controls they and the phone's views use (all plain Avalonia, nothing Windows-only). The phone's
+       own Theme\Palette.axaml only adds phone sizes on top. -->
+  <ItemGroup>
+    <AvaloniaXaml Include="..\Nomad.App\Theme\Palette.axaml" Link="Theme\Desktop\Palette.axaml" />
+    <AvaloniaXaml Include="..\Nomad.App\Theme\Icons.axaml" Link="Theme\Desktop\Icons.axaml" />
+    <AvaloniaXaml Include="..\Nomad.App\Theme\Controls.axaml" Link="Theme\Desktop\Controls.axaml" />
+    <Compile Include="..\Nomad.App\Infrastructure\Format.cs" Link="Theme\Desktop\Format.cs" />
+    <Compile Include="..\Nomad.App\Controls\Icon.cs" Link="Theme\Desktop\Controls\Icon.cs" />
+    <Compile Include="..\Nomad.App\Controls\StatusMark.cs" Link="Theme\Desktop\Controls\StatusMark.cs" />
+    <Compile Include="..\Nomad.App\Controls\WaitMark.cs" Link="Theme\Desktop\Controls\WaitMark.cs" />
+    <Compile Include="..\Nomad.App\Controls\AgentLogo.cs" Link="Theme\Desktop\Controls\AgentLogo.cs" />
+    <Compile Include="..\Nomad.App\Controls\Fold.cs" Link="Theme\Desktop\Controls\Fold.cs" />
+    <Compile Include="..\Nomad.App\Controls\EdgeFade.cs" Link="Theme\Desktop\Controls\EdgeFade.cs" />
+    <Compile Include="..\Nomad.App\Controls\TrailPanel.cs" Link="Theme\Desktop\Controls\TrailPanel.cs" />
+    <Compile Include="..\Nomad.App\Controls\FrameLoop.cs" Link="Theme\Desktop\Controls\FrameLoop.cs" />
+    <Compile Include="..\Nomad.App\Controls\DashedRule.cs" Link="Theme\Desktop\Controls\DashedRule.cs" />
+    <!-- Named by Controls.axaml's text box themes (the desktop composer's), so they are here for it to build. -->
+    <Compile Include="..\Nomad.App\Controls\TextCaret.cs" Link="Theme\Desktop\Controls\TextCaret.cs" />
+    <Compile Include="..\Nomad.App\Controls\MarkdownBackdrop.cs" Link="Theme\Desktop\Controls\MarkdownBackdrop.cs" />
+    <Compile Include="..\Nomad.App\Controls\MarkdownPresenter.cs" Link="Theme\Desktop\Controls\MarkdownPresenter.cs" />
+    <Compile Include="..\Nomad.App\Controls\MarkdownEditing.cs" Link="Theme\Desktop\Controls\MarkdownEditing.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The hub client, the wire types and the relay codec. Only platform-neutral parts are reached on a phone. -->
+    <ProjectReference Include="..\Nomad.Core\Nomad.Core.csproj" />
+  </ItemGroup>
+
+</Project>

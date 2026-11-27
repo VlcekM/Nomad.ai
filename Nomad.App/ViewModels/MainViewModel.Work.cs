@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.Core.Git;
+using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
 
@@ -116,6 +117,102 @@ public sealed partial class MainViewModel
         _starting.Add(session);
         _ = session.SendPromptAsync(prompt);
         return session;
+    }
+
+    /// <summary>
+    /// A chat a phone starts: as the new-session page would start one on <paramref name="backend"/> in <paramref name="folder"/>,
+    /// with this PC's defaults, but in the background, so the window stays where it is. Counted as open until it has its id.
+    /// </summary>
+    public SessionViewModel StartPhoneChat(string backend, string? folder)
+    {
+        var session = new SessionViewModel(this, folder, backend) { StartsInPlace = true };
+        _starting.Add(session);
+        return session;
+    }
+
+    /// <summary>A phone's chat that failed to start: no longer counted as starting.</summary>
+    public void DropPhoneChat(SessionViewModel session) => _starting.Remove(session);
+
+    /// <summary>
+    /// The newest chats in the Idle list that aren't open here, pinned first: the phone lists them under the open ones.
+    /// Archived chats, chats another PC or the phone runs, and chats with no transcript yet are left out.
+    /// </summary>
+    public IEnumerable<SessionListItemViewModel> ClosedChats(int max) =>
+        _all.Where(r => !r.IsArchived && r.CanManage && r.IsStored && !r.IsOnOtherPc && !_open.ContainsKey(r.SessionId))
+            .OrderByDescending(r => r.IsPinned).ThenByDescending(r => r.LastActivityUtc).Take(max);
+
+    // Idle chats the phone is reading, newest last: loaded for it, but not open here, so the PC's lists don't change.
+    private readonly List<SessionViewModel> _peeked = [];
+    private const int PeekedKept = 6;
+
+    /// <summary>
+    /// A chat from the Idle list for the phone to read: its transcript loads, but it isn't opened here (it stays in Idle,
+    /// on the PC and on the phone) until <see cref="OpenPeeked"/>. Null when there is no such row or it can't be read.
+    /// </summary>
+    public SessionViewModel? PeekForPhone(string backend, string sessionId)
+    {
+        if (_peeked.FirstOrDefault(p => p.SessionId == sessionId && p.Backend == backend) is { } kept)
+        {
+            return kept;
+        }
+
+        if (_open.ContainsKey(sessionId)
+            || _all.FirstOrDefault(r => r.SessionId == sessionId && r.Backend == backend) is not { } row
+            || row.IsArchived || !row.CanManage || !row.IsStored || row.IsOnOtherPc)
+        {
+            return null;
+        }
+
+        var session = NewStoredSession(row);
+        _ = LoadHistoryAsync(session, row);
+        _peeked.Add(session);
+        if (_peeked.Count > PeekedKept)
+        {
+            _peeked.RemoveAt(0);
+        }
+
+        return session;
+    }
+
+    public bool IsPeeked(SessionViewModel session) => _peeked.Contains(session);
+
+    /// <summary>
+    /// The phone acts on a chat it was only reading (a prompt, a setting): it opens here, as clicking its row does. If it
+    /// was opened here meanwhile, that open one is what the phone now acts on.
+    /// </summary>
+    public SessionViewModel OpenPeeked(SessionViewModel session)
+    {
+        _peeked.Remove(session);
+        if (session.SessionId is not { } id)
+        {
+            return session;
+        }
+
+        if (_open.TryGetValue(id, out var open))
+        {
+            return open;
+        }
+
+        _open[id] = session;
+        return session;
+    }
+
+    /// <summary>The list row of an open chat, which the list's own Rename, Pin and Archive act on.</summary>
+    public SessionListItemViewModel? RowOf(SessionViewModel session) =>
+        session.SessionId is { } id ? _all.FirstOrDefault(s => s.SessionId == id) : null;
+
+    /// <summary>Renames a chat as the list's Rename does; false when it has no row or the title couldn't be saved.</summary>
+    public bool RenameFromPhone(SessionViewModel session, string title)
+    {
+        if (RowOf(session) is not { } row)
+        {
+            return false;
+        }
+
+        row.RenameText = title;
+        row.IsRenaming = true;
+        EndRename(row, save: true);
+        return row.Title == SessionTitles.Shorten(title.ReplaceLineEndings(" ").Trim());
     }
 
     /// <summary>

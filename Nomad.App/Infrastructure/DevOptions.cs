@@ -19,6 +19,7 @@ namespace Nomad.App.Infrastructure;
 /// --dev-menu model|mode|folder|branch|plus|workflows|usage|remote|update|list|alivelist|row|forkrow|group|composer   open a menu (the update prompt, the composer's edit menu, the Idle or Alive list options, the first Idle row's, forked row's or folder heading's context menu) before the screenshot
 /// --dev-settings-open [appearance|files|agents|remotecontrol|hub|updates]  open the settings dialog (or that page) before the screenshot
 /// --dev-settings &lt;path&gt;        settings file to use instead of %APPDATA%\Nomad\settings.json
+/// --dev-add-phone               press Settings › Hub's Add phone once the hub is connected (with --dev-hub and --dev-settings-open hub)
 /// --dev-lean                    run the CLI with a small tool set and no MCP servers/skills
 /// --dev-phone                   start the phone folders' Remote Control servers (scripted runs skip them)
 /// --dev-expand                  expand every tool group (to screenshot rows)
@@ -101,6 +102,10 @@ public sealed class DevOptions
 
     /// <summary>Sync with Nomad Hub in a scripted run too (off by default, so test sessions stay off the hub).</summary>
     public bool Hub { get; private set; }
+
+    /// <summary><c>--dev-add-phone</c>: Settings › Hub's Add phone is pressed once the hub is connected.</summary>
+    public bool AddPhone { get; private set; }
+
     public bool ExpandTools { get; private set; }
     public string? Answer { get; private set; }
     public List<(string Key, string Value)> Set { get; } = [];
@@ -221,6 +226,7 @@ public sealed class DevOptions
                 case "--dev-cli-debug": o.CliDebugPath = Path.GetFullPath(Next()); break;
                 case "--dev-phone": o.Phone = true; break;
                 case "--dev-hub": o.Hub = true; break;
+                case "--dev-add-phone": o.AddPhone = true; break;
                 case "--dev-expand": o.ExpandTools = true; break;
                 case "--dev-answer": o.Answer = Next(); break;
                 case "--dev-key":

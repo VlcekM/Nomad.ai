@@ -1,0 +1,187 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="using:Nomad.App.Controls">
+
+  <!-- Fluent draws a focused or hovered text box with its own border and fill, from these: none here, since the frame around a
+       text box is the view's (the composer's, a field's), as on the desktop. Its own styles beat ours on its template parts, so
+       its colors are what change. -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+    <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
+    <Thickness x:Key="TextControlBorderThemeThicknessFocused">0</Thickness>
+  </Styles.Resources>
+
+  <!--
+    The phone's look: the desktop's (its palette, icons and control themes are linked in App.axaml; these are the phone's
+    counterparts of Nomad.App/Theme/Styles.axaml and the transcript styles in Nomad.App/Views/SessionView.axaml). Fluent is
+    left only under the text boxes, for the phone's own text editing, and shows none of its own colors.
+    Motion is short eases only (AGENTS.md).
+  -->
+
+  <!-- Text roles, as the desktop's. -->
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <Style Selector="TextBlock.secondary">
+    <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.chrome">
+    <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
+  </Style>
+  <Style Selector="TextBlock.small">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+  </Style>
+  <Style Selector="TextBlock.section">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+  </Style>
+  <!-- A page's title (the desktop's top bar title and the settings' page titles). -->
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+  <!-- Settings rows: a label, and a muted hint under it. -->
+  <Style Selector="TextBlock.rowlabel">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBlock.rowhint">
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.mono">
+    <Setter Property="FontFamily" Value="{DynamicResource MonoFont}" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeSmall}" />
+  </Style>
+  <Style Selector="TextBlock.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+  </Style>
+  <Style Selector="Border.rowline">
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource BgSegmentsBrush}" />
+  </Style>
+
+  <!-- Chevrons turn down when their line is opened. -->
+  <Style Selector="c|Icon.chev">
+    <Setter Property="RenderTransform" Value="rotate(0deg)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="c|Icon.chev.open">
+    <Setter Property="RenderTransform" Value="rotate(90deg)" />
+  </Style>
+
+  <!-- Text boxes: Fluent's (it carries the phone's selection handles and keyboard), drawn as the desktop's bare text box; the
+       frame around one is the view's, as on the desktop. -->
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSizeLarge}" />
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource TextCaretBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <!-- No focus rectangle inside the frame: the frame around it lights up instead, as the desktop's composer does. -->
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
+  </Style>
+  <Style Selector="TextBox /template/ Border#PART_BorderElement, TextBox:pointerover /template/ Border#PART_BorderElement, TextBox:focus /template/ Border#PART_BorderElement, TextBox:focus-within /template/ Border#PART_BorderElement, TextBox:focus-visible /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="TextBox /template/ TextBlock#PART_Watermark, TextBox /template/ TextBlock#PART_FloatingWatermark">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="TextBox:pointerover, TextBox:focus">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+  <Style Selector="TextBox:pointerover /template/ TextPresenter, TextBox:focus /template/ TextPresenter">
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+  </Style>
+
+  <!-- A field's frame (the desktop settings' Border.field), a thumb's height; it lights up while its box has focus. -->
+  <Style Selector="Border.field">
+    <Setter Property="Background" Value="{DynamicResource BgFieldBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderFieldBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="7" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Border.field:focus-within">
+    <Setter Property="BorderBrush" Value="{DynamicResource ComposerFocusBrush}" />
+  </Style>
+
+  <!-- The composer bar (the desktop's Border#ComposerBar): its frame brightens while the message box has focus. -->
+  <Style Selector="Border.composer">
+    <Setter Property="Background" Value="{DynamicResource BgInputBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="MinHeight" Value="46" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.15" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Border.composer:focus-within">
+    <Setter Property="BorderBrush" Value="{DynamicResource ComposerFocusBrush}" />
+  </Style>
+
+  <!-- Scroll bars, thin as the desktop's, show only while a finger is on the list. -->
+  <Style Selector="ScrollViewer /template/ ScrollBar">
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.15" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ScrollViewer:pointerover /template/ ScrollBar">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+
+  <!-- Hold a message: its menu, as the desktop's popup menus. -->
+  <Style Selector="MenuFlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource BgMenuBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="5" />
+  </Style>
+  <Style Selector="MenuFlyoutPresenter MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource UiFontSize}" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+
+  <!-- Things that appear ease in. -->
+  <Style Selector="ContentControl.page">
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+      </Transitions>
+    </Setter>
+  </Style>
+</Styles>

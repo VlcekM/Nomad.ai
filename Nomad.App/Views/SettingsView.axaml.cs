@@ -30,6 +30,20 @@ public partial class SettingsView : UserControl
         }
     }
 
+    private async void OnCopyPhoneLinkClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not SettingsViewModel { Hub: { PhoneLink: { Length: > 0 } link } hub })
+        {
+            return;
+        }
+
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
+        {
+            await clipboard.SetTextAsync(link);
+            hub.NotifyLinkCopied();
+        }
+    }
+
     // A theme color's swatch: opens its picker.
     private void OnSwatchPressed(object? sender, PointerPressedEventArgs e)
     {

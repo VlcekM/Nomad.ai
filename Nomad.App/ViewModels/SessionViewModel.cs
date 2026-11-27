@@ -2449,10 +2449,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
     /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
     /// </summary>
-    public Task<MessageDelivery> ReceivePromptAsync(string text, string from) => DeliverAsync(text, from);
+    public Task<MessageDelivery> ReceivePromptAsync(string text, string from, IReadOnlyList<Attachment>? attachments = null) =>
+        DeliverAsync(text, from, attachments);
 
-    private async Task<MessageDelivery> DeliverAsync(string text, string? from)
+    private async Task<MessageDelivery> DeliverAsync(string text, string? from, IReadOnlyList<Attachment>? attachments = null)
     {
+        attachments ??= [];
         // Two processes on one transcript would interleave it: the window or terminal running it keeps it, as for one typed here.
         if (!IsProcessRunning && SessionId is { } id && _main.IsRunningElsewhere(id))
         {
@@ -2462,7 +2464,7 @@ public sealed partial class SessionViewModel : ObservableObject
         QueuedPrompt waiting;
         if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
         {
-            if (await SteerAsync(text, [], from) is not { } back)
+            if (await SteerAsync(text, attachments, from) is not { } back)
             {
                 return MessageDelivery.IntoTurn;
             }
@@ -2471,7 +2473,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
         else
         {
-            waiting = Queue(text, [], from);
+            waiting = Queue(text, attachments, from);
         }
 
         if (!IsTurnRunning && !await SendQueuedAsync())

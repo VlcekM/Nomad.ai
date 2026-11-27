@@ -1,0 +1,330 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             xmlns:md="using:Nomad.Mobile.Markdown"
+             xmlns:c="using:Nomad.App.Controls"
+             x:Class="Nomad.Mobile.Views.ChatView"
+             x:DataType="vm:ChatViewModel">
+  <UserControl.Styles>
+    <!-- An activity with nothing to open still reads as one: its line keeps full strength, without a chevron. -->
+    <Style Selector="Button.activity:disabled">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.problem">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+    </Style>
+    <!-- A question card stands on the page's ground, as the desktop's; a permission card is raised. -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource BgRaisedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="14" />
+    </Style>
+    <Style Selector="Border.card.question">
+      <Setter Property="Background" Value="{DynamicResource BgMainBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderCardBrush}" />
+      <Setter Property="Padding" Value="12,10,12,8" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+  <DockPanel>
+    <!-- The top bar: back, the chat's title with where it runs under it, and its state's mark. -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto" Height="56" Margin="4,0,6,0">
+      <Button Theme="{StaticResource PhoneIconButton}" Command="{Binding BackCommand}" AutomationProperties.Name="Back to chats" ToolTip.Tip="Chats">
+        <c:Icon Size="18" Data="{StaticResource IconArrowLeft}" />
+      </Button>
+      <StackPanel Grid.Column="1" Margin="4,0,0,0" Spacing="1" VerticalAlignment="Center">
+        <TextBlock Text="{Binding Title}" FontSize="{DynamicResource UiFontSizeLarge}" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+        <TextBlock Classes="muted small" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" Margin="10,0,0,0" VerticalAlignment="Center">
+        <c:StatusMark Width="16" Height="16" VerticalAlignment="Center"
+                      Mark="{Binding State, Converter={x:Static v:StateMarkConverter.Instance}}"
+                      WorkingBrush="{DynamicResource AccentBrush}"
+                      WaitingBrush="{DynamicResource WaitingBrush}"
+                      UnreadBrush="{DynamicResource UnreadBrush}" />
+        <TextBlock Classes="muted small" Text="{Binding StateText}" VerticalAlignment="Center" />
+      </StackPanel>
+      <!-- The chat's model, effort and mode. -->
+      <Button Grid.Column="3" Theme="{StaticResource PhoneIconButton}" Command="{Binding OpenSettingsCommand}"
+              AutomationProperties.Name="Chat settings" ToolTip.Tip="Chat settings">
+        <c:Icon Size="18" Data="{StaticResource IconGear}" />
+      </Button>
+    </Grid>
+
+    <!-- The composer (the desktop's composer bar): stays above the keyboard (the activity resizes for it). -->
+    <StackPanel DockPanel.Dock="Bottom" Margin="12,4,12,8" Spacing="6">
+      <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                 Classes="muted small" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="4,0" />
+      <Border Classes="composer">
+        <Grid RowDefinitions="Auto,Auto">
+          <!-- Attached files, as the desktop's tray: images as thumbnails, other files as chips, each with a remove button,
+               above a dashed rule. Folds open with the first. -->
+          <Border c:Fold.IsOpen="{Binding HasAttachments}" IsVisible="False">
+            <StackPanel>
+              <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" Margin="8,4,8,8">
+                <ItemsControl ItemsSource="{Binding Attachments}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:AttachmentViewModel">
+                      <Panel VerticalAlignment="Top">
+                        <StackPanel Margin="2,8,8,0" Spacing="3" IsVisible="{Binding HasPreview}">
+                          <Panel Height="72" MaxWidth="144">
+                            <Border CornerRadius="8" ClipToBounds="True">
+                              <Image Source="{Binding Preview}" Stretch="UniformToFill" />
+                            </Border>
+                            <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" />
+                          </Panel>
+                          <TextBlock Text="{Binding Name}" MaxWidth="110" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}"
+                                     TextTrimming="CharacterEllipsis" TextAlignment="Center" />
+                        </StackPanel>
+                        <Border Margin="2,8,8,0" Height="48" MaxWidth="210" Padding="10,0,14,0" CornerRadius="8"
+                                Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                                IsVisible="{Binding ShowsChip}">
+                          <Grid ColumnDefinitions="Auto,*">
+                            <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding Detail}" Classes="muted small" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                        <!-- A small round mark with a finger-sized target around it. -->
+                        <Button Command="{Binding $parent[ItemsControl].((vm:ChatViewModel)DataContext).RemoveAttachmentCommand}" CommandParameter="{Binding}"
+                                Focusable="False" Width="32" Height="32" Padding="0" Margin="0,-6,-6,0" Background="Transparent" BorderThickness="0"
+                                HorizontalAlignment="Right" VerticalAlignment="Top" AutomationProperties.Name="Remove">
+                          <Border Width="20" Height="20" CornerRadius="10" Background="{DynamicResource BgRaisedBrush}"
+                                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                            <c:Icon Size="10" Data="{StaticResource IconClose}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          </Border>
+                        </Button>
+                      </Panel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+              <c:DashedRule Stroke="{DynamicResource BorderInputBrush}" Margin="10,0" />
+            </StackPanel>
+          </Border>
+          <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto,Auto">
+            <!-- Attach: the phone's file picker (photos, downloads, any app that shares files). Not focusable, as Send. -->
+            <Button Theme="{StaticResource PhoneIconButton}" Click="OnAttachClick" Focusable="False" VerticalAlignment="Bottom" Margin="2,0,-8,1"
+                    AutomationProperties.Name="Attach files" ToolTip.Tip="Attach files">
+              <c:Icon Size="18" Data="{StaticResource IconPlus}" />
+            </Button>
+            <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
+            <TextBox Grid.Column="1" x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+                     Margin="6,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
+                     TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+            <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
+            <Button Grid.Column="2" Theme="{StaticResource PhoneSendButton}" Classes="stop" Command="{Binding StopCommand}" IsVisible="{Binding IsWorking}"
+                    Focusable="False" VerticalAlignment="Bottom" Margin="0,0,-4,1" AutomationProperties.Name="Stop">
+              <c:Icon IsFilled="True" Size="13" Data="{StaticResource IconStopFilled}" />
+            </Button>
+            <Button Grid.Column="3" Theme="{StaticResource PhoneSendButton}" Command="{Binding SendCommand}"
+                    Focusable="False" VerticalAlignment="Bottom" Margin="0,0,2,1" AutomationProperties.Name="Send">
+              <c:Icon Size="16" Data="{StaticResource IconSendArrow}" StrokeThickness="1.8" />
+            </Button>
+          </Grid>
+        </Grid>
+      </Border>
+      <!-- The model and effort, as the desktop's row under its composer shows them: a tap opens the chat's settings. -->
+      <Button Theme="{StaticResource PhoneGhostButton}" Command="{Binding OpenSettingsCommand}" Focusable="False" HorizontalAlignment="Left"
+              Padding="8,4" Margin="0,-2,0,0" MinHeight="36"
+              IsVisible="{Binding SettingsSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              AutomationProperties.Name="Model and effort">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Classes="muted small" Text="{Binding SettingsSummary}" VerticalAlignment="Center" />
+          <c:Icon Size="12" Data="{StaticResource IconChevronDown}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+
+    <!-- A card waiting on an answer sits just above the composer: the desktop's permission or question card. It folds in and out. -->
+    <ContentControl DockPanel.Dock="Bottom" Content="{Binding Card}" IsVisible="False"
+                    c:Fold.IsOpen="{Binding Card, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <ContentControl.ContentTemplate>
+        <DataTemplate DataType="vm:CardViewModel">
+          <Border Classes="card" Classes.question="{Binding IsQuestion}" Margin="12,6,12,2">
+            <StackPanel Spacing="10">
+              <TextBlock Text="{Binding Title}" FontWeight="Medium" TextWrapping="Wrap" IsVisible="{Binding IsPermission}" />
+              <Border Background="{DynamicResource BgCodeBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                      CornerRadius="6" Padding="10,7" IsVisible="{Binding HasDetail}">
+                <TextBlock Classes="mono" Text="{Binding Detail}" TextWrapping="Wrap" MaxLines="8" TextTrimming="CharacterEllipsis" />
+              </Border>
+              <TextBlock Classes="muted small" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+
+              <!-- A question card: each question with its options, and a box for an answer of one's own. -->
+              <ItemsControl ItemsSource="{Binding Questions}" IsVisible="{Binding IsQuestion}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="vm:QuestionViewModel">
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="{Binding Question}" FontWeight="SemiBold" LineHeight="20" TextWrapping="Wrap" Margin="0,0,0,2" />
+                      <TextBlock Text="Choose any that apply" IsVisible="{Binding MultiSelect}" Classes="muted small" />
+                      <ItemsControl ItemsSource="{Binding Options}" Margin="-6,0">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="vm:OptionViewModel">
+                            <ToggleButton Theme="{StaticResource OptionToggle}" IsChecked="{Binding IsSelected}">
+                              <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                  <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
+                                  <TextBlock Classes="muted small" Text="{Binding Description}" IsVisible="{Binding HasDescription}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <c:Icon Grid.Column="1" Data="{StaticResource IconCheck}" IsVisible="{Binding IsSelected}" Size="14"
+                                        VerticalAlignment="Top" Margin="10,3,0,0" />
+                              </Grid>
+                            </ToggleButton>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                      <Border Classes="field" Margin="0,4,0,0" Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}">
+                        <TextBox Text="{Binding Other}" Watermark="Other answer…" FontSize="{DynamicResource UiFontSize}"
+                                 TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <!-- The answers, on the right: Deny, Allow for this session, Allow (Skip, Submit for a question). -->
+              <WrapPanel IsVisible="{Binding IsPermission}" HorizontalAlignment="Right" ItemSpacing="6" Margin="0,-4,0,-6">
+                <Button Theme="{StaticResource PhoneGhostButton}" Classes="danger" Content="{Binding DenyText}" Command="{Binding DenyCommand}" />
+                <Button Theme="{StaticResource PhoneSecondaryButton}" Content="Allow for this session" Command="{Binding AllowForSessionCommand}" IsVisible="{Binding CanAllowForSession}" />
+                <Button Theme="{StaticResource PhonePrimaryButton}" Content="{Binding AllowText}" Command="{Binding AllowCommand}" />
+              </WrapPanel>
+              <WrapPanel IsVisible="{Binding IsQuestion}" HorizontalAlignment="Right" ItemSpacing="6" Margin="0,-4,0,-2">
+                <Button Theme="{StaticResource PhoneGhostButton}" Content="{Binding DenyText}" Command="{Binding DenyCommand}" />
+                <Button Theme="{StaticResource PhoneInvertedButton}" Content="Submit" Command="{Binding SubmitCommand}" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.ContentTemplate>
+    </ContentControl>
+
+    <!-- The transcript, newest at the bottom; the turn streaming now grows its last entry. -->
+    <Grid>
+      <ScrollViewer x:Name="Scroller">
+        <StackPanel Margin="16,4,16,12" Spacing="10">
+          <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding LoadOlderCommand}" IsVisible="{Binding HasOlder}" HorizontalAlignment="Center">
+            <TextBlock Text="Show earlier messages" />
+          </Button>
+          <ItemsControl ItemsSource="{Binding Entries}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:EntryViewModel">
+                <!-- Plain text, so a finger's drag always scrolls; hold a message to copy it. -->
+                <StackPanel Background="Transparent">
+                  <StackPanel.ContextFlyout>
+                    <MenuFlyout Opening="OnEntryMenuOpening">
+                      <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                    </MenuFlyout>
+                  </StackPanel.ContextFlyout>
+                <Panel>
+                  <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not
+                       the PC itself. -->
+                  <Grid IsVisible="{Binding IsUser}" ColumnDefinitions="*,3*" Margin="0,12,0,4">
+                    <Border Grid.Column="1" HorizontalAlignment="Right"
+                            Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}"
+                            BorderThickness="1" CornerRadius="14" Padding="14,9,14,10">
+                      <StackPanel Spacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasFrom}" Margin="0,2,0,-2">
+                          <c:Icon Size="12" Data="{StaticResource IconLaptop}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                          <TextBlock Classes="muted small" Text="{Binding FromText}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
+                                   FontSize="{DynamicResource BodyFontSize}" LineHeight="{DynamicResource BodyLineHeight}" />
+                      </StackPanel>
+                    </Border>
+                  </Grid>
+
+                  <md:MarkdownBlock IsVisible="{Binding IsAssistant}" Markdown="{Binding ShownText}" />
+
+                  <!-- Tool calls: the desktop's tool group line, muted, with a chevron; tapped open, each command or file with its
+                       tool's icon, and the thinking between them. -->
+                  <StackPanel IsVisible="{Binding IsActivity}" Margin="0,-6">
+                    <Button Theme="{StaticResource PhoneLineButton}" Classes="activity" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}">
+                      <c:TrailPanel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" IsVisible="{Binding HasSteps}"
+                                Margin="4,0,0,0" VerticalAlignment="Center" />
+                      </c:TrailPanel>
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding Steps}" c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" Margin="0,0,0,8">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:StepViewModel">
+                          <Grid ColumnDefinitions="Auto,Auto,*,Auto" MinHeight="28" Margin="6,0">
+                            <c:Icon Data="{Binding Converter={x:Static v:StepIconConverter.Instance}}" Stroke="{DynamicResource TextMutedBrush}"
+                                    VerticalAlignment="Top" Margin="0,6,0,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="chrome small" FontWeight="Medium" Margin="8,6,10,6" VerticalAlignment="Top" />
+                            <!-- A tool's line, as code where it is one (a command, a path); a thought in full. -->
+                            <TextBlock Grid.Column="2" IsVisible="{Binding IsTool}" Text="{Binding Detail}" Classes="mono secondary"
+                                       TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Margin="0,7,0,6" VerticalAlignment="Top" />
+                            <TextBlock Grid.Column="2" IsVisible="{Binding IsThought}" Text="{Binding Detail}" Classes="secondary small"
+                                       TextWrapping="Wrap" LineHeight="19" Margin="0,5,0,6" VerticalAlignment="Top" />
+                            <c:Icon Grid.Column="3" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding Failed}"
+                                    VerticalAlignment="Top" Margin="8,6,0,0" />
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+
+                  <!-- Thinking: the desktop's "Thought" line with a chevron; tapped open, the thought under a rule. -->
+                  <StackPanel IsVisible="{Binding IsThinking}" Margin="0,-6">
+                    <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}" IsVisible="{Binding !InFull}">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Thought" VerticalAlignment="Center" />
+                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Border c:Fold.IsOpen="{Binding ShowsThought}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
+                            Padding="12,0,0,0" Margin="1,0,0,10">
+                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="20" Classes="secondary" />
+                    </Border>
+                  </StackPanel>
+
+                  <TextBlock IsVisible="{Binding IsNotice}" Classes="muted small" Text="{Binding ShownText}" TextWrapping="Wrap"
+                             HorizontalAlignment="Center" TextAlignment="Center" />
+
+                  <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerBrush}"
+                          BorderThickness="2,0,0,0" CornerRadius="4" Padding="12,8">
+                    <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
+                  </Border>
+
+                  <!-- A card already answered (or waiting, below): its title and the answer, muted, as the desktop's. -->
+                  <TextBlock IsVisible="{Binding IsCard}" Classes="muted small" Text="{Binding CardText}" TextWrapping="Wrap" />
+
+                </Panel>
+                <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
+                  <TextBlock Text="Show more" />
+                </Button>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="muted small" Text="{Binding Activity}" IsVisible="{Binding Activity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+      </ScrollViewer>
+      <TextBlock Classes="muted" Text="Loading…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Grid>
+  </DockPanel>
+
+  <!-- The chat's settings, over it while open. -->
+  <ContentControl Content="{Binding SettingsPanel}" IsVisible="{Binding SettingsPanel, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <ContentControl.ContentTemplate>
+      <DataTemplate DataType="vm:ChatSettingsViewModel"><v:ChatSettingsView /></DataTemplate>
+    </ContentControl.ContentTemplate>
+  </ContentControl>
+  </Panel>
+</UserControl>

@@ -5,9 +5,9 @@ namespace Nomad.Hub.Services;
 
 /// <summary>
 /// Hourly: drops session versions beyond <see cref="HubOptions.KeepVersions"/> and blobs nothing refers to (an hour
-/// old at least, so an upload waiting for its commit stays). Nightly: a <c>VACUUM INTO</c> snapshot in <c>backup/</c>.
+/// old at least, so an upload waiting for its commit stays), and files phones attached more than a day ago. Nightly: a <c>VACUUM INTO</c> snapshot in <c>backup/</c>.
 /// </summary>
-public sealed class Maintenance(IServiceScopeFactory scopes, HubOptions options, BlobStore blobs, ILogger<Maintenance> log) : BackgroundService
+public sealed class Maintenance(IServiceScopeFactory scopes, HubOptions options, BlobStore blobs, PhoneFileStore phoneFiles, ILogger<Maintenance> log) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,6 +48,8 @@ public sealed class Maintenance(IServiceScopeFactory scopes, HubOptions options,
             await db.SessionFiles.Where(f => old.Contains(f.VersionId)).ExecuteDeleteAsync(ct);
             await db.SessionVersions.Where(v => old.Contains(v.Id)).ExecuteDeleteAsync(ct);
         }
+
+        phoneFiles.Sweep(DateTime.UtcNow);
 
         var used = (await db.SessionFiles.Select(f => f.Hash).Distinct().ToListAsync(ct)).ToHashSet();
         var cutoff = DateTime.UtcNow.AddHours(-1);

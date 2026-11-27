@@ -115,12 +115,22 @@ public sealed class HubClient : IAsyncDisposable
             HistoryRequested is { } history ? history(b, s, before, limit) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.On<string, string, ChatInput, string, ChatInputResult>(HubNames.ChatInputRequested, (b, s, input, from) =>
             InputRequested is { } apply ? apply(b, s, input, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<string, string, ChatSettings>(HubNames.ChatSettingsRequested, (b, s) =>
+            SettingsRequested is { } settings ? settings(b, s) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<NewChatOptions>(HubNames.NewChatOptionsRequested, () =>
+            NewChatOptionsRequested is { } options ? options() : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<NewChat, string, NewChatResult>(HubNames.ChatStartRequested, (chat, from) =>
+            StartRequested is { } start ? start(chat, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
         {
             ConnectionChanged?.Invoke(false);
-            StartReconnecting(); // A close the hub chose (a restart, say) isn't retried by SignalR itself.
+            if (!_restarting)
+            {
+                StartReconnecting(); // A close the hub chose (a restart, say) isn't retried by SignalR itself.
+            }
+
             return Task.CompletedTask;
         };
         _connection = connection;
@@ -130,9 +140,54 @@ public sealed class HubClient : IAsyncDisposable
             await connection.StartAsync(ct).ConfigureAwait(false);
             ConnectionChanged?.Invoke(true);
         }
-        catch (Exception) when (!ct.IsCancellationRequested)
+        catch (Exception ex) when (!ct.IsCancellationRequested)
         {
+            ConnectFailed?.Invoke(ex);
             StartReconnecting();
+        }
+    }
+
+    /// <summary>A connection attempt failed (the hub refused this device, say); it is tried again. Raised on any thread.</summary>
+    public event Action<Exception>? ConnectFailed;
+
+    private volatile bool _restarting;
+
+    /// <summary>
+    /// Connects again now if the connection is down or waiting to retry, instead of after the retry's wait (up to a minute): a phone
+    /// back from the background, whose connection Android closed meanwhile.
+    /// </summary>
+    public async Task ReconnectNowAsync(CancellationToken ct = default)
+    {
+        if (_connection is not { } connection)
+        {
+            await ConnectAsync(ct).ConfigureAwait(false);
+            return;
+        }
+
+        if (connection.State is HubConnectionState.Connected or HubConnectionState.Connecting)
+        {
+            return;
+        }
+
+        _restarting = true;
+        try
+        {
+            if (connection.State == HubConnectionState.Reconnecting)
+            {
+                await connection.StopAsync(ct).ConfigureAwait(false);
+            }
+
+            await connection.StartAsync(ct).ConfigureAwait(false);
+            ConnectionChanged?.Invoke(true);
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested)
+        {
+            ConnectFailed?.Invoke(ex);
+            StartReconnecting();
+        }
+        finally
+        {
+            _restarting = false;
         }
     }
 
@@ -159,8 +214,13 @@ public sealed class HubClient : IAsyncDisposable
                 {
                     return;
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    if (connection.State == HubConnectionState.Disconnected)
+                    {
+                        ConnectFailed?.Invoke(ex);
+                    }
+
                     delay = TimeSpan.FromSeconds(Math.Min(60, delay.TotalSeconds * 2));
                 }
             }
@@ -222,9 +282,21 @@ public sealed class HubClient : IAsyncDisposable
     /// <summary>Applies a phone's input to a chat this PC has open: (backend, session id, input, the phone's name).</summary>
     public Func<string, string, ChatInput, string, Task<ChatInputResult>>? InputRequested { get; set; }
 
+    /// <summary>A chat's settings and their choices, for a phone: (backend, session id).</summary>
+    public Func<string, string, Task<ChatSettings>>? SettingsRequested { get; set; }
+
+    /// <summary>What a new chat here can start as, for a phone.</summary>
+    public Func<Task<NewChatOptions>>? NewChatOptionsRequested { get; set; }
+
+    /// <summary>Starts a chat a phone asked for: (the chat, the phone's name).</summary>
+    public Func<NewChat, string, Task<NewChatResult>>? StartRequested { get; set; }
+
     /// <summary>Puts this PC's open chats on the board, replacing what it listed before.</summary>
     public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
         Live.InvokeAsync(HubNames.BoardPublish, chats, ct);
+
+    /// <summary>This PC stopped sharing: off the board.</summary>
+    public Task BoardWithdrawAsync(CancellationToken ct = default) => Live.InvokeAsync(HubNames.BoardWithdraw, ct);
 
     /// <summary>The board now; <see cref="BoardChanged"/> carries every change after it.</summary>
     public Task<IReadOnlyList<BoardDevice>> BoardWatchAsync(CancellationToken ct = default) =>
@@ -236,6 +308,15 @@ public sealed class HubClient : IAsyncDisposable
     public Task<ChatInputResult> ChatSendAsync(Guid device, string backend, string sessionId, ChatInput input, CancellationToken ct = default) =>
         Live.InvokeAsync<ChatInputResult>(HubNames.ChatSend, device, backend, sessionId, input, ct);
 
+    public Task<ChatSettings> ChatSettingsAsync(Guid device, string backend, string sessionId, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatSettings>(HubNames.ChatSettingsGet, device, backend, sessionId, ct);
+
+    public Task<NewChatOptions> NewChatOptionsAsync(Guid device, CancellationToken ct = default) =>
+        Live.InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsGet, device, ct);
+
+    public Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default) =>
+        Live.InvokeAsync<NewChatResult>(HubNames.ChatStart, device, chat, ct);
+
     private sealed class ForeverRetry : IRetryPolicy
     {
         public TimeSpan? NextRetryDelay(RetryContext context) =>
@@ -246,6 +327,66 @@ public sealed class HubClient : IAsyncDisposable
 
     public async Task<HubInfo> InfoAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/info", HubJson.Default.HubInfo, ct).ConfigureAwait(false))!;
+
+    /// <summary>The phone app the hub offers as an update; null when it offers none (or is too old to say).</summary>
+    public async Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("api/phone-app", ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync(HubJson.Default.PhoneAppInfo, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>The offered phone app's file, read as it downloads.</summary>
+    public async Task<Stream> PhoneAppDownloadAsync(CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/phone-app/apk", HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            response.Dispose();
+            throw new HttpRequestException($"The hub answered {(int)response.StatusCode} for the phone app.", null, response.StatusCode);
+        }
+
+        return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Puts a file on the hub for a prompt (a phone's attachment); the hub keeps it a day.</summary>
+    public async Task<ChatFile> UploadFileAsync(Stream content, string name, long? length = null, CancellationToken ct = default)
+    {
+        using var body = new StreamContent(content);
+        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        if (length is { } known)
+        {
+            body.Headers.ContentLength = known;
+        }
+
+        using var response = await _http.PostAsync("api/files?name=" + Uri.EscapeDataString(name), body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = response.StatusCode == HttpStatusCode.RequestEntityTooLarge ? "it is too large" : $"the hub answered {(int)response.StatusCode}";
+            throw new HttpRequestException($"The file couldn't be put on the hub: {detail}.", null, response.StatusCode);
+        }
+
+        return (await response.Content.ReadFromJsonAsync(HubJson.Default.ChatFile, ct).ConfigureAwait(false))!;
+    }
+
+    /// <summary>A file a phone put on the hub for a prompt to this PC, read as it downloads.</summary>
+    public async Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync("api/files/" + Uri.EscapeDataString(id), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            response.Dispose();
+            throw new HttpRequestException(response.StatusCode == HttpStatusCode.NotFound
+                ? "The hub no longer has the file (it keeps them a day)." : $"The hub answered {(int)response.StatusCode} for the file.", null, response.StatusCode);
+        }
+
+        return await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+    }
 
     public async Task<List<DeviceDto>> DevicesAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/devices", HubJson.Default.ListDeviceDto, ct).ConfigureAwait(false))!;

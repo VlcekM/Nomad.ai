@@ -118,6 +118,17 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
         await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
     }
 
+    /// <summary>This PC stopped sharing: off the board, as if it had gone.</summary>
+    public async Task BoardWithdraw()
+    {
+        PcOnly();
+        RequireRelay();
+        if (board.Drop(Context.ConnectionId) is { } device)
+        {
+            await Clients.Group(BoardGroup).SendAsync(HubNames.BoardChanged, device);
+        }
+    }
+
     /// <summary>The board as it is now; every change after it comes as <see cref="HubNames.BoardChanged"/>.</summary>
     public async Task<IReadOnlyList<BoardDevice>> BoardWatch()
     {
@@ -139,11 +150,39 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
             Clients.Client(pc).InvokeAsync<ChatInputResult>(HubNames.ChatInputRequested, backend, sessionId, input, from, ct));
     }
 
-    private async Task<T> AskPcAsync<T>(Guid device, string backend, string sessionId, Func<string, CancellationToken, Task<T>> ask)
+    /// <summary>A chat's model, effort and mode, and what each can be changed to, from the PC that has it open.</summary>
+    public Task<ChatSettings> ChatSettingsGet(Guid device, string backend, string sessionId) =>
+        AskPcAsync(device, backend, sessionId, (pc, ct) =>
+            Clients.Client(pc).InvokeAsync<ChatSettings>(HubNames.ChatSettingsRequested, backend, sessionId, ct));
+
+    /// <summary>What a new chat on a PC can start as.</summary>
+    public Task<NewChatOptions> NewChatOptionsGet(Guid device) =>
+        AskDeviceAsync(device, (pc, ct) => Clients.Client(pc).InvokeAsync<NewChatOptions>(HubNames.NewChatOptionsRequested, ct));
+
+    /// <summary>Starts a chat on a PC with its first prompt; the PC says whether it did, and the session id once it has one.</summary>
+    public Task<NewChatResult> ChatStart(Guid device, NewChat chat)
+    {
+        var from = Context.User!.DeviceName();
+        return AskDeviceAsync(device, (pc, ct) => Clients.Client(pc).InvokeAsync<NewChatResult>(HubNames.ChatStartRequested, chat, from, ct));
+    }
+
+    private Task<T> AskPcAsync<T>(Guid device, string backend, string sessionId, Func<string, CancellationToken, Task<T>> ask)
     {
         RequireRelay();
         var pc = board.ConnectionWith(device, backend, sessionId)
             ?? throw new HubException("That chat isn't open in Nomad on that PC any more.");
+        return AskAsync(pc, ask);
+    }
+
+    private Task<T> AskDeviceAsync<T>(Guid device, Func<string, CancellationToken, Task<T>> ask)
+    {
+        RequireRelay();
+        var pc = board.ConnectionOf(device) ?? throw new HubException("That PC isn't sharing its chats now.");
+        return AskAsync(pc, ask);
+    }
+
+    private static async Task<T> AskAsync<T>(string pc, Func<string, CancellationToken, Task<T>> ask)
+    {
         using var timeout = new CancellationTokenSource(HubNames.ChatAnswerTimeout);
         try
         {
@@ -354,12 +393,21 @@ public sealed class BoardState
         }
     }
 
+    /// <summary>The connection of <paramref name="device"/> that published to the board most recently.</summary>
+    public string? ConnectionOf(Guid device)
+    {
+        lock (_lock)
+        {
+            return _byConnection.Where(kv => kv.Value.Device == device).OrderByDescending(kv => kv.Value.Seq).Select(kv => kv.Key).FirstOrDefault();
+        }
+    }
+
     /// <summary>A PC's entry: the chats of all its connections, the latest publication's first, each chat once. Under the lock.</summary>
     private BoardDevice EntryOf(Guid device, string name)
     {
-        var chats = _byConnection.Values.Where(v => v.Device == device).OrderByDescending(v => v.Seq).SelectMany(v => v.Chats)
-            .DistinctBy(c => (c.Backend, c.SessionId)).ToList();
-        return new BoardDevice(device, name, chats, _seq);
+        var connections = _byConnection.Values.Where(v => v.Device == device).ToList();
+        var chats = connections.OrderByDescending(v => v.Seq).SelectMany(v => v.Chats).DistinctBy(c => (c.Backend, c.SessionId)).ToList();
+        return new BoardDevice(device, name, chats, _seq, Online: connections.Count > 0);
     }
 }
 

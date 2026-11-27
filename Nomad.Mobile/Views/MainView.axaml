@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             x:Class="Nomad.Mobile.Views.MainView"
+             x:DataType="vm:MainViewModel"
+             Background="{DynamicResource BgMainBrush}"
+             Foreground="{DynamicResource TextPrimaryBrush}"
+             FontFamily="{DynamicResource UiFont}"
+             FontSize="{DynamicResource UiFontSize}">
+  <!-- The page's ground, text color, font and size, as the desktop window's: everything inside inherits them. -->
+  <ContentControl x:Name="Pages" Classes="page" Content="{Binding Page}">
+    <ContentControl.DataTemplates>
+      <DataTemplate DataType="vm:ConnectViewModel"><v:ConnectView /></DataTemplate>
+      <DataTemplate DataType="vm:ChatsViewModel"><v:ChatsView /></DataTemplate>
+      <DataTemplate DataType="vm:ChatViewModel"><v:ChatView /></DataTemplate>
+      <DataTemplate DataType="vm:SettingsViewModel"><v:SettingsView /></DataTemplate>
+      <DataTemplate DataType="vm:NewChatViewModel"><v:NewChatView /></DataTemplate>
+    </ContentControl.DataTemplates>
+  </ContentControl>
+</UserControl>

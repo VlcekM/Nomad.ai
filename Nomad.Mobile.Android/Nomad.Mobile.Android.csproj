@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Android head of Nomad Mobile (docs/mobile.md §5): the activity, the Keystore-backed secret store and the nomad:// link
+    handler. Build it with the Android workload; the SDK and JDK locations come from the machine (ANDROID_HOME / JAVA_HOME, or
+    -p:AndroidSdkDirectory / -p:JavaSdkDirectory). A signed release takes the signing properties on the command line, as the
+    release workflow passes them; see .github/workflows/release.yml.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <RootNamespace>Nomad.Mobile.Android</RootNamespace>
+    <ApplicationId>ai.nomad.mobile</ApplicationId>
+    <ApplicationTitle>Nomad</ApplicationTitle>
+    <!-- The release's version ("2.9.0" or "2.9.0-beta.1"), and as Android's whole-number version code 20900 from its
+         numeric part; a pre-release and its final release share the code, so either installs over the other. -->
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <NomadVersionNumber>$([System.Text.RegularExpressions.Regex]::Match('$(Version)', '^\d+\.\d+\.\d+').Value)</NomadVersionNumber>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$([MSBuild]::Add($([MSBuild]::Add($([MSBuild]::Multiply($([System.Version]::Parse('$(NomadVersionNumber)').Major), 10000)), $([MSBuild]::Multiply($([System.Version]::Parse('$(NomadVersionNumber)').Minor), 100)))), $([System.Version]::Parse('$(NomadVersionNumber)').Build)))</ApplicationVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <!-- Phones are arm64; an emulator build passes -p:NomadAndroidAbi=android-x64. (Not -p:RuntimeIdentifiers, which would reach
+         the referenced libraries too and break their builds.) -->
+    <NomadAndroidAbi Condition="'$(NomadAndroidAbi)' == ''">android-arm64</NomadAndroidAbi>
+    <RuntimeIdentifiers>$(NomadAndroidAbi)</RuntimeIdentifiers>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+    <!-- Exceptions keep their messages in a release build, so a crash report says what went wrong. -->
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" Version="11.3.22" />
+    <!-- SkiaSharp 3, as the desktop app uses: Avalonia's own 2.88 ships a libSkiaSharp.so without the 16 KB page alignment that
+         Android 15+ devices with 16 KB pages require (build warning XA0141). -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Android" Version="3.119.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nomad.Mobile\Nomad.Mobile.csproj" />
+  </ItemGroup>
+
+  <!-- Beside a published APK: its version, for a hub to offer it as an update (docs/mobile.md §5, "Updating the app"). -->
+  <Target Name="NomadPhoneAppInfo" AfterTargets="Publish" Condition="'$(PublishDir)' != ''">
+    <WriteLinesToFile File="$(PublishDir)Nomad-android.json" Overwrite="true"
+                      Lines="{ &quot;version&quot;: &quot;$(ApplicationDisplayVersion)&quot;, &quot;versionCode&quot;: $(ApplicationVersion) }" />
+  </Target>
+
+  <!-- An emulator test build (-p:NomadEmulatorTest=true) may reach a local test hub over plain HTTP at 10.0.2.2, the emulator's
+       address for the PC it runs on. Nothing of this is in a normal build. -->
+  <PropertyGroup Condition="'$(NomadEmulatorTest)' == 'true'">
+    <DefineConstants>$(DefineConstants);NOMAD_EMULATOR_TEST</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(NomadEmulatorTest)' == 'true'">
+    <AndroidResource Include="EmulatorTest\network_security_config.xml" Link="Resources\xml\network_security_config.xml" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(NomadEmulatorTest)' != 'true'">
+    <None Remove="EmulatorTest\**" />
+  </ItemGroup>
+
+</Project>

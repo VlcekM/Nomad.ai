@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Nomad.Mobile.ViewModels"
+             xmlns:v="using:Nomad.Mobile.Views"
+             xmlns:c="using:Nomad.App.Controls"
+             x:Class="Nomad.Mobile.Views.ChatSettingsView"
+             x:DataType="vm:ChatSettingsViewModel">
+  <!-- A chat's model, effort and mode, over its transcript; back closes it. -->
+  <DockPanel Background="{DynamicResource BgMainBrush}">
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" Height="56" Margin="4,0,14,0">
+      <Button Theme="{StaticResource PhoneIconButton}" Command="{Binding CloseCommand}" AutomationProperties.Name="Back to the chat" ToolTip.Tip="Back">
+        <c:Icon Size="18" Data="{StaticResource IconArrowLeft}" />
+      </Button>
+      <TextBlock Grid.Column="1" Classes="title" Text="Chat settings" VerticalAlignment="Center" Margin="4,0,0,0" />
+    </Grid>
+    <ScrollViewer>
+      <StackPanel Margin="20,8,20,20">
+        <TextBlock Classes="rowhint" Text="Asking the PC…" IsVisible="{Binding IsLoading}" Margin="0,10" />
+        <ItemsControl ItemsSource="{Binding Settings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:SettingViewModel">
+              <v:SettingRowView />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <!-- The chat itself, as its row's menu in the PC's list: its name, pinned or not, archived. -->
+        <StackPanel IsVisible="{Binding HasChatActions}" Margin="0,18,0,0" Spacing="10">
+          <TextBlock Classes="rowlabel" Text="Name" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Border Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1"
+                    CornerRadius="12" Padding="12,2">
+              <TextBox Text="{Binding NewTitle}" Watermark="The chat's name" AcceptsReturn="False" VerticalAlignment="Center"
+                       TextInputOptions.AutoCapitalization="True" />
+            </Border>
+            <Button Grid.Column="1" Theme="{StaticResource PhoneIconButton}" Command="{Binding RenameCommand}" Margin="6,0,-8,0"
+                    AutomationProperties.Name="Rename" ToolTip.Tip="Rename">
+              <c:Icon Size="18" Data="{StaticResource IconCheck}" />
+            </Button>
+          </Grid>
+          <Button Theme="{StaticResource PhoneRowButton}" Command="{Binding TogglePinCommand}" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Stretch" Margin="-12,4,-12,0">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <c:Icon Size="16" Data="{StaticResource IconPin}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Grid.Column="1" Classes="rowlabel" Text="Pinned" VerticalAlignment="Center" />
+              <c:Icon Grid.Column="2" Size="14" Data="{StaticResource IconCheck}" IsVisible="{Binding IsPinned}"
+                      Stroke="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+            </Grid>
+          </Button>
+          <Border Classes="rowline" />
+          <Button Theme="{StaticResource PhoneRowButton}" Command="{Binding ArchiveCommand}" HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Stretch" Margin="-12,0">
+            <StackPanel Spacing="1">
+              <TextBlock Classes="rowlabel" Text="{Binding ArchiveText}" Classes.danger="{Binding ConfirmingArchive}" />
+              <TextBlock Classes="rowhint" Text="Ends its process on the PC and moves it out of the open chats, as the PC's Archive does."
+                         TextWrapping="Wrap" />
+            </StackPanel>
+          </Button>
+          <StackPanel.Styles>
+            <Style Selector="TextBlock.danger">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </StackPanel.Styles>
+        </StackPanel>
+
+        <TextBlock Text="{Binding Status}" IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Classes="muted small" Classes.problem="{Binding StatusIsProblem}" TextWrapping="Wrap" Margin="0,12,0,0">
+          <TextBlock.Styles>
+            <Style Selector="TextBlock.problem">
+              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+            </Style>
+          </TextBlock.Styles>
+        </TextBlock>
+        <TextBlock Classes="rowhint" FontSize="{DynamicResource UiFontSizeSmall}" TextWrapping="Wrap" Margin="0,12,0,0"
+                   Text="A change applies on the PC as if picked in the chat's own menus there." />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

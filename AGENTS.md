@@ -44,6 +44,9 @@ Then look at the PNG. Useful extras (all listed in `Nomad.App/Infrastructure/Dev
   (the user's ChatGPT plan, so keep it short; `--dev-log` records its JSON-RPC lines). `--dev-lean` leaves out the Workflow tool: for a workflow, drop it
   and add `--dev-answer allow` (the turn ends at launch, so time the shot with `--dev-after`).
 - `--dev-settings <copy of %APPDATA%\Nomad\settings.json>` tries settings without touching the user's.
+- `--dev-hub` lets a scripted run connect to the hub in its settings (point `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_DATA_HOME` at
+  empty scratch folders first, so it can't sync the user's chats); with `--dev-settings-open hub`, `--dev-add-phone` then presses
+  Add phone once the hub is connected, to show the phone's QR code.
 - `--dev-overlays` draws the FPS counter and the render / layout frame-time graphs in the window's corner: check frame rate and
   jank with it (during a `--dev-prompt` turn, a `--dev-drag-middle` autoscroll, a `--dev-type` edit), not by guessing.
 - `--dev-cwd <scratch folder>` keeps test sessions out of real projects.
