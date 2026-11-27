@@ -52,6 +52,35 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task The_PCs_idle_list_shows_under_its_open_chats_and_opens_there_when_tapped()
+    {
+        var (main, hub, _) = await SignedInAsync();
+        var desk = main.Chats.Groups.Single(g => g.Name == "Desk PC");
+
+        // Chats not open on the PC go under Idle, in the PC's order, and don't count as open.
+        Assert.Equal(["d3", "d2", "d1", "d4"], desk.Chats.Select(c => c.SessionId));
+        Assert.Equal(["d5", "d6"], desk.Idle.Select(c => c.SessionId));
+        Assert.True(desk.HasIdle);
+        Assert.Equal("Not open", desk.Idle[0].StateText);
+        Assert.Equal("yesterday", desk.Idle[0].LastLine); // When it was last used, as the desktop's Idle list says.
+        Assert.False(main.Chats.Groups.Single(g => g.Name == "Laptop").HasIdle);
+
+        // Tapped, it opens as any chat does: its history is asked of the PC, which opens it there.
+        var row = desk.Idle[0];
+        main.OpenChatRow(row);
+        var chat = Assert.IsType<ChatViewModel>(main.Page);
+        await chat.AttachAsync();
+        Assert.Contains("History d5 newest", hub.Calls);
+
+        // Once the PC has it open, it moves up to the open chats.
+        hub.RaiseBoard(new BoardDevice(Samples.Desk, "Desk PC",
+            [Samples.Chat("d1", "Fix the parser bug", "idle", 2), Samples.Chat("d5", "Plan the phone app", "stopped", 1500),
+             Samples.Chat("d6", "Tidy the docs", "closed", 3000, last: "")], 30));
+        Assert.Equal(["d1", "d5"], desk.Chats.Select(c => c.SessionId));
+        Assert.Equal(["d6"], desk.Idle.Select(c => c.SessionId));
+    }
+
+    [Fact]
     public async Task Chats_keep_their_place_as_they_work_and_new_ones_go_last()
     {
         var (main, hub, _) = await SignedInAsync();

@@ -8,13 +8,45 @@
              x:Name="Root">
   <UserControl.Styles>
     <!-- A stopped chat's title is a little muted, as the desktop's idle sessions are. -->
-    <Style Selector="Button.chatrow.stopped TextBlock.rowtitle">
+    <Style Selector="Button.chatrow.stopped TextBlock.rowtitle, Button.chatrow.closed TextBlock.rowtitle">
       <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
     <Style Selector="TextBlock.waitingline">
       <Setter Property="Foreground" Value="{DynamicResource WaitingBrush}" />
     </Style>
   </UserControl.Styles>
+  <UserControl.Resources>
+    <DataTemplate x:Key="ChatRow" DataType="vm:ChatRowViewModel">
+      <!-- The desktop sidebar's row: the title with the agent's logo after it, the state's mark on the right;
+           under it the chat's last line, muted (or what it waits for, in the waiting color). -->
+      <Button Theme="{StaticResource PhoneRowButton}" Classes="chatrow" Classes.stopped="{Binding State, Converter={x:Static v:StringIs.Stopped}}"
+              Classes.closed="{Binding State, Converter={x:Static v:StringIs.Closed}}"
+              Margin="6,0"
+              Command="{Binding #Root.((vm:ChatsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
+        <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+          <c:TrailPanel VerticalAlignment="Center">
+            <c:EdgeFade VerticalAlignment="Center">
+              <TextBlock Classes="rowtitle" Text="{Binding Title}" FontSize="{DynamicResource UiFontSizeLarge}" />
+            </c:EdgeFade>
+            <c:AgentLogo Size="14" Backend="{Binding Backend}" Opacity="0.6" Margin="7,0,0,0" />
+          </c:TrailPanel>
+          <c:StatusMark Grid.Column="1" Width="16" Height="16" Margin="12,0,0,0" VerticalAlignment="Center"
+                        Mark="{Binding State, Converter={x:Static v:StateMarkConverter.Instance}}"
+                        WorkingBrush="{DynamicResource AccentBrush}"
+                        WaitingBrush="{DynamicResource WaitingBrush}"
+                        UnreadBrush="{DynamicResource UnreadBrush}" />
+          <Panel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,3,0,0">
+            <TextBlock Classes="muted small" TextTrimming="CharacterEllipsis" IsVisible="{Binding !IsWaiting}">
+              <Run Text="{Binding Folder, Mode=OneWay}" />
+              <Run Text="{Binding Folder, Mode=OneWay, Converter={x:Static v:StringIs.Separator}}" />
+              <Run Text="{Binding LastLine, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" />
+            </TextBlock>
+            <TextBlock Classes="small waitingline" Text="{Binding StateText}" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsWaiting}" />
+          </Panel>
+        </Grid>
+      </Button>
+    </DataTemplate>
+  </UserControl.Resources>
   <DockPanel>
     <!-- The top bar, as the desktop's: no frame over the page's ground, the title, icon buttons. -->
     <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Height="56" Margin="18,0,6,0">
@@ -44,39 +76,10 @@
                     <TextBlock Classes="section" Text="{Binding Name}" FontWeight="Medium" />
                     <TextBlock Grid.Column="1" Classes="section" Text="{Binding Summary}" />
                   </Grid>
-                  <ItemsControl ItemsSource="{Binding Chats}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate DataType="vm:ChatRowViewModel">
-                        <!-- The desktop sidebar's row: the title with the agent's logo after it, the state's mark on the right;
-                             under it the chat's last line, muted (or what it waits for, in the waiting color). -->
-                        <Button Theme="{StaticResource PhoneRowButton}" Classes="chatrow" Classes.stopped="{Binding State, Converter={x:Static v:StringIs.Stopped}}"
-                                Margin="6,0"
-                                Command="{Binding #Root.((vm:ChatsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}">
-                          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-                            <c:TrailPanel VerticalAlignment="Center">
-                              <c:EdgeFade VerticalAlignment="Center">
-                                <TextBlock Classes="rowtitle" Text="{Binding Title}" FontSize="{DynamicResource UiFontSizeLarge}" />
-                              </c:EdgeFade>
-                              <c:AgentLogo Size="14" Backend="{Binding Backend}" Opacity="0.6" Margin="7,0,0,0" />
-                            </c:TrailPanel>
-                            <c:StatusMark Grid.Column="1" Width="16" Height="16" Margin="12,0,0,0" VerticalAlignment="Center"
-                                          Mark="{Binding State, Converter={x:Static v:StateMarkConverter.Instance}}"
-                                          WorkingBrush="{DynamicResource AccentBrush}"
-                                          WaitingBrush="{DynamicResource WaitingBrush}"
-                                          UnreadBrush="{DynamicResource UnreadBrush}" />
-                            <Panel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,3,0,0">
-                              <TextBlock Classes="muted small" TextTrimming="CharacterEllipsis" IsVisible="{Binding !IsWaiting}">
-                                <Run Text="{Binding Folder, Mode=OneWay}" />
-                                <Run Text="{Binding Folder, Mode=OneWay, Converter={x:Static v:StringIs.Separator}}" />
-                                <Run Text="{Binding LastLine, Mode=OneWay}" Foreground="{DynamicResource TextSecondaryBrush}" />
-                              </TextBlock>
-                              <TextBlock Classes="small waitingline" Text="{Binding StateText}" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsWaiting}" />
-                            </Panel>
-                          </Grid>
-                        </Button>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
+                  <ItemsControl ItemsSource="{Binding Chats}" ItemTemplate="{StaticResource ChatRow}" />
+                  <!-- The PC's Idle list: chats not open there. Opening one opens it on the PC, as clicking its row does. -->
+                  <TextBlock Classes="section" Text="Idle" IsVisible="{Binding HasIdle}" Margin="18,12,18,4" />
+                  <ItemsControl ItemsSource="{Binding Idle}" ItemTemplate="{StaticResource ChatRow}" IsVisible="{Binding HasIdle}" />
                 </StackPanel>
               </DataTemplate>
             </ItemsControl.ItemTemplate>

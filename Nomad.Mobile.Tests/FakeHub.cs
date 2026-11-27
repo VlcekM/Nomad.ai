@@ -195,6 +195,8 @@ public static class Samples
             Chat("d2", "Refactor the hub client", "working", 5, last: "Running the hub tests…"),
             Chat("d3", "Update the README", "waiting", 30, waiting: "allow Bash", agent: "Codex", folder: "/home/me/notes"),
             Chat("d4", "Old experiment", "stopped", 600, last: "I stopped here."),
+            Chat("d5", "Plan the phone app", "closed", 1500, last: ""),
+            Chat("d6", "Tidy the docs", "closed", 3000, last: "", folder: @"C:\Work\docs"),
         ], 7),
     ];
 

@@ -531,6 +531,13 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
     internal static string Problem(Exception ex)
     {
         var message = ex.Message;
+        // What SignalR says when the PC's Nomad doesn't know a request this app makes: it is older than the app.
+        if (message.Contains("Client failed to parse argument", StringComparison.Ordinal)
+            || message.Contains("Client didn't provide a result", StringComparison.Ordinal))
+        {
+            return "the PC's Nomad is older than this app. It updates when Nomad there restarts.";
+        }
+
         var at = message.LastIndexOf("HubException: ", StringComparison.Ordinal);
         return at >= 0 ? message[(at + "HubException: ".Length)..] : message;
     }

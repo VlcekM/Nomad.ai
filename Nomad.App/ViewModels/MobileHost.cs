@@ -78,7 +78,9 @@ internal sealed class MobileHost : IDisposable
 
         // Not shared: off the board, so phones show this PC offline (sent once, when it stops sharing or connects).
         var sharing = _enabled();
-        List<BoardChat> chats = sharing ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board)] : [];
+        List<BoardChat> chats = sharing
+            ? [.. _main.ReachableChats.Where(s => !s.IsRelayViewer).Select(Board), .. _main.ClosedChats(ClosedShown).Select(Closed)]
+            : [];
         var json = sharing ? JsonSerializer.Serialize(chats, HubJson.Default.IReadOnlyListBoardChat) : NotSharing;
         if (json == _lastBoard)
         {
@@ -124,6 +126,12 @@ internal sealed class MobileHost : IDisposable
         }
     }
 
+    /// <summary>How many chats from the Idle list go on the board, newest first.</summary>
+    private const int ClosedShown = 40;
+
+    private static BoardChat Closed(SessionListItemViewModel r) =>
+        new(r.Backend, r.SessionId, r.Title, r.BackendName, r.WorkFolder, "closed", null, "", r.LastActivityUtc, 0);
+
     private static BoardChat Board(SessionViewModel s) => new(s.Backend, s.SessionId!, s.TitleOrPlaceholder, s.BackendName, s.Folder, State(s),
         Waiting(s), Clip(LastLine(s), 200), s.LastActivityUtc, s.Queued.Count);
 
@@ -153,8 +161,10 @@ internal sealed class MobileHost : IDisposable
         return "";
     }
 
+    // A chat from the Idle list opens when the phone first asks for it, as clicking its row would.
     private SessionViewModel? Find(string backend, string id) =>
-        _main.ReachableChats.FirstOrDefault(s => s.Backend == backend && s.SessionId == id && !s.IsRelayViewer);
+        _main.ReachableChats.FirstOrDefault(s => s.Backend == backend && s.SessionId == id && !s.IsRelayViewer)
+        ?? _main.OpenForPhone(backend, id);
 
     /// <summary>
     /// Per chat, a number that changes whenever its items before the end change place (a reload clears them, a rewind or a

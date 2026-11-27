@@ -58,6 +58,8 @@ public static class StringIs
     /// <summary>A chat that has stopped (its row's title is muted, as the desktop's idle sessions).</summary>
     public static readonly IValueConverter Stopped = new FuncValueConverter<string?, bool>(state => state == "stopped");
 
+    public static readonly IValueConverter Closed = new FuncValueConverter<string?, bool>(state => state == "closed");
+
     /// <summary>" · " after a part that is there, nothing after one that isn't.</summary>
     public static readonly IValueConverter Separator = new FuncValueConverter<string?, string>(part => string.IsNullOrEmpty(part) ? "" : " · ");
 }

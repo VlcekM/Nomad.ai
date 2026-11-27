@@ -133,6 +133,32 @@ public sealed partial class MainViewModel
     /// <summary>A phone's chat that failed to start: no longer counted as starting.</summary>
     public void DropPhoneChat(SessionViewModel session) => _starting.Remove(session);
 
+    /// <summary>
+    /// The newest chats in the Idle list that aren't open here, pinned first: the phone lists them under the open ones.
+    /// Archived chats, chats another PC or the phone runs, and chats with no transcript yet are left out.
+    /// </summary>
+    public IEnumerable<SessionListItemViewModel> ClosedChats(int max) =>
+        _all.Where(r => !r.IsArchived && r.CanManage && r.IsStored && !r.IsOnOtherPc && !_open.ContainsKey(r.SessionId))
+            .OrderByDescending(r => r.IsPinned).ThenByDescending(r => r.LastActivityUtc).Take(max);
+
+    /// <summary>
+    /// Opens a chat from the Idle list for the phone, as clicking its row does but without showing it here: its transcript
+    /// loads and the next prompt starts its process. Null when there is no such row or it can't be opened.
+    /// </summary>
+    public SessionViewModel? OpenForPhone(string backend, string sessionId)
+    {
+        if (_open.ContainsKey(sessionId)
+            || _all.FirstOrDefault(r => r.SessionId == sessionId && r.Backend == backend) is not { } row
+            || row.IsArchived || !row.CanManage || !row.IsStored || row.IsOnOtherPc)
+        {
+            return null;
+        }
+
+        var session = CreateStoredSession(row);
+        _ = LoadHistoryAsync(session, row);
+        return session;
+    }
+
     /// <summary>The list row of an open chat, which the list's own Rename, Pin and Archive act on.</summary>
     public SessionListItemViewModel? RowOf(SessionViewModel session) =>
         session.SessionId is { } id ? _all.FirstOrDefault(s => s.SessionId == id) : null;

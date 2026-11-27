@@ -225,25 +225,36 @@ public sealed partial class PcGroupViewModel(Guid deviceId) : ObservableObject
 
     public ObservableCollection<ChatRowViewModel> Chats { get; } = [];
 
+    /// <summary>The PC's Idle list: chats not open there, newest first (the PC sends them pinned first, then by time).</summary>
+    public ObservableCollection<ChatRowViewModel> Idle { get; } = [];
+
+    [ObservableProperty]
+    public partial bool HasIdle { get; set; }
+
     public void Update(BoardDevice device)
     {
         Name = device.DeviceName;
-        var waiting = device.Chats.Count(c => c.State == "waiting");
-        Summary = waiting > 0 ? $"{waiting} waiting on you" : device.Chats.Count switch
+        var open = device.Chats.Where(c => c.State != "closed").ToList();
+        var waiting = open.Count(c => c.State == "waiting");
+        Summary = waiting > 0 ? $"{waiting} waiting on you" : open.Count switch
         {
             0 => "No open chats",
-            1 => "1 chat",
-            var n => $"{n} chats",
+            1 => "1 open chat",
+            var n => $"{n} open chats",
         };
         // The first time a PC is seen its chats come in board order (waiting, working, newest); after that each keeps its place.
-        foreach (var chat in device.Chats.OrderBy(c => ChatsViewModel.Rank(c.State)).ThenByDescending(c => c.LastActivityUtc))
+        foreach (var chat in open.OrderBy(c => ChatsViewModel.Rank(c.State)).ThenByDescending(c => c.LastActivityUtc))
         {
             _place.TryAdd((chat.Backend, chat.SessionId), _place.Count);
         }
 
-        var ordered = device.Chats.OrderBy(c => _place[(c.Backend, c.SessionId)]).ToList();
+        var ordered = open.OrderBy(c => _place[(c.Backend, c.SessionId)]).ToList();
         ChatsViewModel.Sync(Chats, ordered, r => (r.Backend, r.SessionId), c => (c.Backend, c.SessionId), c => new ChatRowViewModel(device.DeviceId, c.Backend, c.SessionId),
             (r, c) => r.Update(device.DeviceName, c));
+        List<BoardChat> closed = [.. device.Chats.Where(c => c.State == "closed")];
+        ChatsViewModel.Sync(Idle, closed, r => (r.Backend, r.SessionId), c => (c.Backend, c.SessionId), c => new ChatRowViewModel(device.DeviceId, c.Backend, c.SessionId),
+            (r, c) => r.Update(device.DeviceName, c));
+        HasIdle = Idle.Count > 0;
     }
 }
 
@@ -301,6 +312,7 @@ public sealed partial class ChatRowViewModel(Guid deviceId, string backend, stri
                 "waiting" => Waiting is { Length: > 0 } w ? "Waiting: " + w : "Waiting on you",
                 "working" => "Working",
                 "stopped" => "Stopped",
+                "closed" => "Not open",
                 _ => "Idle",
             };
             return Queued > 0 ? $"{text}, {Queued} queued" : text;
@@ -328,7 +340,10 @@ public sealed partial class ChatRowViewModel(Guid deviceId, string backend, stri
         Folder = FolderName(chat.Folder);
         State = chat.State;
         Waiting = chat.Waiting;
-        LastLine = chat.LastLine.ReplaceLineEndings(" ");
+        // A chat not open on the PC has no last line to hand: when it was last used instead, as the desktop's Idle list says it.
+        LastLine = chat.State == "closed" && chat.LastLine.Length == 0
+            ? Nomad.App.Infrastructure.Format.Since(chat.LastActivityUtc)
+            : chat.LastLine.ReplaceLineEndings(" ");
         LastActivityUtc = chat.LastActivityUtc;
         Queued = chat.Queued;
     }

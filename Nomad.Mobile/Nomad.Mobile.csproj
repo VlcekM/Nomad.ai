@@ -28,6 +28,7 @@
     <AvaloniaXaml Include="..\Nomad.App\Theme\Palette.axaml" Link="Theme\Desktop\Palette.axaml" />
     <AvaloniaXaml Include="..\Nomad.App\Theme\Icons.axaml" Link="Theme\Desktop\Icons.axaml" />
     <AvaloniaXaml Include="..\Nomad.App\Theme\Controls.axaml" Link="Theme\Desktop\Controls.axaml" />
+    <Compile Include="..\Nomad.App\Infrastructure\Format.cs" Link="Theme\Desktop\Format.cs" />
     <Compile Include="..\Nomad.App\Controls\Icon.cs" Link="Theme\Desktop\Controls\Icon.cs" />
     <Compile Include="..\Nomad.App\Controls\StatusMark.cs" Link="Theme\Desktop\Controls\StatusMark.cs" />
     <Compile Include="..\Nomad.App\Controls\WaitMark.cs" Link="Theme\Desktop\Controls\WaitMark.cs" />
