@@ -3,13 +3,16 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v2.8.7
+
+- The OpenCode cost card works with OpenCode v2 instead of failing with "Couldn't read OpenCode's costs".
+
 ## v2.8.6
 
 - Connect to OpenCode v2 for provider sign-in, chats, tool approvals, and session history. On Linux, Nomad can also find OpenCode installed through NVM.
 - Send a message from another chat into a running Claude Code turn. Claude can answer in the transcript while long-running commands continue in the background.
 - Keep task notification hook context off user messages.
 - Share open chats with phone viewers through Nomad Hub so they can read conversations and answer prompts.
-- The OpenCode cost card works with OpenCode v2 instead of failing with "Couldn't read OpenCode's costs".
 
 ## v2.8.5
 
