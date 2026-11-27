@@ -218,6 +218,8 @@ jobs:
           rm -f "$keystore"
           mkdir out
           mv pub/*-Signed.apk out/Nomad-android.apk
+          # Its version, written by the publish: a hub given both offers the app to phones as an update.
+          mv pub/Nomad-android.json out/Nomad-android.json
           build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
           "$build_tools/apksigner" verify --print-certs out/Nomad-android.apk
           "$build_tools/aapt2" dump badging out/Nomad-android.apk | grep -E "^(package|minSdkVersion|targetSdkVersion)"
@@ -269,7 +271,7 @@ jobs:
             echo "- \`Nomad-win-x64-Portable.zip\` runs from any folder, without updates."
             echo "- \`Nomad-linux-x64.AppImage\` runs on Linux x64 and keeps itself up to date."
             if [ -f out/Nomad-android.apk ]; then
-              echo "- \`Nomad-android.apk\` is the phone app for Android 10 and later; open it on the phone to install."
+              echo "- \`Nomad-android.apk\` is the phone app for Android 10 and later; open it on the phone to install. It updates itself from later releases, or from your hub when \`Nomad-android.apk\` and \`Nomad-android.json\` are in its data folder's \`phone-app\` folder."
             fi
             echo; echo "Verify downloads against \`SHA256SUMS\`. Install and sign in to the CLI for the agent you want to use."
           } > "$RUNNER_TEMP/notes.md"
