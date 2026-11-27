@@ -11,7 +11,7 @@ namespace Nomad.Core.Agents;
 /// <see cref="IAgentBackend"/> over the Claude Code CLI's stream-json protocol: one
 /// <see cref="ClaudeCliProcess"/> per session, kept alive across turns.
 /// </summary>
-public sealed class ClaudeCodeBackend : IAgentBackend
+public sealed class ClaudeCodeBackend : IAgentBackend, ISteerableBackend
 {
     /// <summary>
     /// Asks Claude to respond visibly to a message sent while a turn is running.
@@ -165,6 +165,11 @@ public sealed class ClaudeCodeBackend : IAgentBackend
     /// its next step. The turn's state (a Stop asked for, an error so far) is left as it is, and no new turn starts.
     /// </summary>
     /// <returns>The uuid it went with: <see cref="PromptTakenEvent"/> names it once the CLI has taken it in.</returns>
+    bool ISteerableBackend.CanSteer => IsProcessRunning;
+
+    Task ISteerableBackend.SteerAsync(string text, IReadOnlyList<PromptImage>? images, string uuid, CancellationToken cancellationToken) =>
+        SteerAsync(text, images, uuid, cancellationToken);
+
     public async Task<string> SteerAsync(string text, IReadOnlyList<PromptImage>? images = null, string? uuid = null, CancellationToken cancellationToken = default)
     {
         var cli = RequireRunning();
