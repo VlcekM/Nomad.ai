@@ -9,6 +9,7 @@ Newest first: the newest heading is also the version of local builds (`Directory
 - Send a message from another chat into a running Claude Code turn. Claude can answer in the transcript while long-running commands continue in the background.
 - Keep task notification hook context off user messages.
 - Share open chats with phone viewers through Nomad Hub so they can read conversations and answer prompts.
+- The OpenCode cost card works with OpenCode v2 instead of failing with "Couldn't read OpenCode's costs".
 
 ## v2.8.5
 
