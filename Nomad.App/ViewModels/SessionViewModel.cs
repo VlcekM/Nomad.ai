@@ -10,6 +10,20 @@ using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
 
+/// <summary>Where a prompt from elsewhere went: into the running turn, into the queue behind it, or out as a prompt now.</summary>
+public enum MessageDelivery
+{
+    IntoTurn,
+    Queued,
+    Sent,
+
+    /// <summary>It couldn't be sent (the chat shows why); nothing waits.</summary>
+    Failed,
+
+    /// <summary>The session runs in another Nomad window or a terminal, which keeps it.</summary>
+    RunningElsewhere,
+}
+
 public enum AgentState
 {
     Idle,
@@ -1832,6 +1846,12 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
+        if (IsClaudeCode && started.TaskType == "local_bash" && !started.IsBackground && _calls.TryGetValue(call, out var running) && running.IsRunning)
+        {
+            _foregroundShells.Add(call);
+            _ = BackgroundForWaitingPromptAsync();
+        }
+
         if (started.TaskType == "timer")
         {
             _activeTimers[call] = started.Description is { Length: > 0 } d ? d : "timer";
@@ -2071,6 +2091,54 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>Prompts sent into the running turn, by the uuid they went with: seen once the CLI says it took each in.</summary>
     private readonly Dictionary<string, UserMessageItem> _steered = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Claude Code's commands running in the foreground that it tracks as tasks (long ones, some seconds in), by their call:
+    /// what can be moved to the background so a prompt sent meanwhile is read now.
+    /// </summary>
+    private readonly HashSet<string> _foregroundShells = new(StringComparer.Ordinal);
+
+    /// <summary>Commands this chat moved to the background, by their call: their call's result is their launch, not their end.</summary>
+    private readonly HashSet<string> _movedShells = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Prompts sent into this turn and not yet read, by uuid: what a running command is moved aside for. Only this turn's: one the
+    /// CLI never confirms must not move every later command.
+    /// </summary>
+    private readonly HashSet<string> _waitingPrompts = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A prompt sent into the turn waits to be read while a command runs in the foreground (Claude Code reads it only once the
+    /// command's call returns): the command moves to the background, as Ctrl+B does, so the prompt is read now. The command
+    /// keeps running, shown with the background commands, and Claude is told when it ends. One not yet movable (too new) moves
+    /// as soon as Claude Code starts tracking it.
+    /// </summary>
+    private async Task BackgroundForWaitingPromptAsync()
+    {
+        if (_waitingPrompts.Count == 0 || _foregroundShells.Count == 0 || _backend is not ClaudeCodeBackend { IsProcessRunning: true } claude)
+        {
+            return;
+        }
+
+        foreach (var call in _foregroundShells.ToList())
+        {
+            try
+            {
+                if (await claude.BackgroundTaskAsync(call))
+                {
+                    _foregroundShells.Remove(call);
+                    _movedShells.Add(call);
+                }
+            }
+            catch (Exception)
+            {
+                // It stays in the foreground: the prompt is read when it ends, as before.
+            }
+        }
+    }
+
+    /// <summary>What each steered prompt was (text, attachments, sender), to queue again if the process ends before taking it in.</summary>
+    private readonly Dictionary<string, (string Text, IReadOnlyList<Attachment> Attachments, string? From)> _steeredInput = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Ctrl+Enter (or Ctrl+click on Send) while Claude works: the prompt goes in the queue and the queue is sent at once
@@ -2379,10 +2447,49 @@ public sealed partial class SessionViewModel : ObservableObject
         if (!IsTurnRunning) await SendQueuedAsync();
     }
 
-    public void Queue(string text, IReadOnlyList<Attachment> attachments)
+    /// <summary>
+    /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
+    /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
+    /// </summary>
+    public Task<MessageDelivery> ReceivePromptAsync(string text, string from) => DeliverAsync(text, from);
+
+    private async Task<MessageDelivery> DeliverAsync(string text, string? from)
     {
-        Queued.Add(new QueuedPrompt(text, attachments));
+        // Two processes on one transcript would interleave it: the window or terminal running it keeps it, as for one typed here.
+        if (!IsProcessRunning && SessionId is { } id && _main.IsRunningElsewhere(id))
+        {
+            return MessageDelivery.RunningElsewhere;
+        }
+
+        QueuedPrompt waiting;
+        if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
+        {
+            if (await SteerAsync(text, [], from) is not { } back)
+            {
+                return MessageDelivery.IntoTurn;
+            }
+
+            waiting = back; // It couldn't be written, so it waits in the queue instead.
+        }
+        else
+        {
+            waiting = Queue(text, [], from);
+        }
+
+        if (!IsTurnRunning && !await SendQueuedAsync())
+        {
+            return MessageDelivery.Failed;
+        }
+
+        return Queued.Contains(waiting) ? MessageDelivery.Queued : MessageDelivery.Sent;
+    }
+
+    public QueuedPrompt Queue(string text, IReadOnlyList<Attachment> attachments, string? from = null)
+    {
+        var prompt = new QueuedPrompt(text, attachments) { From = from };
+        Queued.Add(prompt);
         OnPropertyChanged(nameof(HasQueued));
+        return prompt;
     }
 
     [RelayCommand]
@@ -2460,27 +2567,32 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    /// <summary>Everything queued, as one prompt (as Claude Code merges queued messages).</summary>
-    private async Task SendQueuedAsync()
+    /// <summary>Everything queued, as one prompt (as Claude Code merges queued messages). False when sending it failed.</summary>
+    private async Task<bool> SendQueuedAsync()
     {
         _sendQueuedOnStop = false;
         if (Queued.Count == 0 || IsTurnRunning || IsPhoneSession)
         {
-            return;
+            return true;
         }
 
         // Not half-way through an edit: it goes out once that is saved or dropped.
         if (Queued.Any(q => q.IsEditing))
         {
             _sendAfterEdit = true;
-            return;
+            return true;
         }
 
         var text = string.Join("\n\n", Queued.Select(q => q.Text).Where(t => t.Length > 0));
         var attachments = Queued.SelectMany(q => q.Attachments).ToList();
+
+        // Any of them from another device: the prompt names where each part came from ("Pixel 8, Desk PC").
+        var from = Queued.Any(q => q.From is not null)
+            ? string.Join(", ", Queued.Select(q => q.From ?? _main.Hub.ThisPcName).Distinct())
+            : null;
         Queued.Clear();
         OnPropertyChanged(nameof(HasQueued));
-        await SendPromptAsync(text, attachments);
+        return await SendPromptAsync(text, attachments, from);
     }
 
     // ------------------------------------------------------------------ slash commands
@@ -2879,7 +2991,10 @@ public sealed partial class SessionViewModel : ObservableObject
             // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
             if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
             {
-                await SteerAsync(text, images);
+                if (await SteerAsync(text, images) is not null && !IsTurnRunning)
+                {
+                    await SendQueuedAsync();
+                }
             }
             else
             {
@@ -2930,7 +3045,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// Sends a prompt into the turn Claude Code is running, as its terminal does with one typed mid-turn: the CLI takes it at
     /// its next step and carries on, so the turn and its state stay as they are.
     /// </summary>
-    private async Task SteerAsync(string text, IReadOnlyList<Attachment> attachments)
+    /// <param name="from">The device it came from (a phone, through Nomad Hub), shown on it here and to watching PCs; null for this PC.</param>
+    /// <returns>
+    /// Null once it went in. When it couldn't be written (the process ended just then) it waits in the queue instead, and that
+    /// queued prompt is returned: the caller sends the queue if no turn runs.
+    /// </returns>
+    private async Task<QueuedPrompt?> SteerAsync(string text, IReadOnlyList<Attachment> attachments, string? from = null)
     {
         var images = attachments.Where(a => a.IsImage).ToList();
         var files = attachments.Where(a => a.IsFile).ToList();
@@ -2939,27 +3059,48 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
+            FromDevice = from,
             IsSteered = true,
         };
         Items.Add(message);
         ContentChanged?.Invoke();
         _main.OnSessionActivity(this);
+        var uuid = Guid.NewGuid().ToString();
         try
         {
             var sent = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
-            var uuid = Guid.NewGuid().ToString();
             _steered[uuid] = message;
+            _steeredInput[uuid] = (text, attachments, from);
+            _waitingPrompts.Add(uuid);
             await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
-            _relay?.PublishPrompt(sent, uuid);
+            try
+            {
+                _relay?.PublishPrompt(sent, uuid, from);
+            }
+            catch (Exception)
+            {
+                // Watching PCs miss it; the turn already has it, so it must not be queued a second time.
+            }
+
+            await BackgroundForWaitingPromptAsync();
+            return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Items.Add(new ErrorItem(ex.Message));
+            // Not lost: it waits in the queue, as it would have before, and goes out with the next prompt.
+            _steered.Remove(uuid);
+            _steeredInput.Remove(uuid);
+            _waitingPrompts.Remove(uuid);
+            Items.Remove(message);
+            var queued = Queue(text, attachments, from);
             ContentChanged?.Invoke();
+            return queued;
         }
     }
 
-    public async Task SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null)
+    /// <param name="from">The device the prompt came from, shown on it here and to watching PCs; null for this PC.</param>
+    /// <returns>False when it couldn't be sent (the chat shows the error).</returns>
+    public async Task<bool> SendPromptAsync(string text, IReadOnlyList<Attachment>? attachments = null, string? from = null)
     {
         attachments ??= [];
         var images = attachments.Where(a => a.IsImage).ToList();
@@ -2979,6 +3120,7 @@ public sealed partial class SessionViewModel : ObservableObject
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
+            FromDevice = from,
 
             // Codex keeps the id with the prompt, so it can rewind or fork to just before it.
             ParentUuid = IsCodex ? uuid : null,
@@ -3002,6 +3144,11 @@ public sealed partial class SessionViewModel : ObservableObject
             }
 
             await EnsureBackendAsync();
+            if (from is not null)
+            {
+                _relay?.ExpectPrompt(message.Uuid, from); // Watching PCs see it as sent from that device too.
+            }
+
             await _backend!.SendPromptAsync(text, message.Uuid, images.Select(i => i.Image!).ToList());
 
             // The process now holds the rewind / fork point and the transcript will record it.
@@ -3022,12 +3169,20 @@ public sealed partial class SessionViewModel : ObservableObject
                 Title = firstTitle; // No CLI to name it.
             }
 
+            if (from is not null)
+            {
+                _relay?.ForgetExpectedPrompt();
+            }
+
             IsTurnRunning = false;
             State = AgentState.Error;
             Items.Add(new ErrorItem(ex.Message));
             ContentChanged?.Invoke();
             _main.OnSessionActivity(this);
+            return false;
         }
+
+        return true;
     }
 
     /// <summary>
@@ -3466,17 +3621,22 @@ public sealed partial class SessionViewModel : ObservableObject
     /// Enter / Esc on a pending permission or question card. <paramref name="pickDefaults"/> (dev hook)
     /// answers a question with its first options instead of waiting for a choice.
     /// </summary>
-    public void AnswerPending(PermissionChoice choice, bool pickDefaults = false)
-    {
-        if (PendingPermission is { IsAnswered: false } pending)
-        {
-            if (pickDefaults && pending is QuestionItem question && choice != PermissionChoice.Deny)
-            {
-                question.PickDefaults();
-            }
+    public void AnswerPending(PermissionChoice choice, bool pickDefaults = false) => _ = AnswerPendingAsync(choice, pickDefaults);
 
-            Answer(pending, choice);
+    /// <summary>As <see cref="AnswerPending"/>, and says how it went: null once the agent has the answer.</summary>
+    public Task<string?> AnswerPendingAsync(PermissionChoice choice, bool pickDefaults = false)
+    {
+        if (PendingPermission is not { IsAnswered: false } pending)
+        {
+            return Task.FromResult<string?>("That request is no longer the one waiting.");
         }
+
+        if (pickDefaults && pending is QuestionItem question && choice != PermissionChoice.Deny)
+        {
+            question.PickDefaults();
+        }
+
+        return AnswerAsync(pending, choice);
     }
 
     /// <summary>Expands every tool group (dev hook for screenshots).</summary>
@@ -4117,6 +4277,8 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case PromptTakenEvent taken when _steered.Remove(taken.Uuid, out var steered):
+                _steeredInput.Remove(taken.Uuid);
+                _waitingPrompts.Remove(taken.Uuid);
                 steered.IsSeen = true;
                 break;
 
@@ -4274,7 +4436,18 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ToolResultEvent r when r.ParentToolUseId is null:
+                _foregroundShells.Remove(r.ToolUseId);
+                if (_movedShells.Remove(r.ToolUseId) && !r.IsError && !_backgroundTaskById.ContainsKey(r.ToolUseId)
+                    && _calls.TryGetValue(r.ToolUseId, out var moved))
+                {
+                    // A foreground command this chat moved to the background: it runs on, shown as one (its id from the launch line).
+                    var movedId = TaskNotification.LaunchedTaskId(r.Text);
+                    StartBackgroundTask(r.ToolUseId, moved.Name, moved.Input, taskId: movedId);
+                    OnBackgroundTasksRunningChanged();
+                }
+
                 CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
+
                 _main.OnGitHubLinksMentioned(this, r.Text);
 
                 // A background (async) subagent's call returns at once; it ends with a task notification later.
@@ -4354,7 +4527,27 @@ public sealed partial class SessionViewModel : ObservableObject
                 break;
 
             case ProcessExitedEvent x:
-                _steered.Clear(); // Never taken in: their bubbles stay unticked.
+                // Sent into the turn but never taken in: not lost, they wait in the queue (in the order they were sent).
+                var untaken = _steered.Where(s => _steeredInput.ContainsKey(s.Key)).OrderBy(s => Items.IndexOf(s.Value)).ToList();
+                foreach (var (steeredUuid, steeredMessage) in untaken)
+                {
+                    var input = _steeredInput[steeredUuid];
+                    Items.Remove(steeredMessage);
+                    Queue(input.Text, input.Attachments, input.From);
+                }
+
+                _steered.Clear();
+                _steeredInput.Clear();
+                _foregroundShells.Clear();
+                _movedShells.Clear();
+                _waitingPrompts.Clear();
+
+                // After a Stop they wait for Send now, as queued prompts do.
+                if (untaken.Count > 0 && !x.Expected)
+                {
+                    Dispatcher.UIThread.Post(() => _ = SendQueuedAsync());
+                }
+
                 if (!x.Expected && x.ExitCode != 0 && !IsTurnRunning)
                 {
                     var message = string.IsNullOrWhiteSpace(x.StderrTail)
@@ -4664,6 +4857,7 @@ public sealed partial class SessionViewModel : ObservableObject
     private void CompleteTurn(TurnResult result)
     {
         IsTurnRunning = false;
+        _waitingPrompts.Clear(); // Read by now, or carried into a turn of their own: nothing to move a command aside for.
         foreach (var task in _backgroundTaskById.Values.Where(task => task.IsForeground && task.IsRunning).ToList())
             task.Finish(result.IsError, null, stopped: result.Interrupted);
 
@@ -4839,18 +5033,26 @@ public sealed partial class SessionViewModel : ObservableObject
         }
     }
 
-    private async void Answer(PermissionItem item, PermissionChoice choice)
+    /// <summary>A card's own buttons answer it here.</summary>
+    private void Answer(PermissionItem item, PermissionChoice choice) => _ = AnswerAsync(item, choice);
+
+    /// <summary>
+    /// Answers a card. Null once the agent has the answer; otherwise what went wrong (also shown in the chat). The card is
+    /// marked answered before this awaits anything, so a caller can read <see cref="PermissionItem.IsAnswered"/> right away.
+    /// </summary>
+    private async Task<string?> AnswerAsync(PermissionItem item, PermissionChoice choice)
     {
         if (item.IsAnswered)
         {
-            return;
+            return "That request was already answered.";
         }
 
         if (item.Request.ToolName == "MoveFolder" && choice != PermissionChoice.Deny && HasBackgroundWork)
         {
-            Items.Add(new ErrorItem("Stop background tasks before moving this conversation."));
+            const string busy = "Stop background tasks before moving this conversation.";
+            Items.Add(new ErrorItem(busy));
             ContentChanged?.Invoke();
-            return;
+            return busy;
         }
 
         PermissionDecision decision;
@@ -4868,7 +5070,7 @@ public sealed partial class SessionViewModel : ObservableObject
             }
             else
             {
-                return; // Enter before anything was chosen.
+                return "Nothing is chosen yet."; // Enter before anything was chosen.
             }
         }
         else
@@ -4889,17 +5091,21 @@ public sealed partial class SessionViewModel : ObservableObject
 
         if (_backend is null)
         {
-            return;
+            return null;
         }
 
         try
         {
             await _backend.RespondAsync(item.Request, decision);
             PublishAnswered(item);
+            return null;
         }
         catch (Exception ex)
         {
-            Items.Add(new ErrorItem("Could not send the answer: " + ex.Message));
+            var failed = "Could not send the answer: " + ex.Message;
+            Items.Add(new ErrorItem(failed));
+            ContentChanged?.Invoke();
+            return failed;
         }
     }
 }

@@ -1,0 +1,75 @@
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.Client;
+using Nomad.Hub.Contracts;
+
+namespace Nomad.Hub.Tests;
+
+/// <summary>
+/// A phone is a viewer (docs/mobile.md §6): it reads the board and chats and sends them input through the PC that has them open,
+/// and can do nothing else: no sessions, files, leases, devices or tokens, and it revokes only itself.
+/// </summary>
+public sealed class ViewerTests
+{
+    [Fact]
+    public async Task AddPhonesTokenEnrollsAPhoneThatIsListedAsOne()
+    {
+        using var hub = new HubFactory();
+        var pc = await hub.EnrollAsync("PC-A");
+
+        var token = (await (await pc.PostAsync("/api/enroll-tokens?phone=true", null)).Content.ReadFromJsonAsync(HubJson.Default.EnrollTokenResponse))!;
+        var anonymous = hub.CreateClient();
+        var enrolled = await anonymous.PostAsJsonAsync("/api/enroll", new EnrollRequest(token.Token, "Pixel"), HubJson.Default.EnrollRequest);
+        enrolled.EnsureSuccessStatusCode();
+
+        var devices = (await pc.GetFromJsonAsync("/api/devices", HubJson.Default.ListDeviceDto))!;
+        Assert.Equal([("PC-A", false), ("Pixel", true)], devices.Select(d => (d.Name, d.IsPhone)));
+    }
+
+    [Fact]
+    public async Task APhoneMayOnlyAskWhoItIsAndRevokeItselfInTheApi()
+    {
+        using var hub = new HubFactory();
+        var pc = await hub.EnrollAsync("PC-A");
+        var phone = await hub.EnrollAsync("Phone", phone: true);
+        var pcId = (await pc.GetFromJsonAsync("/api/info", HubJson.Default.HubInfo))!.DeviceId;
+        var phoneId = (await phone.GetFromJsonAsync("/api/info", HubJson.Default.HubInfo))!.DeviceId;
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.GetAsync("/api/devices")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.PostAsync("/api/enroll-tokens", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.GetAsync("/api/changes")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.GetAsync("/api/leases")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.GetAsync("/api/projects")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.DeleteAsync($"/api/devices/{pcId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await pc.GetAsync("/api/devices")).StatusCode); // The PC was left alone.
+
+        // Signing out: it revokes itself, and its secret stops working.
+        Assert.Equal(HttpStatusCode.NoContent, (await phone.DeleteAsync($"/api/devices/{phoneId}")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/api/info")).StatusCode);
+    }
+
+    [Fact]
+    public async Task APhoneWatchesAndSendsInputButCantHostPublishOrDriveTheRelay()
+    {
+        using var hub = new HubFactory();
+        await using var phone = hub.Connect(await hub.EnrollAsync("Phone", phone: true));
+        await phone.StartAsync();
+
+        Assert.Empty(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch));
+        Assert.False((await phone.InvokeAsync<WatchResult>(HubNames.RelayWatch, "claude-code", "s1")).Live);
+
+        foreach (var refused in new Func<Task>[]
+        {
+            () => phone.InvokeAsync(HubNames.BoardPublish, new List<BoardChat>()),
+            () => phone.InvokeAsync(HubNames.RelayPublish, "claude-code", "s1", new[] { "{}" }, true),
+            () => phone.InvokeAsync(HubNames.RelayStop, "claude-code", "s1"),
+            () => phone.InvokeAsync(HubNames.RelaySendInput, "claude-code", "s1", "{}"),
+            () => phone.InvokeAsync<List<LeaseKey>>(HubNames.RenewLeases, new List<LeaseKey>()),
+        })
+        {
+            var error = await Assert.ThrowsAsync<HubException>(refused);
+            Assert.Contains("A phone can't do that", error.Message);
+        }
+    }
+}

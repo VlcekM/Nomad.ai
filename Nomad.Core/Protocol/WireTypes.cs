@@ -153,6 +153,9 @@ public sealed class WireTaskUsage
 public sealed class WireTaskPatch
 {
     [JsonPropertyName("status")] public string? Status { get; set; }
+
+    /// <summary>True once a foreground task was moved to the background (Ctrl+B, or a <c>background_tasks</c> request).</summary>
+    [JsonPropertyName("is_backgrounded")] public bool? IsBackgrounded { get; set; }
 }
 
 public sealed class WireMcpServer

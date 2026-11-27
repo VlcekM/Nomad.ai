@@ -117,6 +117,9 @@ public sealed partial class QueuedPrompt(string text, IReadOnlyList<Attachment> 
 
     public IReadOnlyList<Attachment> Attachments { get; } = attachments;
 
+    /// <summary>The device it came from (a phone, through Nomad Hub); null when typed on this PC.</summary>
+    public string? From { get; init; }
+
     /// <summary>"Fix the tests", "2 images" or "an image and a file".</summary>
     public string Label => Text.Length > 0 ? Text.ReplaceLineEndings(" ") : AttachmentsText;
 

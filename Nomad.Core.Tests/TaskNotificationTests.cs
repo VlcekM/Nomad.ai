@@ -27,6 +27,10 @@ public class TaskNotificationTests
     public void ALaunchedCommandNamesItsTask() =>
         Assert.Equal("b7k2p9", TaskNotification.LaunchedTaskId("Command running in background with ID: b7k2p9. Output is being written to: C:\\Temp\\b7k2p9.output"));
 
+    [Fact]
+    public void ACommandMovedToTheBackgroundNamesItsTask() =>
+        Assert.Equal("bn6me1e8n", TaskNotification.LaunchedTaskId("Command was manually backgrounded by user with ID: bn6me1e8n. Output is being written to: C:\\Temp\\bn6me1e8n.output"));
+
     [Theory]
     [InlineData("Fix the <task-notification> parser")]
     [InlineData("Run the tests")]

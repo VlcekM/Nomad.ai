@@ -110,6 +110,11 @@ public sealed class HubClient : IAsyncDisposable
         connection.On<string, string, string[], long>(HubNames.RelayEvents, (b, s, e, first) => RelayEvents?.Invoke(b, s, e, first));
         connection.On<string, string, string, string>(HubNames.RelayInput, (b, s, i, from) => RelayInput?.Invoke(b, s, i, from));
         connection.On<string, string>(HubNames.RelayEnded, (b, s) => RelayEnded?.Invoke(b, s));
+        connection.On<BoardDevice>(HubNames.BoardChanged, d => BoardChanged?.Invoke(d));
+        connection.On<string, string, int?, int, ChatPage>(HubNames.ChatHistoryRequested, (b, s, before, limit) =>
+            HistoryRequested is { } history ? history(b, s, before, limit) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<string, string, ChatInput, string, ChatInputResult>(HubNames.ChatInputRequested, (b, s, input, from) =>
+            InputRequested is { } apply ? apply(b, s, input, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
@@ -203,6 +208,34 @@ public sealed class HubClient : IAsyncDisposable
     public Task SendInputAsync(string backend, string sessionId, string input, CancellationToken ct = default) =>
         Live.InvokeAsync(HubNames.RelaySendInput, backend, sessionId, input, ct);
 
+    // ------------------------------------------------------------------ the phone (docs/mobile.md)
+
+    /// <summary>A PC's chats changed on the board (no chats: it went). Only after <see cref="BoardWatchAsync"/>.</summary>
+    public event Action<BoardDevice>? BoardChanged;
+
+    /// <summary>
+    /// Answers the hub when a phone asks for a page of a chat this PC has open: (backend, session id, before, limit). Set by
+    /// the PC that serves its chats; called off the UI thread.
+    /// </summary>
+    public Func<string, string, int?, int, Task<ChatPage>>? HistoryRequested { get; set; }
+
+    /// <summary>Applies a phone's input to a chat this PC has open: (backend, session id, input, the phone's name).</summary>
+    public Func<string, string, ChatInput, string, Task<ChatInputResult>>? InputRequested { get; set; }
+
+    /// <summary>Puts this PC's open chats on the board, replacing what it listed before.</summary>
+    public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
+        Live.InvokeAsync(HubNames.BoardPublish, chats, ct);
+
+    /// <summary>The board now; <see cref="BoardChanged"/> carries every change after it.</summary>
+    public Task<IReadOnlyList<BoardDevice>> BoardWatchAsync(CancellationToken ct = default) =>
+        Live.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch, ct);
+
+    public Task<ChatPage> ChatHistoryAsync(Guid device, string backend, string sessionId, int? before, int limit, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatPage>(HubNames.ChatHistory, device, backend, sessionId, before, limit, ct);
+
+    public Task<ChatInputResult> ChatSendAsync(Guid device, string backend, string sessionId, ChatInput input, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatInputResult>(HubNames.ChatSend, device, backend, sessionId, input, ct);
+
     private sealed class ForeverRetry : IRetryPolicy
     {
         public TimeSpan? NextRetryDelay(RetryContext context) =>
@@ -220,9 +253,10 @@ public sealed class HubClient : IAsyncDisposable
     public async Task RevokeDeviceAsync(Guid id, CancellationToken ct = default) =>
         (await _http.DeleteAsync($"api/devices/{id}", ct).ConfigureAwait(false)).EnsureSuccessStatusCode();
 
-    public async Task<EnrollTokenResponse> NewEnrollTokenAsync(CancellationToken ct = default)
+    /// <param name="phone">A token for Add phone: the device it enrolls is a phone, which may only read and answer chats.</param>
+    public async Task<EnrollTokenResponse> NewEnrollTokenAsync(CancellationToken ct = default, bool phone = false)
     {
-        using var response = await _http.PostAsync("api/enroll-tokens", null, ct).ConfigureAwait(false);
+        using var response = await _http.PostAsync(phone ? "api/enroll-tokens?phone=true" : "api/enroll-tokens", null, ct).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync(HubJson.Default.EnrollTokenResponse, ct).ConfigureAwait(false))!;
     }

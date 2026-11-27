@@ -146,6 +146,7 @@ public sealed partial class HubViewModel : ObservableObject
         _sync.HandoffRequested += r => Dispatcher.UIThread.Post(() => _ = _main.OnHubHandoffRequestedAsync(r));
         _main.LocalTokens.HubTotals = UsageSinceAsync;
         _sync.Start();
+        _mobile = new MobileHost(_main, _sync.Client, () => HubRelays && _main.Settings.HubRelay);
 
         // Antigravity chats fetched before Nomad could list them (it closed in between, say) are listed now.
         _ = _sync.AnnounceUnlistedAsync(AgentBackends.Antigravity, [.. _main.Settings.AntigravitySessions.Keys]);
@@ -159,10 +160,15 @@ public sealed partial class HubViewModel : ObservableObject
         }
     }
 
+    /// <summary>Lists this PC's open chats for the phone and answers for them (docs/mobile.md), while syncing.</summary>
+    private MobileHost? _mobile;
+
     public async Task StopAsync()
     {
         if (_sync is { } sync)
         {
+            _mobile?.Dispose();
+            _mobile = null;
             _sync = null;
             IsConnected = false;
             _main.OnHubRemoteHostsChanged(new Dictionary<string, string>());

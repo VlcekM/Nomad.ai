@@ -381,7 +381,7 @@ public sealed class RelayPublisher : IAsyncDisposable
     private readonly Func<bool> _enabled;
     private readonly string _hostName;
     private readonly ConcurrentQueue<string> _queue = new();
-    private (string Uuid, string From)? _expected;
+    private (string? Uuid, string From)? _expected;
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _loop;
     private bool _newTurn = true;
@@ -411,7 +411,10 @@ public sealed class RelayPublisher : IAsyncDisposable
     public void PublishPrompt(string text, string uuid, string? from = null) => Publish(new RelayPromptEvent(text, uuid, from ?? _hostName));
 
     /// <summary>The next prompt the session sends is one a viewer relayed: it goes out with the viewer's uuid and name.</summary>
-    public void ExpectPrompt(string uuid, string from) => _expected = (uuid, from);
+    public void ExpectPrompt(string? uuid, string from) => _expected = (uuid, from);
+
+    /// <summary>The expected prompt never went out (sending it failed): the next one is this PC's own again.</summary>
+    public void ForgetExpectedPrompt() => _expected = null;
 
     private void OnEvent(AgentEvent e)
     {

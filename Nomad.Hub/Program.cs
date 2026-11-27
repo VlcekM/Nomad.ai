@@ -31,6 +31,8 @@ builder.Services.AddSingleton<BlobStore>();
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
 builder.Services.AddSingleton<RelayState>();
+builder.Services.AddSingleton<BoardState>();
+builder.Services.AddSingleton<LiveConnections>();
 builder.Services.AddSingleton<Maintenance>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Maintenance>());
 
@@ -54,9 +56,9 @@ await using (var scope = app.Services.CreateAsyncScope())
     var db = scope.ServiceProvider.GetRequiredService<HubDb>();
     await db.Database.MigrateAsync();
     await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
-    if (!await db.Devices.AnyAsync(d => !d.Revoked))
+    if (!await db.Devices.AnyAsync(d => !d.Revoked && !d.IsViewer))
     {
-        // Only hashes are stored, so a hub with no devices yet prints a fresh token at every start.
+        // Only hashes are stored, so a hub with no PCs yet prints a fresh token at every start (a phone alone can't make one).
         var token = await DeviceEndpoints.NewEnrollTokenAsync(db, null);
         app.Logger.LogWarning("No devices enrolled yet. Enrollment token (valid until {Expires:u}): {Token}", token.ExpiresUtc, token.Token);
     }
@@ -69,6 +71,12 @@ app.UseAuthorization();
 
 DeviceEndpoints.MapAnonymous(app);
 var api = app.MapGroup("/api").RequireAuthorization();
+
+// A phone may only ask who it is and revoke itself in the API; everything else there is for PCs (docs/mobile.md §6).
+api.AddEndpointFilter(async (context, next) =>
+    context.HttpContext.User.IsViewer() && context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<ViewerAllowed>() is null
+        ? Results.StatusCode(StatusCodes.Status403Forbidden)
+        : await next(context));
 DeviceEndpoints.Map(api);
 BlobEndpoints.Map(api);
 Sessions.Map(api);
