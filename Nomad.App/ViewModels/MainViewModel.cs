@@ -24,6 +24,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly Stack<SessionViewModel> _back = new();
     private readonly Stack<SessionViewModel> _forward = new();
     private bool _navigating;
+    private bool _windowReady;
     private CancellationTokenSource? _scanCts;
     private readonly DispatcherTimer _idleTimer;
     private readonly DispatcherTimer _usageTimer;
@@ -47,7 +48,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public UsageDashboardViewModel UsageDashboard { get; }
 
-    public LocalTokenUsageViewModel LocalTokens { get; } = new();
+    public LocalTokenUsageViewModel LocalTokens { get; }
 
     /// <summary>The session search (Ctrl+T).</summary>
     public SessionSearchViewModel Search { get; }
@@ -61,11 +62,13 @@ public sealed partial class MainViewModel : ObservableObject
     public MainViewModel(NomadSettings settings, string settingsPath, DevOptions dev)
     {
         Settings = settings;
-        UsageDashboard = new UsageDashboardViewModel(this);
         _settingsPath = settingsPath;
         Dev = dev;
+        var settingsDirectory = Path.GetDirectoryName(Path.GetFullPath(settingsPath)) ?? AppContext.BaseDirectory;
+        LocalTokens = new LocalTokenUsageViewModel(Path.Combine(settingsDirectory, "monthly-tokens.db"));
+        UsageDashboard = new UsageDashboardViewModel(this);
         // The session list is kept beside the settings between runs, so a start re-reads only the transcripts that changed.
-        Store = new SessionStore(cachePath: Path.Combine(Path.GetDirectoryName(Path.GetFullPath(settingsPath)) ?? AppContext.BaseDirectory, "sessions-cache.json"));
+        Store = new SessionStore(cachePath: Path.Combine(settingsDirectory, "sessions-cache.json"));
         IsSidebarOpen = !settings.SidebarCollapsed;
         PlanLabel = string.IsNullOrEmpty(settings.LastPlan) ? null : settings.LastPlan;
 
@@ -94,11 +97,7 @@ public sealed partial class MainViewModel : ObservableObject
             Current.Effort = EffortFor(dev.Model);
         }
 
-        if (Current.IsOpenCode)
-        {
-            _ = LoadOpenCodeCatalogAsync();
-        }
-        else if (Current.IsCodex)
+        if (Current.IsCodex)
         {
             _ = LoadCodexCatalogAsync();
         }
@@ -125,10 +124,6 @@ public sealed partial class MainViewModel : ObservableObject
         };
         _usageTimer.Start();
         _ = Usage.RefreshAsync(force: true);
-        if (Current.IsNew || !Current.IsClaudeCode)
-        {
-            _ = RefreshVisibleUsageAsync(force: true);
-        }
 
         _phoneTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _phoneTimer.Tick += (_, _) => _ = ScanPhoneSessionsAsync();
@@ -1052,9 +1047,17 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// Refreshes the visible cards or the current session's provider.
     /// </summary>
-    private Task RefreshVisibleUsageAsync(bool force = false) => Current.IsNew && ShowNewSessionUsage
-        ? RefreshDashboardAsync(force)
-        : Current.Usage.RefreshAsync(force);
+    private Task RefreshVisibleUsageAsync(bool force = false)
+    {
+        if (!_windowReady) return Task.CompletedTask;
+        return Current.IsNew && ShowNewSessionUsage ? RefreshDashboardAsync(force) : Current.Usage.RefreshAsync(force);
+    }
+
+    public void OnWindowReady()
+    {
+        _windowReady = true;
+        if (Current.IsNew || !Current.IsClaudeCode) _ = RefreshVisibleUsageAsync(force: true);
+    }
 
     /// <summary>
     /// Fetches only the dashboard providers currently selected.
@@ -1583,12 +1586,11 @@ public sealed partial class MainViewModel : ObservableObject
     private bool _codexScanning;
 
     /// <summary>
-    /// Lists OpenCode's sessions (from its server, started for it) and merges them into the list. Only once OpenCode
-    /// has been used here, so no server starts for people who never did.
+    /// Lists OpenCode's sessions from the running server or its local index.
     /// </summary>
     private async Task RefreshOpenCodeSessionsAsync()
     {
-        if (_openCodeScanning || (OpenCodeServer.Current is null && !(OpenCodeServer.HasData && OpenCodeServer.IsInstalled)))
+        if (_openCodeScanning)
         {
             return;
         }
@@ -1596,17 +1598,19 @@ public sealed partial class MainViewModel : ObservableObject
         _openCodeScanning = true;
         try
         {
-            var server = await OpenCodeServer.GetAsync();
-            var sessions = await OpenCodeClient.ListSessionsAsync(server);
+            var sessions = OpenCodeServer.Current is { } server
+                ? await OpenCodeClient.ListSessionsAsync(server)
+                : await Task.Run(OpenCodeSessionIndex.Read);
             _openCodeSummaries = [.. sessions.Select(s => new SessionSummary(
                 s.Id, "", s.Directory, s.Title.Length > 0 ? s.Title : UntitledOpenCode, s.UpdatedUtc, 0, Backend: AgentBackends.OpenCode))];
             MergeSummaries([.. _claudeSummaries, .. _openCodeSummaries, .. _codexSummaries, .. Settings.AntigravitySessions.Values]);
             OnPropertyChanged(nameof(RecentFolders));
             _ = LoadGitHubLinksAsync();
         }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or FileNotFoundException or TimeoutException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or TimeoutException
+            or System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException or UnauthorizedAccessException or ArgumentOutOfRangeException)
         {
-            // OpenCode is not there or not answering: its sessions are left out until it is.
+            // Keep the last successful list if OpenCode's store is temporarily unavailable.
         }
         finally
         {
@@ -1724,6 +1728,10 @@ public sealed partial class MainViewModel : ObservableObject
             try
             {
                 var server = await OpenCodeServer.GetAsync();
+                if (Current.IsOpenCode || UsageDashboard.Cards.Any(card => card.Id == AgentBackends.OpenCode))
+                {
+                    _ = OpenCodeCost.RefreshAsync();
+                }
                 var (models, fallback) = await OpenCodeClient.ListModelsAsync(server);
                 OpenCodeCatalog.Set(models, fallback);
                 OpenCodeError = models.Count == 0 ? "OpenCode has no provider connected. Run “opencode auth login” in a terminal." : null;

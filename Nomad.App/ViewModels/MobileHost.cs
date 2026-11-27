@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia.Threading;
+using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Hub;
 using Nomad.Hub.Contracts;
@@ -451,7 +452,7 @@ internal sealed class MobileHost : IDisposable
         {
             ChatStep? step = entry switch
             {
-                ToolCallItem call => new ChatStep("tool", call.Name, Clip(OneLine(call.Summary.Length > 0 ? call.Summary : call.InputText), 400),
+                ToolCallItem call => new ChatStep("tool", call.Name, Clip(OneLine(call.Summary.Length > 0 ? call.Summary : ToolText.PrettyJson(call.Input)), 400),
                     call.Status == ToolStatus.Failed),
                 ThinkingItem { DisplayText.Length: > 0 } thinking => new ChatStep("thinking", "Thought", Clip(thinking.DisplayText, 2_000)),
                 _ => null,

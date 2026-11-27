@@ -6,6 +6,7 @@ using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Git;
 using Nomad.Core.Hub;
+using Nomad.Core.OpenCode;
 using Nomad.Core.Sessions;
 
 namespace Nomad.App.ViewModels;
@@ -85,7 +86,7 @@ public sealed partial class SessionViewModel : ObservableObject
         Files.AskRequested += AddToComposer;
         RebuildOptions();
         RefreshFolders();
-        LoadCatalog();
+        if (!IsOpenCode || OpenCodeServer.Current is not null) LoadCatalog();
     }
 
     /// <summary>The model a new session on <paramref name="backend"/> starts with.</summary>
@@ -98,7 +99,7 @@ public sealed partial class SessionViewModel : ObservableObject
     };
 
     /// <summary>OpenCode's and Codex's models come from their servers: loaded once one is in use.</summary>
-    private void LoadCatalog()
+    internal void LoadCatalog()
     {
         if (IsOpenCode)
         {

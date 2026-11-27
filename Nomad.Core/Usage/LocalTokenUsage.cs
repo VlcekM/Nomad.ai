@@ -3,86 +3,117 @@ using System.Text.Json;
 namespace Nomad.Core.Usage;
 
 /// <summary>Token totals recorded on this computer during a calendar month, including cached input.</summary>
-public readonly record struct LocalTokens(long Input, long Output);
+public readonly record struct LocalTokens(long Input, long Output)
+{
+    public static LocalTokens operator +(LocalTokens left, LocalTokens right) =>
+        new(left.Input + right.Input, left.Output + right.Output);
+
+    internal static LocalTokens Max(LocalTokens left, LocalTokens right) =>
+        new(Math.Max(left.Input, right.Input), Math.Max(left.Output, right.Output));
+}
 
 public static class LocalTokenUsage
 {
-    public static LocalTokens Claude(string root, DateTimeOffset since) => Read(root, since, codex: false);
-
-    public static LocalTokens Codex(string root, DateTimeOffset since)
+    public static LocalTokens Claude(string root, DateTimeOffset since)
     {
-        var sessions = Read(Path.Combine(root, "sessions"), since, codex: true);
-        var archived = Read(Path.Combine(root, "archived_sessions"), since, codex: true);
-        return new(sessions.Input + archived.Input, sessions.Output + archived.Output);
+        var messages = new Dictionary<string, LocalTokens>(StringComparer.Ordinal);
+        Read([root], since, codex: false, (key, tokens) =>
+            messages[key] = LocalTokens.Max(messages.GetValueOrDefault(key), tokens));
+        return messages.Values.Aggregate(default(LocalTokens), (sum, tokens) => sum + tokens);
     }
 
-    private static LocalTokens Read(string root, DateTimeOffset since, bool codex)
+    public static LocalTokens Codex(string root, DateTimeOffset since) =>
+        Read(CodexRoots(root), since, codex: true, static (_, _) => { });
+
+    internal static string[] CodexRoots(string root) =>
+        [Path.Combine(root, "sessions"), Path.Combine(root, "archived_sessions")];
+
+    internal static IEnumerable<string> Files(string root) => Directory.Exists(root)
+        ? Directory.EnumerateFiles(root, "*.jsonl", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true })
+        : [];
+
+    private static LocalTokens Read(IEnumerable<string> roots, DateTimeOffset since, bool codex, Action<string, LocalTokens> record)
     {
-        if (!Directory.Exists(root)) return default;
-        long input = 0, output = 0;
-        var messages = new Dictionary<string, LocalTokens>();
-        try
+        var total = default(LocalTokens);
+        foreach (var root in roots)
         {
-            foreach (var file in Directory.EnumerateFiles(root, "*.jsonl", new EnumerationOptions
-                     { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+            try
             {
-                try
+                foreach (var file in Files(root))
                 {
-                    if (File.GetLastWriteTimeUtc(file) < since.UtcDateTime) continue;
-                    using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                    using var reader = new StreamReader(stream);
-                    long previousInput = 0, previousOutput = 0;
-                    string? line;
-                    var lineNumber = 0;
-                    while ((line = reader.ReadLine()) is not null)
+                    try
                     {
-                        lineNumber++;
-                        if (codex ? !line.Contains("token_count", StringComparison.Ordinal)
-                                  : !line.Contains("input_tokens", StringComparison.Ordinal) || !line.Contains("usage", StringComparison.Ordinal)) continue;
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(line);
-                            var row = doc.RootElement;
-                            if (!DateTimeOffset.TryParse(Text(row, "timestamp"), out var at)) continue;
-                            if (codex)
-                            {
-                                var payload = Obj(row, "payload");
-                                if (Text(row, "type") != "event_msg" || Text(payload, "type") != "token_count") continue;
-                                var total = Obj(Obj(payload, "info"), "total_token_usage");
-                                if (total.ValueKind != JsonValueKind.Object) continue;
-                                var currentInput = Number(total, "input_tokens");
-                                var currentOutput = Number(total, "output_tokens");
-                                if (at >= since)
-                                {
-                                    input += currentInput >= previousInput ? currentInput - previousInput : currentInput;
-                                    output += currentOutput >= previousOutput ? currentOutput - previousOutput : currentOutput;
-                                }
-                                previousInput = currentInput;
-                                previousOutput = currentOutput;
-                            }
-                            else if (at >= since && Text(row, "type") == "assistant")
-                            {
-                                var message = Obj(row, "message");
-                                var usage = Obj(message, "usage");
-                                if (usage.ValueKind != JsonValueKind.Object) continue;
-                                var key = Text(message, "id") ?? $"{file}:{lineNumber}";
-                                var tokens = new LocalTokens(Number(usage, "input_tokens") + Number(usage, "cache_read_input_tokens") + Number(usage, "cache_creation_input_tokens"), Number(usage, "output_tokens"));
-                                if (messages.TryGetValue(key, out var old)) tokens = new(Math.Max(old.Input, tokens.Input), Math.Max(old.Output, tokens.Output));
-                                messages[key] = tokens;
-                            }
-                        }
-                        catch (JsonException) { /* A partial or malformed line does not invalidate the rest. */ }
+                        if (File.GetLastWriteTimeUtc(file) < since.UtcDateTime) continue;
+                        using var stream = Open(file);
+                        total += Scan(stream, stream.Length, file, since, codex, default, record).Total;
                     }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+        return total;
+    }
+
+    internal static FileStream Open(string file) =>
+        new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
+    internal readonly record struct Cursor(long Position, bool Complete, LocalTokens Previous, LocalTokens Total);
+
+    internal static Cursor Scan(FileStream stream, long length, string path, DateTimeOffset since, bool codex,
+        Cursor cursor, Action<string, LocalTokens> record)
+    {
+        stream.Position = cursor.Position;
+        var reader = new TokenLogReader(stream, length, codex);
+        var total = cursor.Total;
+        var previous = cursor.Previous;
+        var complete = cursor.Complete;
+        while (reader.Position < length)
+        {
+            var position = reader.Position;
+            using var doc = reader.ReadLine();
+            if (reader.Position == position) throw new EndOfStreamException();
+            complete = reader.EndedWithNewline;
+            if (doc is null) continue;
+
+            var row = doc.RootElement;
+            if (!DateTimeOffset.TryParse(Text(row, "timestamp"), out var at)) continue;
+            if (codex)
+            {
+                var payload = Obj(row, "payload");
+                if (Text(row, "type") != "event_msg" || Text(payload, "type") != "token_count") continue;
+                var usage = Obj(Obj(payload, "info"), "total_token_usage");
+                if (usage.ValueKind != JsonValueKind.Object) continue;
+
+                var current = new LocalTokens(Number(usage, "input_tokens"), Number(usage, "output_tokens"));
+                if (at >= since)
+                {
+                    total += new LocalTokens(
+                        current.Input >= previous.Input ? current.Input - previous.Input : current.Input,
+                        current.Output >= previous.Output ? current.Output - previous.Output : current.Output);
+                }
+                previous = current;
+            }
+            else if (at >= since && Text(row, "type") == "assistant")
+            {
+                var message = Obj(row, "message");
+                var usage = Obj(message, "usage");
+                if (usage.ValueKind != JsonValueKind.Object) continue;
+
+                var key = Text(message, "id") ?? $"{path}:{position}";
+                record(key, new LocalTokens(Number(usage, "input_tokens") + Number(usage, "cache_read_input_tokens")
+                    + Number(usage, "cache_creation_input_tokens"), Number(usage, "output_tokens")));
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        foreach (var tokens in messages.Values) { input += tokens.Input; output += tokens.Output; }
-        return new(input, output);
+        return new Cursor(reader.Position, complete, previous, total);
     }
 
-    private static JsonElement Obj(JsonElement e, string name) => e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var p) ? p : default;
-    private static string? Text(JsonElement e, string name) => Obj(e, name) is { ValueKind: JsonValueKind.String } p ? p.GetString() : null;
-    private static long Number(JsonElement e, string name) => Obj(e, name) is { ValueKind: JsonValueKind.Number } p && p.TryGetInt64(out var n) ? Math.Max(0, n) : 0;
+    private static JsonElement Obj(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var p) ? p : default;
+
+    private static string? Text(JsonElement e, string name) =>
+        Obj(e, name) is { ValueKind: JsonValueKind.String } p ? p.GetString() : null;
+
+    private static long Number(JsonElement e, string name) =>
+        Obj(e, name) is { ValueKind: JsonValueKind.Number } p && p.TryGetInt64(out var n) ? n : 0;
 }

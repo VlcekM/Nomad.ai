@@ -245,8 +245,10 @@ public sealed class NomadSettings
     /// <summary>Sessions untouched for <see cref="AutoArchiveHours"/> are archived (not while alive or open).</summary>
     public bool AutoArchive { get; set; } = true;
 
+    public const int DefaultAutoArchiveHours = 6;
+
     /// <summary>How long a session stays untouched before it is archived (at least 1 hour).</summary>
-    public int AutoArchiveHours { get; set; } = 24;
+    public int AutoArchiveHours { get; set; } = DefaultAutoArchiveHours;
 
     /// <summary>
     /// An open session whose process has been quiet for <see cref="SleepAfterHours"/> has its process ended (it moves to Idle).

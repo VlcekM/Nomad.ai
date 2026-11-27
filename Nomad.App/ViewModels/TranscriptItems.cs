@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -255,6 +257,10 @@ public enum ToolStatus
 /// <summary>One tool call inside a group.</summary>
 public sealed partial class ToolCallItem : ObservableObject
 {
+    private const int LargeInputThreshold = 16 * 1024;
+    private JsonElement _input;
+    private byte[]? _compressedInput;
+
     public ToolCallItem(string toolUseId, string name, string? cwd)
     {
         ToolUseId = toolUseId;
@@ -306,13 +312,61 @@ public sealed partial class ToolCallItem : ObservableObject
     public bool HasResult => !string.IsNullOrEmpty(ResultText);
 
     /// <summary>The call's input, once known (it picks the working mark's activity).</summary>
-    public JsonElement Input { get; private set; }
+    public JsonElement Input
+    {
+        get
+        {
+            if (_compressedInput is null) return _input;
+
+            using var bytes = new MemoryStream(_compressedInput);
+            using var unpacked = new BrotliStream(bytes, CompressionMode.Decompress);
+            using var document = JsonDocument.Parse(unpacked);
+            return document.RootElement.Clone();
+        }
+    }
+
+    private const int MaxInputChars = 20_000;
+
+    private static string FormatInput(JsonElement input)
+    {
+        var text = ToolText.PrettyJson(input);
+        return text.Length > MaxInputChars ? text[..MaxInputChars] + "\n…" : text;
+    }
 
     public void SetInput(JsonElement input)
     {
-        Input = input.Clone();
+        _input = input.Clone();
+        _compressedInput = null;
         Summary = ToolText.Summary(Name, input, Cwd);
-        InputText = ToolText.PrettyJson(input);
+        if (!IsRunning) CompactInput();
+        if (IsExpanded) InputText = FormatInput(input);
+    }
+
+    partial void OnStatusChanged(ToolStatus value)
+    {
+        if (value != ToolStatus.Running) CompactInput();
+    }
+
+    private void CompactInput()
+    {
+        if (_input.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) return;
+
+        var json = _input.GetRawText();
+        if (json.Length < LargeInputThreshold) return;
+
+        using var bytes = new MemoryStream();
+        using (var packed = new BrotliStream(bytes, CompressionLevel.Fastest, leaveOpen: true))
+        {
+            using var writer = new StreamWriter(packed, new UTF8Encoding(false), leaveOpen: true);
+            writer.Write(json);
+        }
+        _compressedInput = bytes.ToArray();
+        _input = default;
+    }
+
+    partial void OnIsExpandedChanged(bool value)
+    {
+        InputText = value ? FormatInput(Input) : "";
     }
 
     [RelayCommand]

@@ -399,6 +399,7 @@ public partial class MainWindow : Window
         {
             CaptureNormalPlacement();
             _ = StartAsync();
+            Dispatcher.UIThread.Post(vm.OnWindowReady, DispatcherPriority.Background);
         };
         PositionChanged += (_, _) => Dispatcher.UIThread.Post(CaptureNormalPlacement);
         Resized += (_, _) => Dispatcher.UIThread.Post(CaptureNormalPlacement);

@@ -71,6 +71,7 @@ public partial class SessionView : UserControl
             {
                 if (Vm is { IsOpenCode: true } vm)
                 {
+                    vm.LoadCatalog();
                     vm.RebuildOptions();
                 }
             };
@@ -89,7 +90,7 @@ public partial class SessionView : UserControl
         };
         if (UsageChip.Flyout is { } usage)
         {
-            usage.Opened += (_, _) => _ = Vm?.Usage.RefreshAsync();
+            usage.Opened += (_, _) => _ = Vm?.Usage is OpenCodeCostViewModel cost ? cost.OpenAsync() : Vm?.Usage.RefreshAsync();
         }
 
         // The effort thumb glides while dragged and settles on the nearest stop when let go.

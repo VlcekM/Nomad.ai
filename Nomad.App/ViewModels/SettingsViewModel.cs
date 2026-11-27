@@ -859,7 +859,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     /// <summary>The auto-archive time in whole hours, as typed: a number below 1 becomes 1, anything else waits.</summary>
     [ObservableProperty]
-    public partial string AutoArchiveHoursText { get; set; } = "24";
+    public partial string AutoArchiveHoursText { get; set; } = NomadSettings.DefaultAutoArchiveHours.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     [RelayCommand]
     private void ToggleAutoArchive() => AutoArchive = !AutoArchive;

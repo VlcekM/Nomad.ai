@@ -31,7 +31,11 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
 
     public override string PageToolTip => "";
 
-    public override async Task RefreshAsync(bool force = false)
+    public override Task RefreshAsync(bool force = false) => RefreshAsync(force, startServer: false);
+
+    public Task OpenAsync() => RefreshAsync(force: true, startServer: true);
+
+    private async Task RefreshAsync(bool force, bool startServer)
     {
         if (_fetching || (!force && DateTime.UtcNow - _fetchedUtc < MinInterval))
         {
@@ -41,7 +45,21 @@ public sealed partial class OpenCodeCostViewModel : UsageSource
         _fetching = true;
         try
         {
-            var server = await OpenCodeServer.GetAsync();
+            var server = OpenCodeServer.Current;
+            if (server is null)
+            {
+                if (!startServer)
+                {
+                    if (!HasUsage)
+                    {
+                        UnavailableText = "Open an OpenCode chat to see costs.";
+                        IsUnavailable = true;
+                    }
+                    return;
+                }
+
+                server = await OpenCodeServer.GetAsync();
+            }
             var report = await OpenCodeCost.MonthAsync(server, DateTimeOffset.Now);
             _fetchedUtc = DateTime.UtcNow;
             Show(report);

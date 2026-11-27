@@ -66,15 +66,17 @@ public sealed partial class OpenCodeServer : IAsyncDisposable
     /// <summary>Whether OpenCode looks installed (its executable resolves); cheap, no process started.</summary>
     public static bool IsInstalled => ResolveExecutable(CliPath) is not null;
 
-    /// <summary>OpenCode has been used on this machine (its database exists): only then is its server started to list sessions.</summary>
-    public static bool HasData
+    /// <summary>OpenCode has been used on this machine (its database exists).</summary>
+    public static bool HasData => File.Exists(DatabasePath);
+
+    internal static string DatabasePath
     {
         get
         {
             var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } xdg
                 ? xdg
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
-            return File.Exists(Path.Combine(data, "opencode", "opencode.db"));
+            return Path.Combine(data, "opencode", "opencode.db");
         }
     }
 

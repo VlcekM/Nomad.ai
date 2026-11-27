@@ -391,7 +391,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                   <Border Classes="field" Width="72">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="24" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="6" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                   <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
                 </StackPanel>
