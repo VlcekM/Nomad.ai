@@ -73,7 +73,7 @@ public static class ChatTools
             {"name":"list_chats","description":"List the other chats open in Nomad that can be messaged with send_to_chat: id, title, agent, folder and state (working, idle, stopped).","inputSchema":{"type":"object","properties":{},"additionalProperties":false}}
             """)!,
         JsonNode.Parse("""
-            {"name":"send_to_chat","description":"Send a message to another chat open in Nomad. It arrives there as a prompt from you (with your chat's id and title), right away when that chat is idle or after its current turn. Returns once delivered; it does not wait for an answer. Any reply comes back as a new prompt in this chat.","inputSchema":{"type":"object","properties":{"chat":{"type":"string","description":"The chat's id from list_chats, or its exact title."},"message":{"type":"string","description":"The message, self-contained: the other chat knows nothing of this conversation."}},"required":["chat","message"],"additionalProperties":false}}
+            {"name":"send_to_chat","description":"Send a message to another chat open in Nomad. It arrives there as a prompt from you (with your chat's id and title): right away when that chat is idle; while it works, a Claude Code chat reads it at its next step and other agents get it after their current turn. Returns once delivered; it does not wait for an answer. Any reply comes back as a new prompt in this chat.","inputSchema":{"type":"object","properties":{"chat":{"type":"string","description":"The chat's id from list_chats, or its exact title."},"message":{"type":"string","description":"The message, self-contained: the other chat knows nothing of this conversation."}},"required":["chat","message"],"additionalProperties":false}}
             """)!,
     ];
 
