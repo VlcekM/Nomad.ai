@@ -8,6 +8,27 @@ namespace Nomad.Core.Tests;
 /// <summary>Codex's app-server messages against turns captured from codex-cli 0.163.0 (see Fixtures/codex).</summary>
 public class CodexTests
 {
+    /// <summary>Only "/compact" on its own compacts the thread; anything else is a message for the model.</summary>
+    [Theory]
+    [InlineData("/compact", true)]
+    [InlineData("  /Compact \n", true)]
+    [InlineData("/compact keep the plan", false)]
+    [InlineData("please /compact", false)]
+    [InlineData("/compacted", false)]
+    public void RecognizesTheCompactCommand(string text, bool compact) => Assert.Equal(compact, CodexBackend.IsCompactCommand(text));
+
+    /// <summary>A finished compaction shows a notice in the live chat, as the history does on reopening.</summary>
+    [Fact]
+    public void FinishedCompactionShowsANotice()
+    {
+        var translator = new CodexTranslator("t", Cwd);
+        using var started = JsonDocument.Parse("""{"threadId":"t","item":{"type":"contextCompaction","id":"c1"}}""");
+        using var completed = JsonDocument.Parse("""{"threadId":"t","item":{"type":"contextCompaction","id":"c1"}}""");
+
+        Assert.Empty(translator.Handle("item/started", started.RootElement).OfType<CommandOutputEvent>());
+        Assert.Equal("Context compacted", Assert.Single(translator.Handle("item/completed", completed.RootElement).OfType<CommandOutputEvent>()).Text);
+    }
+
     /// <summary>
     /// A spawn call can finish while its child thread is still running.
     /// </summary>
