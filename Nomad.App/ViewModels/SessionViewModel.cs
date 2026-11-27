@@ -2255,22 +2255,67 @@ public sealed partial class SessionViewModel : ObservableObject
     [RelayCommand]
     private void ToggleActivity() => _main.ShowActivity = !_main.ShowActivity;
 
-    /// <summary>Show what hooks added to each prompt, folded under it.</summary>
+    #region Hook context
+
+    /// <summary>
+    /// Whether a task notification has been seen in the stored transcript.
+    /// </summary>
+    private bool _taskNotified;
+
+    /// <summary>
+    /// The latest prompt when the stored transcript last delivered a task notification.
+    /// </summary>
+    private UserMessageItem? _promptBeforeNotification;
+
+    /// <summary>
+    /// Show what hooks added to each prompt, folded under it.
+    /// </summary>
     public bool ShowHookContext => _main.ShowHookContext;
 
+    /// <summary>
+    /// Refreshes the hook context visibility when the setting changes.
+    /// </summary>
     public void OnShowHookContextChanged() => OnPropertyChanged(nameof(ShowHookContext));
 
+    /// <summary>
+    /// Toggles the visibility of hook context.
+    /// </summary>
     [RelayCommand]
     private void ToggleHookContext() => _main.ShowHookContext = !_main.ShowHookContext;
 
-    /// <summary>Hook text belongs to the prompt it was added to: the latest one.</summary>
-    private void AddHookContext(string text)
+    /// <summary>
+    /// Adds hook output to its prompt, skipping output from task notifications in stored history.
+    /// </summary>
+    /// <param name="promptUuid">The prompt identified by the live CLI echo, when available.</param>
+    private void AddHookContext(string text, string? promptUuid = null)
     {
-        if (Items.OfType<UserMessageItem>().LastOrDefault() is { } prompt)
+        if (promptUuid is not null)
         {
-            prompt.AddHookContext(text);
+            var added = _steered.GetValueOrDefault(promptUuid)
+                ?? Items.OfType<UserMessageItem>().LastOrDefault(u => u.Uuid == promptUuid)
+                ?? Items.OfType<UserMessageItem>().LastOrDefault();
+            added?.AddHookContext(text);
+
+            return;
         }
+
+        // From a stored transcript: the latest prompt's, unless a task notification came after it.
+        var prompt = Items.OfType<UserMessageItem>().LastOrDefault();
+        if (_taskNotified && ReferenceEquals(prompt, _promptBeforeNotification)) return;
+
+        prompt?.AddHookContext(text);
     }
+
+    /// <summary>
+    /// Records the prompt that preceded a task notification so the notification's hook text stays off that prompt.
+    /// </summary>
+    private void NoteTaskNotified()
+    {
+        _taskNotified = true;
+        _promptBeforeNotification = Items.OfType<UserMessageItem>().LastOrDefault();
+    }
+
+    #endregion
 
     // ------------------------------------------------------------------ attachments
 
@@ -3523,9 +3568,12 @@ public sealed partial class SessionViewModel : ObservableObject
                 case HistoryToolResult r:
                     CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
                     break;
-                case HistoryNotice n when n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal) && Workflows.Count > 0:
-                    break; // Its card says it ended.
                 case HistoryNotice n:
+                    if (n.IsTaskNotification) NoteTaskNotified();
+
+                    // Its card says it ended.
+                    if (Workflows.Count > 0 && n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal)) break;
+
                     CloseGroup();
                     Items.Add(new NoticeItem(n.Text));
                     break;
@@ -4002,7 +4050,7 @@ public sealed partial class SessionViewModel : ObservableObject
         switch (e)
         {
             case HookContextEvent hook:
-                AddHookContext(hook.Text);
+                AddHookContext(hook.Text, hook.PromptUuid);
                 break;
             case SessionStartedEvent s:
                 if (!string.IsNullOrEmpty(s.SessionId) && s.SessionId != SessionId)

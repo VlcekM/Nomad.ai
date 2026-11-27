@@ -63,6 +63,60 @@ public class ProtocolTests
         Assert.Contains(events, e => e is TextDeltaEvent);
     }
 
+    /// <summary>
+    /// Checks that the CLI echo associates buffered hook output with its prompt.
+    /// </summary>
+    [Fact]
+    public void HookContextGoesToThePromptEchoedAfterIt()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        // As Claude Code 2.1.310 emits them: the hook's output, then the prompt it ran for.
+        backend.HandleLine(Hook("Message sent: 10:00"));
+        backend.HandleLine("""
+            {"type":"user","isReplay":true,"uuid":"p-1",
+             "message":{"role":"user","content":[{"type":"text","text":"Fix the parser."}]},"session_id":"s"}
+            """);
+
+        Assert.IsType<RemotePromptEvent>(events[0]); // The prompt shows first, then what was added to it.
+        Assert.Equal(new HookContextEvent("Message sent: 10:00", "p-1"), Assert.Single(events.OfType<HookContextEvent>()));
+    }
+
+    /// <summary>
+    /// Checks that notification hook output is dropped before the next prompt.
+    /// </summary>
+    [Fact]
+    public void HookContextForATaskNotificationIsNotAPromptsOwn()
+    {
+        var backend = new ClaudeCodeBackend();
+        var events = new List<AgentEvent>();
+        backend.EventReceived += events.Add;
+
+        // A task notification isn't echoed: its hook output is followed by Claude's answer.
+        backend.HandleLine(Hook("Background notice at: 10:01"));
+        backend.HandleLine("""
+            {"type":"assistant",
+             "message":{"id":"m1","role":"assistant","content":[{"type":"text","text":"The build finished."}]},"session_id":"s"}
+            """);
+        backend.HandleLine("""
+            {"type":"user","isReplay":true,"uuid":"p-2",
+             "message":{"role":"user","content":[{"type":"text","text":"Thanks."}]},"session_id":"s"}
+            """);
+
+        Assert.Empty(events.OfType<HookContextEvent>());
+    }
+
+    /// <summary>
+    /// Creates a CLI hook response with the given additional context.
+    /// </summary>
+    private static string Hook(string added) =>
+        $$$"""
+        {"type":"system","subtype":"hook_response","hook_event":"UserPromptSubmit","session_id":"s",
+         "stdout":"{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"{{{added}}}\"}}"}
+        """;
+
     [Fact]
     public void ABackgroundTasksEndRaisesATaskNotification()
     {

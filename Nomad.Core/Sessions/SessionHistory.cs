@@ -40,8 +40,14 @@ public sealed record HistoryToolResult(string ToolUseId, bool IsError, string Te
     public IReadOnlyList<string> Images { get; init; } = [];
 }
 
-/// <summary>Muted one-line notices: truncation, interruption, compaction.</summary>
-public sealed record HistoryNotice(string Text) : HistoryItem;
+/// <summary>
+/// A one-line notice for a transcript event such as truncation, interruption, compaction, or task completion.
+/// </summary>
+/// <param name="IsTaskNotification">
+/// A background task's end handed to Claude: the CLI runs the prompt hooks for it too, so what they add next is its own, not
+/// the last prompt's.
+/// </param>
+public sealed record HistoryNotice(string Text, bool IsTaskNotification = false) : HistoryItem;
 
 /// <summary>A stored conversation, reconstructed along its parent chain.</summary>
 public sealed class SessionHistory
@@ -207,7 +213,7 @@ public sealed class SessionHistory
             case "attachment" when record.Attachment.ValueKind == System.Text.Json.JsonValueKind.Object
                 && record.Attachment.TryGetProperty("prompt", out var prompt) && prompt.ValueKind == System.Text.Json.JsonValueKind.String
                 && TaskNotification.TryParse(prompt.GetString(), out var summary):
-                items.Add(new HistoryNotice(summary));
+                items.Add(new HistoryNotice(summary, IsTaskNotification: true));
                 return;
             case "attachment" when QueuedPrompt(record.Attachment) is { } queued:
                 items.Add(queued with { TimestampUtc = DateTime.TryParse(record.Timestamp, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var queuedAt) ? queuedAt : null });
@@ -329,7 +335,7 @@ public sealed class SessionHistory
                     }
                     else if (TaskNotification.TryParse(trimmed, out var summary))
                     {
-                        items.Add(new HistoryNotice(summary));
+                        items.Add(new HistoryNotice(summary, IsTaskNotification: true));
                     }
                     else if (!trimmed.StartsWith('<'))
                     {
