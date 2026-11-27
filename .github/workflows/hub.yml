@@ -56,7 +56,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The hub on altair (/opt/nomad-hub, on wg-home only at 10.67.0.1:8090) pulls the new image and restarts on it.
+      # The hub on altair (/opt/nomad-hub, public at https://nomad.martinvlcek.sk) pulls the new image and restarts on it.
       - name: Deploy
         if: github.ref == 'refs/heads/main'
         env:
