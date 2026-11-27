@@ -13,6 +13,13 @@ namespace Nomad.Core.Agents;
 /// </summary>
 public sealed class ClaudeCodeBackend : IAgentBackend
 {
+    /// <summary>
+    /// Asks Claude to respond visibly to a message sent while a turn is running.
+    /// </summary>
+    public const string MidTurnReminder = "<system-reminder>The user sent this while you were working. If it asks or tells you " +
+        "something, answer it in a text message they can see before your next tool call: " +
+        "they do not see your thinking.</system-reminder>";
+
     private static readonly TimeSpan ControlTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ConcurrentDictionary<string, TaskCompletionSource<ControlResponseBody?>> _pendingControl = new();
@@ -158,8 +165,13 @@ public sealed class ClaudeCodeBackend : IAgentBackend
         var cli = RequireRunning();
         uuid ??= Guid.NewGuid().ToString();
         _sentUuids[uuid] = 0; // Its replayed copy is no Remote Control prompt.
-        var reminder = !text.TrimStart().StartsWith('/') ? NewChatTool.Reminder : null;
+
+        var reminder = _suggestNewChats && !text.TrimStart().StartsWith('/')
+            ? MidTurnReminder + NewChatTool.Reminder
+            : MidTurnReminder;
+
         await WriteAsync(cli, CliProtocol.UserMessage(text, uuid, images, reminder), cancellationToken).ConfigureAwait(false);
+
         return uuid;
     }
 
