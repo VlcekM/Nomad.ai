@@ -134,8 +134,8 @@ public sealed partial class SessionViewModel
         {
             switch (input.Kind)
             {
-                // Into the turn running here, as one typed here would go (Claude Code takes it in at its next step).
-                case RelayInput.Prompt when input.Text is { } text && CanSteer && !text.TrimStart().StartsWith('/') && backend is ClaudeCodeBackend claude:
+                // Into the turn running here, as one typed here would go (the agent takes it in at its next step).
+                case RelayInput.Prompt when input.Text is { } text && CanSteer && !text.TrimStart().StartsWith('/') && backend is ISteerableBackend { CanSteer: true } steerable:
                     var steeredUuid = input.Uuid ?? Guid.NewGuid().ToString();
                     var (shown, files) = AttachedFiles.Split(text);
                     var steered = new UserMessageItem(shown, null, DateTime.UtcNow, seen: false) { Files = files, FromDevice = from, IsSteered = true };
@@ -150,7 +150,7 @@ public sealed partial class SessionViewModel
                     _main.OnSessionActivity(this);
                     try
                     {
-                        await claude.SteerAsync(text, input.Images, steeredUuid);
+                        await steerable.SteerAsync(text, input.Images, steeredUuid);
                     }
                     catch (Exception)
                     {

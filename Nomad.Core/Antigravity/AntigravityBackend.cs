@@ -479,13 +479,18 @@ public sealed class AntigravityBackend : IAgentBackend, ISteerableBackend
     /// <summary>
     /// Asks the agent to stop the current prompt.
     /// </summary>
-    public Task InterruptAsync(CancellationToken cancellationToken = default)
+    public async Task InterruptAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsTurnRunning || _connection is not { IsRunning: true } connection) return Task.CompletedTask;
+        if (!IsTurnRunning || _connection is not { IsRunning: true } connection) return;
+
+        // A prompt being sent into the turn goes first, so the cancel stops it too rather than arriving before it.
+        await _steerGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _steerGate.Release();
+        if (!IsTurnRunning) return;
 
         // An unprompted reply has no prompt for the cancel to end: it stops showing as running here.
         _background.EndReply();
-        return connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken);
+        await connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
