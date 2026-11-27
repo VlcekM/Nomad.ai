@@ -121,6 +121,8 @@ public sealed class HubClient : IAsyncDisposable
             NewChatOptionsRequested is { } options ? options() : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.On<NewChat, string, NewChatResult>(HubNames.ChatStartRequested, (chat, from) =>
             StartRequested is { } start ? start(chat, from) : throw new InvalidOperationException("This PC doesn't serve chats."));
+        connection.On<string, string, int, int, string, ChatFile>(HubNames.ChatFileRequested, (b, s, index, number, id) =>
+            FileRequested is { } file ? file(b, s, index, number, id) : throw new InvalidOperationException("This PC doesn't serve chats."));
         connection.Reconnecting += _ => { ConnectionChanged?.Invoke(false); return Task.CompletedTask; };
         connection.Reconnected += _ => { ConnectionChanged?.Invoke(true); return Task.CompletedTask; };
         connection.Closed += _ =>
@@ -291,6 +293,13 @@ public sealed class HubClient : IAsyncDisposable
     /// <summary>Starts a chat a phone asked for: (the chat, the phone's name).</summary>
     public Func<NewChat, string, Task<NewChatResult>>? StartRequested { get; set; }
 
+    /// <summary>
+    /// A file a chat here sent the user, for a phone: (backend, session id, the entry's index, the file's place in it, the id of the
+    /// place the hub kept for it). Answers at once with that id (or a copy put there before), and sends the file afterwards with
+    /// <see cref="UploadSentFileAsync"/>.
+    /// </summary>
+    public Func<string, string, int, int, string, Task<ChatFile>>? FileRequested { get; set; }
+
     /// <summary>Puts this PC's open chats on the board, replacing what it listed before.</summary>
     public Task BoardPublishAsync(IReadOnlyList<BoardChat> chats, CancellationToken ct = default) =>
         Live.InvokeAsync(HubNames.BoardPublish, chats, ct);
@@ -316,6 +325,13 @@ public sealed class HubClient : IAsyncDisposable
 
     public Task<NewChatResult> ChatStartAsync(Guid device, NewChat chat, CancellationToken ct = default) =>
         Live.InvokeAsync<NewChatResult>(HubNames.ChatStart, device, chat, ct);
+
+    /// <summary>
+    /// File <paramref name="number"/> of the files a chat sent the user in its entry at <paramref name="index"/>, put on the hub by
+    /// the PC with the chat: fetch it with <see cref="DownloadFileAsync"/>.
+    /// </summary>
+    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default) =>
+        Live.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, backend, sessionId, index, number, ct);
 
     private sealed class ForeverRetry : IRetryPolicy
     {
@@ -374,7 +390,31 @@ public sealed class HubClient : IAsyncDisposable
         return (await response.Content.ReadFromJsonAsync(HubJson.Default.ChatFile, ct).ConfigureAwait(false))!;
     }
 
-    /// <summary>A file a phone put on the hub for a prompt to this PC, read as it downloads.</summary>
+    /// <summary>Fills the place the hub kept for a file a chat sent the user (<see cref="FileRequested"/>); the hub keeps it a day.</summary>
+    public async Task<ChatFile> UploadSentFileAsync(string id, Stream content, string name, long length, CancellationToken ct = default)
+    {
+        using var body = new StreamContent(content);
+        body.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        body.Headers.ContentLength = length;
+        using var response = await _http.PutAsync($"api/files/{Uri.EscapeDataString(id)}?name={Uri.EscapeDataString(name)}", body, ct).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = response.StatusCode switch
+            {
+                HttpStatusCode.RequestEntityTooLarge => "it is too large",
+                HttpStatusCode.NotFound => "the hub no longer waits for it",
+                _ => $"the hub answered {(int)response.StatusCode}",
+            };
+            throw new HttpRequestException($"The file couldn't be put on the hub: {detail}.", null, response.StatusCode);
+        }
+
+        return (await response.Content.ReadFromJsonAsync(HubJson.Default.ChatFile, ct).ConfigureAwait(false))!;
+    }
+
+    /// <summary>
+    /// A file on the hub, read as it downloads: one a phone put there for a prompt to this PC, or (for a phone) one a chat sent the
+    /// user, which waits for its PC to finish putting it there.
+    /// </summary>
     public async Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default)
     {
         var response = await _http.GetAsync("api/files/" + Uri.EscapeDataString(id), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);

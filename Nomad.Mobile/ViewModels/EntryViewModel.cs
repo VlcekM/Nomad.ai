@@ -13,12 +13,28 @@ public sealed partial class EntryViewModel : ObservableObject
     public EntryViewModel(ChatEntry entry)
     {
         Entry = entry;
-        Kind = entry.Kind;
+        Kind = KindOf(entry);
         Text = entry.Text;
         Steps = StepsOf(entry);
+        Files = FilesOf(entry);
     }
 
     private static List<StepViewModel> StepsOf(ChatEntry entry) => [.. (entry.Steps ?? []).Select(s => new StepViewModel(s))];
+
+    /// <summary>Files the agent sent show as <c>files</c>; the PC sends them as a notice naming them, for a phone that can't.</summary>
+    private static string KindOf(ChatEntry entry) => entry.Files is { Files.Count: > 0 } ? "files" : entry.Kind;
+
+    private static List<SentFileViewModel> FilesOf(ChatEntry entry) =>
+        [.. (entry.Files?.Files ?? []).Select((f, i) => new SentFileViewModel(f, entry.Index, i))];
+
+    /// <summary>The files the agent sent, under <see cref="Caption"/>: images as pictures, other files as chips.</summary>
+    public IReadOnlyList<SentFileViewModel> Files { get; private set; }
+
+    public bool IsFiles => Kind == "files";
+
+    public string Caption => Entry.Files?.Caption ?? "";
+
+    public bool HasCaption => Caption.Length > 0;
 
     private EntryViewModel(ChatEntry entry, bool local) : this(entry) => IsLocal = local;
 
@@ -32,7 +48,8 @@ public sealed partial class EntryViewModel : ObservableObject
     public bool IsLocal { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsThinking), nameof(IsNotice), nameof(IsError), nameof(IsCard), nameof(IsClipped))]
+    [NotifyPropertyChangedFor(nameof(IsUser), nameof(IsAssistant), nameof(IsActivity), nameof(IsThinking), nameof(IsNotice), nameof(IsError), nameof(IsCard), nameof(IsClipped),
+        nameof(IsFiles))]
     public partial string Kind { get; set; }
 
     [ObservableProperty]
@@ -97,7 +114,7 @@ public sealed partial class EntryViewModel : ObservableObject
     public string FromText => "from " + Entry.From;
 
     /// <summary>Long text shows clipped until Show more; a thought folds by itself instead.</summary>
-    public bool IsClipped => !IsThinking && !IsExpanded && Text.Length > ClipAt;
+    public bool IsClipped => !IsThinking && !IsFiles && !IsExpanded && Text.Length > ClipAt;
 
     public string ShownText => IsClipped ? Text[..ClipAt].TrimEnd() + "…" : Text;
 
@@ -112,7 +129,8 @@ public sealed partial class EntryViewModel : ObservableObject
     public void Update(ChatEntry entry)
     {
         var cardChanged = entry.Card != Entry.Card;
-        if (entry.Kind != Kind)
+        var filesChanged = !(entry.Files?.Files ?? []).SequenceEqual(Files.Select(f => f.File)) || entry.Files?.Caption != Entry.Files?.Caption;
+        if (KindOf(entry) != Kind)
         {
             // Another kind of item now holds this place (a thought taken into an activity group): it starts folded.
             IsOpen = false;
@@ -121,8 +139,18 @@ public sealed partial class EntryViewModel : ObservableObject
 
         Entry = entry;
         IsLocal = false;
-        Kind = entry.Kind;
+        Kind = KindOf(entry);
         Text = entry.Text;
+        if (filesChanged)
+        {
+            // Other files hold this place now: their pictures are fetched afresh.
+            DisposeFiles();
+            Files = FilesOf(entry);
+            OnPropertyChanged(nameof(Files));
+            OnPropertyChanged(nameof(Caption));
+            OnPropertyChanged(nameof(HasCaption));
+        }
+
         if (!(entry.Steps ?? []).SequenceEqual(Steps.Select(s => s.Step)))
         {
             Steps = StepsOf(entry);
@@ -142,6 +170,15 @@ public sealed partial class EntryViewModel : ObservableObject
 
     /// <summary>More of the turn streaming now.</summary>
     public void AppendLive(string text) => Text += text;
+
+    /// <summary>Gone from the chat, or the chat closed: its pictures are freed.</summary>
+    public void DisposeFiles()
+    {
+        foreach (var file in Files)
+        {
+            file.Dispose();
+        }
+    }
 }
 
 /// <summary>One step of an activity: a tool call with its one line, or a thought.</summary>

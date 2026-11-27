@@ -11,7 +11,8 @@ namespace Nomad.Hub.Services;
 /// (<see cref="HubNames.Changed"/>), handoff requests to the PC holding a session, the relay, and the phone's board.
 /// </summary>
 [Authorize]
-public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, BoardState board, LiveConnections live, HubOptions options)
+public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, RelayState relay, BoardState board, LiveConnections live, HubOptions options,
+    PhoneFileStore files, SentFileSlots slots)
     : Microsoft.AspNetCore.SignalR.Hub
 {
     public static string DeviceGroup(Guid device) => $"device:{device:N}";
@@ -154,6 +155,39 @@ public sealed class NomadHub(HubDb db, ChangeLog changes, Presence presence, Rel
     public Task<ChatSettings> ChatSettingsGet(Guid device, string backend, string sessionId) =>
         AskPcAsync(device, backend, sessionId, (pc, ct) =>
             Clients.Client(pc).InvokeAsync<ChatSettings>(HubNames.ChatSettingsRequested, backend, sessionId, ct));
+
+    /// <summary>
+    /// A file a chat sent the user, for a phone: the PC with the chat is given a place on the hub for it and answers at once, with
+    /// that place or a copy it put here before; the phone's fetch of it waits for it to arrive. Only a file the PC sent the user can
+    /// be named: never one a phone attached.
+    /// </summary>
+    public async Task<ChatFile> ChatFileGet(Guid device, string backend, string sessionId, int index, int number)
+    {
+        RequireRelay();
+        var slot = slots.Reserve(device);
+        ChatFile? file;
+        try
+        {
+            file = await AskPcAsync(device, backend, sessionId, (pc, ct) =>
+                Clients.Client(pc).InvokeAsync<ChatFile>(HubNames.ChatFileRequested, backend, sessionId, index, number, slot, ct));
+        }
+        catch
+        {
+            slots.Drop(slot);
+            throw;
+        }
+
+        if (file is null || file.Id != slot)
+        {
+            slots.Drop(slot);
+            if (file is null || !(files.IsForPhones(file.Id) || slots.IsPendingFor(file.Id, device)))
+            {
+                throw new HubException("That PC didn't send the file.");
+            }
+        }
+
+        return file with { Name = PhoneFileStore.CleanName(file.Name) };
+    }
 
     /// <summary>What a new chat on a PC can start as.</summary>
     public Task<NewChatOptions> NewChatOptionsGet(Guid device) =>

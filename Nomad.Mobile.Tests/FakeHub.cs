@@ -183,6 +183,28 @@ public sealed class FakeHub : IHubConnection, IHubFactory
         return new ChatFile(id, name, copy.Length);
     }
 
+    /// <summary>Files chats sent the user, by "session/index/number", with their bytes; the PC puts one on the hub when asked.</summary>
+    public Dictionary<string, (string Name, byte[] Bytes)> SentFiles { get; } = [];
+
+    public Task<ChatFile> ChatFileAsync(Guid device, string backend, string sessionId, int index, int number, CancellationToken ct = default)
+    {
+        Calls.Add($"ChatFile {sessionId} {index} {number}");
+        if (!SentFiles.TryGetValue($"{sessionId}/{index}/{number}", out var sent))
+        {
+            throw new InvalidOperationException("That file is no longer in the chat; open the chat again.");
+        }
+
+        var id = Guid.NewGuid().ToString("N");
+        Files[id] = sent;
+        return Task.FromResult(new ChatFile(id, sent.Name, sent.Bytes.Length));
+    }
+
+    public Task<Stream> DownloadFileAsync(string id, CancellationToken ct = default)
+    {
+        Calls.Add("Download " + Files[id].Name);
+        return Task.FromResult<Stream>(new MemoryStream(Files[id].Bytes));
+    }
+
     public ValueTask DisposeAsync()
     {
         Calls.Add("Dispose");

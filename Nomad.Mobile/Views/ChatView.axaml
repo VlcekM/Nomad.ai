@@ -6,6 +6,24 @@
              xmlns:c="using:Nomad.App.Controls"
              x:Class="Nomad.Mobile.Views.ChatView"
              x:DataType="vm:ChatViewModel">
+  <UserControl.Resources>
+    <!-- A sent file's picture or chip as a button: only what it shows, a little faded while pressed. -->
+    <ControlTheme x:Key="SentFileButton" TargetType="Button">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" Background="{TemplateBinding Background}" />
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:pressed">
+        <Setter Property="Opacity" Value="0.7" />
+      </Style>
+      <Style Selector="^:disabled">
+        <Setter Property="Opacity" Value="0.6" />
+      </Style>
+    </ControlTheme>
+  </UserControl.Resources>
   <UserControl.Styles>
     <!-- An activity with nothing to open still reads as one: its line keeps full strength, without a chevron. -->
     <Style Selector="Button.activity:disabled">
@@ -296,6 +314,45 @@
 
                   <TextBlock IsVisible="{Binding IsNotice}" Classes="muted small" Text="{Binding ShownText}" TextWrapping="Wrap"
                              HorizontalAlignment="Center" TextAlignment="Center" />
+
+                  <!-- Files the agent sent, as the desktop shows them: under the caption, images as pictures and other files as
+                       chips. A tap saves one in the phone's Downloads and opens it. -->
+                  <StackPanel IsVisible="{Binding IsFiles}" Spacing="6">
+                    <md:MarkdownBlock IsVisible="{Binding HasCaption}" Markdown="{Binding Caption}" />
+                    <ItemsControl ItemsSource="{Binding Files}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:SentFileViewModel">
+                          <Panel HorizontalAlignment="Left">
+                            <Button IsVisible="{Binding HasPicture}" Command="{Binding OpenCommand}" Theme="{StaticResource SentFileButton}"
+                                    AutomationProperties.Name="{Binding Name}">
+                              <Panel MaxHeight="360">
+                                <Border CornerRadius="8" ClipToBounds="True">
+                                  <Image Source="{Binding Picture}" Stretch="Uniform" StretchDirection="DownOnly" />
+                                </Border>
+                                <Border CornerRadius="8" BorderThickness="1" BorderBrush="{DynamicResource BorderBrush}" />
+                              </Panel>
+                            </Button>
+                            <Button IsVisible="{Binding ShowsChip}" Command="{Binding OpenCommand}" Theme="{StaticResource SentFileButton}"
+                                    AutomationProperties.Name="{Binding Name}">
+                              <Border Height="48" MaxWidth="280" Padding="10,0,14,0" CornerRadius="8"
+                                      Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                <Grid ColumnDefinitions="Auto,*">
+                                  <c:Icon Size="18" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                  <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Detail}" Classes="muted small" />
+                                  </StackPanel>
+                                </Grid>
+                              </Border>
+                            </Button>
+                          </Panel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
 
                   <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerBrush}"
                           BorderThickness="2,0,0,0" CornerRadius="4" Padding="12,8">

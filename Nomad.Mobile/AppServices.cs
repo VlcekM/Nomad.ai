@@ -28,6 +28,9 @@ public static class AppServices
     /// <summary>Where an update comes from when the hub offers none (the GitHub release, on Android); null looks nowhere else.</summary>
     public static Func<CancellationToken, Task<AppOffer?>>? ReleaseFeed { get; set; }
 
+    /// <summary>Saves and opens files the agent sent; null (the tests' default) where the platform can't.</summary>
+    public static IFileSaver? Files { get; set; }
+
     /// <summary>Copies text to the clipboard, where the platform has one.</summary>
     public static Func<string, Task>? CopyText { get; set; }
 }

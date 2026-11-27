@@ -229,6 +229,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             ChatsViewModel.Sync(Entries, [.. keep, .. page.Entries], e => e.Index, e => e.Index, e => new EntryViewModel(e), (vm, e) => vm.Update(e));
             _thinkingInFull = page.ThinkingInFull;
             MarkThinking();
+            WireFiles();
             HasOlder = Entries.Count > 0 && Entries[0].Index > 0;
             Card = page.Entries.LastOrDefault(e => e.Card is { Pending: true })?.Card is { } card ? CardFor(card) : null;
             IsLoading = page.Loading;
@@ -277,6 +278,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             }
 
             HasOlder = Entries.Count > 0 && Entries[0].Index > 0 && page.Entries.Count > 0;
+            WireFiles();
         }
         catch (Exception ex)
         {
@@ -750,9 +752,129 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
         _closed = true;
         _statusClear?.Cancel();
+        foreach (var entry in Entries)
+        {
+            entry.DisposeFiles();
+        }
+
         if (_main.Connection is { IsConnected: true } connection)
         {
             _ = connection.UnwatchAsync(Backend, SessionId).ContinueWith(_ => { }, TaskScheduler.Default);
+        }
+    }
+
+    // ------------------------------------------------------------------ files the agent sent
+
+    /// <summary>Larger images show as a chip: a picture would mean holding all of it in memory first.</summary>
+    public const long MaxPictureSize = 15L * 1024 * 1024;
+
+    /// <summary>The widest a picture is kept (wider ones are scaled down): wider than any phone shows it.</summary>
+    private const int MaxPictureWidth = 1440;
+
+    /// <summary>Every sent file showing can be opened, and each image's picture is fetched once.</summary>
+    private void WireFiles()
+    {
+        foreach (var file in Entries.SelectMany(e => e.Files))
+        {
+            file.Opener ??= OpenSentFileAsync;
+            if (file.IsImage && !file.PictureAsked)
+            {
+                file.PictureAsked = true;
+                _ = LoadPictureAsync(file);
+            }
+        }
+    }
+
+    private async Task LoadPictureAsync(SentFileViewModel file)
+    {
+        if (_main.Connection is not { } connection || _closed)
+        {
+            return;
+        }
+
+        try
+        {
+            var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, file.EntryIndex, file.Number);
+            if (onHub.Size > MaxPictureSize || _closed)
+            {
+                return;
+            }
+
+            using var copy = new MemoryStream();
+            await using (var stream = await connection.DownloadFileAsync(onHub.Id))
+            {
+                await stream.CopyToAsync(copy);
+            }
+
+            copy.Position = 0;
+            var picture = await Task.Run(() =>
+            {
+                var full = new Avalonia.Media.Imaging.Bitmap(copy);
+                if (full.PixelSize.Width <= MaxPictureWidth)
+                {
+                    return full;
+                }
+
+                using (full)
+                {
+                    copy.Position = 0;
+                    return Avalonia.Media.Imaging.Bitmap.DecodeToWidth(copy, MaxPictureWidth);
+                }
+            });
+            AppServices.Post(() => file.Show(picture));
+        }
+        catch (Exception)
+        {
+            // Not fetched, or not an image the phone can read: it stays a chip, which a tap still opens.
+        }
+    }
+
+    /// <summary>Saves a file the agent sent in the phone's Downloads and opens it; a second tap opens the saved copy.</summary>
+    internal async Task OpenSentFileAsync(SentFileViewModel file)
+    {
+        if (AppServices.Files is not { } files)
+        {
+            ShowStatus("This phone can't save files.", problem: true);
+            return;
+        }
+
+        if (_main.Connection is not { } connection || _closed || file.IsBusy)
+        {
+            return;
+        }
+
+        var opening = SentFileKinds.Of(file.Name);
+        try
+        {
+            if (file.Saved is null)
+            {
+                file.IsBusy = true;
+                var onHub = await connection.ChatFileAsync(DeviceId, Backend, SessionId, file.EntryIndex, file.Number);
+                await using var stream = await connection.DownloadFileAsync(onHub.Id);
+                file.Saved = await files.SaveAsync(SentFileKinds.SavedName(file.Name), SentFileKinds.OpenType(file.Name), stream);
+            }
+
+            var saved = $"{file.Name} is saved in {files.Where}.";
+            if (opening == SentFileKinds.Opening.SavedOnly)
+            {
+                ShowStatus(saved + " An app package isn't opened from here; install it from the Files app if you trust it.", problem: false);
+            }
+            else if (!files.Open(file.Saved, SentFileKinds.OpenType(file.Name)))
+            {
+                ShowStatus(saved + " No app on this phone opens it.", problem: false);
+            }
+            else if (opening == SentFileKinds.Opening.AsText)
+            {
+                ShowStatus($"{file.Name} is saved in {files.Where} as {SentFileKinds.SavedName(file.Name)}, a text file, so nothing in it runs.", problem: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Couldn't get {file.Name}: " + Problem(ex), problem: true);
+        }
+        finally
+        {
+            file.IsBusy = false;
         }
     }
 }

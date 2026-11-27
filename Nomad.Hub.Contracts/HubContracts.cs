@@ -25,8 +25,9 @@ public sealed record HubInfo(string Version, Guid DeviceId, string DeviceName, b
 public sealed record PhoneAppInfo(string Version, long VersionCode, long Size, string Sha256, DateTime PublishedUtc);
 
 /// <summary>
-/// A file a phone put on the hub for a prompt (<c>POST api/files?name=</c>): its id, which the PC fetches it by
-/// (<c>GET api/files/{id}</c>), its name and size. The hub keeps it a day.
+/// A file on the hub, kept a day: one a phone put there for a prompt (<c>POST api/files?name=</c>), which the PC fetches by its
+/// id (<c>GET api/files/{id}</c>), or one a chat sent the user that its PC put there for a phone (<see cref="HubNames.ChatFileGet"/>),
+/// which the phone fetches the same way. Its id, name and size.
 /// </summary>
 public sealed record ChatFile(string Id, string Name, long Size);
 
@@ -183,7 +184,19 @@ public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList
 /// carry a card. An activity's <paramref name="Steps"/> are what it did, in order: each command or file with its one line, and
 /// the thinking between them, so the phone can show what the agent is doing, not only that it is busy.
 /// </summary>
-public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null, IReadOnlyList<ChatStep>? Steps = null);
+/// <remarks>
+/// <paramref name="Files"/>: the files the agent sent the user (Claude's SendUserFile, or Nomad's send_file for other agents), in a
+/// <c>notice</c> whose <paramref name="Text"/> names them for a phone that can't show them; a phone that can shows them under
+/// their caption instead, each fetched through <see cref="HubNames.ChatFileGet"/> by the entry's index and its place in the list.
+/// </remarks>
+public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null, IReadOnlyList<ChatStep>? Steps = null,
+    ChatSentFiles? Files = null);
+
+/// <summary>Files a chat sent the user, under the caption it gave them (empty for none).</summary>
+public sealed record ChatSentFiles(string Caption, IReadOnlyList<ChatSentFile> Files);
+
+/// <summary>One sent file: its name, and whether it is an image (PNG, JPEG, GIF, WebP or BMP), which the phone shows as a picture.</summary>
+public sealed record ChatSentFile(string Name, bool Image);
 
 /// <summary>
 /// One step of an activity: <paramref name="Kind"/> <c>tool</c> (<paramref name="Title"/> the tool's name, <paramref name="Detail"/>
@@ -348,6 +361,21 @@ public static class HubNames
 
     /// <summary>Server → the PC, a client result: <c>(NewChat, string fromName)</c> → <see cref="NewChatResult"/>.</summary>
     public const string ChatStartRequested = "ChatStartRequested";
+
+    /// <summary>
+    /// Client → server (the phone): <c>(Guid device, backend, sessionId, int index, int number)</c> → <see cref="ChatFile"/>, file
+    /// <c>number</c> of the sent files in the entry at <c>index</c>; the phone then fetches it with <c>GET api/files/{id}</c>, which
+    /// waits for the PC to finish putting it there.
+    /// </summary>
+    public const string ChatFileGet = "ChatFileGet";
+
+    /// <summary>
+    /// Server → the PC with the chat, a client result: <c>(backend, sessionId, int index, int number, string id)</c> →
+    /// <see cref="ChatFile"/>. The PC answers at once, with <c>id</c> (a place the hub keeps for the file, which only this PC may
+    /// fill, with <c>PUT api/files/{id}?name=</c>, for two minutes) or the id of the same file it put there earlier, and sends the
+    /// file afterwards, so the hub's other calls to it don't wait behind the upload.
+    /// </summary>
+    public const string ChatFileRequested = "ChatFileRequested";
 
     /// <summary>How long the hub waits for a PC to answer for its chat.</summary>
     public static readonly TimeSpan ChatAnswerTimeout = TimeSpan.FromSeconds(15);

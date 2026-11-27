@@ -1,6 +1,8 @@
+using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Nomad.Hub.Contracts;
 
 namespace Nomad.Hub.Tests;
@@ -235,5 +237,89 @@ public sealed class BoardTests
         var after = await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch);
         Assert.Equal(["s1"], Assert.Single(after).Chats.Select(c => c.SessionId));
         Assert.True(Assert.Single(after).Seq > device.Seq);
+    }
+
+    [Fact]
+    public async Task APhoneFetchesAFileAChatSentThroughThePcThatHasIt()
+    {
+        using var hub = new HubFactory();
+        var pcHttp = await hub.EnrollAsync("PC-A");
+        var phoneHttp = await hub.EnrollAsync("Phone", phone: true);
+        await using var pc = hub.Connect(pcHttp);
+        await using var phone = hub.Connect(phoneHttp);
+        byte[] shot = [.. Enumerable.Range(0, 120_000).Select(i => (byte)(i * 13))];
+        var asked = new List<(string Session, int Index, int Number)>();
+        string? named = null;
+        pc.On<string, string, int, int, string, ChatFile>(HubNames.ChatFileRequested, (backend, s, index, number, slot) =>
+        {
+            asked.Add((s, index, number));
+            if (named is not null)
+            {
+                return Task.FromResult(new ChatFile(named, "shot.png", shot.Length));
+            }
+
+            // As the PC does: the answer first, the file after it, a little later.
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(300);
+                (await pcHttp.PutAsync($"/api/files/{slot}?name=shot.png", new ByteArrayContent(shot))).EnsureSuccessStatusCode();
+            });
+            return Task.FromResult(new ChatFile(slot, "..\\shot:1.png", shot.Length));
+        });
+        await pc.StartAsync();
+        await phone.StartAsync();
+        await pc.InvokeAsync(HubNames.BoardPublish, new List<BoardChat> { Chat("s1") });
+        var device = Assert.Single(await phone.InvokeAsync<IReadOnlyList<BoardDevice>>(HubNames.BoardWatch)).DeviceId;
+
+        var file = await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1);
+        Assert.Equal(("s1", 4, 1), Assert.Single(asked));
+        Assert.Equal("shot_1.png", file.Name); // Kept to a plain name, whatever the PC says.
+
+        // The phone's fetch waits for the PC to finish sending it, and gets it as a download, never as something to show.
+        using (var got = await phoneHttp.GetAsync("/api/files/" + file.Id))
+        {
+            Assert.Equal(HttpStatusCode.OK, got.StatusCode);
+            Assert.Equal(shot, await got.Content.ReadAsByteArrayAsync());
+            Assert.Equal("application/octet-stream", got.Content.Headers.ContentType?.MediaType);
+            Assert.Equal("nosniff", Assert.Single(got.Headers.GetValues("X-Content-Type-Options")));
+        }
+
+        // A place is filled once.
+        Assert.Equal(HttpStatusCode.NotFound, (await pcHttp.PutAsync($"/api/files/{file.Id}?name=x", new ByteArrayContent([1]))).StatusCode);
+
+        // The PC may name the copy it put there before...
+        named = file.Id;
+        Assert.Equal(file.Id, (await phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1)).Id);
+
+        // ...but never a file a phone attached, which stays out of a phone's reach.
+        var attached = (await (await phoneHttp.PostAsync("/api/files?name=a.txt", new ByteArrayContent([1, 2, 3]))).Content.ReadFromJsonAsync(HubJson.Default.ChatFile))!;
+        named = attached.Id;
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "s1", 4, 1));
+        Assert.Equal(HttpStatusCode.Forbidden, (await phoneHttp.GetAsync("/api/files/" + attached.Id)).StatusCode);
+
+        // A chat the PC doesn't list never reaches it.
+        await Assert.ThrowsAsync<HubException>(() => phone.InvokeAsync<ChatFile>(HubNames.ChatFileGet, device, "antigravity", "other", 0, 0));
+        Assert.Equal(3, asked.Count);
+    }
+
+    [Fact]
+    public async Task OnlyThePcAPlaceWasKeptForFillsItAndAnUnfilledOneEnds()
+    {
+        using var hub = new HubFactory();
+        var pcA = await hub.EnrollAsync("PC-A");
+        var pcB = await hub.EnrollAsync("PC-B");
+        var phone = await hub.EnrollAsync("Phone", phone: true);
+        var pcAId = (await pcA.GetFromJsonAsync("/api/info", HubJson.Default.HubInfo))!.DeviceId;
+        var slots = hub.Services.GetRequiredService<SentFileSlots>();
+
+        var slot = slots.Reserve(pcAId);
+        Assert.Equal(HttpStatusCode.Forbidden, (await phone.PutAsync($"/api/files/{slot}?name=x.png", new ByteArrayContent([1]))).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await pcB.PutAsync($"/api/files/{slot}?name=x.png", new ByteArrayContent([1]))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await pcA.PutAsync($"/api/files/{slot}?name=x.png", new ByteArrayContent([7]))).StatusCode);
+        Assert.Equal([7], await phone.GetByteArrayAsync("/api/files/" + slot));
+
+        // A place its PC never fills: the phone's fetch waiting on it ends when the place does.
+        var unfilled = slots.Reserve(pcAId, TimeSpan.FromMilliseconds(300));
+        Assert.Equal(HttpStatusCode.NotFound, (await phone.GetAsync("/api/files/" + unfilled)).StatusCode);
     }
 }

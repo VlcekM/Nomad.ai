@@ -882,4 +882,124 @@ public sealed class ViewModelTests
         await chat.SettingsPanel!.LoadAsync();
         Assert.Equal("Sonnet · Low", chat.SettingsSummary);
     }
+
+    private sealed class FakeSaver : IFileSaver
+    {
+        public List<(string Name, string Type, byte[] Bytes)> Saved { get; } = [];
+
+        public List<(string Saved, string Type)> Opened { get; } = [];
+
+        public bool Opens { get; set; } = true;
+
+        public string Where => "Downloads › Nomad";
+
+        public async Task<string> SaveAsync(string name, string type, Stream content, CancellationToken ct = default)
+        {
+            using var copy = new MemoryStream();
+            await content.CopyToAsync(copy, ct);
+            Saved.Add((name, type, copy.ToArray()));
+            return "saved:" + name;
+        }
+
+        public bool Open(string saved, string type)
+        {
+            Opened.Add((saved, type));
+            return Opens;
+        }
+    }
+
+    private static ChatPage WithSentFiles(params string[] names) => Samples.Page() with
+    {
+        Entries = [.. Samples.Page().Entries, new ChatEntry(5, "notice", "Sent files", Files: new ChatSentFiles("", [.. names.Select(n => new ChatSentFile(n, false))]))],
+    };
+
+    [Fact]
+    public async Task A_file_the_agent_sent_is_saved_and_opened_once_tapped_and_opened_again_without_fetching()
+    {
+        var saver = new FakeSaver();
+        AppServices.Files = saver;
+        try
+        {
+            var (main, hub, _) = await SignedInAsync();
+            hub.Pages["d1"] = WithSentFiles("report.pdf");
+            hub.SentFiles["d1/5/0"] = ("report.pdf", [1, 2, 3]);
+            var chat = await OpenAsync(main, "d1");
+            var file = Assert.Single(chat.Entries.Single(e => e.Index == 5).Files);
+            Assert.DoesNotContain(hub.Calls, c => c.StartsWith("ChatFile", StringComparison.Ordinal)); // Nothing fetched until tapped.
+
+            await file.OpenCommand.ExecuteAsync(null);
+            Assert.Equal("report.pdf", saver.Saved.Single().Name);
+            Assert.Equal([1, 2, 3], saver.Saved.Single().Bytes);
+            Assert.Equal(("saved:report.pdf", "application/pdf"), saver.Opened.Single());
+
+            await file.OpenCommand.ExecuteAsync(null);
+            Assert.Single(saver.Saved);
+            Assert.Equal(2, saver.Opened.Count);
+            Assert.Single(hub.Calls, c => c == "ChatFile d1 5 0");
+        }
+        finally
+        {
+            AppServices.Files = null;
+        }
+    }
+
+    [Fact]
+    public async Task A_web_page_opens_as_text_and_an_app_package_is_only_saved()
+    {
+        var saver = new FakeSaver();
+        AppServices.Files = saver;
+        try
+        {
+            var (main, hub, _) = await SignedInAsync();
+            hub.Pages["d1"] = WithSentFiles("page.html", "drawing.svg", "tool.apk");
+            hub.SentFiles["d1/5/0"] = ("page.html", "<script>alert(1)</script>"u8.ToArray());
+            hub.SentFiles["d1/5/1"] = ("drawing.svg", "<svg/>"u8.ToArray());
+            hub.SentFiles["d1/5/2"] = ("tool.apk", [0x50, 0x4b]);
+            var chat = await OpenAsync(main, "d1");
+            var files = chat.Entries.Single(e => e.Index == 5).Files;
+
+            await files[0].OpenCommand.ExecuteAsync(null);
+            await files[1].OpenCommand.ExecuteAsync(null);
+            // Kept as text files, under names and a type no viewer runs, whatever it is asked to open them as.
+            Assert.Equal([("page.html.txt", "text/plain"), ("drawing.svg.txt", "text/plain")], saver.Saved.Select(s => (s.Name, s.Type)));
+            Assert.Equal([("saved:page.html.txt", "text/plain"), ("saved:drawing.svg.txt", "text/plain")], saver.Opened);
+            Assert.Contains("as drawing.svg.txt, a text file, so nothing in it runs", chat.Status);
+
+            await files[2].OpenCommand.ExecuteAsync(null);
+            Assert.Equal(3, saver.Saved.Count);
+            Assert.Equal(2, saver.Opened.Count); // Never handed to the installer.
+            Assert.Contains("isn't opened from here", chat.Status);
+        }
+        finally
+        {
+            AppServices.Files = null;
+        }
+    }
+
+    [Fact]
+    public async Task A_file_no_longer_in_the_chat_says_so_and_an_older_PC_s_notice_stays_a_notice()
+    {
+        var saver = new FakeSaver();
+        AppServices.Files = saver;
+        try
+        {
+            var (main, hub, _) = await SignedInAsync();
+            var page = WithSentFiles("gone.txt");
+            hub.Pages["d1"] = page with { Entries = [.. page.Entries, new ChatEntry(6, "notice", "Sent files: a caption")] };
+            var chat = await OpenAsync(main, "d1");
+
+            await chat.Entries.Single(e => e.Index == 5).Files[0].OpenCommand.ExecuteAsync(null);
+            Assert.Empty(saver.Saved);
+            Assert.True(chat.StatusIsProblem);
+            Assert.Contains("Couldn't get gone.txt: That file is no longer in the chat", chat.Status);
+
+            var old = chat.Entries.Single(e => e.Index == 6);
+            Assert.True(old.IsNotice);
+            Assert.Empty(old.Files);
+        }
+        finally
+        {
+            AppServices.Files = null;
+        }
+    }
 }
