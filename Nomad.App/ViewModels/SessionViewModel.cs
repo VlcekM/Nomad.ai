@@ -2356,10 +2356,11 @@ public sealed partial class SessionViewModel : ObservableObject
     /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
     /// </summary>
     public Task<MessageDelivery> ReceivePromptAsync(string text, string from, IReadOnlyList<Attachment>? attachments = null) =>
-        DeliverAsync(text, from, attachments ?? []);
+        DeliverAsync(text, from, attachments);
 
-    private async Task<MessageDelivery> DeliverAsync(string text, string? from, IReadOnlyList<Attachment> attachments)
+    private async Task<MessageDelivery> DeliverAsync(string text, string? from, IReadOnlyList<Attachment>? attachments = null)
     {
+        attachments ??= [];
         // Two processes on one transcript would interleave it: the window or terminal running it keeps it, as for one typed here.
         if (!IsProcessRunning && SessionId is { } id && _main.IsRunningElsewhere(id))
         {
