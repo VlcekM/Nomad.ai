@@ -19,8 +19,8 @@ public sealed record OpenCodeModel(string ProviderId, string ProviderName, strin
 /// <summary>A primary OpenCode agent the user can switch to (build, plan, custom ones).</summary>
 public sealed record OpenCodeAgent(string Name, string? Description);
 
-/// <summary>A stored OpenCode session, for the session list.</summary>
-public sealed record OpenCodeSessionInfo(string Id, string? Directory, string Title, DateTime UpdatedUtc, string? Model);
+/// <summary>A stored OpenCode session, for the session list; <paramref name="Cost"/> is what it spent, null when the server doesn't say.</summary>
+public sealed record OpenCodeSessionInfo(string Id, string? Directory, string Title, DateTime UpdatedUtc, string? Model, double? Cost = null);
 
 /// <summary>An input prompt an OpenCode OAuth method asks for before opening the browser (e.g. GitLab instance URL).</summary>
 public sealed record OpenCodeAuthPrompt(
@@ -268,7 +268,8 @@ public static partial class OpenCodeClient
                 OpenCodeJson.Str(s, "directory") ?? OpenCodeJson.Str(OpenCodeJson.Obj(s, "location"), "directory"),
                 OpenCodeTitles.Clean(OpenCodeJson.Str(s, "title")),
                 DateTimeOffset.FromUnixTimeMilliseconds(updated).UtcDateTime,
-                modelId));
+                modelId,
+                OpenCodeJson.Double(s, "cost")));
         }
     }
 

@@ -53,22 +53,7 @@ public static class OpenCodeCost
             var since = monthStart.ToUnixTimeMilliseconds();
             var cache = ReadCache(since);
 
-            // Every session, subagents' included (they bill too); one touched this month may hold costs from it.
-            using var list = await server.Http.GetAsync("experimental/session?limit=5000", cancellationToken).ConfigureAwait(false);
-            list.EnsureSuccessStatusCode();
-            using var doc = JsonDocument.Parse(await list.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false));
-            var wanted = new List<(string Id, long Updated)>();
-            if (doc.RootElement.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var s in doc.RootElement.EnumerateArray())
-                {
-                    var updated = OpenCodeJson.Long(OpenCodeJson.Obj(s, "time"), "updated") ?? 0;
-                    if (OpenCodeJson.Str(s, "id") is { } id && updated >= since && (OpenCodeJson.Double(s, "cost") ?? 0) > 0)
-                    {
-                        wanted.Add((id, updated));
-                    }
-                }
-            }
+            var wanted = await SessionsSinceAsync(server, since, cancellationToken).ConfigureAwait(false);
 
             var fresh = new Dictionary<string, SessionCost>(StringComparer.Ordinal);
             var stale = new List<(string Id, long Updated)>();
@@ -106,6 +91,21 @@ public static class OpenCodeCost
         {
             Gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Every session, subagents' included (they bill too), touched since <paramref name="since"/>: one touched this month may hold costs
+    /// from it. A session the server says cost nothing is left out; one whose cost it doesn't say is read anyway.
+    /// </summary>
+    private static async Task<List<(string Id, long Updated)>> SessionsSinceAsync(OpenCodeServer server, long since, CancellationToken ct)
+    {
+        var sessions = await OpenCodeClient.ListSessionsAsync(server, 5000, ct, rootsOnly: false).ConfigureAwait(false);
+
+        return sessions
+            .Select(s => (s.Id, Updated: new DateTimeOffset(s.UpdatedUtc, TimeSpan.Zero).ToUnixTimeMilliseconds(), s.Cost))
+            .Where(s => s.Updated >= since && (s.Cost is null || s.Cost > 0))
+            .Select(s => (s.Id, s.Updated))
+            .ToList();
     }
 
     /// <summary>A session's message list (<c>[{ info, parts }]</c>): its paid assistant messages from <paramref name="since"/> on, by model.</summary>
