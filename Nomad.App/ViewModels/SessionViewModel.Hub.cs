@@ -53,12 +53,12 @@ public sealed partial class SessionViewModel
 
         // Set first: the turn so far arrives while it starts, and Apply takes only the current backend's events.
         _backend = relay;
-        relay.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(relay, e));
+        relay.EventReceived += e => EnqueueEvent(relay, e);
         relay.EventReceived += e =>
         {
             if (e is ProcessExitedEvent)
             {
-                Dispatcher.UIThread.Post(() => _ = ReloadFromStoreAsync());
+                Dispatcher.UIThread.Post(() => _ = ReloadFromStoreAsync(), DispatcherPriority.Background);
             }
         };
         try

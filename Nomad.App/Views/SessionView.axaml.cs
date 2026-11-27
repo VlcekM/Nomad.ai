@@ -349,12 +349,22 @@ public partial class SessionView : UserControl
 
     // Set while ScrollToEnd chases an end that moves as the last items are realized (see OnScrollChanged).
     private bool _seekingEnd;
+    private bool _scrollToEndPosted;
 
-    private void ScrollToEndSoon() =>
+    private void ScrollToEndSoon()
+    {
+        if (_scrollToEndPosted)
+        {
+            return;
+        }
+
+        _scrollToEndPosted = true;
         Dispatcher.UIThread.Post(ScrollToEnd, DispatcherPriority.Loaded);
+    }
 
     private void ScrollToEnd()
     {
+        _scrollToEndPosted = false;
         // Already there, nothing moves and no ScrollChanged would end the chase.
         _seekingEnd = !AtBottom();
         Scroller.ScrollToEnd();
@@ -517,13 +527,21 @@ public partial class SessionView : UserControl
         var previous = _findHit >= 0 && _findHit < _findHits.Count ? _findHits[_findHit] : default;
         var previousIndex = _findHit;
         _findHits.Clear();
+        var first = !keep ? FirstVisibleIndex() : 0;
+        var firstVisibleHit = -1;
         if (query.Length > 0 && Vm is { } vm)
         {
-            foreach (var item in vm.Items)
+            for (var itemIndex = 0; itemIndex < vm.Items.Count; itemIndex++)
             {
+                var item = vm.Items[itemIndex];
                 if (FindableText(item, vm.ShowActivity) is { Length: > 0 } text)
                 {
                     var count = Controls.FindHighlights.Count(text, query);
+                    if (count > 0 && firstVisibleHit < 0 && itemIndex >= first)
+                    {
+                        firstVisibleHit = _findHits.Count;
+                    }
+
                     for (var n = 0; n < count; n++)
                     {
                         _findHits.Add((item, n));
@@ -543,9 +561,7 @@ public partial class SessionView : UserControl
         }
         else
         {
-            var first = FirstVisibleIndex();
-            var items = Vm!.Items;
-            _findHit = Math.Max(0, _findHits.FindIndex(h => items.IndexOf(h.Item) >= first));
+            _findHit = Math.Max(0, firstVisibleHit);
         }
 
         UpdateFindCount();

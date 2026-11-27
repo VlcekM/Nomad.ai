@@ -3694,47 +3694,62 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
-        foreach (var item in history.Items.Skip(_historyCount))
+        _deferGroupRefresh = true;
+        var dirtyGroups = new HashSet<ToolGroupItem>();
+        try
         {
-            switch (item)
+            foreach (var item in history.Items.Skip(_historyCount))
             {
-                case HistoryUserMessage u:
-                    CloseGroup();
-                    var (promptText, promptFiles) = AttachedFiles.Split(u.Text);
-                    Items.Add(new UserMessageItem(promptText, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true)
-                    {
-                        ParentUuid = u.ParentUuid,
-                        Files = promptFiles,
-                        Images = u.Images.Select(DecodeImage).OfType<Avalonia.Media.Imaging.Bitmap>().ToList(),
-                        IsSteered = u.IsQueued,
-                    });
-                    break;
-                case HistoryAssistantText a:
-                    CloseGroup();
-                    Items.Add(new AssistantTextItem(a.MessageId, -1, a.Text, streaming: false));
-                    break;
-                case HistoryHookContext h:
-                    AddHookContext(h.Text);
-                    break;
-                case HistoryThinking t:
-                    AddThinking(new ThinkingItem("", -1, t.Text, streaming: false, NarratesInThinking));
-                    break;
-                case HistoryToolCall c:
-                    var call = AddCall(c.ToolUseId, c.Name);
-                    call.SetInput(c.Input);
-                    break;
-                case HistoryToolResult r:
-                    CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
-                    break;
-                case HistoryNotice n:
-                    if (n.IsTaskNotification) NoteTaskNotified();
+                switch (item)
+                {
+                    case HistoryUserMessage u:
+                        CloseGroup();
+                        var (promptText, promptFiles) = AttachedFiles.Split(u.Text);
+                        Items.Add(new UserMessageItem(promptText, u.Uuid, u.TimestampUtc ?? fallbackTimeUtc, seen: true)
+                        {
+                            ParentUuid = u.ParentUuid,
+                            Files = promptFiles,
+                            Images = u.Images.Select(DecodeImage).OfType<Avalonia.Media.Imaging.Bitmap>().ToList(),
+                            IsSteered = u.IsQueued,
+                        });
+                        break;
+                    case HistoryAssistantText a:
+                        CloseGroup();
+                        Items.Add(new AssistantTextItem(a.MessageId, -1, a.Text, streaming: false));
+                        break;
+                    case HistoryHookContext h:
+                        AddHookContext(h.Text);
+                        break;
+                    case HistoryThinking t:
+                        AddThinking(new ThinkingItem("", -1, t.Text, streaming: false, NarratesInThinking));
+                        break;
+                    case HistoryToolCall c:
+                        var call = AddCall(c.ToolUseId, c.Name);
+                        call.SetInput(c.Input);
+                        if (_groupOfCall.TryGetValue(c.ToolUseId, out var addedGroup)) dirtyGroups.Add(addedGroup);
+                        break;
+                    case HistoryToolResult r:
+                        CompleteCall(r.ToolUseId, r.IsError, r.Text, r.Structured, r.Images);
+                        if (_groupOfCall.TryGetValue(r.ToolUseId, out var doneGroup)) dirtyGroups.Add(doneGroup);
+                        break;
+                    case HistoryNotice n:
+                        if (n.IsTaskNotification) NoteTaskNotified();
 
-                    // Its card says it ended.
-                    if (Workflows.Count > 0 && n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal)) break;
+                        // Its card says it ended.
+                        if (Workflows.Count > 0 && n.Text.StartsWith("Dynamic workflow \"", StringComparison.Ordinal)) break;
 
-                    CloseGroup();
-                    Items.Add(new NoticeItem(n.Text));
-                    break;
+                        CloseGroup();
+                        Items.Add(new NoticeItem(n.Text));
+                        break;
+                }
+            }
+        }
+        finally
+        {
+            _deferGroupRefresh = false;
+            foreach (var group in dirtyGroups)
+            {
+                group.Refresh();
             }
         }
 
@@ -3976,9 +3991,94 @@ public sealed partial class SessionViewModel : ObservableObject
             claude.RawLine += (line, outgoing) => File.AppendAllText(log, (outgoing ? "> " : "< ") + line + Environment.NewLine);
         }
 
-        backend.EventReceived += e => Dispatcher.UIThread.Post(() => Apply(backend, e));
+        backend.EventReceived += e => EnqueueEvent(backend, e);
         AttachRelay(backend);
         return backend;
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<(IAgentBackend Source, AgentEvent Event)> _pendingEvents = new();
+    private int _drainScheduled;
+    private bool _deferGroupRefresh;
+    private static readonly TimeSpan EventDrainBudget = TimeSpan.FromMilliseconds(12);
+
+    /// <summary>
+    /// Queues a backend event for the UI thread and schedules a single Background-priority drain pass so bursts of
+    /// streaming tokens are coalesced and never starve user input or window messages.
+    /// </summary>
+    private void EnqueueEvent(IAgentBackend source, AgentEvent e)
+    {
+        _pendingEvents.Enqueue((source, e));
+        if (Interlocked.CompareExchange(ref _drainScheduled, 1, 0) == 0)
+        {
+            Dispatcher.UIThread.Post(DrainEvents, DispatcherPriority.Background);
+        }
+    }
+
+    private void DrainEvents()
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (_pendingEvents.TryDequeue(out var next))
+        {
+            if (next.Event is TextDeltaEvent td)
+            {
+                Apply(next.Source, MergeTextDeltas(next.Source, td));
+            }
+            else if (next.Event is ThinkingDeltaEvent thd)
+            {
+                Apply(next.Source, MergeThinkingDeltas(next.Source, thd));
+            }
+            else
+            {
+                Apply(next.Source, next.Event);
+            }
+
+            if (System.Diagnostics.Stopwatch.GetElapsedTime(started) >= EventDrainBudget)
+            {
+                break;
+            }
+        }
+
+        Volatile.Write(ref _drainScheduled, 0);
+        if (!_pendingEvents.IsEmpty && Interlocked.CompareExchange(ref _drainScheduled, 1, 0) == 0)
+        {
+            Dispatcher.UIThread.Post(DrainEvents, DispatcherPriority.Background);
+        }
+    }
+
+    private TextDeltaEvent MergeTextDeltas(IAgentBackend source, TextDeltaEvent first)
+    {
+        System.Text.StringBuilder? sb = null;
+        while (_pendingEvents.TryPeek(out var peek)
+            && ReferenceEquals(peek.Source, source)
+            && peek.Event is TextDeltaEvent more
+            && more.Index == first.Index
+            && more.MessageId == first.MessageId
+            && more.ParentToolUseId == first.ParentToolUseId)
+        {
+            _pendingEvents.TryDequeue(out _);
+            sb ??= new System.Text.StringBuilder(first.Text);
+            sb.Append(more.Text);
+        }
+
+        return sb is null ? first : first with { Text = sb.ToString() };
+    }
+
+    private ThinkingDeltaEvent MergeThinkingDeltas(IAgentBackend source, ThinkingDeltaEvent first)
+    {
+        System.Text.StringBuilder? sb = null;
+        while (_pendingEvents.TryPeek(out var peek)
+            && ReferenceEquals(peek.Source, source)
+            && peek.Event is ThinkingDeltaEvent more
+            && more.Index == first.Index
+            && more.MessageId == first.MessageId
+            && more.ParentToolUseId == first.ParentToolUseId)
+        {
+            _pendingEvents.TryDequeue(out _);
+            sb ??= new System.Text.StringBuilder(first.Text);
+            sb.Append(more.Text);
+        }
+
+        return sb is null ? first : first with { Text = sb.ToString() };
     }
 
     /// <summary>
@@ -4105,7 +4205,7 @@ public sealed partial class SessionViewModel : ObservableObject
             return;
         }
 
-        var parent = message.ParentUuid ?? ParentInTranscript(message.Uuid);
+        var parent = message.ParentUuid ?? await ParentInTranscriptAsync(message.Uuid);
         await ShutdownAsync();
         _main.OnAliveChanged(this);
 
@@ -4148,6 +4248,12 @@ public sealed partial class SessionViewModel : ObservableObject
     /// <summary>The record before <paramref name="uuid"/> in this session's transcript.</summary>
     public string? ParentInTranscript(string uuid) =>
         SessionId is { } id && _main.Store.FindTranscript(id) is { } file ? SessionStore.ParentOf(file, uuid) : null;
+
+    /// <summary>Finds the record before <paramref name="uuid"/> off the UI thread so large transcripts do not stall.</summary>
+    public Task<string?> ParentInTranscriptAsync(string uuid) =>
+        SessionId is { } id && _main.Store.FindTranscript(id) is { } file
+            ? Task.Run(() => SessionStore.ParentOf(file, uuid))
+            : Task.FromResult<string?>(null);
 
     /// <summary>Refreshes the "5 minutes ago" of every prompt.</summary>
     public void TickClock()
@@ -4718,7 +4824,7 @@ public sealed partial class SessionViewModel : ObservableObject
         _calls[toolUseId] = call;
         _groupOfCall[toolUseId] = _openGroup;
         _turnToolCount++;
-        _openGroup.Refresh();
+        if (!_deferGroupRefresh) _openGroup.Refresh();
         return call;
     }
 
@@ -4732,7 +4838,7 @@ public sealed partial class SessionViewModel : ObservableObject
         call.Status = isError ? ToolStatus.Failed : ToolStatus.Done;
         call.ResultText = text.Length > MaxResultChars ? text[..MaxResultChars] + "\n…" : text;
         (call.Added, call.Removed) = isError ? (0, 0) : ToolText.DiffStat(call.Name, structured);
-        _groupOfCall[toolUseId].Refresh();
+        if (!_deferGroupRefresh) _groupOfCall[toolUseId].Refresh();
 
         if (images is { Count: > 0 })
         {

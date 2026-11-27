@@ -47,7 +47,7 @@ public static class MarkdownRenderer
     private static IBrush Link => Brush("LinkBrush", Color.Parse("#6FA2EA"));
 
     /// <summary>Renders one top-level block. <paramref name="isFirst"/> drops the heading top margin.</summary>
-    public static Control RenderBlock(Block block, bool isFirst, bool quoted = false)
+    public static Control RenderBlock(Block block, bool isFirst, bool quoted = false, bool highlight = true)
     {
         var style = MarkdownStyle.Current;
         switch (block)
@@ -64,13 +64,13 @@ public static class MarkdownRenderer
                 return RenderInlines(paragraph.Inline, style.BodySize, style.LineHeight, quoted ? TextSecondary : TextPrimary);
 
             case ListBlock list:
-                return RenderList(list, quoted);
+                return RenderList(list, quoted, highlight);
 
             case FencedCodeBlock fenced:
-                return RenderCode(CodeText(fenced), fenced.Info);
+                return RenderCode(CodeText(fenced), fenced.Info, highlight);
 
             case CodeBlock code:
-                return RenderCode(CodeText(code), null);
+                return RenderCode(CodeText(code), null, highlight);
 
             case QuoteBlock quote:
             {
@@ -78,7 +78,7 @@ public static class MarkdownRenderer
                 var first = true;
                 foreach (var child in quote)
                 {
-                    panel.Children.Add(RenderBlock(child, first, quoted: true));
+                    panel.Children.Add(RenderBlock(child, first, quoted: true, highlight: highlight));
                     first = false;
                 }
 
@@ -113,7 +113,7 @@ public static class MarkdownRenderer
                 var first = true;
                 foreach (var child in container)
                 {
-                    panel.Children.Add(RenderBlock(child, first, quoted));
+                    panel.Children.Add(RenderBlock(child, first, quoted, highlight));
                     first = false;
                 }
 
@@ -459,7 +459,7 @@ public static class MarkdownRenderer
 
     // ------------------------------------------------------------------ lists
 
-    private static Control RenderList(ListBlock list, bool quoted)
+    private static Control RenderList(ListBlock list, bool quoted, bool highlight = true)
     {
         var style = MarkdownStyle.Current;
         var panel = new StackPanel { Spacing = 2 };
@@ -494,7 +494,7 @@ public static class MarkdownRenderer
             var first = true;
             foreach (var block in item)
             {
-                content.Children.Add(RenderBlock(block, first, quoted));
+                content.Children.Add(RenderBlock(block, first, quoted, highlight));
                 first = false;
             }
 
@@ -591,7 +591,7 @@ public static class MarkdownRenderer
         return inlines;
     }
 
-    public static Control RenderCode(string code, string? language)
+    public static Control RenderCode(string code, string? language, bool highlight = true)
     {
         var style = MarkdownStyle.Current;
         var text = new SelectableTextBlock
@@ -603,7 +603,7 @@ public static class MarkdownRenderer
             TextWrapping = TextWrapping.NoWrap,
             Margin = new Thickness(12, 11, 12, 11),
         };
-        if (Highlight(code, language) is { } inlines)
+        if (highlight && Highlight(code, language) is { } inlines)
         {
             text.Inlines = inlines;
         }

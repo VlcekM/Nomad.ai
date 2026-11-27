@@ -300,6 +300,37 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
         }
     }
 
+    /// <summary>Closes stdin asynchronously without blocking the caller if a write is stalled on a hung CLI.</summary>
+    private async Task CloseInputAsync()
+    {
+        if (!await _writeLock.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false))
+        {
+            _inputClosed = true;
+            return;
+        }
+
+        try
+        {
+            if (_inputClosed || _process is null)
+            {
+                return;
+            }
+
+            _inputClosed = true;
+            try
+            {
+                _process.StandardInput.Close();
+            }
+            catch (IOException)
+            {
+            }
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
     /// <summary>Closes stdin and waits for a graceful exit; kills the process tree after the grace period.</summary>
     public async Task StopAsync(TimeSpan grace)
     {
@@ -308,7 +339,7 @@ public sealed class ClaudeCliProcess : IAsyncDisposable
             return;
         }
 
-        CloseInput();
+        await CloseInputAsync().ConfigureAwait(false);
         var finished = await Task.WhenAny(_exited.Task, Task.Delay(grace)).ConfigureAwait(false);
         if (finished != _exited.Task)
         {

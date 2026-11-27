@@ -117,7 +117,6 @@ public sealed class TranscriptPanel : VirtualizingPanel
             }
 
             var childSize = new Size(width, double.PositiveInfinity);
-            var clock = Stopwatch.StartNew();
 
             // The view (its items are built whatever that costs) inside the area to build (the rest within the budget).
             var view = _viewport.Height > 0 ? _viewport : _extended;
@@ -155,9 +154,6 @@ public sealed class TranscriptPanel : VirtualizingPanel
                 return element;
             }
 
-            // Already built (or parked): taking it costs nothing, budget or no budget.
-            bool Cheap(int at) => IsBuilt(at, old, oldFirst) || clock.Elapsed < BuildBudget;
-
             // Down through the view...
             var below = new List<Control>();
             var index = anchor;
@@ -171,11 +167,22 @@ public sealed class TranscriptPanel : VirtualizingPanel
             }
             while (u < viewBottom && index < items.Count);
 
+            // Budget starts after the mandatory viewport pass, and always allows at least one new buffer item so
+            // ContinueSoon can never spin building zero items per frame when visible items alone take > BuildBudget.
+            var clock = Stopwatch.StartNew();
+            var builtExtra = false;
+            bool Cheap(int at) => IsBuilt(at, old, oldFirst) || !builtExtra || clock.Elapsed < BuildBudget;
+
             // ...then beyond it on either side, the way the view is going first.
             void ExtendDown()
             {
                 while (u < end && index < items.Count && Cheap(index))
                 {
+                    if (!IsBuilt(index, old, oldFirst))
+                    {
+                        builtExtra = true;
+                    }
+
                     var element = Build(index);
                     below.Add(element);
                     u += element.DesiredSize.Height;
@@ -192,6 +199,11 @@ public sealed class TranscriptPanel : VirtualizingPanel
             {
                 while (topU > start && top >= 0 && Cheap(top))
                 {
+                    if (!IsBuilt(top, old, oldFirst))
+                    {
+                        builtExtra = true;
+                    }
+
                     var element = Build(top);
                     above.Add(element);
                     topU -= element.DesiredSize.Height;
@@ -610,7 +622,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
     {
         _aheadPosted = false;
         var items = Items;
-        if (VisualRoot is null || ItemContainerGenerator is null || items.Count != _heights.Count || double.IsNaN(_width)
+        if (VisualRoot is null || !IsEffectivelyVisible || ItemContainerGenerator is null || items.Count != _heights.Count || double.IsNaN(_width)
             || _elements.Count == 0)
         {
             return;
