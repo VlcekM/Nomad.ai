@@ -76,6 +76,12 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
         parameters["developerInstructions"] = _additionalDirectories.Count == 0 ? ""
             : "Additional workspace folders selected by the user:\n" + string.Join("\n", _additionalDirectories);
 
+        // The chat tools and Nomad's desktop tools, through the same bridge Antigravity uses.
+        if (options.ChatKey is { } chatKey && ChatBridge.CodexConfig(chatKey) is { } config)
+        {
+            parameters["config"] = config;
+        }
+
         JsonElement result;
         if (options.ResumeSessionId is { } source && options.ForkSession)
         {

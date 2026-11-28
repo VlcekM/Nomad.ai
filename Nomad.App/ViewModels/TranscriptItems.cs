@@ -563,50 +563,71 @@ public partial class PermissionItem : TranscriptItem
 }
 
 /// <summary>
-/// Files Claude sent with SendUserFile: images shown in the transcript (a click opens them large), other files as chips
-/// that open on a click, under the call's caption.
+/// Files sent to the user (Claude's SendUserFile, or Nomad's send_file tool for other agents): images shown in the transcript (a
+/// click opens them large), other files as chips that open on a click, under the call's caption.
 /// </summary>
 public sealed class SentFilesItem : TranscriptItem
 {
+    /// <summary>
+    /// The files of a SendUserFile call's input (<c>files</c>, relative ones taken from <paramref name="cwd"/>) under its caption.
+    /// </summary>
     public SentFilesItem(JsonElement input, string? cwd)
+        : this(Paths(input, cwd), input.ValueKind == JsonValueKind.Object && input.TryGetProperty("caption", out var caption) &&
+            caption.ValueKind == JsonValueKind.String ? caption.GetString() : null)
     {
-        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("caption", out var caption) &&
-            caption.ValueKind == JsonValueKind.String)
-        {
-            Caption = caption.GetString() ?? "";
-        }
+    }
 
+    /// <summary>
+    /// These files, under the caption.
+    /// </summary>
+    public SentFilesItem(IReadOnlyList<string> paths, string? caption)
+    {
+        Caption = caption ?? "";
+        SentPaths = paths;
         var images = new List<Avalonia.Media.Imaging.Bitmap>();
         var files = new List<Attachment>();
-        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("files", out var list) &&
-            list.ValueKind == JsonValueKind.Array)
+        foreach (var path in paths)
         {
-            foreach (var entry in list.EnumerateArray())
+            if (PromptImages.FromPath(path) is { Preview: { } preview })
             {
-                if (entry.GetString() is not { Length: > 0 } path)
-                {
-                    continue;
-                }
-
-                if (!Path.IsPathRooted(path) && cwd is not null)
-                {
-                    path = Path.GetFullPath(Path.Combine(cwd, path));
-                }
-
-                if (PromptImages.FromPath(path) is { Preview: { } preview })
-                {
-                    images.Add(preview);
-                }
-                else
-                {
-                    files.Add(Attachment.ForFile(path));
-                }
+                images.Add(preview);
+            }
+            else
+            {
+                files.Add(Attachment.ForFile(path));
             }
         }
 
         Images = images;
         Files = files;
     }
+
+    /// <summary>
+    /// The full paths in a SendUserFile input's <c>files</c>.
+    /// </summary>
+    private static List<string> Paths(JsonElement input, string? cwd)
+    {
+        var paths = new List<string>();
+        if (input.ValueKind == JsonValueKind.Object && input.TryGetProperty("files", out var list) && list.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var entry in list.EnumerateArray())
+            {
+                if (entry.ValueKind != JsonValueKind.String || entry.GetString() is not { Length: > 0 } path)
+                {
+                    continue;
+                }
+
+                paths.Add(!Path.IsPathRooted(path) && cwd is not null ? Path.GetFullPath(Path.Combine(cwd, path)) : path);
+            }
+        }
+
+        return paths;
+    }
+
+    /// <summary>
+    /// The files' full paths, images and others alike, in the order sent.
+    /// </summary>
+    public IReadOnlyList<string> SentPaths { get; }
 
     public string Caption { get; } = "";
 

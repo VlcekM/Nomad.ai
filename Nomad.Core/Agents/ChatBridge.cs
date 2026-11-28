@@ -6,9 +6,11 @@ using System.Text.Json.Nodes;
 namespace Nomad.Core.Agents;
 
 /// <summary>
-/// How agents that take only command-line MCP servers (Antigravity) reach the chat tools. Nomad listens on a named pipe; the agent
-/// starts <c>Nomad.ai.exe --chat-bridge &lt;pipe&gt; &lt;chat key&gt;</c>, which relays its stdin and stdout to that pipe. The first line
-/// on the pipe is the chat key, so every call is answered for the chat that made it.
+/// How agents that take only command-line MCP servers (Antigravity, Codex) reach the chat tools and <see cref="AgentTools"/>. Nomad
+/// listens on a named pipe; the agent starts <c>Nomad.ai.exe --chat-bridge &lt;pipe&gt; &lt;chat key&gt;</c>, which relays its stdin and
+/// stdout to that pipe. The first line on the pipe is the chat key, so every call is answered for the chat that made it. The bridge
+/// process only relays: every call runs in the Nomad window's own process, on the user's desktop, even when the agent started the
+/// bridge on a hidden one.
 /// </summary>
 public static class ChatBridge
 {
@@ -44,10 +46,36 @@ public static class ChatBridge
 
         return new JsonObject
         {
-            ["name"] = "nomad_chats",
+            ["name"] = ServerName,
             ["command"] = exe,
             ["args"] = new JsonArray(Argument, pipe, chatKey),
             ["env"] = new JsonArray(),
+        };
+    }
+
+    /// <summary>
+    /// The server name both agents see the tools under (Antigravity calls them <c>mcp_nomad_chats_…</c>, Codex
+    /// <c>mcp__nomad_chats__…</c>).
+    /// </summary>
+    public const string ServerName = "nomad_chats";
+
+    /// <summary>
+    /// The thread config a Codex <c>thread/start</c>, <c>thread/resume</c> or <c>thread/fork</c> takes to add the bridge as an MCP
+    /// server for the chat with <paramref name="chatKey"/> (one app server runs every Codex chat, so each thread names its own key);
+    /// null when not listening. Its tool time limit leaves room for the longest command <c>run_on_desktop</c> allows.
+    /// </summary>
+    public static JsonObject? CodexConfig(string chatKey)
+    {
+        if (PipeName is not { } pipe || Environment.ProcessPath is not { } exe) return null;
+
+        return new JsonObject
+        {
+            ["mcp_servers." + ServerName] = new JsonObject
+            {
+                ["command"] = exe,
+                ["args"] = new JsonArray(Argument, pipe, chatKey),
+                ["tool_timeout_sec"] = (int)DesktopCommand.MaxTimeout.TotalSeconds + 60,
+            },
         };
     }
 
@@ -58,15 +86,19 @@ public static class ChatBridge
     {
         while (true)
         {
-            NamedPipeServerStream pipe;
+            NamedPipeServerStream? pipe = null;
             try
             {
                 pipe = new NamedPipeServerStream(PipeName!, PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances,
                     PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync().ConfigureAwait(false);
             }
-            catch (IOException)
+            catch (Exception ex)
             {
+                // A client that hung up mid-connect, or a pipe that could not be made: try again shortly, rather than stop
+                // serving every chat for the rest of the session.
+                pipe?.Dispose();
+                AgentToolLog.Write($"The chat bridge's pipe failed ({ex.GetType().Name}: {ex.Message}); listening again.");
                 await Task.Delay(1000).ConfigureAwait(false);
                 continue;
             }
@@ -78,44 +110,118 @@ public static class ChatBridge
     /// <summary>
     /// One bridge process: its chat key, then one JSON-RPC message per line each way.
     /// </summary>
-    private static async Task ServeAsync(NamedPipeServerStream pipe)
+    internal static async Task ServeAsync(Stream pipe)
     {
         await using var _ = pipe;
         using var reader = new StreamReader(pipe, new UTF8Encoding(false));
         await using var writer = new StreamWriter(pipe, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };
+        // Calls are answered as they finish, each on its own, so a long one (a command on the desktop) holds up no other.
+        var writing = new SemaphoreSlim(1, 1);
+        var calls = new List<Task>();
+        // Cancelled when the bridge process goes away; each call's own token is also cancelled by MCP's notifications/cancelled.
+        using var connection = new CancellationTokenSource();
+        var pending = new System.Collections.Concurrent.ConcurrentDictionary<string, CancellationTokenSource>(StringComparer.Ordinal);
         try
         {
             var key = await reader.ReadLineAsync().ConfigureAwait(false);
             while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
             {
-                if (await AnswerAsync(line, key).ConfigureAwait(false) is { } response)
-                    await writer.WriteLineAsync(response.ToJsonString()).ConfigureAwait(false);
+                calls.RemoveAll(c => c.IsCompleted);
+                if (Parse(line) is not { } message) continue;
+
+                if (CancelledRequest(message) is { } cancelled)
+                {
+                    try
+                    {
+                        if (pending.TryGetValue(cancelled, out var call)) await call.CancelAsync().ConfigureAwait(false);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // It finished just now.
+                    }
+
+                    continue;
+                }
+
+                var id = message.TryGetProperty("id", out var raw) ? raw.GetRawText() : null;
+                var own = CancellationTokenSource.CreateLinkedTokenSource(connection.Token);
+                if (id is not null) pending[id] = own;
+                calls.Add(Task.Run(async () =>
+                {
+                    try
+                    {
+                        await AnswerLineAsync(message, key, writer, writing, own.Token).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        if (id is not null) pending.TryRemove(new KeyValuePair<string, CancellationTokenSource>(id, own));
+                        own.Dispose();
+                    }
+                }));
             }
         }
         catch (IOException)
         {
             // The bridge process went away with its agent.
         }
+
+        // Nobody is left to answer: stop what is still running (a command on the desktop) rather than let it run on.
+        await connection.CancelAsync().ConfigureAwait(false);
+        await Task.WhenAll(calls).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// The response to one line from a bridge process; null for a blank or unparsable line, or a notification.
+    /// The id (as raw JSON) of the request a <c>notifications/cancelled</c> message cancels; null for any other message.
     /// </summary>
-    private static async Task<JsonObject?> AnswerAsync(string line, string? key)
+    private static string? CancelledRequest(JsonElement message) =>
+        message.ValueKind == JsonValueKind.Object && NomadSessionServer.Str(message, "method") == "notifications/cancelled" &&
+        message.TryGetProperty("params", out var parameters) && parameters.ValueKind == JsonValueKind.Object &&
+        parameters.TryGetProperty("requestId", out var id)
+            ? id.GetRawText()
+            : null;
+
+    /// <summary>
+    /// One line from a bridge process as JSON; null for a blank or unparsable line.
+    /// </summary>
+    private static JsonElement? Parse(string line)
     {
         if (line.Length == 0) return null;
 
-        JsonElement message;
         try
         {
-            message = JsonDocument.Parse(line).RootElement;
+            return JsonDocument.Parse(line).RootElement;
         }
         catch (JsonException)
         {
             return null;
         }
+    }
 
-        return await ChatTools.HandleAsync(message, key).ConfigureAwait(false);
+    /// <summary>
+    /// Answers one message and writes the response, one response at a time; nothing for a call cancelled meanwhile, as MCP has it.
+    /// </summary>
+    private static async Task AnswerLineAsync(JsonElement message, string? key, StreamWriter writer, SemaphoreSlim writing,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (await ChatTools.HandleAsync(message, key, cancellationToken).ConfigureAwait(false) is not { } response) return;
+            if (cancellationToken.IsCancellationRequested) return;
+
+            await writing.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
+            {
+                await writer.WriteLineAsync(response.ToJsonString()).ConfigureAwait(false);
+            }
+            finally
+            {
+                writing.Release();
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException or OperationCanceledException)
+        {
+            // The bridge process went away, or the agent cancelled the call, before the answer.
+        }
     }
 
     #endregion
@@ -148,7 +254,8 @@ public static class ChatBridge
     /// </summary>
     private static NamedPipeClientStream Connect(string pipeName, string chatKey)
     {
-        var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        // CurrentUserOnly: the chat key and the agent's calls go only to a pipe the same user owns, never to another that took the name.
+        var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
             pipe.Connect(5000);
