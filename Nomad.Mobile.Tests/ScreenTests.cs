@@ -182,6 +182,43 @@ public sealed class ScreenTests
         Save(window, "3f-chat-attachments", theme);
     }
 
+    [AvaloniaFact]
+    public async Task Attaching_a_picture_after_opening_the_chat_shows_one_thumbnail_and_sent_picture_renders_in_bubble()
+    {
+        var (main, hub) = await SignedInAsync();
+        var picture = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "nomad.png"));
+        hub.Pages["d1"] = Samples.Page() with
+        {
+            Entries =
+            [
+                .. Samples.Page().Entries,
+                new ChatEntry(5, "user", "", From: "Pixel 8", Images: [Convert.ToBase64String(picture)], Files: ["notes.txt"]),
+            ],
+        };
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        var window = Show(chat, main, ThemeVariant.Dark);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame();
+
+        // Picking one file after the tray starts folded closed must materialize one thumbnail, not two.
+        chat.AddFiles([new PickedFile("nomad.png", picture.Length, () => Task.FromResult<Stream>(new MemoryStream(picture)))]);
+        await Task.Delay(300);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.CaptureRenderedFrame();
+
+        var removeButtons = window.GetVisualDescendants().OfType<Button>()
+            .Where(b => Avalonia.Automation.AutomationProperties.GetName(b) == "Remove").ToList();
+        Assert.Single(removeButtons);
+
+        // The sent image-only user message renders its picture and file chip inside the bubble.
+        Find<TextBlock>(window, t => t.Text == "notes.txt");
+        Assert.Single(chat.Entries[^1].Images);
+        Assert.False(chat.Entries[^1].HasText);
+        window.Close();
+    }
+
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
     public async Task Chat_screen_typing(string themeName)

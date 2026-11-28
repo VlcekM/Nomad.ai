@@ -157,7 +157,12 @@ internal sealed class MobileHost : IDisposable
                 case AssistantTextItem a when a.Text.Length > 0:
                     return a.Text;
                 case UserMessageItem u:
-                    return "You: " + u.DisplayText;
+                    var summary = u.DisplayText.Length > 0 ? u.DisplayText
+                        : u.Files.Count > 0 ? string.Join(", ", u.Files.Select(f => f.Name))
+                        : u.Images.Count == 1 ? "Image"
+                        : u.Images.Count > 1 ? $"{u.Images.Count} images"
+                        : "";
+                    return summary.Length > 0 ? "You: " + summary : "";
             }
         }
 
@@ -227,9 +232,19 @@ internal sealed class MobileHost : IDisposable
         return new ChatPage(State(s), s.Queued.Count, s.Items.Count, entries, GenerationOf(s), s.IsLoadingHistory);
     }
 
+    private const int MaxThumbSide = 320;
+    private const int MaxEntryImages = 10;
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Avalonia.Media.Imaging.Bitmap, string> Thumbnails = new();
+
     private static ChatEntry? Entry(int index, TranscriptItem item, bool pending) => item switch
     {
-        UserMessageItem u => new ChatEntry(index, "user", Clip(u.DisplayText), u.IsFromChat ? u.FromChatName : u.FromDevice),
+        UserMessageItem u => new ChatEntry(
+            index,
+            "user",
+            Clip(u.DisplayText),
+            u.IsFromChat ? u.FromChatName : u.FromDevice,
+            Images: ThumbnailsOf(u.Images),
+            Files: u.Files.Count > 0 ? [.. u.Files.Select(f => f.Name)] : null),
         AssistantTextItem a => new ChatEntry(index, "assistant", Clip(a.Text)),
         ToolGroupItem g => new ChatEntry(index, "activity", g.Summary.Length > 0 ? Clip(g.Summary) : $"{g.Calls.Count} tool call{(g.Calls.Count == 1 ? "" : "s")}",
             Steps: Steps(g)),
@@ -247,6 +262,84 @@ internal sealed class MobileHost : IDisposable
         NewChatItem chat => new ChatEntry(index, "notice", Clip($"Suggested a new chat: {chat.Title}")),
         _ => null,
     };
+
+    private static IReadOnlyList<string>? ThumbnailsOf(IReadOnlyList<Avalonia.Media.Imaging.Bitmap> images)
+    {
+        if (images.Count == 0)
+        {
+            return null;
+        }
+
+        List<string>? encoded = null;
+        foreach (var bitmap in images.Take(MaxEntryImages))
+        {
+            if (ThumbnailOf(bitmap) is { } thumb)
+            {
+                (encoded ??= []).Add(thumb);
+            }
+        }
+
+        return encoded;
+    }
+
+    private static string? ThumbnailOf(Avalonia.Media.Imaging.Bitmap bitmap)
+    {
+        if (Thumbnails.TryGetValue(bitmap, out var cached))
+        {
+            return cached.Length > 0 ? cached : null;
+        }
+
+        var encoded = EncodeThumbnail(bitmap);
+        Thumbnails.AddOrUpdate(bitmap, encoded ?? "");
+        return encoded;
+    }
+
+    private static string? EncodeThumbnail(Avalonia.Media.Imaging.Bitmap bitmap)
+    {
+        try
+        {
+            var size = bitmap.PixelSize;
+            if (size.Width <= 0 || size.Height <= 0)
+            {
+                return null;
+            }
+
+            var longest = Math.Max(size.Width, size.Height);
+            var scaled = longest > MaxThumbSide
+                ? bitmap.CreateScaledBitmap(
+                    new Avalonia.PixelSize(Math.Max(1, size.Width * MaxThumbSide / longest), Math.Max(1, size.Height * MaxThumbSide / longest)),
+                    Avalonia.Media.Imaging.BitmapInterpolationMode.HighQuality)
+                : null;
+            try
+            {
+                using var png = new MemoryStream();
+                (scaled ?? bitmap).Save(png);
+                var bytes = png.ToArray();
+                if (bytes.Length > 24_000)
+                {
+                    using var sk = SkiaSharp.SKImage.FromEncodedData(bytes);
+                    if (sk is not null)
+                    {
+                        using var jpg = sk.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 80);
+                        if (jpg is not null && jpg.Size < bytes.Length)
+                        {
+                            bytes = jpg.ToArray();
+                        }
+                    }
+                }
+
+                return Convert.ToBase64String(bytes);
+            }
+            finally
+            {
+                scaled?.Dispose();
+            }
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     // ------------------------------------------------------------------ input
 

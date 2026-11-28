@@ -54,9 +54,6 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             {
                 gone.Dispose();
             }
-
-            OnPropertyChanged(nameof(HasAttachments));
-            SendCommand.NotifyCanExecuteChanged();
         };
     }
 
@@ -530,6 +527,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             _ = attachment.LoadPreviewAsync();
         }
 
+        NotifyAttachmentsChanged();
         if (refused.Count > 0)
         {
             ShowStatus(string.Join(" ", refused), problem: true);
@@ -538,7 +536,20 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
     // Not while sending: what is being sent is the files as they were when Send was tapped.
     [RelayCommand(CanExecute = nameof(CanRemoveAttachment))]
-    private void RemoveAttachment(AttachmentViewModel attachment) => Attachments.Remove(attachment);
+    private void RemoveAttachment(AttachmentViewModel attachment)
+    {
+        Attachments.Remove(attachment);
+        NotifyAttachmentsChanged();
+    }
+
+    // Raised after Attachments finishes mutating (not inside CollectionChanged): Fold.IsOpen measures the tray
+    // synchronously, which would materialize the ItemsControl while its own CollectionChanged handler is still queued
+    // behind ours and show the first picked file twice.
+    private void NotifyAttachmentsChanged()
+    {
+        OnPropertyChanged(nameof(HasAttachments));
+        SendCommand.NotifyCanExecuteChanged();
+    }
 
     private bool CanRemoveAttachment => !IsSending;
 
@@ -588,6 +599,8 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             {
                 Attachments.Remove(sent);
             }
+
+            NotifyAttachmentsChanged();
         }
     }
 
@@ -750,6 +763,16 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
 
         _closed = true;
         _statusClear?.Cancel();
+        foreach (var attachment in Attachments)
+        {
+            attachment.Dispose();
+        }
+
+        foreach (var entry in Entries)
+        {
+            entry.Dispose();
+        }
+
         if (_main.Connection is { IsConnected: true } connection)
         {
             _ = connection.UnwatchAsync(Backend, SessionId).ContinueWith(_ => { }, TaskScheduler.Default);

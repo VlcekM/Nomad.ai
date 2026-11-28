@@ -882,4 +882,18 @@ public sealed class ViewModelTests
         await chat.SettingsPanel!.LoadAsync();
         Assert.Equal("Sonnet · Low", chat.SettingsSummary);
     }
+
+    [Fact]
+    public void A_user_entry_shows_its_attached_files_and_hides_empty_text()
+    {
+        var entry = new EntryViewModel(new ChatEntry(0, "user", "", From: "Pixel 8", Files: ["report.pdf", "README"]));
+        Assert.False(entry.HasText);
+        Assert.True(entry.HasFiles);
+        Assert.Equal(["report.pdf", "README"], entry.Files.Select(f => f.Name));
+        Assert.Equal(["PDF", "File"], entry.Files.Select(f => f.Kind));
+
+        entry.Update(new ChatEntry(0, "user", "See attached", From: "Pixel 8", Files: ["report.pdf", "README"]));
+        Assert.True(entry.HasText);
+        Assert.Equal(2, entry.Files.Count);
+    }
 }

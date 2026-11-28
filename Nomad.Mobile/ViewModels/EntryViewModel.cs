@@ -1,3 +1,4 @@
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.Hub.Contracts;
@@ -5,10 +6,13 @@ using Nomad.Hub.Contracts;
 namespace Nomad.Mobile.ViewModels;
 
 /// <summary>One transcript entry. Long text is clipped, with Show more.</summary>
-public sealed partial class EntryViewModel : ObservableObject
+public sealed partial class EntryViewModel : ObservableObject, IDisposable
 {
     /// <summary>Text longer than this shows clipped until Show more.</summary>
     public const int ClipAt = 1500;
+
+    private IReadOnlyList<string> _imageData = [];
+    private IReadOnlyList<string> _fileNames = [];
 
     public EntryViewModel(ChatEntry entry)
     {
@@ -16,9 +20,34 @@ public sealed partial class EntryViewModel : ObservableObject
         Kind = entry.Kind;
         Text = entry.Text;
         Steps = StepsOf(entry);
+        _imageData = entry.Images ?? [];
+        Images = DecodeImages(_imageData);
+        _fileNames = entry.Files ?? [];
+        Files = FilesOf(_fileNames);
     }
 
     private static List<StepViewModel> StepsOf(ChatEntry entry) => [.. (entry.Steps ?? []).Select(s => new StepViewModel(s))];
+
+    private static List<EntryFileViewModel> FilesOf(IReadOnlyList<string> files) => [.. files.Select(f => new EntryFileViewModel(f))];
+
+    private static List<Bitmap> DecodeImages(IReadOnlyList<string> encoded)
+    {
+        var bitmaps = new List<Bitmap>(encoded.Count);
+        foreach (var item in encoded)
+        {
+            try
+            {
+                using var stream = new MemoryStream(Convert.FromBase64String(item));
+                bitmaps.Add(new Bitmap(stream));
+            }
+            catch (Exception)
+            {
+                // Corrupt or unreadable image data.
+            }
+        }
+
+        return bitmaps;
+    }
 
     private EntryViewModel(ChatEntry entry, bool local) : this(entry) => IsLocal = local;
 
@@ -36,7 +65,7 @@ public sealed partial class EntryViewModel : ObservableObject
     public partial string Kind { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShownText), nameof(IsClipped))]
+    [NotifyPropertyChangedFor(nameof(ShownText), nameof(HasText), nameof(IsClipped))]
     public partial string Text { get; set; }
 
     [ObservableProperty]
@@ -96,6 +125,18 @@ public sealed partial class EntryViewModel : ObservableObject
 
     public string FromText => "from " + Entry.From;
 
+    /// <summary>Thumbnails of images attached to a user prompt.</summary>
+    public IReadOnlyList<Bitmap> Images { get; private set; } = [];
+
+    public bool HasImages => Images.Count > 0;
+
+    /// <summary>Other files attached to a user prompt, shown as chips.</summary>
+    public IReadOnlyList<EntryFileViewModel> Files { get; private set; } = [];
+
+    public bool HasFiles => Files.Count > 0;
+
+    public bool HasText => Text.Length > 0;
+
     /// <summary>Long text shows clipped until Show more; a thought folds by itself instead.</summary>
     public bool IsClipped => !IsThinking && !IsExpanded && Text.Length > ClipAt;
 
@@ -130,6 +171,25 @@ public sealed partial class EntryViewModel : ObservableObject
             OnPropertyChanged(nameof(HasSteps));
         }
 
+        var incomingImages = entry.Images ?? [];
+        if (!incomingImages.SequenceEqual(_imageData))
+        {
+            DisposeImages();
+            _imageData = incomingImages;
+            Images = DecodeImages(_imageData);
+            OnPropertyChanged(nameof(Images));
+            OnPropertyChanged(nameof(HasImages));
+        }
+
+        var incomingFiles = entry.Files ?? [];
+        if (!incomingFiles.SequenceEqual(_fileNames))
+        {
+            _fileNames = incomingFiles;
+            Files = FilesOf(_fileNames);
+            OnPropertyChanged(nameof(Files));
+            OnPropertyChanged(nameof(HasFiles));
+        }
+
         OnPropertyChanged(nameof(ThinkingText));
         OnPropertyChanged(nameof(From));
         OnPropertyChanged(nameof(HasFrom));
@@ -142,6 +202,26 @@ public sealed partial class EntryViewModel : ObservableObject
 
     /// <summary>More of the turn streaming now.</summary>
     public void AppendLive(string text) => Text += text;
+
+    public void Dispose() => DisposeImages();
+
+    private void DisposeImages()
+    {
+        foreach (var bitmap in Images)
+        {
+            bitmap.Dispose();
+        }
+
+        Images = [];
+    }
+}
+
+/// <summary>One non-image file attached to a user prompt, shown as a chip in the bubble.</summary>
+public sealed class EntryFileViewModel(string name)
+{
+    public string Name { get; } = name;
+
+    public string Kind => Path.GetExtension(Name).TrimStart('.').ToUpperInvariant() is { Length: > 0 } ext ? ext : "File";
 }
 
 /// <summary>One step of an activity: a tool call with its one line, or a thought.</summary>
