@@ -3,6 +3,10 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v3.1.1
+
+- Fixed the side panel's cards (running commands, subagents and the others) staying hidden for the rest of the session after the window had been in the tray or minimized.
+
 ## v3.1.0
 
 - Added one-time enrollment links through Nomad Hub (`/enroll/{token}`) with QR codes and manual fallback, a Hub storage breakdown chart and live sync progress in **Settings > Hub**, a per-chat sync status icon in the chat title bar, and a syncing spinner in the sidebar.
