@@ -249,7 +249,8 @@
                           <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
                         </MenuFlyout>
                       </StackPanel.ContextFlyout>
-                      <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not the PC itself. -->
+                      <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not the PC itself,
+                           followed by any attached images or file chips and its text. -->
                       <Grid ColumnDefinitions="*,3*" Margin="0,12,0,4">
                         <Border Grid.Column="1" HorizontalAlignment="Right"
                                 Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}"
@@ -259,7 +260,43 @@
                               <c:Icon Size="12" Data="{StaticResource IconLaptop}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
                               <TextBlock Classes="muted small" Text="{Binding FromText}" VerticalAlignment="Center" />
                             </StackPanel>
-                            <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
+                            <ItemsControl ItemsSource="{Binding Images}" IsVisible="{Binding HasImages}" Margin="0,2,0,0">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="Bitmap">
+                                  <Border CornerRadius="6" ClipToBounds="True" MaxWidth="220" MaxHeight="160">
+                                    <Image Source="{Binding}" Stretch="Uniform" />
+                                  </Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <ItemsControl ItemsSource="{Binding AttachedFiles}" IsVisible="{Binding HasAttachedFiles}" Margin="0,2,0,0">
+                              <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                  <WrapPanel ItemSpacing="6" LineSpacing="6" />
+                                </ItemsPanelTemplate>
+                              </ItemsControl.ItemsPanel>
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:EntryFileViewModel">
+                                  <Border Height="40" MaxWidth="220" Padding="9,0,12,0" CornerRadius="7"
+                                          Background="{DynamicResource BgInputBrush}"
+                                          BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                      <c:Icon Size="15" Data="{StaticResource IconFile}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="{DynamicResource UiFontSizeSmall}" />
+                                        <TextBlock Text="{Binding Kind}" Classes="muted" FontSize="{DynamicResource UiFontSizeTiny}" />
+                                      </StackPanel>
+                                    </Grid>
+                                  </Border>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding ShownText}" IsVisible="{Binding HasText}" TextWrapping="Wrap"
                                        FontSize="{DynamicResource BodyFontSize}" LineHeight="{DynamicResource BodyLineHeight}" />
                           </StackPanel>
                         </Border>

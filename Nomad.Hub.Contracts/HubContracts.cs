@@ -194,15 +194,25 @@ public sealed record ChatPage(string State, int Queued, int Total, IReadOnlyList
 /// One transcript entry as the phone shows it. <paramref name="Kind"/> is <c>user</c>, <c>assistant</c>, <c>activity</c>
 /// (a group of tool calls), <c>thinking</c>, <c>notice</c>, <c>error</c>, <c>permission</c> or <c>question</c>; the last two
 /// carry a card. An activity's <paramref name="Steps"/> are what it did, in order: each command or file with its one line, and
-/// the thinking between them, so the phone can show what the agent is doing, not only that it is busy.
+/// the thinking between them, so the phone can show what the agent is doing, not only that it is busy. A user prompt's
+/// <paramref name="Images"/> are base64-encoded thumbnails of its attached pictures, and <paramref name="AttachedFiles"/> the names of
+/// its other attached files.
 /// </summary>
 /// <remarks>
 /// <paramref name="Files"/>: the files the agent sent the user (Claude's SendUserFile, or Nomad's send_file for other agents), in a
 /// <c>notice</c> whose <paramref name="Text"/> names them for a phone that can't show them; a phone that can shows them under
 /// their caption instead, each fetched through <see cref="HubNames.ChatFileGet"/> by the entry's index, its place in the list and its name.
 /// </remarks>
-public sealed record ChatEntry(int Index, string Kind, string Text, string? From = null, ChatCard? Card = null, IReadOnlyList<ChatStep>? Steps = null,
-    ChatSentFiles? Files = null);
+public sealed record ChatEntry(
+    int Index,
+    string Kind,
+    string Text,
+    string? From = null,
+    ChatCard? Card = null,
+    IReadOnlyList<ChatStep>? Steps = null,
+    ChatSentFiles? Files = null,
+    IReadOnlyList<string>? Images = null,
+    IReadOnlyList<string>? AttachedFiles = null);
 
 /// <summary>Files a chat sent the user, under the caption it gave them (empty for none).</summary>
 public sealed record ChatSentFiles(string Caption, IReadOnlyList<ChatSentFile> Files);

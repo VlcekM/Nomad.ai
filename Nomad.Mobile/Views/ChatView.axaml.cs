@@ -69,8 +69,15 @@ public partial class ChatView : UserControl
         {
             var picked = await storage.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Attach files", AllowMultiple = true });
             var files = new List<PickedFile>();
+            var seen = new HashSet<Uri>();
             foreach (var file in picked)
             {
+                // Some Android pickers put a single selection in both Intent.Data and Intent.ClipData, so Avalonia hands it back twice.
+                if (file.Path is { } path && !seen.Add(path))
+                {
+                    continue;
+                }
+
                 long? size = null;
                 try
                 {
