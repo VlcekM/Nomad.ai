@@ -5,7 +5,6 @@ using Android.Content.Res;
 using Android.OS;
 using Avalonia;
 using Avalonia.Android;
-using Nomad.Mobile.Hub;
 
 namespace Nomad.Mobile.Android;
 
@@ -29,21 +28,8 @@ namespace Nomad.Mobile.Android;
     Categories = [Intent.CategoryDefault, Intent.CategoryBrowsable],
     DataScheme = "nomad",
     DataHost = "enroll")]
-public class MainActivity : AvaloniaMainActivity<App>
+public class MainActivity : AvaloniaMainActivity
 {
-    protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
-    {
-        AppServices.Store = new AndroidSecretStore(this);
-        AppServices.DefaultDeviceName = DeviceName();
-        AppServices.Installer = new AndroidInstaller(this);
-        AppServices.Files = new AndroidFileSaver(this);
-        AppServices.ReleaseFeed = GitHubRelease.LatestAsync;
-#if NOMAD_EMULATOR_TEST
-        EnrollLink.PlainHttpAllowed = url => url.Host == "10.0.2.2";
-#endif
-        return base.CustomizeAppBuilder(builder).WithInterFont();
-    }
-
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         try
@@ -101,23 +87,5 @@ public class MainActivity : AvaloniaMainActivity<App>
         {
             App.OpenLink(link);
         }
-    }
-
-    /// <summary>The name the user gave the phone ("Anna's Pixel"), else its model.</summary>
-    private string DeviceName()
-    {
-        try
-        {
-            if (global::Android.Provider.Settings.Global.GetString(ContentResolver, "device_name") is { Length: > 0 } name)
-            {
-                return name;
-            }
-        }
-        catch (Java.Lang.Exception)
-        {
-            // Some phones keep it elsewhere; the model will do.
-        }
-
-        return Build.Model is { Length: > 0 } model ? model : "Phone";
     }
 }

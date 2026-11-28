@@ -1106,7 +1106,7 @@
                               Margin="0,4,0,0">
                         <TextBox Theme="{StaticResource BareTextBox}"
                                  Text="{Binding OtherText}"
-                                 Watermark="Other answer…"
+                                 PlaceholderText="Other answer…"
                                  VerticalAlignment="Center"
                                  FontSize="{DynamicResource UiFontSize}"
                                  KeyDown="OnQuestionOtherKeyDown" />
@@ -1476,7 +1476,7 @@
           <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
           <TextBox Name="FindBox"
                    Theme="{StaticResource BareTextBox}"
-                   Watermark="Find in chat"
+                   PlaceholderText="Find in chat"
                    Width="200"
                    IsEnabled="False"
                    FontSize="{DynamicResource UiFontSize}"
@@ -2042,7 +2042,7 @@
                    Grid.Column="1"
                    Theme="{StaticResource MarkdownTextBox}"
                    Text="{Binding ComposerText}"
-                   Watermark="{Binding ComposerPlaceholder}"
+                   PlaceholderText="{Binding ComposerPlaceholder}"
                    AcceptsReturn="True"
                    TextWrapping="Wrap"
                    FontSize="{DynamicResource UiFontSizeLarge}"
@@ -2113,7 +2113,7 @@
           <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
             <StackPanel Width="250">
               <TextBox Theme="{StaticResource BareTextBox}"
-                       Watermark="Search folders…"
+                       PlaceholderText="Search folders…"
                        Text="{Binding FolderFilter}"
                        Height="26"
                        Margin="8,2,8,4"
@@ -2209,7 +2209,7 @@
             <Flyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="menu">
               <StackPanel Width="260">
                 <TextBox Theme="{StaticResource BareTextBox}"
-                         Watermark="Search branches…"
+                         PlaceholderText="Search branches…"
                          Text="{Binding BranchFilter}"
                          Height="26"
                          Margin="8,2,8,4"
@@ -2388,7 +2388,7 @@
                 <TextBox Name="ModelFilterBox"
                          IsVisible="{Binding IsOpenCode}"
                          Text="{Binding ModelFilter}"
-                         Watermark="Search models"
+                         PlaceholderText="Search models"
                          Margin="6,2,6,4" />
                 <TextBlock Text="{Binding NoModelsText}" IsVisible="{Binding HasNoModels}" Classes="muted" TextWrapping="Wrap"
                            FontSize="{DynamicResource UiFontSizeSmall}" Margin="8,2,8,6" />

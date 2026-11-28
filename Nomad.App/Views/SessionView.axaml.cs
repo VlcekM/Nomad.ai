@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
@@ -1763,7 +1764,7 @@ public partial class SessionView : UserControl
     }
 
     private static IEnumerable<string> DroppedFiles(DragEventArgs e) =>
-        e.Data.GetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>() ?? [];
+        e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>() ?? [];
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {

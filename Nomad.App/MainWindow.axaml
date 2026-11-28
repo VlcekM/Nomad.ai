@@ -13,7 +13,7 @@
         MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
         ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaChromeHints="NoChrome"
+        WindowDecorations="BorderOnly"
         ExtendClientAreaTitleBarHeightHint="40"
         Background="{DynamicResource BgMainBrush}">
 
@@ -793,7 +793,7 @@
               <c:Icon Size="13" Data="{StaticResource IconSearch}" Stroke="{DynamicResource TextMutedBrush}" Margin="9,0,8,0" />
               <TextBox Grid.Column="1"
                        Theme="{StaticResource BareTextBox}"
-                       Watermark="Search"
+                       PlaceholderText="Search"
                        Text="{Binding SearchText}"
                        FontSize="{DynamicResource UiFontSize}"
                        Margin="0,0,4,0" />
@@ -1478,7 +1478,7 @@
             <TextBox Grid.Column="1"
                      Name="SearchBox"
                      Theme="{StaticResource BareTextBox}"
-                     Watermark="Search chat titles and conversations"
+                     PlaceholderText="Search chat titles and conversations"
                      Text="{Binding Search.Query}"
                      FontSize="{DynamicResource UiFontSizeLarge}"
                      VerticalAlignment="Center"

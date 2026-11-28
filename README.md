@@ -1,7 +1,7 @@
 # Nomad.ai
 
 A lightweight native Windows and Linux client for Claude Code sessions, written in C# on .NET 11 and
-Avalonia 11 and published with NativeAOT.
+Avalonia 12 and published with NativeAOT.
 
 Nomad.ai does not run models itself. Each session starts the installed `claude` CLI as a child
 process and drives it over the stream-json protocol on stdin/stdout. The CLI's sign-in, settings,
@@ -332,13 +332,13 @@ OpenGL and Vulkan were measured at 2-3x the memory.
 
 | Package | Used for |
 |---------|----------|
-| Avalonia 11.3.22 (Desktop, Fluent theme, Inter font) | The UI |
+| Avalonia 12.2.0 (Desktop, Fluent theme, Inter font) | The UI |
 | CommunityToolkit.Mvvm 8.4.2 | View models (source-generated properties and commands) |
 | Markdig 1.4.2 | Markdown parsing for the transcript and release notes |
 | Velopack 1.2.161 | Setup, the portable zip and self-update (`vpk` 1.2.161 packs releases) |
 | xUnit 2.9.3 | `Nomad.Core.Tests` |
 | Avalonia.Android, SkiaSharp 3.119.4 | The phone app (SkiaSharp 3 for Android's 16 KB pages) |
-| Avalonia.Headless.XUnit 11.3.22 | `Nomad.Mobile.Tests` (screens rendered without a display) |
+| Avalonia.Headless.XUnit 12.2.0 (xunit v3) | `Nomad.Mobile.Tests` (screens rendered without a display) |
 
 ## Probe
 

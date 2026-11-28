@@ -136,7 +136,7 @@
               <c:Icon Size="18" Data="{StaticResource IconPlus}" />
             </Button>
             <!-- The phone's keyboard as for any message: capitals, suggestions and autocorrect, and Enter for a new line (Send sends). -->
-            <TextBox Grid.Column="1" x:Name="Composer" Text="{Binding Draft}" Watermark="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+            <TextBox Grid.Column="1" x:Name="Composer" Text="{Binding Draft}" PlaceholderText="Message" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
                      Margin="6,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
                      TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
             <!-- Not focusable: a tap leaves the keyboard up instead of closing it, which moved the button from under the finger. -->
@@ -204,7 +204,7 @@
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
                       <Border Classes="field" Margin="0,4,0,0" Background="{DynamicResource BgInputBrush}" BorderBrush="{DynamicResource BorderBrush}">
-                        <TextBox Text="{Binding Other}" Watermark="Other answer…" FontSize="{DynamicResource UiFontSize}"
+                        <TextBox Text="{Binding Other}" PlaceholderText="Other answer…" FontSize="{DynamicResource UiFontSize}"
                                  TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
                       </Border>
                     </StackPanel>

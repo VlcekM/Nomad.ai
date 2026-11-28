@@ -105,7 +105,7 @@ public sealed class TranscriptPanel : VirtualizingPanel
         {
             SyncHeights(items);
             var width = availableSize.Width;
-            if (!MathUtilities.AreClose(width, _width))
+            if (!AreClose(width, _width))
             {
                 // Another width wraps the text differently: the heights so far stay as guesses.
                 if (!double.IsNaN(_width))
@@ -857,8 +857,8 @@ public sealed class TranscriptPanel : VirtualizingPanel
     private void OnEffectiveViewportChanged(object? sender, EffectiveViewportChangedEventArgs e)
     {
         var viewport = e.EffectiveViewport.Intersect(new Rect(Bounds.Size));
-        var resized = !MathUtilities.AreClose(_viewport.Height, viewport.Height);
-        if (!MathUtilities.AreClose(viewport.Top, _viewport.Top))
+        var resized = !AreClose(_viewport.Height, viewport.Height);
+        if (!AreClose(viewport.Top, _viewport.Top))
         {
             _scrollingUp = viewport.Top < _viewport.Top;
         }
@@ -885,4 +885,9 @@ public sealed class TranscriptPanel : VirtualizingPanel
             InvalidateMeasure();
         }
     }
+
+    /// <summary>
+    /// Whether two sizes are the same but for rounding (Avalonia's own MathUtilities is internal).
+    /// </summary>
+    private static bool AreClose(double a, double b) => a == b || Math.Abs(a - b) < 1e-6 * (Math.Abs(a) + Math.Abs(b) + 10);
 }

@@ -3,16 +3,17 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
     <RootNamespace>Nomad.Mobile.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
-    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
     <!-- Renders the screens without a display, with the real Skia renderer, so each can be looked at as a PNG. -->
-    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.22" />
-    <PackageReference Include="Avalonia.Skia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.2.0" />
+    <PackageReference Include="Avalonia.Skia" Version="12.2.0" />
   </ItemGroup>
 
   <ItemGroup>

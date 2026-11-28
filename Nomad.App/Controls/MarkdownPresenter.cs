@@ -115,7 +115,7 @@ public sealed class MarkdownPresenter : TextPresenter
         plain.Dispose();
 
         var typeface = new Typeface(FontFamily, FontStyle, FontWeight, FontStretch);
-        var defaults = new GenericTextRunProperties(typeface, FontFeatures, FontSize, null, Foreground);
+        var defaults = new GenericTextRunProperties(typeface, FontSize, null, Foreground, fontFeatures: FontFeatures);
         var paragraph = new GenericTextParagraphProperties(FlowDirection, TextAlignment, true, false, defaults, TextWrapping,
             LineHeight, 0, LetterSpacing);
 
@@ -211,8 +211,8 @@ public sealed class MarkdownPresenter : TextPresenter
             _ => null,
         } ?? Foreground;
 
-        return new GenericTextRunProperties(typeface, FontFeatures, code ? Math.Round(FontSize * CodeScale) : FontSize,
-            style.HasFlag(SpanStyle.Strike) ? TextDecorations.Strikethrough : null, foreground);
+        return new GenericTextRunProperties(typeface, code ? Math.Round(FontSize * CodeScale) : FontSize,
+            style.HasFlag(SpanStyle.Strike) ? TextDecorations.Strikethrough : null, foreground, fontFeatures: FontFeatures);
     }
 
     /// <summary>The text in runs of one style each, with list markers and fences as drawn runs.</summary>

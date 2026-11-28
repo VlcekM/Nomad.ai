@@ -260,59 +260,31 @@ public static partial class ClaudeFonts
     [GeneratedRegex(@"@font-face\{font-family:anthropic-(sans|mono);src:url\(([^)]+\.woff2)\)[^}]*font-style:normal")]
     private static partial Regex FontFace();
 
-    /// <summary>The two families, each one variable typeface; bold is synthesized.</summary>
+    /// <summary>
+    /// The two families, each one variable typeface; bold and italic are synthesized by the base collection.
+    /// </summary>
     private sealed class Collection : FontCollectionBase
     {
-        private readonly Dictionary<string, IGlyphTypeface> _typefaces = new(StringComparer.OrdinalIgnoreCase);
-        private readonly List<FontFamily> _families = [];
-
-        public override Uri Key => ClaudeFonts.Key;
-
-        public override int Count => _families.Count;
-
-        public override FontFamily this[int index] => _families[index];
-
-        public override void Initialize(IFontManagerImpl fontManager)
+        /// <summary>
+        /// Loads each unpacked file, and lists it under its family's name too: the fonts' own names are other ones
+        /// (<c>Anthropic Interface Beta …</c>, <c>Anthropic Mono Web</c>).
+        /// </summary>
+        public Collection()
         {
-            // Avalonia keeps the stream overload out of its public surface, so it is reached by reflection
-            // (a literal name on typeof(), which NativeAOT keeps).
-            var create = typeof(IFontManagerImpl).GetMethod(
-                "TryCreateGlyphTypeface",
-                [typeof(Stream), typeof(FontSimulations), typeof(IGlyphTypeface).MakeByRefType()]);
-            if (create is null)
-            {
-                return;
-            }
-
+            var regular = new FontCollectionKey(FontStyle.Normal, FontWeight.Normal, FontStretch.Normal);
             foreach (var (family, file) in Files)
             {
                 using var stream = File.OpenRead(file);
-                object?[] args = [stream, FontSimulations.None, null];
-                if (create.Invoke(fontManager, args) is true && args[2] is IGlyphTypeface typeface)
+                if (!TryAddGlyphTypeface(stream, out var typeface)) continue;
+
+                if (TryAddGlyphTypeface(family, regular, typeface))
                 {
-                    _typefaces[family] = typeface;
-                    _families.Add(new FontFamily(Key, family));
+                    AddFontFamily(new FontFamily(Key, family));
                 }
             }
         }
 
-        public override bool TryGetGlyphTypeface(string familyName, FontStyle style, FontWeight weight, FontStretch stretch, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IGlyphTypeface? glyphTypeface)
-        {
-            if (!_typefaces.TryGetValue(familyName, out glyphTypeface))
-            {
-                return false;
-            }
-
-            if ((weight >= FontWeight.SemiBold || style != FontStyle.Normal)
-                && TryCreateSyntheticGlyphTypeface(glyphTypeface, style, weight, stretch, out var synthetic) && synthetic is not null)
-            {
-                glyphTypeface = synthetic;
-            }
-
-            return true;
-        }
-
-        public override IEnumerator<FontFamily> GetEnumerator() => _families.GetEnumerator();
+        public override Uri Key => ClaudeFonts.Key;
     }
 
     /// <summary>WOFF2 to TrueType through DirectWrite (IDWriteFactory5::UnpackFontFile, Windows 10 1703+).</summary>

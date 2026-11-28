@@ -29,7 +29,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia.Android" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Android" Version="12.2.0" />
     <!-- SkiaSharp 3, as the desktop app uses: Avalonia's own 2.88 ships a libSkiaSharp.so without the 16 KB page alignment that
          Android 15+ devices with 16 KB pages require (build warning XA0141). -->
     <PackageReference Include="SkiaSharp" Version="3.119.4" />

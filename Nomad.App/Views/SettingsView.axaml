@@ -391,7 +391,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                   <Border Classes="field" Width="72">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" Watermark="6" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding AutoArchiveHoursText}" PlaceholderText="6" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                   <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
                 </StackPanel>
@@ -423,7 +423,7 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                   <Border Classes="field" Width="72">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding SleepAfterHoursText}" Watermark="1" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding SleepAfterHoursText}" PlaceholderText="1" TextAlignment="Right" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                   <TextBlock Text="hours" Classes="rowhint" VerticalAlignment="Center" />
                 </StackPanel>
@@ -511,7 +511,7 @@
                 <Grid Classes="row" ColumnDefinitions="*,Auto">
                   <TextBlock Text="Theme name" Classes="rowlabel" VerticalAlignment="Center" />
                   <Border Grid.Column="1" Classes="field" Width="240">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding ThemeName}" Watermark="Name" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding ThemeName}" PlaceholderText="Name" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                 </Grid>
                 <Border Classes="rowline" />
@@ -913,7 +913,7 @@
                             <Border Classes="field compact" Margin="0,0,8,0">
                               <TextBox Theme="{StaticResource BareTextBox}"
                                        Text="{Binding AuthCodeInput}"
-                                       Watermark="Paste the authorization code from your browser"
+                                       PlaceholderText="Paste the authorization code from your browser"
                                        FontFamily="{DynamicResource MonoFont}"
                                        FontSize="{DynamicResource UiFontSizeSmall}" />
                             </Border>
@@ -975,7 +975,7 @@
                                       <Border Classes="field compact">
                                         <TextBox Theme="{StaticResource BareTextBox}"
                                                  Text="{Binding Value}"
-                                                 Watermark="{Binding Placeholder}"
+                                                 PlaceholderText="{Binding Placeholder}"
                                                  FontSize="{DynamicResource UiFontSize}" />
                                       </Border>
                                     </StackPanel>
@@ -1031,7 +1031,7 @@
                         <Border Grid.Column="1" Classes="field compact" Width="280">
                           <TextBox Theme="{StaticResource BareTextBox}"
                                    Text="{Binding CliPath}"
-                                   Watermark="{Binding PathWatermark}"
+                                   PlaceholderText="{Binding PathWatermark}"
                                    FontSize="{DynamicResource UiFontSizeSmall}"
                                    FontFamily="{DynamicResource MonoFont}" />
                         </Border>
@@ -1388,7 +1388,7 @@
                     <TextBlock Text="Where your hub answers, behind your proxy or tunnel." Classes="rowhint" />
                   </StackPanel>
                   <Border Grid.Column="1" Classes="field" Width="360">
-                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hub.Url}" Watermark="https://hub.example.com" FontSize="{DynamicResource UiFontSize}" />
+                    <TextBox Theme="{StaticResource BareTextBox}" Text="{Binding Hub.Url}" PlaceholderText="https://hub.example.com" FontSize="{DynamicResource UiFontSize}" />
                   </Border>
                 </Grid>
                 <Border Classes="rowline" />

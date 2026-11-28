@@ -387,7 +387,7 @@
                         AllowAutoHide="True">
             <Panel>
               <TextBlock Name="PART_Watermark"
-                         Text="{TemplateBinding Watermark}"
+                         Text="{TemplateBinding PlaceholderText}"
                          Foreground="{DynamicResource TextMutedBrush}"
                          TextWrapping="{TemplateBinding TextWrapping}"
                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
@@ -438,7 +438,7 @@
                                   BlockBrush="{DynamicResource BgCodeBrush}"
                                   BlockBorderBrush="{DynamicResource BorderBrush}" />
               <TextBlock Name="PART_Watermark"
-                         Text="{TemplateBinding Watermark}"
+                         Text="{TemplateBinding PlaceholderText}"
                          Foreground="{DynamicResource TextMutedBrush}"
                          TextWrapping="{TemplateBinding TextWrapping}"
                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"

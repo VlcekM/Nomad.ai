@@ -209,7 +209,7 @@ public sealed class FileTreeView : Control
         ActualThemeVariantChanged += OnResourcesChanged;
         if (Application.Current is { } app)
         {
-            app.ResourcesChanged += OnResourcesChanged;
+            app.ResourcesChanged += OnAppResourcesChanged;
         }
     }
 
@@ -219,7 +219,7 @@ public sealed class FileTreeView : Control
         ActualThemeVariantChanged -= OnResourcesChanged;
         if (Application.Current is { } app)
         {
-            app.ResourcesChanged -= OnResourcesChanged;
+            app.ResourcesChanged -= OnAppResourcesChanged;
         }
 
         SaveScroll();
@@ -334,6 +334,8 @@ public sealed class FileTreeView : Control
 
     // A theme or color theme change: the brushes are looked up as the rows are drawn.
     private void OnResourcesChanged(object? sender, EventArgs e) => InvalidateVisual();
+
+    private void OnAppResourcesChanged(object? sender, ResourcesChangedEventArgs e) => InvalidateVisual();
 
     /// <summary>
     /// Brings the rows in line with the tree: rows for entries no longer shown fold away where they are, rows for new

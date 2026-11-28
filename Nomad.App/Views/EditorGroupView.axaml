@@ -490,7 +490,7 @@
               </Button>
               <Border Grid.Column="1" Classes="findfield" Classes.nomatch="{Binding Find.HasNoMatch}">
                 <Grid ColumnDefinitions="*,Auto">
-                  <TextBox Name="FindQuery" Theme="{StaticResource BareTextBox}" Width="200" Watermark="Find" Text="{Binding Find.Query}" VerticalAlignment="Center" KeyDown="OnFindKeyDown" />
+                  <TextBox Name="FindQuery" Theme="{StaticResource BareTextBox}" Width="200" PlaceholderText="Find" Text="{Binding Find.Query}" VerticalAlignment="Center" KeyDown="OnFindKeyDown" />
                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="1">
                     <Button Theme="{StaticResource IconButton}" Classes="findtool findtoggle" Classes.on="{Binding Find.MatchCase}" Command="{Binding Find.ToggleMatchCaseCommand}" ToolTip.Tip="Match case">
                       <TextBlock Text="Aa" />
@@ -517,7 +517,7 @@
                 </Button>
               </StackPanel>
               <Border Grid.Row="1" Grid.Column="1" Classes="findfield" Margin="0,4,0,0" IsVisible="{Binding Find.IsReplaceShown}">
-                <TextBox Name="FindReplace" Theme="{StaticResource BareTextBox}" Width="200" Watermark="Replace" Text="{Binding Find.ReplaceText}" VerticalAlignment="Center" KeyDown="OnReplaceKeyDown" />
+                <TextBox Name="FindReplace" Theme="{StaticResource BareTextBox}" Width="200" PlaceholderText="Replace" Text="{Binding Find.ReplaceText}" VerticalAlignment="Center" KeyDown="OnReplaceKeyDown" />
               </Border>
               <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="1" Margin="6,4,0,0" IsVisible="{Binding Find.IsReplaceShown}">
                 <Button Theme="{StaticResource IconButton}" Classes="findtool findword" Command="{Binding Find.ReplaceCommand}" ToolTip.Tip="Replace next (Alt+R)">

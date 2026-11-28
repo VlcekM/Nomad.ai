@@ -25,7 +25,7 @@
       </TextBlock>
       <Border Classes="composer">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBox Text="{Binding Prompt}" Watermark="Describe a task or ask a question" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
+          <TextBox Text="{Binding Prompt}" PlaceholderText="Describe a task or ask a question" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="160"
                    Margin="14,12,4,12" VerticalAlignment="Center" VerticalContentAlignment="Top"
                    TextInputOptions.Multiline="True" TextInputOptions.AutoCapitalization="True" TextInputOptions.ShowSuggestions="True" />
           <Button Grid.Column="1" Theme="{StaticResource PhoneSendButton}" Command="{Binding StartCommand}"

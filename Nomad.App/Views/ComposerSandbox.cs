@@ -52,7 +52,7 @@ public sealed class ComposerSandbox : Window
             MaxHeight = 190,
             Margin = new Thickness(8, 11),
             VerticalContentAlignment = VerticalAlignment.Top,
-            Watermark = "Type Markdown…",
+            PlaceholderText = "Type Markdown…",
             Text = dev.Compose ?? Sample,
         };
         _box.Theme = (Avalonia.Styling.ControlTheme)Application.Current!.FindResource("MarkdownTextBox")!;

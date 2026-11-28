@@ -15,7 +15,7 @@ public partial class MainWindow
     private void ConfigureLinuxWindowChrome()
     {
         ExtendClientAreaToDecorationsHint = false;
-        SystemDecorations = SystemDecorations.None;
+        WindowDecorations = WindowDecorations.None;
 
         var grips = new Grid { RowDefinitions = new("7,*,7"), ColumnDefinitions = new("7,*,7") };
         AddResizeGrip(grips, 0, 0, WindowEdge.NorthWest, StandardCursorType.TopLeftCorner);

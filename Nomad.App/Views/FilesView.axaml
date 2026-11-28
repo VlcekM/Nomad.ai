@@ -316,7 +316,7 @@
             <TextBox Grid.Column="1"
                      Name="CodeSearchBox"
                      Theme="{StaticResource BareTextBox}"
-                     Watermark="Go to type, member or file"
+                     PlaceholderText="Go to type, member or file"
                      Text="{Binding Files.CodeSearch.Query}"
                      VerticalAlignment="Center" />
             <TextBlock Grid.Column="2"
@@ -399,7 +399,7 @@
             <TextBox Grid.Column="1"
                      Name="FindInFilesBox"
                      Theme="{StaticResource BareTextBox}"
-                     Watermark="Find in files"
+                     PlaceholderText="Find in files"
                      Text="{Binding Files.FindInFiles.Query}"
                      VerticalAlignment="Center" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="1" Margin="8,0,0,0" VerticalAlignment="Center">
@@ -502,7 +502,7 @@
           <TextBox Name="PromptBox"
                    IsVisible="{Binding Files.Prompt.HasInput}"
                    Text="{Binding Files.Prompt.Text}"
-                   Watermark="{Binding Files.Prompt.Watermark}" />
+                   PlaceholderText="{Binding Files.Prompt.Watermark}" />
           <TextBlock Text="{Binding Files.Prompt.Error}"
                      IsVisible="{Binding Files.Prompt.HasError}"
                      Foreground="{DynamicResource DangerBrush}"

@@ -42,7 +42,7 @@ internal sealed class FrameLoop
     private void Step(TimeSpan time)
     {
         _scheduled = false;
-        if (!_wanted || _owner.GetVisualRoot() is null)
+        if (!_wanted || TopLevel.GetTopLevel(_owner) is null)
         {
             return;
         }

@@ -29,7 +29,7 @@
           <Grid ColumnDefinitions="*,Auto">
             <Border Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}" BorderThickness="1"
                     CornerRadius="12" Padding="12,2">
-              <TextBox Text="{Binding NewTitle}" Watermark="The chat's name" AcceptsReturn="False" VerticalAlignment="Center"
+              <TextBox Text="{Binding NewTitle}" PlaceholderText="The chat's name" AcceptsReturn="False" VerticalAlignment="Center"
                        TextInputOptions.AutoCapitalization="True" />
             </Border>
             <Button Grid.Column="1" Theme="{StaticResource PhoneIconButton}" Command="{Binding RenameCommand}" Margin="6,0,-8,0"

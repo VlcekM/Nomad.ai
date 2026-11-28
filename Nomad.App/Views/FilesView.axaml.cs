@@ -1,3 +1,4 @@
+using Avalonia.Input.Platform;
 using System.ComponentModel;
 using System.Diagnostics;
 using Avalonia;

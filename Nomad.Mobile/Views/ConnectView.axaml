@@ -16,7 +16,7 @@
       <StackPanel Spacing="8">
         <TextBlock Classes="rowlabel" Text="Hub address" />
         <Border Classes="field">
-          <TextBox Text="{Binding Address}" Watermark="https://hub.example.ts.net" AcceptsReturn="False"
+          <TextBox Text="{Binding Address}" PlaceholderText="https://hub.example.ts.net" AcceptsReturn="False"
                    TextInputOptions.ContentType="Url" TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
         </Border>
       </StackPanel>
@@ -24,7 +24,7 @@
         <TextBlock Classes="rowlabel" Text="Enrollment token" />
         <!-- A code: never autocorrected or capitalized, or it would no longer match. -->
         <Border Classes="field">
-          <TextBox Text="{Binding Token}" Watermark="From Add phone on a PC" AcceptsReturn="False" FontFamily="{DynamicResource MonoFont}"
+          <TextBox Text="{Binding Token}" PlaceholderText="From Add phone on a PC" AcceptsReturn="False" FontFamily="{DynamicResource MonoFont}"
                    TextInputOptions.ShowSuggestions="False" TextInputOptions.AutoCapitalization="False" />
         </Border>
       </StackPanel>
