@@ -184,6 +184,38 @@ public sealed class ScreenTests
 
     [AvaloniaTheory]
     [MemberData(nameof(Themes))]
+    public async Task Chat_screen_with_files_the_agent_sent(string themeName)
+    {
+        var theme = Theme(themeName);
+        var (main, hub) = await SignedInAsync();
+        var picture = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "nomad.png"));
+        var page = Samples.Page();
+        hub.Pages["d1"] = page with
+        {
+            Entries = [.. page.Entries, new ChatEntry(5, "notice", "Sent 2 files: nomad.png, Quarterly report.pdf (open Nomad on the PC to see it)",
+                Files: new ChatSentFiles("The **icon** and the report.", [new ChatSentFile("nomad.png", true), new ChatSentFile("Quarterly report.pdf", false)]))],
+        };
+        hub.SentFiles["d1/5/0"] = ("nomad.png", picture);
+        hub.SentFiles["d1/5/1"] = ("Quarterly report.pdf", [1, 2, 3]);
+        main.OpenChatRow(main.Chats.Groups.SelectMany(g => g.Chats).Single(c => c.SessionId == "d1"));
+        var chat = (ChatViewModel)main.Page;
+        await chat.AttachAsync();
+        await Task.Delay(300); // The picture is read off the UI thread.
+        var window = Show(chat, main, theme);
+
+        var files = chat.Entries.Single(e => e.Index == 5);
+        Assert.True(files.IsFiles);
+        Assert.False(files.IsNotice);
+        Assert.True(files.Files[0].HasPicture);
+        Assert.False(files.Files[1].IsImage);
+        Assert.DoesNotContain(hub.Calls, c => c == "ChatFile d1 5 1"); // Another file is fetched only when tapped.
+        Find<TextBlock>(window, t => t.Text == "Quarterly report.pdf");
+        Find<TextBlock>(window, t => t.Text == "PDF");
+        Save(window, "3h-chat-sent-files", theme);
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(Themes))]
     public async Task Chat_screen_typing(string themeName)
     {
         var theme = Theme(themeName);

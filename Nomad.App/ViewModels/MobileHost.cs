@@ -31,6 +31,7 @@ internal sealed class MobileHost : IDisposable
     private readonly HubClient _client;
     private readonly Func<bool> _enabled;
     private readonly DispatcherTimer _timer;
+    private readonly SentFileShare _sentFiles;
     private string? _lastBoard;
     private bool _publishing;
 
@@ -46,6 +47,8 @@ internal sealed class MobileHost : IDisposable
         client.SettingsRequested = (backend, id) => OnUiAsync(() => SettingsOf(backend, id));
         client.NewChatOptionsRequested = () => Dispatcher.UIThread.InvokeAsync<NewChatOptions>(NewChatOptionsAsync);
         client.StartRequested = (chat, from) => Dispatcher.UIThread.InvokeAsync<NewChatResult>(() => StartAsync(chat, from));
+        _sentFiles = new SentFileShare((slot, content, name, length, ct) => client.UploadSentFileAsync(slot, content, name, length, ct));
+        client.FileRequested = SentFileAsync;
         client.ConnectionChanged += OnConnectionChanged;
         _timer.Start();
         _ = Task.Run(SweepPhoneFiles);
@@ -60,6 +63,7 @@ internal sealed class MobileHost : IDisposable
         _client.SettingsRequested = null;
         _client.NewChatOptionsRequested = null;
         _client.StartRequested = null;
+        _client.FileRequested = null;
     }
 
     /// <summary>A new connection starts with nothing on the board: the next tick sends it all again.</summary>
@@ -241,21 +245,54 @@ internal sealed class MobileHost : IDisposable
             Clip(p.Detail, 4000), p.Description is { } d ? Clip(d, 2000) : null, p.CanAllowForSession, p.AllowText, p.DenyText, p.AnswerText, null)),
         ErrorItem e => new ChatEntry(index, "error", Clip(e.Message)),
         NoticeItem n => new ChatEntry(index, "notice", Clip(n.Text)),
-        SentFilesItem f => new ChatEntry(index, "notice", Clip(SentFilesLine(f))),
+        SentFilesItem f => new ChatEntry(index, "notice", Clip(SentFilesLine(f)), Files: new ChatSentFiles(Clip(f.Caption, 2000),
+            [.. f.SentPaths.Take(MaxSentFiles).Select(p => new ChatSentFile(Path.GetFileName(p), PromptImages.IsImageFile(p)))])),
         AssistantImagesItem i => new ChatEntry(index, "notice", $"{i.Sources.Count} image{(i.Sources.Count == 1 ? "" : "s")} (open Nomad on the PC to see them)"),
         ArtifactItem art => new ChatEntry(index, "notice", Clip($"Artifact: {art.Title} {art.Url}")),
         NewChatItem chat => new ChatEntry(index, "notice", Clip($"Suggested a new chat: {chat.Title}")),
         _ => null,
     };
 
+    /// <summary>The most files of one sent-files item a phone is offered.</summary>
+    private const int MaxSentFiles = 50;
+
     /// <summary>
-    /// A sent-files item as the phone shows it: the files' names and the caption (the files themselves stay on the PC).
+    /// A sent-files item as a phone too old to show the files shows it: their names and the caption. A newer phone shows the
+    /// entry's files instead, each fetched through <see cref="SentFileAsync"/>.
     /// </summary>
     internal static string SentFilesLine(SentFilesItem f)
     {
         var names = string.Join(", ", f.SentPaths.Select(Path.GetFileName));
         var what = f.SentPaths.Count == 1 ? $"Sent a file: {names}" : $"Sent {f.SentPaths.Count} files: {names}";
         return (f.Caption.Length > 0 ? $"{what}. {f.Caption}" : what) + " (open Nomad on the PC to see it)";
+    }
+
+    /// <summary>
+    /// A file of a sent-files item, for a phone: put in the hub's place <paramref name="slot"/> (or named again if put there before).
+    /// Only a file a sent-files item in the chat names can be sent, and only the one the phone saw: the same generation of the
+    /// transcript, the same name at that place.
+    /// </summary>
+    private async Task<ChatFile> SentFileAsync(string backend, string id, ChatFileRequest request, string slot)
+    {
+        var path = await OnUiAsync(() =>
+        {
+            if (!_enabled())
+            {
+                throw new InvalidOperationException("This PC isn't sharing its chats right now.");
+            }
+
+            if (Find(backend, id) is not { } s)
+            {
+                throw new InvalidOperationException("That chat is no longer open in Nomad.");
+            }
+
+            var (index, number) = (request.Index, request.Number);
+            return GenerationOf(s) == request.Generation && index >= 0 && index < s.Items.Count && s.Items[index] is SentFilesItem f
+                && number >= 0 && number < Math.Min(f.SentPaths.Count, MaxSentFiles) && Path.GetFileName(f.SentPaths[number]) == request.Name
+                    ? f.SentPaths[number]
+                    : throw new InvalidOperationException("That file is no longer in the chat; open the chat again.");
+        });
+        return await Task.Run(() => _sentFiles.Offer(path, slot, request.MaxSize, request.Fresh));
     }
 
     // ------------------------------------------------------------------ input

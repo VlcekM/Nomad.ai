@@ -6,7 +6,7 @@ namespace Nomad.Mobile.Views;
 
 /// <summary>
 /// Picks only the template for an <see cref="EntryViewModel"/>'s actual <see cref="EntryViewModel.Kind"/> so each row in the
-/// transcript creates only its own visual tree (rather than instantiating all seven kinds hidden inside every row).
+/// transcript creates only its own visual tree (rather than instantiating all kinds hidden inside every row).
 /// </summary>
 public sealed class EntryTemplateSelector : IDataTemplate
 {
@@ -15,6 +15,7 @@ public sealed class EntryTemplateSelector : IDataTemplate
     public IDataTemplate? Activity { get; set; }
     public IDataTemplate? Thinking { get; set; }
     public IDataTemplate? Notice { get; set; }
+    public IDataTemplate? Files { get; set; }
     public IDataTemplate? Error { get; set; }
     public IDataTemplate? Card { get; set; }
 
@@ -34,6 +35,7 @@ public sealed class EntryTemplateSelector : IDataTemplate
             "activity" => Activity,
             "thinking" => Thinking,
             "notice" => Notice,
+            "files" => Files,
             "error" => Error,
             "permission" or "question" => Card,
             _ => Notice,

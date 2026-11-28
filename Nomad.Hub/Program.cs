@@ -30,6 +30,7 @@ builder.Services.AddDbContext<HubDb>(o => o.UseSqlite($"Data Source={Path.Combin
 builder.Services.AddSingleton<BlobStore>();
 builder.Services.AddSingleton<PhoneAppStore>();
 builder.Services.AddSingleton<PhoneFileStore>();
+builder.Services.AddSingleton<SentFileSlots>();
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<ChangeLog>();
 builder.Services.AddSingleton<RelayState>();
