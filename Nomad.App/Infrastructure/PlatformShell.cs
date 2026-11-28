@@ -34,8 +34,13 @@ public static partial class PlatformShell
             return TryStart(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
         }
 
-        return TryStart(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true })
+        var opened = TryStart(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true })
             || TryStart(new ProcessStartInfo("xdg-open") { ArgumentList = { uri.AbsoluteUri }, UseShellExecute = false });
+
+        // On Plasma's Wayland session the browser would stay behind: KWin gives this Xwayland window no activation token to pass on.
+        if (opened) KWinRaise.RaiseDefaultBrowserSoon();
+
+        return opened;
     }
 
     /// <summary>Opens <paramref name="path"/> with the OS's default handler, falling back to the file manager if none is registered.</summary>
