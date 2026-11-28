@@ -45,15 +45,16 @@ public static class Fold
 
     private static void Begin(Control control, bool open)
     {
-        // Not laid out yet (a template being built, a list loading): take the state at once.
-        if (TopLevel.GetTopLevel(control) is not { } top || (!control.IsVisible && !open) || (control.Parent as Control)?.Bounds.Width is null or <= 0)
+        // Not laid out yet (a template being built, a list loading), or not on screen (the window in the tray or minimized,
+        // where no frame may come): take the state at once.
+        if (TopLevel.GetTopLevel(control) is not { } top || !IsOnScreen(top) || (!control.IsVisible && !open)
+            || (control.Parent as Control)?.Bounds.Width is null or <= 0)
         {
             Runs.Remove(control);
             control.IsVisible = open;
             return;
         }
 
-        var running = Runs.ContainsKey(control);
         var from = control.IsVisible ? control.Bounds.Height : 0;
         var opacity = control.IsVisible ? control.Opacity : 0;
         control.ClipToBounds = true;
@@ -71,19 +72,22 @@ public static class Fold
 
         control.Height = from;
         control.Opacity = opacity;
-        Runs[control] = new Run { Open = open, FromHeight = from, ToHeight = to, FromOpacity = opacity };
-        if (!running)
-        {
-            top.RequestAnimationFrame(t => Step(control, t));
-        }
+
+        // Each change asks a frame of its own: one asked earlier may never come (the window hidden meanwhile), and waiting on
+        // it would leave the control folded at 0 for good. A frame of a run since replaced does nothing.
+        var run = new Run { Open = open, FromHeight = from, ToHeight = to, FromOpacity = opacity };
+        Runs[control] = run;
+        top.RequestAnimationFrame(t => Step(control, run, t));
     }
 
-    private static void Step(Control control, TimeSpan time)
+    /// <summary>
+    /// Whether the window shows, so render frames come.
+    /// </summary>
+    private static bool IsOnScreen(TopLevel top) => top.IsVisible && top is not Window { WindowState: WindowState.Minimized };
+
+    private static void Step(Control control, Run run, TimeSpan time)
     {
-        if (!Runs.TryGetValue(control, out var run))
-        {
-            return;
-        }
+        if (!Runs.TryGetValue(control, out var current) || !ReferenceEquals(current, run)) return;
 
         run.Start ??= time;
         if (time - run.Last > LongFrame && run.Last > TimeSpan.Zero)
@@ -103,7 +107,7 @@ public static class Fold
 
         if (progress < 1 && TopLevel.GetTopLevel(control) is { } top)
         {
-            top.RequestAnimationFrame(t => Step(control, t));
+            top.RequestAnimationFrame(t => Step(control, run, t));
             return;
         }
 
