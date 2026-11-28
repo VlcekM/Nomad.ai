@@ -328,6 +328,19 @@ public sealed class HubClient : IAsyncDisposable
     public async Task<HubInfo> InfoAsync(CancellationToken ct = default) =>
         (await _http.GetFromJsonAsync("api/info", HubJson.Default.HubInfo, ct).ConfigureAwait(false))!;
 
+    /// <summary>Disk usage on the hub by category; null from a hub too old to report it.</summary>
+    public async Task<HubStorageDto?> StorageAsync(CancellationToken ct = default)
+    {
+        using var response = await _http.GetAsync("api/storage", ct).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync(HubJson.Default.HubStorageDto, ct).ConfigureAwait(false);
+    }
+
     /// <summary>The phone app the hub offers as an update; null when it offers none (or is too old to say).</summary>
     public async Task<PhoneAppInfo?> PhoneAppAsync(CancellationToken ct = default)
     {

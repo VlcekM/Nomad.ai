@@ -1,8 +1,11 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Nomad.App.Controls;
+using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
 using Nomad.Core.Codex;
 using Nomad.Core.Hub;
@@ -22,6 +25,18 @@ public sealed record HubDeviceRow(DeviceDto Device)
 
     public bool CanRevoke => !Device.IsThis;
 }
+
+/// <summary>One storage breakdown row in Settings › Hub.</summary>
+public sealed record HubStorageRow(
+    string Key,
+    string Label,
+    long Bytes,
+    int Count,
+    double Fraction,
+    string SizeText,
+    string PercentText,
+    string DetailText,
+    IBrush Brush);
 
 /// <summary>
 /// Nomad Hub on this PC (docs/hub.md): enrolling, the sync engine's lifetime, and its events turned into what the
@@ -51,6 +66,31 @@ public sealed partial class HubViewModel : ObservableObject
     [ObservableProperty]
     public partial string Token { get; set; } = "";
 
+    private bool _applyingEnrollLink;
+
+    partial void OnUrlChanged(string value) => TryApplyEnrollLink(value);
+
+    partial void OnTokenChanged(string value) => TryApplyEnrollLink(value);
+
+    private void TryApplyEnrollLink(string value)
+    {
+        if (_applyingEnrollLink || PhoneEnrollLink.TryParse(value) is not { } link)
+        {
+            return;
+        }
+
+        _applyingEnrollLink = true;
+        try
+        {
+            Url = link.Hub;
+            Token = link.Token;
+        }
+        finally
+        {
+            _applyingEnrollLink = false;
+        }
+    }
+
     [ObservableProperty]
     public partial string DeviceName { get; set; }
 
@@ -75,10 +115,26 @@ public sealed partial class HubViewModel : ObservableObject
 
     public bool HasNewToken => !string.IsNullOrEmpty(NewToken);
 
-    /// <summary>The link a phone opens to enroll (docs/mobile.md §4), after Add phone; its QR code is <see cref="PhoneCode"/>.</summary>
+    /// <summary>A one-time hub enrollment link for another PC, after Add device.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasNewDeviceLink))]
+    public partial string? NewDeviceLink { get; set; }
+
+    public bool HasNewDeviceLink => !string.IsNullOrEmpty(NewDeviceLink);
+
+    [ObservableProperty]
+    public partial string CopyDeviceLinkText { get; set; } = "Copy link";
+
+    private DispatcherTimer? _copiedDeviceTimer;
+
+    /// <summary>The link a phone opens to enroll (one-time hub URL), after Add phone; its QR code is <see cref="PhoneCode"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPhoneLink), nameof(PhoneNeedsHttps))]
     public partial string? PhoneLink { get; set; }
+
+    /// <summary>The raw one-time token for manual phone enrollment.</summary>
+    [ObservableProperty]
+    public partial string? PhoneToken { get; set; }
 
     public bool HasPhoneLink => !string.IsNullOrEmpty(PhoneLink);
 
@@ -96,6 +152,56 @@ public sealed partial class HubViewModel : ObservableObject
     public partial string CopyLinkText { get; set; } = "Copy link";
 
     private DispatcherTimer? _copiedTimer;
+
+    // ------------------------------------------------------------------ sync progress & storage
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSyncIndeterminate))]
+    public partial bool IsSyncing { get; set; }
+
+    [ObservableProperty]
+    public partial double SyncFraction { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsSyncIndeterminate))]
+    public partial int SyncTotal { get; set; }
+
+    public bool IsSyncIndeterminate => IsSyncing && SyncTotal <= 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSyncPhaseText))]
+    public partial string SyncPhaseText { get; set; } = "";
+
+    public bool HasSyncPhaseText => !string.IsNullOrEmpty(SyncPhaseText);
+
+    [ObservableProperty]
+    public partial string SyncToolTip { get; set; } = "Syncing with Nomad Hub…";
+
+    public ObservableCollection<HubStorageRow> StorageRows { get; } = [];
+
+    [ObservableProperty]
+    public partial IReadOnlyList<StorageSegment> StorageSegments { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool HasStorage { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLoadingStorage { get; set; }
+
+    [ObservableProperty]
+    public partial string? StorageSummary { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasDiskSummary))]
+    public partial string? DiskSummary { get; set; }
+
+    public bool HasDiskSummary => !string.IsNullOrEmpty(DiskSummary);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStorageError))]
+    public partial string? StorageError { get; set; }
+
+    public bool HasStorageError => !string.IsNullOrEmpty(StorageError);
 
     public bool IsEnrolled => _main.Settings.HubDeviceId is not null && !string.IsNullOrEmpty(_main.Settings.HubSecret);
 
@@ -153,9 +259,12 @@ public sealed partial class HubViewModel : ObservableObject
         var statePath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(_main.SettingsPath))!, "hub-sync.json");
         _sync = new HubSync(new HubClient(url, secret), backends, statePath, (_, id) => _busy.ContainsKey(id));
         _sync.Status += s => Dispatcher.UIThread.Post(() => Status = s);
+        _sync.ProgressChanged += p => Dispatcher.UIThread.Post(() => ApplyProgress(p));
+        _sync.SessionSynced += (_, id) => Dispatcher.UIThread.Post(() => _main.OnHubSessionSyncChanged(id));
         _sync.ConnectionChanged += up => Dispatcher.UIThread.Post(() =>
         {
             IsConnected = up;
+            _main.OnHubSessionSyncChanged(null);
             if (!up)
             {
                 ClearPhoneLink(); // Folded away with the connection; a code from before isn't brought back with it.
@@ -200,10 +309,64 @@ public sealed partial class HubViewModel : ObservableObject
             _mobile = null;
             _sync = null;
             IsConnected = false;
+            IsSyncing = false;
+            SyncTotal = 0;
+            SyncFraction = 0;
+            SyncPhaseText = "";
             _main.OnHubRemoteHostsChanged(new Dictionary<string, string>());
+            _main.OnHubSessionSyncChanged(null);
             _main.LocalTokens.HubTotals = null;
             await sync.DisposeAsync();
         }
+    }
+
+    private void ApplyProgress(SyncProgress progress)
+    {
+        IsSyncing = progress.IsSyncing;
+        SyncTotal = progress.Total;
+        SyncFraction = progress.Total > 0 ? Math.Clamp(progress.Completed / (double)progress.Total, 0, 1) : 0;
+
+        if (progress.IsSyncing)
+        {
+            var detail = progress.Total > 0
+                ? $"{progress.Phase} {Math.Min(progress.Completed + 1, progress.Total)} of {progress.Total}"
+                : progress.Phase;
+            if (!string.IsNullOrWhiteSpace(progress.CurrentItem))
+            {
+                detail += " - " + progress.CurrentItem;
+            }
+
+            SyncPhaseText = detail;
+            SyncToolTip = "Syncing with Nomad Hub: " + detail;
+        }
+        else if (!string.IsNullOrEmpty(progress.Error))
+        {
+            SyncPhaseText = "Sync failed: " + progress.Error;
+            SyncToolTip = SyncPhaseText;
+        }
+        else if (progress.LastSyncedUtc is { } at)
+        {
+            SyncPhaseText = $"Up to date · last synced {at.ToLocalTime():t}";
+            SyncToolTip = SyncPhaseText;
+        }
+        else
+        {
+            SyncPhaseText = "";
+            SyncToolTip = "Nomad Hub";
+        }
+
+        _main.OnHubSessionSyncChanged(null);
+    }
+
+    /// <summary>Sync status of one chat for the chat title bar icon.</summary>
+    public (SessionSyncStatus Status, string Detail) GetSessionSyncStatus(string backend, string? sessionId)
+    {
+        if (!IsEnrolled || _sync is not { } sync || string.IsNullOrEmpty(sessionId))
+        {
+            return (SessionSyncStatus.None, "");
+        }
+
+        return sync.GetSessionSyncStatus(backend, sessionId);
     }
 
     // ------------------------------------------------------------------ what the app tells the hub
@@ -546,11 +709,19 @@ public sealed partial class HubViewModel : ObservableObject
         _main.Settings.HubSecret = null;
         _main.SaveSettings();
         Devices.Clear();
+        StorageRows.Clear();
+        StorageSegments = [];
+        HasStorage = false;
+        StorageSummary = null;
+        DiskSummary = null;
+        StorageError = null;
         NewToken = null;
+        NewDeviceLink = null;
         ClearPhoneLink();
         Status = "This PC no longer syncs. Its sessions stay here and on the hub.";
         OnPropertyChanged(nameof(IsEnrolled));
         OnPropertyChanged(nameof(IsNotEnrolled));
+        _main.OnHubSessionSyncChanged(null);
     }
 
     [RelayCommand(CanExecute = nameof(CanAct))]
@@ -566,7 +737,11 @@ public sealed partial class HubViewModel : ObservableObject
         {
             var token = await sync.Client.NewEnrollTokenAsync();
             NewToken = token.Token;
-            Status = $"Enter this on the other PC (Settings › Hub) before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
+            NewDeviceLink = _main.Settings.HubUrl is { Length: > 0 } hubUrl
+                ? PhoneEnrollLink.MakeHubLink(hubUrl, token.Token)
+                : null;
+            CopyDeviceLinkText = "Copy link";
+            Status = $"Open or paste this link on the other PC (Settings › Hub) before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
@@ -582,9 +757,22 @@ public sealed partial class HubViewModel : ObservableObject
         }
     }
 
+    /// <summary>The view copied the PC enrollment link: the button says so for two seconds.</summary>
+    public void NotifyDeviceLinkCopied()
+    {
+        CopyDeviceLinkText = "Copied";
+        _copiedDeviceTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) =>
+        {
+            _copiedDeviceTimer!.Stop();
+            CopyDeviceLinkText = "Copy link";
+        });
+        _copiedDeviceTimer.Stop();
+        _copiedDeviceTimer.Start();
+    }
+
     private bool CanAddPhone() => !IsWorking && IsConnected;
 
-    /// <summary>A one-time token for a phone, shown as a QR code of the link its Nomad app opens.</summary>
+    /// <summary>A one-time hub link for a phone, shown as a QR code (and manual token fallback).</summary>
     [RelayCommand(CanExecute = nameof(CanAddPhone))]
     private async Task AddPhoneAsync()
     {
@@ -598,9 +786,10 @@ public sealed partial class HubViewModel : ObservableObject
         {
             // A phone's token: the hub enrolls it as a phone, which may only read and answer chats (docs/mobile.md §6).
             var token = await sync.Client.NewEnrollTokenAsync(phone: true);
-            var link = PhoneEnrollLink.Make(hubUrl, token.Token);
+            var link = PhoneEnrollLink.MakeHubLink(hubUrl, token.Token);
             PhoneCode = QrCode.Encode(link);
-            PhoneExpiry = $"Scan it before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
+            PhoneExpiry = $"Scan or open before {token.ExpiresUtc.ToLocalTime():g}. It works once.";
+            PhoneToken = token.Token;
             PhoneLink = link;
             CopyLinkText = "Copy link";
             ClearPhoneLinkAt(token.ExpiresUtc);
@@ -627,6 +816,7 @@ public sealed partial class HubViewModel : ObservableObject
     {
         _phoneExpiryTimer?.Stop();
         PhoneLink = null;
+        PhoneToken = null;
         PhoneCode = null;
         PhoneExpiry = null;
     }
@@ -669,6 +859,7 @@ public sealed partial class HubViewModel : ObservableObject
             Status = "Syncing…";
             await sync.SyncNowAsync();
             Status = $"Synced {DateTime.Now:t}";
+            _ = RefreshStorageAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or TaskCanceledException)
         {
@@ -720,6 +911,82 @@ public sealed partial class HubViewModel : ObservableObject
             Status = Describe(ex);
         }
     }
+
+    /// <summary>Loads disk usage breakdown from the hub for the storage chart in Settings › Hub.</summary>
+    public async Task RefreshStorageAsync()
+    {
+        if (_sync is not { } sync)
+        {
+            return;
+        }
+
+        IsLoadingStorage = true;
+        StorageError = null;
+        try
+        {
+            var storage = await sync.Client.StorageAsync();
+            StorageRows.Clear();
+            if (storage is null)
+            {
+                StorageSegments = [];
+                HasStorage = false;
+                StorageSummary = null;
+                DiskSummary = null;
+                StorageError = "Update Nomad Hub to see storage breakdown.";
+                return;
+            }
+
+            var total = Math.Max(1, storage.TotalBytes);
+            var segments = new List<StorageSegment>();
+            foreach (var cat in storage.Categories.Where(c => c.Bytes > 0))
+            {
+                var fraction = cat.Bytes / (double)total;
+                var brush = CategoryBrush(cat.Key);
+                var pct = fraction * 100;
+                var pctText = pct < 0.5 ? "<1%" : $"{Math.Round(pct):0}%";
+                var detail = cat.Key switch
+                {
+                    "database" => "SQLite index",
+                    "backups" => Format.Count(cat.Count, "snapshot", "snapshots"),
+                    "older-versions" => Format.Count(cat.Count, "blob", "blobs"),
+                    "phone-files" => Format.Count(cat.Count, "file", "files"),
+                    "phone-app" => "APK",
+                    _ => Format.Count(cat.Count, "session", "sessions"),
+                };
+                StorageRows.Add(new HubStorageRow(cat.Key, cat.Label, cat.Bytes, cat.Count, fraction, Format.Bytes(cat.Bytes), pctText, detail, brush));
+                segments.Add(new StorageSegment(cat.Label, cat.Bytes, fraction, brush));
+            }
+
+            StorageSegments = segments;
+            HasStorage = true;
+            StorageSummary = $"{Format.Bytes(storage.TotalBytes)} used across {Format.Count(storage.SessionCount, "session", "sessions")}";
+            DiskSummary = storage is { DiskFreeBytes: { } free, DiskTotalBytes: { } diskTotal } && diskTotal > 0
+                ? $"{Format.Bytes(free)} free of {Format.Bytes(diskTotal)}"
+                : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            StorageError = Describe(ex);
+        }
+        finally
+        {
+            IsLoadingStorage = false;
+        }
+    }
+
+    private static IBrush CategoryBrush(string key) => new SolidColorBrush(Color.Parse(key switch
+    {
+        "claude-code" => "#D97757",
+        "codex" => "#3B82F6",
+        "opencode" => "#10B981",
+        "antigravity" => "#A855F7",
+        "older-versions" => "#E5B54A",
+        "database" => "#6366F1",
+        "backups" => "#64748B",
+        "phone-files" => "#EC4899",
+        "phone-app" => "#14B8A6",
+        _ => "#8B8B88",
+    }));
 
     /// <summary>Token use of every PC on the hub since a time, by backend: (input incl. cache, output).</summary>
     public async Task<IReadOnlyDictionary<string, (long Input, long Output)>?> UsageSinceAsync(DateTime fromUtc)

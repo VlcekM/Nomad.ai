@@ -175,6 +175,13 @@ public sealed class BlobStore
             .Select(p => (Path.GetFileName(p), File.GetLastWriteTimeUtc(p)))
             .Where(x => IsHash(x.Item1));
 
+    /// <summary>Every stored hash with its byte length (for storage accounting).</summary>
+    public IEnumerable<(string Hash, long Length)> AllSizes() =>
+        Directory.EnumerateFiles(_root, "*", SearchOption.AllDirectories)
+            .Select(p => new FileInfo(p))
+            .Where(f => IsHash(f.Name))
+            .Select(f => (f.Name, f.Length));
+
     public void Delete(string hash)
     {
         if (IsHash(hash))

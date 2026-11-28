@@ -29,8 +29,16 @@ public sealed partial class ConnectViewModel(MainViewModel main) : ObservableObj
     [NotifyCanExecuteChangedFor(nameof(ConnectCommand))]
     public partial bool IsBusy { get; set; }
 
-    /// <summary>A whole <c>nomad://enroll</c> link pasted into the address box fills in both boxes.</summary>
+    /// <summary>A whole enrollment link (hub URL or <c>nomad://enroll</c>) pasted into either box fills in both.</summary>
     partial void OnAddressChanged(string value)
+    {
+        if (EnrollLink.TryParse(value) is { } link)
+        {
+            Fill(link.Hub, link.Token);
+        }
+    }
+
+    partial void OnTokenChanged(string value)
     {
         if (EnrollLink.TryParse(value) is { } link)
         {

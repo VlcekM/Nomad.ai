@@ -34,6 +34,30 @@ public static class Format
         return (tokens / 1_000_000.0).ToString("0.#", CultureInfo.InvariantCulture) + "M";
     }
 
+    /// <summary>0 B, 512 B, 14.2 KB, 128.4 MB, 1.65 GB.</summary>
+    public static string Bytes(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return unit == 0
+            ? $"{bytes} B"
+            : value >= 100 ? $"{value.ToString("0", CultureInfo.InvariantCulture)} {units[unit]}"
+            : value >= 10 ? $"{value.ToString("0.#", CultureInfo.InvariantCulture)} {units[unit]}"
+            : $"{value.ToString("0.##", CultureInfo.InvariantCulture)} {units[unit]}";
+    }
+
     /// <summary>"a command" / "2 commands"; <paramref name="article"/> is "a" or "an".</summary>
     public static string Count(int n, string singular, string plural, string article = "a") =>
         n == 1 ? $"{article} {singular}" : $"{n} {plural}";

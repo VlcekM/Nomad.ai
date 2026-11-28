@@ -201,7 +201,11 @@ public sealed partial class SettingsViewModel : ObservableObject
     partial void OnPageChanged(SettingsPageKind value)
     {
         if (value == SettingsPageKind.Agents) _ = RefreshAgentsAuthAsync();
-        if (value == SettingsPageKind.Hub) _ = Hub.RefreshDevicesAsync();
+        if (value == SettingsPageKind.Hub)
+        {
+            _ = Hub.RefreshDevicesAsync();
+            _ = Hub.RefreshStorageAsync();
+        }
         if (value == SettingsPageKind.Updates) _ = LoadReleasesAsync();
     }
 

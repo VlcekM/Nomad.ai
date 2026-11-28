@@ -387,4 +387,39 @@ public sealed partial class SessionViewModel
         Items.Add(new NoticeItem(text));
         ContentChanged?.Invoke();
     }
+
+    // ------------------------------------------------------------------ chat sync status icon (title bar)
+
+    private SessionSyncStatus _hubSyncStatus = SessionSyncStatus.None;
+    private string _hubSyncToolTip = "";
+
+    public bool ShowHubSyncStatus => _hubSyncStatus != SessionSyncStatus.None;
+
+    public bool IsHubSynced => _hubSyncStatus == SessionSyncStatus.Synced;
+
+    public bool IsHubSyncing => _hubSyncStatus == SessionSyncStatus.Syncing;
+
+    public bool IsHubPending => _hubSyncStatus == SessionSyncStatus.Pending;
+
+    public string HubSyncToolTip => _hubSyncToolTip;
+
+    /// <summary>Updates the chat window's tiny hub sync icon and tooltip from <see cref="HubSync"/>.</summary>
+    public void RefreshHubSyncStatus()
+    {
+        var (status, detail) = IsNew
+            ? (SessionSyncStatus.None, "")
+            : _main.Hub.GetSessionSyncStatus(Backend, SessionId);
+        if (status == _hubSyncStatus && detail == _hubSyncToolTip)
+        {
+            return;
+        }
+
+        _hubSyncStatus = status;
+        _hubSyncToolTip = detail;
+        OnPropertyChanged(nameof(ShowHubSyncStatus));
+        OnPropertyChanged(nameof(IsHubSynced));
+        OnPropertyChanged(nameof(IsHubSyncing));
+        OnPropertyChanged(nameof(IsHubPending));
+        OnPropertyChanged(nameof(HubSyncToolTip));
+    }
 }

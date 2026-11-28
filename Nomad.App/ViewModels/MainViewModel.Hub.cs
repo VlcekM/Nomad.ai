@@ -17,7 +17,11 @@ public sealed partial class MainViewModel
     public string BackendOf(string sessionId) =>
         _all.FirstOrDefault(s => s.SessionId == sessionId)?.Backend ?? AgentBackends.ClaudeCode;
 
-    private void HubActivity(SessionViewModel session) => Hub.SetBusy(session.SessionId, session.IsTurnRunning && !session.IsRelayViewer);
+    private void HubActivity(SessionViewModel session)
+    {
+        Hub.SetBusy(session.SessionId, session.IsTurnRunning && !session.IsRelayViewer);
+        session.RefreshHubSyncStatus();
+    }
 
     private void HubTurnCompleted(SessionViewModel session)
     {
@@ -27,7 +31,17 @@ public sealed partial class MainViewModel
             Hub.OnAliveChanged(session.Backend, session.SessionId, running: true); // A new session has its id only now.
         }
 
+        session.RefreshHubSyncStatus();
         Hub.Wake();
+    }
+
+    /// <summary>Refreshes the chat title bar's sync icon when a session's sync status changes.</summary>
+    public void OnHubSessionSyncChanged(string? sessionId)
+    {
+        if (Current is { } current && (sessionId is null || current.SessionId == sessionId))
+        {
+            current.RefreshHubSyncStatus();
+        }
     }
 
     private void HubAliveChanged(SessionViewModel session)

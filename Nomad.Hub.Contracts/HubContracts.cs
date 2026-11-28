@@ -17,6 +17,18 @@ public sealed record DeviceDto(Guid Id, string Name, DateTime EnrolledUtc, DateT
 /// <summary>What the hub says about itself and the calling device.</summary>
 public sealed record HubInfo(string Version, Guid DeviceId, string DeviceName, bool RelayEnabled);
 
+/// <summary>One category of disk space used on the hub (a backend's sessions, database, backups, etc.).</summary>
+public sealed record StorageCategoryDto(string Key, string Label, long Bytes, int Count);
+
+/// <summary>Disk space used by the hub, broken down by category.</summary>
+public sealed record HubStorageDto(
+    long TotalBytes,
+    long? DiskFreeBytes,
+    long? DiskTotalBytes,
+    int SessionCount,
+    int BlobCount,
+    IReadOnlyList<StorageCategoryDto> Categories);
+
 /// <summary>
 /// The phone app the hub offers (docs/mobile.md §5, "Updating the app"): its version as the release names it ("2.9.0") and as
 /// Android's version code (20900; 0 when the hub wasn't told), the file's size and SHA-256 (lowercase hex), and when it was

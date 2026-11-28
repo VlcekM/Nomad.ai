@@ -232,6 +232,20 @@
             <Style Selector="Button.sessionrow.idle:not(.selected):pointerover">
               <Setter Property="Foreground" Value="{DynamicResource TextChromeBrush}" />
             </Style>
+            <!-- The sidebar's Hub sync spinner fades in while syncing, same size as the top icon buttons. -->
+            <Style Selector="Button.hubsync">
+              <Setter Property="Opacity" Value="0" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+              <Setter Property="Transitions">
+                <Transitions>
+                  <DoubleTransition Property="Opacity" Duration="0:0:0.18" Easing="CubicEaseOut" />
+                </Transitions>
+              </Setter>
+            </Style>
+            <Style Selector="Button.hubsync.syncing">
+              <Setter Property="Opacity" Value="1" />
+              <Setter Property="IsHitTestVisible" Value="True" />
+            </Style>
             <!-- The search box's clear button fades in while there is a search. -->
             <Style Selector="Button#ClearSearchButton">
               <Setter Property="Opacity" Value="0" />
@@ -746,15 +760,25 @@
                 <c:Icon Data="{StaticResource IconArrowRight}" />
               </Button>
             </StackPanel>
-            <Button Theme="{StaticResource IconButton}"
-                    Command="{Binding OpenSettingsCommand}"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="0,0,10,0"
-                    Foreground="{DynamicResource TextPrimaryBrush}"
-                    ToolTip.Tip="Settings (Ctrl+,)">
-              <c:Icon Data="{StaticResource IconGear}" />
-            </Button>
+            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0">
+              <Button Theme="{StaticResource IconButton}"
+                      Classes="hubsync"
+                      Classes.syncing="{Binding Hub.IsSyncing}"
+                      Command="{Binding OpenHubSettingsCommand}"
+                      ToolTip.Tip="{Binding Hub.SyncToolTip}"
+                      ToolTip.ShowDelay="200">
+                <c:Ring Width="14" Height="14" StrokeWidth="1.6"
+                        IsSpinning="{Binding Hub.IsSyncing}"
+                        TrackBrush="{DynamicResource RingTrackBrush}"
+                        SpinBrush="{DynamicResource AccentBrush}" />
+              </Button>
+              <Button Theme="{StaticResource IconButton}"
+                      Command="{Binding OpenSettingsCommand}"
+                      Foreground="{DynamicResource TextPrimaryBrush}"
+                      ToolTip.Tip="Settings (Ctrl+,)">
+                <c:Icon Data="{StaticResource IconGear}" />
+              </Button>
+            </StackPanel>
           </Panel>
 
           <!-- Search -->
@@ -1094,7 +1118,7 @@
             <Grid Grid.Column="1"
                   Name="TitleContent"
                   IsVisible="{Binding ShowSessionChrome}"
-                  ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+                  ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto"
                   ColumnSpacing="2"
                   Margin="17,0,12,0"
                   VerticalAlignment="Center">
@@ -1191,6 +1215,26 @@
                       IsVisible="{Binding Current.IsWorktreeSession}"
                       ToolTip.Tip="{Binding Current.WorktreeTitleToolTip}">
                 <c:Icon Size="13" Data="{StaticResource IconWorktree}" Stroke="{DynamicResource RingBrush}" VerticalAlignment="Center" />
+              </Border>
+              <Border Grid.Column="5" Name="TitleHubSync"
+                      Background="Transparent"
+                      Margin="8,0,0,0"
+                      VerticalAlignment="Center"
+                      IsVisible="{Binding Current.ShowHubSyncStatus}"
+                      ToolTip.Tip="{Binding Current.HubSyncToolTip}"
+                      ToolTip.ShowDelay="200">
+                <Panel>
+                  <c:Icon Size="13" Data="{StaticResource IconCloudCheck}" Stroke="{DynamicResource SuccessBrush}"
+                          IsVisible="{Binding Current.IsHubSynced}" VerticalAlignment="Center" />
+                  <c:Ring Width="12" Height="12" StrokeWidth="1.5"
+                          IsSpinning="{Binding Current.IsHubSyncing}"
+                          IsVisible="{Binding Current.IsHubSyncing}"
+                          TrackBrush="{DynamicResource RingTrackBrush}"
+                          SpinBrush="{DynamicResource AccentBrush}"
+                          VerticalAlignment="Center" />
+                  <c:Icon Size="13" Data="{StaticResource IconCloud}" Stroke="{DynamicResource WaitingBrush}"
+                          IsVisible="{Binding Current.IsHubPending}" VerticalAlignment="Center" />
+                </Panel>
               </Border>
             </Grid>
           </Grid>

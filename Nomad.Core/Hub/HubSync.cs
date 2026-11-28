@@ -14,6 +14,25 @@ namespace Nomad.Core.Hub;
 /// </summary>
 public sealed record PulledSession(string Backend, string SessionId, string Folder, string? OriginalFolder, bool IsNew, string Title, DateTime LastActivityUtc);
 
+/// <summary>Live state of the hub sync engine (for the sidebar spinner and Settings › Hub).</summary>
+public sealed record SyncProgress(
+    bool IsSyncing,
+    string Phase,
+    int Completed,
+    int Total,
+    string? CurrentItem = null,
+    DateTime? LastSyncedUtc = null,
+    string? Error = null);
+
+/// <summary>Whether one specific chat is up to date with Nomad Hub.</summary>
+public enum SessionSyncStatus
+{
+    None,
+    Synced,
+    Syncing,
+    Pending,
+}
+
 /// <summary>
 /// Keeps this PC's sessions and the hub's in step (docs/hub.md): uploads what changed here, fetches what changed
 /// elsewhere, renews this PC's leases and sends its usage. All work runs on one background loop, one step at a time.
@@ -39,6 +58,9 @@ public sealed class HubSync : IAsyncDisposable
     private Task? _renewals;
     private Guid _me;
     private Dictionary<string, string> _remoteHosts = [];
+    private volatile SyncProgress _progress = new(false, "Idle", 0, 0);
+    private volatile string? _activeSessionKey;
+    private DateTime? _lastSyncedUtc;
 
     /// <param name="isBusy">Whether a session is mid-turn on this PC (its files are still being written): not touched until it isn't.</param>
     public HubSync(HubClient client, IEnumerable<ISessionFiles> backends, string statePath, Func<string, string, bool> isBusy)
@@ -95,6 +117,89 @@ public sealed class HubSync : IAsyncDisposable
 
     /// <summary>What the loop last did, or its last error.</summary>
     public event Action<string>? Status;
+
+    /// <summary>Raised whenever sync starts, advances through items, finishes or fails.</summary>
+    public event Action<SyncProgress>? ProgressChanged;
+
+    /// <summary>A session's sync state changed (pushed, pulled, or a round finished).</summary>
+    public event Action<string, string>? SessionSynced;
+
+    public SyncProgress CurrentProgress => _progress;
+
+    private void ReportProgress(bool isSyncing, string phase, int completed = 0, int total = 0, string? currentItem = null, string? error = null)
+    {
+        var next = new SyncProgress(isSyncing, phase, completed, total, currentItem, _lastSyncedUtc, error);
+        _progress = next;
+        ProgressChanged?.Invoke(next);
+    }
+
+    /// <summary>Whether a specific chat is synced with the hub, currently syncing, or has pending changes.</summary>
+    public (SessionSyncStatus Status, string Detail) GetSessionSyncStatus(string backend, string sessionId)
+    {
+        var key = Key(backend, sessionId);
+        if (_activeSessionKey == key)
+        {
+            return (SessionSyncStatus.Syncing, "Syncing with Nomad Hub…");
+        }
+
+        SyncedSession? known;
+        bool retrying;
+        lock (_state)
+        {
+            known = _state.Sessions.GetValueOrDefault(key);
+            retrying = _state.Retry.Contains(key);
+        }
+
+        if (retrying)
+        {
+            return (SessionSyncStatus.Pending, "Waiting to fetch latest version from Nomad Hub");
+        }
+
+        if (_isBusy(backend, sessionId))
+        {
+            return (SessionSyncStatus.Pending, "Turn running; will sync to Nomad Hub when finished");
+        }
+
+        string? localStamp = null;
+        if (_backends.TryGetValue(backend, out var files))
+        {
+            try
+            {
+                localStamp = files.StampOf(sessionId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+
+        if (known is not null)
+        {
+            if (localStamp is null || localStamp == known.Stamp)
+            {
+                return (SessionSyncStatus.Synced, $"Synced with Nomad Hub (v{known.Version})");
+            }
+
+            if (_progress.IsSyncing)
+            {
+                return (SessionSyncStatus.Syncing, "Local changes queued to upload to Nomad Hub…");
+            }
+
+            return (SessionSyncStatus.Pending, _client.IsConnected
+                ? "Local changes waiting to sync to Nomad Hub"
+                : "Local changes (hub offline; will sync when reconnected)");
+        }
+
+        if (localStamp is null)
+        {
+            return (SessionSyncStatus.None, "");
+        }
+
+        return _progress.IsSyncing
+            ? (SessionSyncStatus.Syncing, "Uploading to Nomad Hub…")
+            : (SessionSyncStatus.Pending, _client.IsConnected
+                ? "Not yet synced to Nomad Hub"
+                : "Not yet synced (hub offline)");
+    }
 
     public void Start()
     {
@@ -296,6 +401,8 @@ public sealed class HubSync : IAsyncDisposable
             try
             {
                 await StepAsync(ct).ConfigureAwait(false);
+                _lastSyncedUtc = DateTime.UtcNow;
+                ReportProgress(false, "Up to date");
                 Status?.Invoke($"Synced {DateTime.Now:t}");
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -304,6 +411,7 @@ public sealed class HubSync : IAsyncDisposable
             }
             catch (Exception ex)
             {
+                ReportProgress(false, "Sync failed", error: ex.Message);
                 Status?.Invoke("Sync failed: " + ex.Message);
             }
 
@@ -360,11 +468,22 @@ public sealed class HubSync : IAsyncDisposable
     /// <summary>Fetches and uploads now (and once more if that turned up more to do), without waiting for the loop.</summary>
     public async Task SyncNowAsync(CancellationToken ct = default)
     {
-        _pullWanted = _pushWanted = true;
-        await StepAsync(ct).ConfigureAwait(false);
-        if (_pullWanted || _pushWanted)
+        try
         {
+            _pullWanted = _pushWanted = true;
             await StepAsync(ct).ConfigureAwait(false);
+            if (_pullWanted || _pushWanted)
+            {
+                await StepAsync(ct).ConfigureAwait(false);
+            }
+
+            _lastSyncedUtc = DateTime.UtcNow;
+            ReportProgress(false, "Up to date");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ReportProgress(false, "Sync failed", error: ex.Message);
+            throw;
         }
     }
 
@@ -373,6 +492,7 @@ public sealed class HubSync : IAsyncDisposable
         await _work.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            ReportProgress(true, "Checking hub…");
             if (_me == Guid.Empty)
             {
                 _me = (await _client.InfoAsync(ct).ConfigureAwait(false)).DeviceId;
@@ -398,6 +518,7 @@ public sealed class HubSync : IAsyncDisposable
         }
         finally
         {
+            _activeSessionKey = null;
             _work.Release();
         }
     }
@@ -424,6 +545,7 @@ public sealed class HubSync : IAsyncDisposable
 
     private async Task PushAsync(CancellationToken ct)
     {
+        var pending = new List<(ISessionFiles Backend, LocalSession Local, SyncedSession? Known)>();
         foreach (var backend in _backends.Values)
         {
             foreach (var local in backend.List(ct))
@@ -435,17 +557,41 @@ public sealed class HubSync : IAsyncDisposable
                     continue;
                 }
 
-                try
-                {
-                    await PushAsync(backend, local, known, ct).ConfigureAwait(false);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-                {
-                    Status?.Invoke($"Couldn't upload {local.Title}: {ex.Message}");
-                }
+                pending.Add((backend, local, known));
+            }
+        }
+
+        for (var i = 0; i < pending.Count; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var (backend, local, known) = pending[i];
+            var key = Key(backend.Backend, local.SessionId);
+            _activeSessionKey = key;
+            ReportProgress(true, "Uploading", i, pending.Count, local.Title);
+            SessionSynced?.Invoke(backend.Backend, local.SessionId);
+            try
+            {
+                await PushAsync(backend, local, known, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                Status?.Invoke($"Couldn't upload {local.Title}: {ex.Message}");
+            }
+            finally
+            {
+                _activeSessionKey = null;
+                SessionSynced?.Invoke(backend.Backend, local.SessionId);
             }
 
-            Save();
+            if ((i + 1) % 10 == 0 || i + 1 == pending.Count)
+            {
+                Save();
+            }
+        }
+
+        if (pending.Count > 0)
+        {
+            ReportProgress(true, "Uploading", pending.Count, pending.Count);
         }
     }
 
@@ -759,13 +905,32 @@ public sealed class HubSync : IAsyncDisposable
 
         var changes = await _client.ChangesAsync(since, ct).ConfigureAwait(false);
         var applied = 0;
-        foreach (var remote in changes.Sessions)
+        var total = changes.Sessions.Count;
+        for (var i = 0; i < total; i++)
         {
+            var remote = changes.Sessions[i];
             ct.ThrowIfCancellationRequested();
-            if (await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false) && ++applied % 25 == 0)
+            if (total > 0)
             {
-                Save(); // A first sync is long: what it fetched stays fetched if Nomad closes meanwhile.
+                _activeSessionKey = Key(remote.Backend, remote.SessionId);
+                ReportProgress(true, "Downloading", i, total, remote.Title);
             }
+
+            var wrote = await ApplyAsync(remote, Fetch.Normal, ct).ConfigureAwait(false);
+            _activeSessionKey = null;
+            if (wrote)
+            {
+                SessionSynced?.Invoke(remote.Backend, remote.SessionId);
+                if (++applied % 25 == 0)
+                {
+                    Save(); // A first sync is long: what it fetched stays fetched if Nomad closes meanwhile.
+                }
+            }
+        }
+
+        if (total > 0)
+        {
+            ReportProgress(true, "Downloading", total, total);
         }
 
         foreach (var state in changes.States)

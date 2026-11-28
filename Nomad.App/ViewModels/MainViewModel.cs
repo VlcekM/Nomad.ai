@@ -1085,6 +1085,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         IsWorkPageOpen = false;
         newValue?.ApplyDefaultMode();
+        newValue?.RefreshHubSyncStatus();
         _ = RefreshVisibleUsageAsync();
 
         if (oldValue is not null)
@@ -1492,6 +1493,20 @@ public sealed partial class MainViewModel : ObservableObject
         IsSettingsOpen = true;
         IsSettingsShown = true;
         Dispatcher.UIThread.Post(() => IsSettingsRaised = IsSettingsOpen, DispatcherPriority.Loaded);
+    }
+
+    [RelayCommand]
+    public void OpenHubSettings()
+    {
+        if (!IsSettingsOpen)
+        {
+            OpenSettings();
+        }
+
+        if (SettingsPage is { } page)
+        {
+            page.Page = SettingsPageKind.Hub;
+        }
     }
 
     [RelayCommand]
