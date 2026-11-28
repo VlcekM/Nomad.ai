@@ -10,7 +10,7 @@ namespace Nomad.Core.Codex;
 /// <see cref="CodexServer"/>, driven over its JSON-RPC API, its notifications and requests heard as that thread's
 /// listener.
 /// </summary>
-public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
+public sealed class CodexBackend : IAgentBackend, ISteerableBackend, ICodexThreadListener
 {
     private readonly Lock _gate = new();
     private CodexServer? _server;
@@ -126,6 +126,63 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
         }
     }
 
+    /// <summary>A prompt as Codex takes it: its text, then its images.</summary>
+    private static JsonArray Input(string text, IReadOnlyList<PromptImage>? images)
+    {
+        var input = new JsonArray();
+        if (text.Length > 0)
+        {
+            input.Add((JsonNode)new JsonObject { ["type"] = "text", ["text"] = text, ["text_elements"] = new JsonArray() });
+        }
+
+        foreach (var image in images ?? [])
+        {
+            input.Add((JsonNode)new JsonObject { ["type"] = "image", ["url"] = $"data:{image.MediaType};base64,{Convert.ToBase64String(image.Data)}" });
+        }
+
+        return input;
+    }
+
+    public bool CanSteer => IsProcessRunning && IsTurnRunning;
+
+    /// <summary>
+    /// Adds a prompt to the running turn (<c>turn/steer</c>), as Codex's terminal does with one typed while it works: the model
+    /// reads it at its next step and the turn carries on. Throws when no turn runs any more, so the caller queues it.
+    /// </summary>
+    public async Task SteerAsync(string text, IReadOnlyList<PromptImage>? images, string uuid, CancellationToken cancellationToken = default)
+    {
+        var (server, id) = Require();
+        string? turnId;
+        lock (_gate)
+        {
+            turnId = _translator!.TurnId;
+        }
+
+        // Sent the moment the turn started: it has no id yet, so wait for it briefly.
+        for (var i = 0; turnId is null && i < 20 && IsTurnRunning; i++)
+        {
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+            lock (_gate)
+            {
+                turnId = _translator!.TurnId;
+            }
+        }
+
+        if (turnId is null)
+        {
+            throw new InvalidOperationException("Codex is not working on a turn.");
+        }
+
+        await server.CallAsync("turn/steer", new JsonObject
+        {
+            ["threadId"] = id,
+            ["expectedTurnId"] = turnId,
+            ["clientUserMessageId"] = uuid,
+            ["input"] = Input(text, images),
+        }, cancellationToken).ConfigureAwait(false);
+        Raise(new PromptTakenEvent(uuid));
+    }
+
     public async Task SendPromptAsync(string text, string? uuid = null, IReadOnlyList<PromptImage>? images = null, CancellationToken cancellationToken = default)
     {
         var (server, id) = Require();
@@ -143,16 +200,7 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
             return;
         }
 
-        var input = new JsonArray();
-        if (text.Length > 0)
-        {
-            input.Add((JsonNode)new JsonObject { ["type"] = "text", ["text"] = text, ["text_elements"] = new JsonArray() });
-        }
-
-        foreach (var image in images ?? [])
-        {
-            input.Add((JsonNode)new JsonObject { ["type"] = "image", ["url"] = $"data:{image.MediaType};base64,{Convert.ToBase64String(image.Data)}" });
-        }
+        var input = Input(text, images);
 
         var (approval, _, reviewer) = Policy(_mode);
         var parameters = new JsonObject

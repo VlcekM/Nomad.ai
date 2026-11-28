@@ -13,7 +13,7 @@ namespace Nomad.Core.Antigravity;
 /// <summary>
 /// Runs an Antigravity coding session through its ACP server.
 /// </summary>
-public sealed class AntigravityBackend : IAgentBackend
+public sealed class AntigravityBackend : IAgentBackend, ISteerableBackend
 {
     #region Session
 
@@ -358,41 +358,102 @@ public sealed class AntigravityBackend : IAgentBackend
         var start = Stopwatch.GetTimestamp();
         Raise(new TurnStartedEvent(text));
         Task<JsonElement> pendingReply;
+        await _steerGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
             var parameters = SessionParameters();
             parameters["prompt"] = PromptContent(text, images);
             pendingReply = await connection.StartCallAsync("session/prompt", parameters, cancellationToken).ConfigureAwait(false);
+            Volatile.Write(ref _latestReply, pendingReply);
         }
         catch
         {
             Volatile.Write(ref _turn, null);
             throw;
         }
+        finally
+        {
+            _steerGate.Release();
+        }
 
         _ = CompleteTurnAsync(turn, pendingReply, start);
     }
 
+    /// <summary>The reply that ends the running turn: a prompt sent into it takes over from the one before.</summary>
+    private Task<JsonElement>? _latestReply;
+
+    /// <summary>Held while a prompt goes into the running turn, so the turn cannot end between the check and the send.</summary>
+    private readonly SemaphoreSlim _steerGate = new(1, 1);
+
+    public bool CanSteer => IsProcessRunning && IsPromptRunning;
+
     /// <summary>
-    /// Waits for the in-flight prompt RPC to finish and emits the turn completion event.
+    /// Sends a prompt while one runs. Antigravity then ends the running prompt's call at once and carries on the same work in
+    /// the new one, with the new message taken in, so to the chat it is still one turn. Throws when no prompt runs any more,
+    /// so the caller queues it.
+    /// </summary>
+    public async Task SteerAsync(string text, IReadOnlyList<PromptImage>? images, string uuid, CancellationToken cancellationToken = default)
+    {
+        var connection = Connection;
+        await _steerGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!IsPromptRunning) throw new InvalidOperationException("Antigravity is not working on a prompt.");
+
+            var parameters = SessionParameters();
+            parameters["prompt"] = PromptContent(text, images);
+            var pendingReply = await connection.StartCallAsync("session/prompt", parameters, cancellationToken).ConfigureAwait(false);
+            Volatile.Write(ref _latestReply, pendingReply);
+        }
+        finally
+        {
+            _steerGate.Release();
+        }
+
+        Raise(new PromptTakenEvent(uuid));
+    }
+
+    /// <summary>
+    /// Waits for the in-flight prompt RPC to finish and emits the turn completion event. A prompt sent into the turn meanwhile
+    /// ends the call early; the turn then lasts until that prompt's call finishes.
     /// </summary>
     private async Task CompleteTurnAsync(AntigravityTurn turn, Task<JsonElement> pendingReply, long start)
     {
         var result = new TurnResult();
+        var gateHeld = false;
         try
         {
-            var reply = await pendingReply.ConfigureAwait(false);
-            var reason = CodexJson.Str(reply, "stopReason") ?? "end_turn";
-            result = new TurnResult { Subtype = reason, Interrupted = reason == "cancelled" };
-        }
-        catch (OperationCanceledException)
-        {
-            await InterruptAsync().ConfigureAwait(false);
-            result = new TurnResult { Subtype = "cancelled", Interrupted = true };
-        }
-        catch (Exception ex)
-        {
-            result = new TurnResult { Subtype = "error", IsError = true, ErrorMessage = ex.Message };
+            while (true)
+            {
+                try
+                {
+                    var reply = await pendingReply.ConfigureAwait(false);
+                    var reason = CodexJson.Str(reply, "stopReason") ?? "end_turn";
+                    result = new TurnResult { Subtype = reason, Interrupted = reason == "cancelled" };
+                }
+                catch (OperationCanceledException)
+                {
+                    await InterruptAsync().ConfigureAwait(false);
+                    result = new TurnResult { Subtype = "cancelled", Interrupted = true };
+                }
+                catch (Exception ex)
+                {
+                    result = new TurnResult { Subtype = "error", IsError = true, ErrorMessage = ex.Message };
+                }
+
+                // Held until the turn is marked over below, so a prompt can't slip into a turn that is ending.
+                await _steerGate.WaitAsync().ConfigureAwait(false);
+                gateHeld = true;
+                if (Volatile.Read(ref _latestReply) is { } next && next != pendingReply)
+                {
+                    pendingReply = next;
+                    _steerGate.Release();
+                    gateHeld = false;
+                    continue;
+                }
+
+                break;
+            }
         }
         finally
         {
@@ -403,6 +464,8 @@ public sealed class AntigravityBackend : IAgentBackend
             }
 
             Volatile.Write(ref _turn, null);
+            Volatile.Write(ref _latestReply, null);
+            if (gateHeld) _steerGate.Release();
             _background.EndTurn(promote: !result.Interrupted && !result.IsError);
 
             Raise(new TurnCompletedEvent(result with { DurationMs = (long)Stopwatch.GetElapsedTime(start).TotalMilliseconds }));
@@ -416,13 +479,18 @@ public sealed class AntigravityBackend : IAgentBackend
     /// <summary>
     /// Asks the agent to stop the current prompt.
     /// </summary>
-    public Task InterruptAsync(CancellationToken cancellationToken = default)
+    public async Task InterruptAsync(CancellationToken cancellationToken = default)
     {
-        if (!IsTurnRunning || _connection is not { IsRunning: true } connection) return Task.CompletedTask;
+        if (!IsTurnRunning || _connection is not { IsRunning: true } connection) return;
+
+        // A prompt being sent into the turn goes first, so the cancel stops it too rather than arriving before it.
+        await _steerGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        _steerGate.Release();
+        if (!IsTurnRunning) return;
 
         // An unprompted reply has no prompt for the cancel to end: it stops showing as running here.
         _background.EndReply();
-        return connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken);
+        await connection.NotifyAsync("session/cancel", SessionParameters(), cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

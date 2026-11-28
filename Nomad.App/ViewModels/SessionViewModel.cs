@@ -2070,15 +2070,18 @@ public sealed partial class SessionViewModel : ObservableObject
     public bool ShowSendButton => HasComposerText || HasAttachments;
 
     public string SendToolTip => !IsTurnRunning ? "Send (Enter)"
-        : CanSteer ? "Send (Enter): Claude reads it at its next step · Ctrl+Enter or Ctrl+click stops Claude and sends it"
-        : "Queue (Enter): sent when Claude is done · Ctrl+Enter or Ctrl+click sends now";
+        : CanSteer ? $"Send (Enter): {AgentName} reads it at its next step · Ctrl+Enter or Ctrl+click stops {AgentName} and sends it"
+        : $"Queue (Enter): sent when {AgentName} is done · Ctrl+Enter or Ctrl+click sends now";
+
+    /// <summary>The agent as the composer's hints name it.</summary>
+    private string AgentName => IsCodex ? "Codex" : IsAntigravity ? "Antigravity" : IsClaudeCode ? "Claude" : "the agent";
 
     /// <summary>
-    /// Whether a prompt sent while Claude Code works goes straight into the running turn, as typed in its terminal: the CLI
-    /// reads it at its next step, without stopping. Not for the other agents (they queue it), a session watched on another PC
-    /// or one the Claude app drives.
+    /// Whether a prompt sent while the agent works goes straight into the running turn, as typed in its terminal: it reads it
+    /// at its next step, without stopping (Claude Code, Codex, Antigravity; OpenCode queues it). Not for a session watched on
+    /// another PC or one the Claude app drives.
     /// </summary>
-    private bool CanSteer => IsClaudeCode && IsTurnRunning && !IsPhoneSession && !IsRelayViewer
+    private bool CanSteer => _backend is ISteerableBackend && IsTurnRunning && !IsPhoneSession && !IsRelayViewer
         && !_stopRequested && !_movingFolder && _pendingFolderMove is null;
 
     /// <summary>Whether Enter steers or queues changed (a Stop, a folder move): the hint and the Send tooltip say it again.</summary>
@@ -2441,14 +2444,14 @@ public sealed partial class SessionViewModel : ObservableObject
 
     /// <summary>
     /// A message from another chat (send_to_chat), handled as one typed here: sent now when this chat is idle (starting its
-    /// agent if it stopped), into a running Claude Code turn at its next step, and with other agents queued behind the turn.
+    /// agent if it stopped), into a running turn at the agent's next step, and with OpenCode queued behind the turn.
     /// Returns where it went.
     /// </summary>
     public Task<MessageDelivery> ReceiveMessageAsync(string text) => DeliverAsync(text, null);
 
     /// <summary>
-    /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when Claude
-    /// Code can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
+    /// A prompt from another device (a phone, through Nomad Hub), handled as one typed here: into the running turn when the
+    /// agent can take it in at its next step, else queued behind the turn, and sent now when no turn runs. Returns where it went.
     /// </summary>
     public Task<MessageDelivery> ReceivePromptAsync(string text, string from, IReadOnlyList<Attachment>? attachments = null) =>
         DeliverAsync(text, from, attachments);
@@ -2463,7 +2466,7 @@ public sealed partial class SessionViewModel : ObservableObject
         }
 
         QueuedPrompt waiting;
-        if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
+        if (CanSteer && !text.TrimStart().StartsWith('/') && _backend is ISteerableBackend { CanSteer: true })
         {
             if (await SteerAsync(text, attachments, from) is not { } back)
             {
@@ -2678,10 +2681,10 @@ public sealed partial class SessionViewModel : ObservableObject
         IsCommandMenuOpen = false;
     }
 
-    // While Claude works: Enter sends the prompt into the turn (Claude Code) or queues it (the others), Ctrl+Enter stops
-    // Claude and sends it at once.
+    // While the agent works: Enter sends the prompt into the turn (or queues it, with OpenCode), Ctrl+Enter stops it and
+    // sends it at once.
     public string ComposerPlaceholder => HasSuggestion ? Suggestion! : IsNew ? "Describe a task or ask a question"
-        : CanSteer ? "Enter: Claude reads it at its next step · Ctrl+Enter stops it and sends"
+        : CanSteer ? $"Enter: {AgentName} reads it at its next step · Ctrl+Enter stops it and sends"
         : IsTurnRunning ? "Enter queues a message · Ctrl+Enter sends it now" : !IsClaudeCode ? "Ask a follow-up" : "Type / for commands";
 
     // ------------------------------------------------------------------ turn state
@@ -2985,12 +2988,12 @@ public sealed partial class SessionViewModel : ObservableObject
         Attachments.Clear();
         OnAttachmentsChanged();
 
-        // While Claude Code works, a prompt goes straight in and it reads it at its next step; with the other agents, or for
-        // Ctrl+Enter, it waits its turn (above the composer, with "Send now").
+        // While the agent works, a prompt goes straight in and it reads it at its next step; with OpenCode, or for Ctrl+Enter,
+        // it waits its turn (above the composer, with "Send now").
         if (IsTurnRunning)
         {
             // A slash command runs as a turn of its own once this one ends: it waits in the queue as before.
-            if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ClaudeCodeBackend { IsProcessRunning: true })
+            if (CanSteer && !_queueOnly && !text.TrimStart().StartsWith('/') && _backend is ISteerableBackend { CanSteer: true })
             {
                 if (await SteerAsync(text, images) is not null && !IsTurnRunning)
                 {
@@ -3043,8 +3046,8 @@ public sealed partial class SessionViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Sends a prompt into the turn Claude Code is running, as its terminal does with one typed mid-turn: the CLI takes it at
-    /// its next step and carries on, so the turn and its state stay as they are.
+    /// Sends a prompt into the turn the agent is running, as its terminal does with one typed mid-turn: it takes it in at its
+    /// next step and carries on, so the turn and its state stay as they are.
     /// </summary>
     /// <param name="from">The device it came from (a phone, through Nomad Hub), shown on it here and to watching PCs; null for this PC.</param>
     /// <returns>
@@ -3073,7 +3076,7 @@ public sealed partial class SessionViewModel : ObservableObject
             _steered[uuid] = message;
             _steeredInput[uuid] = (text, attachments, from);
             _waitingPrompts.Add(uuid);
-            await ((ClaudeCodeBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
+            await ((ISteerableBackend)_backend!).SteerAsync(sent, images.Select(i => i.Image!).ToList(), uuid);
             try
             {
                 _relay?.PublishPrompt(sent, uuid, from);
