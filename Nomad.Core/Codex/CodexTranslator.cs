@@ -336,6 +336,8 @@ public sealed class CodexTranslator
             }
 
             case "contextCompaction":
+                // As the history shows it on reopening: a notice, live too.
+                yield return new CommandOutputEvent("Context compacted");
                 yield return new StatusEvent("requesting");
                 break;
             case var t when CodexTools.IsTool(t):

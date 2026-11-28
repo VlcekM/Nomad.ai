@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Nomad.App.Infrastructure;
 using Nomad.Core.Agents;
+using Nomad.Core.Codex;
 using Nomad.Core.Git;
 using Nomad.Core.Hub;
 using Nomad.Core.OpenCode;
@@ -3116,14 +3117,17 @@ public sealed partial class SessionViewModel : ObservableObject
 
         CloseGroup();
         var uuid = Guid.NewGuid().ToString();
-        var message = new UserMessageItem(text, IsAntigravity ? null : uuid, DateTime.UtcNow, seen: false)
+
+        // Codex's "/compact" compacts the thread and leaves no message in it, so there is nothing to rewind or fork to.
+        var codexCompact = IsCodex && images.Count == 0 && files.Count == 0 && CodexBackend.IsCompactCommand(text);
+        var message = new UserMessageItem(text, IsAntigravity || codexCompact ? null : uuid, DateTime.UtcNow, seen: false)
         {
             Images = images.Select(i => i.Preview!).ToList(),
             Files = files,
             FromDevice = from,
 
             // Codex keeps the id with the prompt, so it can rewind or fork to just before it.
-            ParentUuid = IsCodex ? uuid : null,
+            ParentUuid = IsCodex && !codexCompact ? uuid : null,
         };
         text = AttachedFiles.AddTo(text, files.Select(f => f.Path!));
         _unseen = message;

@@ -135,6 +135,14 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
         }
 
         Raise(new TurnStartedEvent(text));
+
+        // "/compact" is a command of Codex's own terminal, not text for the model: ask the server to compact the thread.
+        if (IsCompactCommand(text) && images is not { Count: > 0 })
+        {
+            await CallTurnAsync(server, "thread/compact/start", new JsonObject { ["threadId"] = id }, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         var input = new JsonArray();
         if (text.Length > 0)
         {
@@ -170,9 +178,18 @@ public sealed class CodexBackend : IAgentBackend, ICodexThreadListener
             };
         }
 
+        await CallTurnAsync(server, "turn/start", parameters, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Just "/compact", as Codex's terminal takes it (it has no summary instructions to pass on).</summary>
+    public static bool IsCompactCommand(string text) => string.Equals(text.Trim(), "/compact", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Starts a turn on the server; one it refuses runs no turn after all.</summary>
+    private async Task CallTurnAsync(CodexServer server, string method, JsonObject parameters, CancellationToken cancellationToken)
+    {
         try
         {
-            var result = await server.CallAsync("turn/start", parameters, cancellationToken).ConfigureAwait(false);
+            var result = await server.CallAsync(method, parameters, cancellationToken).ConfigureAwait(false);
             lock (_gate)
             {
                 if (CodexJson.Str(CodexJson.Obj(result, "turn"), "id") is { } turnId && _translator!.IsTurnRunning && _translator.TurnId is null)
