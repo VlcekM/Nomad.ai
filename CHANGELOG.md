@@ -3,6 +3,14 @@
 Released with tags `v<version>` by `.github/workflows/release.yml`, which needs a non-empty `## v<version>` section here.
 Newest first: the newest heading is also the version of local builds (`Directory.Build.props`).
 
+## v3.1.0
+
+- Added one-time enrollment links through Nomad Hub (`/enroll/{token}`) with QR codes and manual fallback, a Hub storage breakdown chart and live sync progress in **Settings > Hub**, a per-chat sync status icon in the chat title bar, and a syncing spinner in the sidebar.
+- Added mid-turn steering for Codex and Antigravity chats (including from a watching PC over Nomad Hub).
+- Added desktop agent tools for Antigravity and Codex (screenshots, permission-gated desktop commands, sending files, and notifications).
+- Added `/compact` support for Codex chats.
+- Nomad Mobile now renders files and images sent by a chat, optimizes transcript and streaming Markdown rendering, and fixes duplicate draft attachments and empty sent image bubbles.
+
 ## v3.0.0
 
 - Added Nomad Mobile for Android 10 and later. Pair from **Settings → Hub → Add phone**, then follow live chats, send prompts and attachments, answer permission and question cards, and start chats on connected PCs. The Android app is available to build from source. A signed APK requires the repository's Android signing secrets.
