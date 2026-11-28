@@ -54,12 +54,26 @@ public sealed partial class EntryViewModel : ObservableObject
     /// <summary>What an activity did, in order: each command or file with its one line, and the thinking between them.</summary>
     public IReadOnlyList<StepViewModel> Steps { get; private set; } = [];
 
+    /// <summary>Steps realized for the UI: empty while collapsed so closed activities allocate no child controls.</summary>
+    public IReadOnlyList<StepViewModel> VisibleSteps => _stepsLoaded ? Steps : [];
+
+    private bool _stepsLoaded;
+
     public bool HasSteps => Steps.Count > 0;
 
     /// <summary>An activity shows its steps, or a thought its text, once tapped open.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FoldGlyph), nameof(ThinkingText), nameof(ShowsThought))]
     public partial bool IsOpen { get; set; }
+
+    partial void OnIsOpenChanged(bool value)
+    {
+        if (value && !_stepsLoaded)
+        {
+            _stepsLoaded = true;
+            OnPropertyChanged(nameof(VisibleSteps));
+        }
+    }
 
     /// <summary>The PC writes thinking out in full: a thought shows whole, with no "Thought" line to open it.</summary>
     [ObservableProperty]
@@ -127,6 +141,11 @@ public sealed partial class EntryViewModel : ObservableObject
         {
             Steps = StepsOf(entry);
             OnPropertyChanged(nameof(Steps));
+            if (_stepsLoaded)
+            {
+                OnPropertyChanged(nameof(VisibleSteps));
+            }
+
             OnPropertyChanged(nameof(HasSteps));
         }
 

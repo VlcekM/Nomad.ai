@@ -222,95 +222,147 @@
               <ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="vm:EntryViewModel">
-                <!-- Plain text, so a finger's drag always scrolls; hold a message to copy it. -->
-                <StackPanel Background="Transparent">
-                  <StackPanel.ContextFlyout>
-                    <MenuFlyout Opening="OnEntryMenuOpening">
-                      <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
-                    </MenuFlyout>
-                  </StackPanel.ContextFlyout>
-                <Panel>
-                  <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not
-                       the PC itself. -->
-                  <Grid IsVisible="{Binding IsUser}" ColumnDefinitions="*,3*" Margin="0,12,0,4">
-                    <Border Grid.Column="1" HorizontalAlignment="Right"
-                            Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}"
-                            BorderThickness="1" CornerRadius="14" Padding="14,9,14,10">
-                      <StackPanel Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasFrom}" Margin="0,2,0,-2">
-                          <c:Icon Size="12" Data="{StaticResource IconLaptop}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
-                          <TextBlock Classes="muted small" Text="{Binding FromText}" VerticalAlignment="Center" />
+              <v:EntryTemplateSelector>
+                <v:EntryTemplateSelector.User>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <StackPanel Background="Transparent">
+                      <StackPanel.ContextFlyout>
+                        <MenuFlyout Opening="OnEntryMenuOpening">
+                          <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                        </MenuFlyout>
+                      </StackPanel.ContextFlyout>
+                      <!-- A prompt: the desktop's bubble, on the right, three quarters wide at most; where it came from on top when not the PC itself. -->
+                      <Grid ColumnDefinitions="*,3*" Margin="0,12,0,4">
+                        <Border Grid.Column="1" HorizontalAlignment="Right"
+                                Background="{DynamicResource BgRaisedBrush}" BorderBrush="{DynamicResource BorderCardBrush}"
+                                BorderThickness="1" CornerRadius="14" Padding="14,9,14,10">
+                          <StackPanel Spacing="6">
+                            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding HasFrom}" Margin="0,2,0,-2">
+                              <c:Icon Size="12" Data="{StaticResource IconLaptop}" Stroke="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+                              <TextBlock Classes="muted small" Text="{Binding FromText}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
+                                       FontSize="{DynamicResource BodyFontSize}" LineHeight="{DynamicResource BodyLineHeight}" />
+                          </StackPanel>
+                        </Border>
+                      </Grid>
+                      <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
+                        <TextBlock Text="Show more" />
+                      </Button>
+                    </StackPanel>
+                  </DataTemplate>
+                </v:EntryTemplateSelector.User>
+
+                <v:EntryTemplateSelector.Assistant>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <StackPanel Background="Transparent">
+                      <StackPanel.ContextFlyout>
+                        <MenuFlyout Opening="OnEntryMenuOpening">
+                          <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                        </MenuFlyout>
+                      </StackPanel.ContextFlyout>
+                      <md:MarkdownBlock Markdown="{Binding ShownText}" />
+                      <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
+                        <TextBlock Text="Show more" />
+                      </Button>
+                    </StackPanel>
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Assistant>
+
+                <v:EntryTemplateSelector.Activity>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <!-- Tool calls: the desktop's tool group line, muted, with a chevron; tapped open, each command or file with its tool's icon, and the thinking between them. -->
+                    <StackPanel Background="Transparent" Margin="0,-6">
+                      <StackPanel.ContextFlyout>
+                        <MenuFlyout Opening="OnEntryMenuOpening">
+                          <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                        </MenuFlyout>
+                      </StackPanel.ContextFlyout>
+                      <Button Theme="{StaticResource PhoneLineButton}" Classes="activity" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}">
+                        <c:TrailPanel VerticalAlignment="Center">
+                          <TextBlock Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" VerticalAlignment="Center" />
+                          <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" IsVisible="{Binding HasSteps}"
+                                  Margin="4,0,0,0" VerticalAlignment="Center" />
+                        </c:TrailPanel>
+                      </Button>
+                      <ItemsControl ItemsSource="{Binding VisibleSteps}" c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" Margin="0,0,0,8">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="vm:StepViewModel">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" MinHeight="28" Margin="6,0">
+                              <c:Icon Data="{Binding Converter={x:Static v:StepIconConverter.Instance}}" Stroke="{DynamicResource TextMutedBrush}"
+                                      VerticalAlignment="Top" Margin="0,6,0,0" />
+                              <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="chrome small" FontWeight="Medium" Margin="8,6,10,6" VerticalAlignment="Top" />
+                              <!-- A tool's line, as code where it is one (a command, a path); a thought in full. -->
+                              <TextBlock Grid.Column="2" IsVisible="{Binding IsTool}" Text="{Binding Detail}" Classes="mono secondary"
+                                         TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Margin="0,7,0,6" VerticalAlignment="Top" />
+                              <TextBlock Grid.Column="2" IsVisible="{Binding IsThought}" Text="{Binding Detail}" Classes="secondary small"
+                                         TextWrapping="Wrap" LineHeight="19" Margin="0,5,0,6" VerticalAlignment="Top" />
+                              <c:Icon Grid.Column="3" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding Failed}"
+                                      VerticalAlignment="Top" Margin="8,6,0,0" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Activity>
+
+                <v:EntryTemplateSelector.Thinking>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <!-- Thinking: the desktop's "Thought" line with a chevron; tapped open, the thought under a rule. -->
+                    <StackPanel Background="Transparent" Margin="0,-6">
+                      <StackPanel.ContextFlyout>
+                        <MenuFlyout Opening="OnEntryMenuOpening">
+                          <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                        </MenuFlyout>
+                      </StackPanel.ContextFlyout>
+                      <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}" IsVisible="{Binding !InFull}">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <TextBlock Text="Thought" VerticalAlignment="Center" />
+                          <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
-                                   FontSize="{DynamicResource BodyFontSize}" LineHeight="{DynamicResource BodyLineHeight}" />
-                      </StackPanel>
-                    </Border>
-                  </Grid>
+                      </Button>
+                      <Border c:Fold.IsOpen="{Binding ShowsThought}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
+                              Padding="12,0,0,0" Margin="1,0,0,10">
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="20" Classes="secondary" />
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Thinking>
 
-                  <md:MarkdownBlock IsVisible="{Binding IsAssistant}" Markdown="{Binding ShownText}" />
+                <v:EntryTemplateSelector.Notice>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <TextBlock Classes="muted small" Text="{Binding ShownText}" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" TextAlignment="Center" />
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Notice>
 
-                  <!-- Tool calls: the desktop's tool group line, muted, with a chevron; tapped open, each command or file with its
-                       tool's icon, and the thinking between them. -->
-                  <StackPanel IsVisible="{Binding IsActivity}" Margin="0,-6">
-                    <Button Theme="{StaticResource PhoneLineButton}" Classes="activity" Command="{Binding ToggleOpenCommand}" IsEnabled="{Binding HasSteps}">
-                      <c:TrailPanel VerticalAlignment="Center">
-                        <TextBlock Text="{Binding ShownText}" TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" IsVisible="{Binding HasSteps}"
-                                Margin="4,0,0,0" VerticalAlignment="Center" />
-                      </c:TrailPanel>
-                    </Button>
-                    <ItemsControl ItemsSource="{Binding Steps}" c:Fold.IsOpen="{Binding IsOpen}" IsVisible="False" Margin="0,0,0,8">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:StepViewModel">
-                          <Grid ColumnDefinitions="Auto,Auto,*,Auto" MinHeight="28" Margin="6,0">
-                            <c:Icon Data="{Binding Converter={x:Static v:StepIconConverter.Instance}}" Stroke="{DynamicResource TextMutedBrush}"
-                                    VerticalAlignment="Top" Margin="0,6,0,0" />
-                            <TextBlock Grid.Column="1" Text="{Binding Title}" Classes="chrome small" FontWeight="Medium" Margin="8,6,10,6" VerticalAlignment="Top" />
-                            <!-- A tool's line, as code where it is one (a command, a path); a thought in full. -->
-                            <TextBlock Grid.Column="2" IsVisible="{Binding IsTool}" Text="{Binding Detail}" Classes="mono secondary"
-                                       TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" Margin="0,7,0,6" VerticalAlignment="Top" />
-                            <TextBlock Grid.Column="2" IsVisible="{Binding IsThought}" Text="{Binding Detail}" Classes="secondary small"
-                                       TextWrapping="Wrap" LineHeight="19" Margin="0,5,0,6" VerticalAlignment="Top" />
-                            <c:Icon Grid.Column="3" Data="{StaticResource IconClose}" Stroke="{DynamicResource DangerBrush}" IsVisible="{Binding Failed}"
-                                    VerticalAlignment="Top" Margin="8,6,0,0" />
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </StackPanel>
+                <v:EntryTemplateSelector.Error>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <StackPanel Background="Transparent">
+                      <StackPanel.ContextFlyout>
+                        <MenuFlyout Opening="OnEntryMenuOpening">
+                          <MenuItem Header="Copy text" Click="OnCopyEntryClick" />
+                        </MenuFlyout>
+                      </StackPanel.ContextFlyout>
+                      <Border Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerBrush}"
+                              BorderThickness="2,0,0,0" CornerRadius="4" Padding="12,8">
+                        <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
+                      </Border>
+                      <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
+                        <TextBlock Text="Show more" />
+                      </Button>
+                    </StackPanel>
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Error>
 
-                  <!-- Thinking: the desktop's "Thought" line with a chevron; tapped open, the thought under a rule. -->
-                  <StackPanel IsVisible="{Binding IsThinking}" Margin="0,-6">
-                    <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ToggleOpenCommand}" IsVisible="{Binding !InFull}">
-                      <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="Thought" VerticalAlignment="Center" />
-                        <c:Icon Classes="chev" Classes.open="{Binding IsOpen}" Data="{StaticResource IconChevronRight}" VerticalAlignment="Center" />
-                      </StackPanel>
-                    </Button>
-                    <Border c:Fold.IsOpen="{Binding ShowsThought}" IsVisible="False" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="2,0,0,0"
-                            Padding="12,0,0,0" Margin="1,0,0,10">
-                      <TextBlock Text="{Binding Text}" TextWrapping="Wrap" LineHeight="20" Classes="secondary" />
-                    </Border>
-                  </StackPanel>
-
-                  <TextBlock IsVisible="{Binding IsNotice}" Classes="muted small" Text="{Binding ShownText}" TextWrapping="Wrap"
-                             HorizontalAlignment="Center" TextAlignment="Center" />
-
-                  <Border IsVisible="{Binding IsError}" Background="{DynamicResource DangerSubtleBrush}" BorderBrush="{DynamicResource DangerBrush}"
-                          BorderThickness="2,0,0,0" CornerRadius="4" Padding="12,8">
-                    <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap" />
-                  </Border>
-
-                  <!-- A card already answered (or waiting, below): its title and the answer, muted, as the desktop's. -->
-                  <TextBlock IsVisible="{Binding IsCard}" Classes="muted small" Text="{Binding CardText}" TextWrapping="Wrap" />
-
-                </Panel>
-                <Button Theme="{StaticResource PhoneLineButton}" Command="{Binding ShowMoreCommand}" IsVisible="{Binding IsClipped}" Margin="0,-4,0,-8">
-                  <TextBlock Text="Show more" />
-                </Button>
-                </StackPanel>
-              </DataTemplate>
+                <v:EntryTemplateSelector.Card>
+                  <DataTemplate DataType="vm:EntryViewModel">
+                    <!-- A card already answered (or waiting, below): its title and the answer, muted, as the desktop's. -->
+                    <TextBlock Classes="muted small" Text="{Binding CardText}" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </v:EntryTemplateSelector.Card>
+              </v:EntryTemplateSelector>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
           <TextBlock Classes="muted small" Text="{Binding Activity}" IsVisible="{Binding Activity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

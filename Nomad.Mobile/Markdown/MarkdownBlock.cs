@@ -4,6 +4,7 @@ using Avalonia.Controls.Documents;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Markdig;
 using Markdig.Extensions.Tables;
@@ -24,15 +25,37 @@ public sealed class MarkdownBlock : ContentControl
     public static readonly StyledProperty<string?> MarkdownProperty = AvaloniaProperty.Register<MarkdownBlock, string?>(nameof(Markdown));
 
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder().UseEmphasisExtras().UsePipeTables().UseAutoLinks().UseTaskLists().Build();
+    private static readonly FontFamily DefaultMono = new("Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace");
+    private static readonly TimeSpan StreamThrottle = TimeSpan.FromMilliseconds(50);
 
     private string? _shown;
-
-    // The runs of each link and where it goes, for a tap on one.
+    private StackPanel? _panel;
+    private readonly List<(int Start, int End, Type Kind, Control? Control, Dictionary<Run, string>? Links)> _renderedBlocks = [];
+    private Dictionary<Run, string>? _activeBlockLinks;
     private readonly Dictionary<Run, string> _links = [];
+
+    // Cached theme resources (invalidated on theme change or visual tree attachment).
+    private bool _resourcesResolved;
+    private double _bodySize = 15;
+    private double _lineHeight = 21;
+    private double _codeSize = 13;
+    private double _tinySize = 11;
+    private double _paragraphSpacing = 11;
+    private FontFamily _monoFont = DefaultMono;
+    private IBrush? _textPrimary;
+    private IBrush? _textSecondary;
+    private IBrush? _textMuted;
+    private IBrush? _borderBrush;
+    private IBrush? _bgCode;
+    private IBrush? _inlineCode;
+    private IBrush? _linkBrush;
+
+    private DispatcherTimer? _throttleTimer;
+    private long _lastRenderTicks;
 
     static MarkdownBlock()
     {
-        MarkdownProperty.Changed.AddClassHandler<MarkdownBlock>((block, _) => block.Render());
+        MarkdownProperty.Changed.AddClassHandler<MarkdownBlock>((block, _) => block.OnMarkdownChanged());
     }
 
     /// <summary>The phone switched between light and dark: the colors are looked up again.</summary>
@@ -40,10 +63,27 @@ public sealed class MarkdownBlock : ContentControl
     {
         ActualThemeVariantChanged += (_, _) =>
         {
+            _resourcesResolved = false;
             _shown = null;
-            Render();
+            RenderNow();
         };
         AddHandler(TappedEvent, OnTapped, handledEventsToo: false);
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _resourcesResolved = false;
+        if (_shown is null && !string.IsNullOrEmpty(Markdown))
+        {
+            RenderNow();
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _throttleTimer?.Stop();
+        base.OnDetachedFromVisualTree(e);
     }
 
     public string? Markdown
@@ -52,7 +92,7 @@ public sealed class MarkdownBlock : ContentControl
         set => SetValue(MarkdownProperty, value);
     }
 
-    private void Render()
+    private void OnMarkdownChanged()
     {
         var text = Markdown ?? "";
         if (text == _shown)
@@ -60,41 +100,177 @@ public sealed class MarkdownBlock : ContentControl
             return;
         }
 
-        _shown = text;
-        _links.Clear();
-        var panel = new StackPanel { Spacing = ParagraphSpacing };
-        var first = true;
-        foreach (var block in Markdig.Markdown.Parse(text, Pipeline))
+        // Streaming append: coalesce rapid token bursts (~20 fps) so we don't re-parse and re-layout on every token.
+        var isStreamingAppend = _shown is { Length: > 0 } prev && text.Length > prev.Length && text.StartsWith(prev, StringComparison.Ordinal);
+        if (isStreamingAppend)
         {
-            if (Block(block, 0, first, quoted: false) is { } control)
+            var elapsedMs = (Environment.TickCount64 - _lastRenderTicks);
+            if (elapsedMs < StreamThrottle.TotalMilliseconds)
             {
-                panel.Children.Add(control);
-                first = false;
+                ScheduleThrottledRender();
+                return;
             }
         }
 
-        Content = panel;
+        _throttleTimer?.Stop();
+        RenderNow();
     }
 
-    // The desktop's transcript sizes (Nomad.App's MarkdownStyle at its default): body 15 on 21, code 13, headings 20, 17, 15.
-    private double BodySize => Size("BodyFontSize", 15);
+    private void ScheduleThrottledRender()
+    {
+        if (_throttleTimer is null)
+        {
+            _throttleTimer = new DispatcherTimer(StreamThrottle, DispatcherPriority.Normal, (_, _) =>
+            {
+                _throttleTimer!.Stop();
+                RenderNow();
+            });
+        }
 
-    private double LineHeight => Size("BodyLineHeight", 21);
+        if (!_throttleTimer.IsEnabled)
+        {
+            _throttleTimer.Start();
+        }
+    }
 
-    private double CodeSize => Size("CodeFontSize", 13);
+    private void EnsureResources()
+    {
+        if (_resourcesResolved)
+        {
+            return;
+        }
 
-    private double ParagraphSpacing => Math.Round(BodySize * 0.7);
+        _bodySize = Size("BodyFontSize", 15);
+        _lineHeight = Size("BodyLineHeight", 21);
+        _codeSize = Size("CodeFontSize", 13);
+        _tinySize = Size("UiFontSizeTiny", 11);
+        _paragraphSpacing = Math.Round(_bodySize * 0.7);
+        _monoFont = this.TryFindResource("MonoFont", out var f) && f is FontFamily font ? font : DefaultMono;
+        _textPrimary = Brush("TextPrimaryBrush");
+        _textSecondary = Brush("TextSecondaryBrush");
+        _textMuted = Brush("TextMutedBrush");
+        _borderBrush = Brush("BorderBrush");
+        _bgCode = Brush("BgCodeBrush");
+        _inlineCode = Brush("InlineCodeBrush");
+        _linkBrush = Brush("LinkBrush");
+        _resourcesResolved = true;
+    }
+
+    private void RenderNow()
+    {
+        var text = Markdown ?? "";
+        if (text == _shown)
+        {
+            return;
+        }
+
+        var prev = _shown;
+        _shown = text;
+        _lastRenderTicks = Environment.TickCount64;
+        EnsureResources();
+
+        if (text.Length == 0)
+        {
+            _links.Clear();
+            _renderedBlocks.Clear();
+            _panel = null;
+            Content = null;
+            return;
+        }
+
+        var doc = Markdig.Markdown.Parse(text, Pipeline);
+        var isAppend = prev is { Length: > 0 } && text.Length > prev.Length && text.StartsWith(prev, StringComparison.Ordinal);
+
+        // Reuse unchanged prefix blocks during streaming so earlier paragraphs/code blocks are never torn down or re-laid out.
+        var keep = 0;
+        if (isAppend && _panel is not null && _renderedBlocks.Count > 1 && doc.Count > 1)
+        {
+            var limit = Math.Min(_renderedBlocks.Count - 1, doc.Count - 1);
+            while (keep < limit)
+            {
+                var nextBlock = doc[keep];
+                var old = _renderedBlocks[keep];
+                if (nextBlock.Span.Start == old.Start && nextBlock.Span.End == old.End && nextBlock.GetType() == old.Kind)
+                {
+                    keep++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+
+        if (keep == 0 || _panel is null)
+        {
+            _links.Clear();
+            _renderedBlocks.Clear();
+            _panel = new StackPanel { Spacing = _paragraphSpacing };
+            for (var i = 0; i < doc.Count; i++)
+            {
+                AppendTopLevelBlock(doc[i], first: _panel.Children.Count == 0);
+            }
+
+            Content = _panel;
+        }
+        else
+        {
+            // Remove only the trailing blocks that changed, along with their link entries.
+            for (var i = _renderedBlocks.Count - 1; i >= keep; i--)
+            {
+                var entry = _renderedBlocks[i];
+                if (entry.Links is { } oldLinks)
+                {
+                    foreach (var run in oldLinks.Keys)
+                    {
+                        _links.Remove(run);
+                    }
+                }
+
+                if (entry.Control is { } oldControl)
+                {
+                    _panel.Children.Remove(oldControl);
+                }
+
+                _renderedBlocks.RemoveAt(i);
+            }
+
+            for (var i = keep; i < doc.Count; i++)
+            {
+                AppendTopLevelBlock(doc[i], first: _panel.Children.Count == 0);
+            }
+        }
+    }
+
+    private void AppendTopLevelBlock(Block block, bool first)
+    {
+        _activeBlockLinks = null;
+        var control = Block(block, 0, first, quoted: false);
+        if (control is not null)
+        {
+            _panel!.Children.Add(control);
+        }
+
+        _renderedBlocks.Add((block.Span.Start, block.Span.End, block.GetType(), control, _activeBlockLinks));
+        _activeBlockLinks = null;
+    }
+
+    private void RegisterLink(Run run, string url)
+    {
+        _links[run] = url;
+        (_activeBlockLinks ??= [])[run] = url;
+    }
 
     private Control? Block(Block block, int depth, bool first, bool quoted) => block switch
     {
         HeadingBlock heading => Heading(heading, first, quoted),
-        ParagraphBlock paragraph => Text(paragraph.Inline, BodySize, LineHeight, null, quoted),
+        ParagraphBlock paragraph => Text(paragraph.Inline, _bodySize, _lineHeight, null, quoted),
         FencedCodeBlock fenced => Code(CodeText(fenced), fenced.Info),
         CodeBlock code => Code(CodeText(code), null),
         ListBlock list => List(list, depth, quoted),
         QuoteBlock quote => Quote(quote, depth),
         Table table => TableBlock(table),
-        ThematicBreakBlock => new Border { Height = 1, Background = Brush("BorderBrush"), Margin = new Thickness(0, 6) },
+        ThematicBreakBlock => new Border { Height = 1, Background = _borderBrush, Margin = new Thickness(0, 6) },
         ContainerBlock container => Stack(container, depth, quoted),
         _ => null,
     };
@@ -103,7 +279,7 @@ public sealed class MarkdownBlock : ContentControl
 
     private Control Heading(HeadingBlock heading, bool first, bool quoted)
     {
-        var size = heading.Level switch { 1 => Math.Round(BodySize * 20 / 15), 2 => Math.Round(BodySize * 17 / 15), _ => BodySize };
+        var size = heading.Level switch { 1 => Math.Round(_bodySize * 20 / 15), 2 => Math.Round(_bodySize * 17 / 15), _ => _bodySize };
         var block = Text(heading.Inline, size, Math.Round(size * 1.35), FontWeight.SemiBold, quoted);
         block.Margin = new Thickness(0, first ? 0 : 8, 0, 0);
         return block;
@@ -111,7 +287,7 @@ public sealed class MarkdownBlock : ContentControl
 
     private StackPanel Stack(ContainerBlock container, int depth, bool quoted)
     {
-        var panel = new StackPanel { Spacing = ParagraphSpacing };
+        var panel = new StackPanel { Spacing = _paragraphSpacing };
         var first = true;
         foreach (var child in container)
         {
@@ -130,15 +306,16 @@ public sealed class MarkdownBlock : ContentControl
     {
         var panel = new StackPanel { Spacing = 2 };
         var number = int.TryParse(list.OrderedStart, out var start) ? start : 1;
+        var fg = quoted ? _textSecondary : _textPrimary;
         foreach (var item in list.OfType<ListItemBlock>())
         {
             var row = new Grid { ColumnDefinitions = new ColumnDefinitions("31,*") };
             var marker = new TextBlock
             {
                 Text = list.IsOrdered ? $"{number++}." : "•",
-                FontSize = BodySize,
-                LineHeight = LineHeight,
-                Foreground = Brush(quoted ? "TextSecondaryBrush" : "TextPrimaryBrush"),
+                FontSize = _bodySize,
+                LineHeight = _lineHeight,
+                Foreground = fg,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 0, list.IsOrdered ? 8 : 17, 0),
@@ -165,7 +342,7 @@ public sealed class MarkdownBlock : ContentControl
 
     private Control Quote(QuoteBlock quote, int depth) => new Border
     {
-        BorderBrush = Brush("BorderBrush"),
+        BorderBrush = _borderBrush,
         BorderThickness = new Thickness(2, 0, 0, 0),
         Padding = new Thickness(12, 2, 0, 2),
         Child = Stack(quote, depth, quoted: true),
@@ -182,10 +359,10 @@ public sealed class MarkdownBlock : ContentControl
             Content = new TextBlock
             {
                 Text = code.TrimEnd('\n'),
-                FontFamily = MonoFont,
-                FontSize = CodeSize,
-                LineHeight = Math.Round(CodeSize * 1.5),
-                Foreground = Brush("TextPrimaryBrush"),
+                FontFamily = _monoFont,
+                FontSize = _codeSize,
+                LineHeight = Math.Round(_codeSize * 1.5),
+                Foreground = _textPrimary,
                 Margin = new Thickness(12, 11, 12, 11),
             },
         });
@@ -194,8 +371,8 @@ public sealed class MarkdownBlock : ContentControl
             grid.Children.Add(new TextBlock
             {
                 Text = language.Trim(),
-                FontSize = Size("UiFontSizeTiny", 11),
-                Foreground = Brush("TextMutedBrush"),
+                FontSize = _tinySize,
+                Foreground = _textMuted,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 7, 10, 0),
@@ -205,8 +382,8 @@ public sealed class MarkdownBlock : ContentControl
 
         return new Border
         {
-            Background = Brush("BgCodeBrush"),
-            BorderBrush = Brush("BorderBrush"),
+            Background = _bgCode,
+            BorderBrush = _borderBrush,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             ClipToBounds = true,
@@ -235,17 +412,18 @@ public sealed class MarkdownBlock : ContentControl
                     Margin = new Thickness(0, 3, 16, 3),
                     TextWrapping = TextWrapping.Wrap,
                     MaxWidth = 260,
-                    FontSize = BodySize,
-                    LineHeight = LineHeight,
-                    Foreground = Brush("TextPrimaryBrush"),
+                    FontSize = _bodySize,
+                    LineHeight = _lineHeight,
+                    Foreground = _textPrimary,
                     FontWeight = row.IsHeader ? FontWeight.SemiBold : FontWeight.Normal,
                     Background = Brushes.Transparent,
                 };
+                var offset = 0;
                 foreach (var paragraph in cell.OfType<ParagraphBlock>())
                 {
                     if (paragraph.Inline is { } inline)
                     {
-                        AddInlines(text.Inlines!, inline, null);
+                        AddInlines(text.Inlines!, inline, null, ref offset);
                     }
                 }
 
@@ -273,7 +451,7 @@ public sealed class MarkdownBlock : ContentControl
             TextWrapping = TextWrapping.Wrap,
             FontSize = size,
             LineHeight = lineHeight,
-            Foreground = Brush(quoted ? "TextSecondaryBrush" : "TextPrimaryBrush"),
+            Foreground = quoted ? _textSecondary : _textPrimary,
             Background = Brushes.Transparent,
         };
         if (weight is { } w)
@@ -283,32 +461,39 @@ public sealed class MarkdownBlock : ContentControl
 
         if (inlines is not null)
         {
-            AddInlines(block.Inlines!, inlines, null);
+            var offset = 0;
+            AddInlines(block.Inlines!, inlines, null, ref offset);
         }
 
         return block;
     }
 
-    private void AddInlines(InlineCollection target, ContainerInline container, Func<Run, Run>? style)
+    private void AddInlines(InlineCollection target, ContainerInline container, Func<Run, Run>? style, ref int offset)
     {
         for (MdInline? inline = container.FirstChild; inline is not null; inline = inline.NextSibling)
         {
             switch (inline)
             {
                 case LiteralInline literal:
-                    target.Add(Styled(new Run(literal.Content.ToString()), style));
+                    var litText = literal.Content.ToString();
+                    target.Add(Styled(new Run(litText), style));
+                    offset += litText.Length;
                     break;
 
                 case CodeInline code when code.Content.Length > 0:
                     // As the desktop's: a pill on the raised ground, a thin space either side of it.
                     target.Add(new Run(CodePillTextBlock.PillGap));
-                    CodePillTextBlock.AddCodeRange(target, LengthOf(target), code.Content.Length);
-                    target.Add(Styled(new Run(code.Content) { FontFamily = MonoFont, Foreground = Brush("InlineCodeBrush"), FontSize = CodeSize, FontWeight = FontWeight.SemiLight }, style));
+                    offset += CodePillTextBlock.PillGap.Length;
+                    CodePillTextBlock.AddCodeRange(target, offset, code.Content.Length);
+                    target.Add(Styled(new Run(code.Content) { FontFamily = _monoFont, Foreground = _inlineCode, FontSize = _codeSize, FontWeight = FontWeight.SemiLight }, style));
+                    offset += code.Content.Length;
                     target.Add(new Run(CodePillTextBlock.PillGap));
+                    offset += CodePillTextBlock.PillGap.Length;
                     break;
 
                 case LineBreakInline:
                     target.Add(new LineBreak());
+                    offset += Environment.NewLine.Length;
                     break;
 
                 case EmphasisInline emphasis:
@@ -322,53 +507,61 @@ public sealed class MarkdownBlock : ContentControl
                         else run.FontStyle = FontStyle.Italic;
                         return run;
                     };
-                    AddInlines(target, emphasis, inner);
+                    AddInlines(target, emphasis, inner, ref offset);
                     break;
 
                 case LinkInline { IsImage: true } image:
-                    target.Add(Styled(new Run("[image" + (image.FirstChild is LiteralInline alt ? ": " + alt.Content : "") + "]") { Foreground = Brush("TextMutedBrush") }, style));
+                    var imgText = "[image" + (image.FirstChild is LiteralInline alt ? ": " + alt.Content : "") + "]";
+                    target.Add(Styled(new Run(imgText) { Foreground = _textMuted }, style));
+                    offset += imgText.Length;
                     break;
 
                 case LinkInline link:
                     Func<Run, Run> linked = run =>
                     {
                         run = style?.Invoke(run) ?? run;
-                        run.Foreground = Brush("LinkBrush");
+                        run.Foreground = _linkBrush;
                         run.TextDecorations = TextDecorations.Underline;
                         if (link.Url is { } url)
                         {
-                            _links[run] = url;
+                            RegisterLink(run, url);
                         }
 
                         return run;
                     };
                     if (link.FirstChild is null)
                     {
-                        target.Add(linked(new Run(link.Url ?? "")));
+                        var urlText = link.Url ?? "";
+                        target.Add(linked(new Run(urlText)));
+                        offset += urlText.Length;
                     }
                     else
                     {
-                        AddInlines(target, link, linked);
+                        AddInlines(target, link, linked, ref offset);
                     }
 
                     break;
 
                 case AutolinkInline auto:
-                    var autoRun = Styled(new Run(auto.Url) { Foreground = Brush("LinkBrush"), TextDecorations = TextDecorations.Underline }, style);
-                    _links[autoRun] = auto.IsEmail && !auto.Url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? "mailto:" + auto.Url : auto.Url;
+                    var autoRun = Styled(new Run(auto.Url) { Foreground = _linkBrush, TextDecorations = TextDecorations.Underline }, style);
+                    RegisterLink(autoRun, auto.IsEmail && !auto.Url.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? "mailto:" + auto.Url : auto.Url);
                     target.Add(autoRun);
+                    offset += auto.Url.Length;
                     break;
 
                 case HtmlInline html:
                     target.Add(Styled(new Run(html.Tag), style));
+                    offset += html.Tag.Length;
                     break;
 
                 case HtmlEntityInline entity:
-                    target.Add(Styled(new Run(entity.Transcoded.ToString()), style));
+                    var entText = entity.Transcoded.ToString();
+                    target.Add(Styled(new Run(entText), style));
+                    offset += entText.Length;
                     break;
 
                 case ContainerInline nested:
-                    AddInlines(target, nested, style);
+                    AddInlines(target, nested, style, ref offset);
                     break;
             }
         }
@@ -461,7 +654,7 @@ public sealed class MarkdownBlock : ContentControl
 
     private static Run Styled(Run run, Func<Run, Run>? style) => style?.Invoke(run) ?? run;
 
-    /// <summary>How many characters an inline (or all of them) takes in its text block's text.</summary>
+    /// <summary>How many characters an inline takes in its text block's text.</summary>
     private static int LengthOf(Avalonia.Controls.Documents.Inline inline) => inline switch
     {
         Run run => run.Text?.Length ?? 0,
@@ -469,16 +662,10 @@ public sealed class MarkdownBlock : ContentControl
         _ => 0,
     };
 
-    private static int LengthOf(InlineCollection inlines) => inlines.Sum(LengthOf);
-
     private double Size(string key, double fallback) =>
         this.TryFindResource(key, ActualThemeVariant, out var value) && value is double size ? size
         : Application.Current?.TryFindResource(key, out value) == true && value is double appSize ? appSize
         : fallback;
-
-    private FontFamily MonoFont => this.TryFindResource("MonoFont", out var value) && value is FontFamily font ? font : DefaultMono;
-
-    private static readonly FontFamily DefaultMono = new("Cascadia Mono, Consolas, Roboto Mono, Droid Sans Mono, monospace");
 
     private IBrush? Brush(string key) =>
         this.TryFindResource(key, ActualThemeVariant, out var value) && value is IBrush brush ? brush

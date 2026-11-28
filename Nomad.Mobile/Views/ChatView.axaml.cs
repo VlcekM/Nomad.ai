@@ -13,6 +13,7 @@ public partial class ChatView : UserControl
 
     // A chat just opened follows its first page to the end; after that only while the reader is near the end.
     private bool _firstPage = true;
+    private bool _scrollPending;
 
     public ChatView() => InitializeComponent();
 
@@ -25,6 +26,7 @@ public partial class ChatView : UserControl
 
         _chat = DataContext as ChatViewModel;
         _firstPage = true;
+        _scrollPending = false;
         if (_chat is not null)
         {
             _chat.EntriesAppended += OnEntriesAppended;
@@ -36,12 +38,22 @@ public partial class ChatView : UserControl
     /// <summary>New entries at the end: follow them, unless the user has scrolled up to read.</summary>
     private void OnEntriesAppended()
     {
+        if (_scrollPending)
+        {
+            return;
+        }
+
         var scroller = Scroller;
         var nearEnd = scroller.Offset.Y >= scroller.Extent.Height - scroller.Viewport.Height - 120;
         if (nearEnd || _firstPage)
         {
             _firstPage = false;
-            Dispatcher.UIThread.Post(scroller.ScrollToEnd, DispatcherPriority.Background);
+            _scrollPending = true;
+            Dispatcher.UIThread.Post(() =>
+            {
+                _scrollPending = false;
+                scroller.ScrollToEnd();
+            }, DispatcherPriority.Background);
         }
     }
 

@@ -226,7 +226,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             ApplyPage(page);
             var firstIndex = page.Entries.Count > 0 ? page.Entries[0].Index : int.MaxValue;
             List<ChatEntry> keep = sameGeneration ? [.. Entries.Where(e => !e.IsLocal && e.Index < firstIndex).Select(e => e.Entry)] : [];
-            ChatsViewModel.Sync(Entries, [.. keep, .. page.Entries], e => e.Index, e => e.Index, e => new EntryViewModel(e), (vm, e) => vm.Update(e));
+            ChatsViewModel.Sync(Entries, [.. keep, .. page.Entries], e => (e.Index, e.Kind), e => (e.Index, e.Kind), e => new EntryViewModel(e), (vm, e) => vm.Update(e));
             _thinkingInFull = page.ThinkingInFull;
             MarkThinking();
             HasOlder = Entries.Count > 0 && Entries[0].Index > 0;
@@ -390,6 +390,7 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
     private bool ApplyEvents(string[] events, long first)
     {
         var needsPage = false;
+        System.Text.StringBuilder? textBatch = null;
         for (var i = 0; i < events.Length; i++)
         {
             var number = first + i;
@@ -399,7 +400,27 @@ public sealed partial class ChatViewModel : ObservableObject, IClosable
             }
 
             _nextEvent = number + 1;
-            needsPage |= Apply(RelayCodec.Decode(events[i]));
+            var decoded = RelayCodec.Decode(events[i]);
+            if (decoded is TextDeltaEvent { ParentToolUseId: null } delta)
+            {
+                (textBatch ??= new System.Text.StringBuilder()).Append(delta.Text);
+                continue;
+            }
+
+            if (textBatch is { Length: > 0 })
+            {
+                AppendLiveText(textBatch.ToString());
+                Activity = null;
+                textBatch.Clear();
+            }
+
+            needsPage |= Apply(decoded);
+        }
+
+        if (textBatch is { Length: > 0 })
+        {
+            AppendLiveText(textBatch.ToString());
+            Activity = null;
         }
 
         return needsPage;
